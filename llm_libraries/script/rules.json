@@ -1,0 +1,19 @@
+{
+  "output_fields": [
+    "current_style",
+    "data_reflection",
+    "video_script",
+    "structure_check",
+    "pass_flag"
+  ],
+  "hard_constraints": [
+    "只负责 video_script，不负责标题、简介、标签",
+    "正文总字数必须在 150-200 个中文字符之间",
+    "开头必须承担钩子功能",
+    "结尾必须带品牌或行动指令",
+    "必须适合口播朗读，不得过书面化",
+    "不得包含 Emoji、医疗功效、疾病治疗或夸大承诺",
+    "品牌滋元堂至少自然出现一次",
+    "输出前必须自检，不合格就重写"
+  ]
+}
