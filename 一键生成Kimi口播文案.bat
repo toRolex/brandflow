@@ -8,5 +8,5 @@ if "%PRODUCT%"=="" (
 )
 if "%PRODUCT%"=="" set "PRODUCT=见手青"
 
-py -3.11 "%~dp0kimi_two_stage_script.py" "%PRODUCT%"
+uv run --project "%~dp0" "%~dp0kimi_two_stage_script.py" "%PRODUCT%"
 pause

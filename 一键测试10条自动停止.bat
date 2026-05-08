@@ -14,9 +14,19 @@ if not defined COVER_FONT_PATH set "COVER_FONT_PATH=C:\Windows\Fonts\simhei.ttf"
 if not defined SUBTITLE_MODE set "SUBTITLE_MODE=script_timed"
 set "BATCH_DIRECTION_FILE=%CD%\.runtime_batch_direction.txt"
 
-set "PYTHON_CMD=py -3.11"
-py -3.11 --version >nul 2>nul
-if errorlevel 1 set "PYTHON_CMD=python"
+uv --version >nul 2>nul
+if errorlevel 1 (
+    echo [ERROR] uv was not found. Install uv first: https://docs.astral.sh/uv/
+    pause
+    exit /b 1
+)
+
+uv sync --project "%CD%" --locked
+if errorlevel 1 (
+    echo [ERROR] uv sync failed. Check pyproject.toml or uv.lock.
+    pause
+    exit /b 1
+)
 
 if not exist ".\手动音频池" mkdir ".\手动音频池"
 if not exist ".\手动音频池\_已使用" mkdir ".\手动音频池\_已使用"
@@ -40,7 +50,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-%PYTHON_CMD% main_controller.py --root . --non-interactive --check-media
+uv run --project "%CD%" main_controller.py --root . --non-interactive --check-media
 if errorlevel 1 (
     echo [ERROR] Python media preflight failed.
     pause
@@ -60,10 +70,10 @@ if errorlevel 1 (
     echo [WARN] Batch direction popup failed. Continuing with blank direction.
 )
 
-%PYTHON_CMD% main_controller.py --root . --host 127.0.0.1 --port 17890 --batch-size 10 --non-interactive --recover-existing-assets --stop-after-completed 10 --max-runtime-seconds 1800
+uv run --project "%CD%" main_controller.py --root . --host 127.0.0.1 --port 17890 --batch-size 10 --non-interactive --recover-existing-assets --stop-after-completed 10 --max-runtime-seconds 1800
 
 echo.
 echo Test controller exited. Running acceptance report...
-%PYTHON_CMD% tools\validate_delivery.py --root . --expected 10
+uv run --project "%CD%" tools\validate_delivery.py --root . --expected 10
 echo.
 pause

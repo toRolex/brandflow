@@ -8,15 +8,11 @@ $binDir = Join-Path $Root "tools\bin"
 $modelDir = Join-Path $Root "tools\models"
 $downloadDir = Join-Path $Root "tools\downloads"
 New-Item -ItemType Directory -Force -Path $binDir, $modelDir, $downloadDir | Out-Null
-$python = (Get-Command py -ErrorAction SilentlyContinue)
-if ($python) {
-    $pythonExe = $python.Source
-    $pythonArgs = @("-3.11")
-} else {
-    $python = (Get-Command python -ErrorAction Stop)
-    $pythonExe = $python.Source
-    $pythonArgs = @()
+$uv = (Get-Command uv -ErrorAction SilentlyContinue)
+if (-not $uv) {
+    throw "uv was not found. Install uv first: https://docs.astral.sh/uv/"
 }
+$uvExe = $uv.Source
 
 function Download-File {
     param([string]$Url, [string]$OutFile)
@@ -33,8 +29,8 @@ function Copy-FirstMatch {
     Copy-Item -LiteralPath $match.FullName -Destination $Destination -Force
 }
 
-Write-Host "[1/4] Installing Python packages"
-& $pythonExe @pythonArgs -m pip install -r (Join-Path $Root "requirements.txt")
+Write-Host "[1/4] Syncing Python dependencies with uv"
+& $uvExe @("sync", "--project", $Root, "--locked")
 
 $ffmpegExe = Join-Path $binDir "ffmpeg.exe"
 $ffprobeExe = Join-Path $binDir "ffprobe.exe"

@@ -20,29 +20,20 @@ echo Ziyuantang Pipeline - One Click Launcher
 echo ================================================================
 echo.
 
-echo [1/6] Checking Python...
-set "PYTHON_CMD=py -3.11"
-py -3.11 --version >nul 2>nul
+echo [1/6] Checking uv...
+uv --version >nul 2>nul
 if errorlevel 1 (
-    set "PYTHON_CMD=python"
-    python --version >nul 2>nul
-    if errorlevel 1 (
-        echo [ERROR] Python 3.11+ was not found. Install Python 3.11+ and add it to PATH.
-        pause
-        exit /b 1
-    )
+    echo [ERROR] uv was not found. Install uv first: https://docs.astral.sh/uv/
+    pause
+    exit /b 1
 )
 
-echo [2/6] Checking Python packages...
-%PYTHON_CMD% -c "import fastapi,uvicorn,requests,openpyxl,PIL,dotenv" >nul 2>nul
+echo [2/6] Syncing Python dependencies with uv...
+uv sync --project "%CD%" --locked
 if errorlevel 1 (
-    echo [INFO] Missing packages. Installing requirements.txt ...
-    %PYTHON_CMD% -m pip install -r requirements.txt
-    if errorlevel 1 (
-        echo [ERROR] Package installation failed. Check network or Python environment.
-        pause
-        exit /b 1
-    )
+    echo [ERROR] uv sync failed. Check pyproject.toml or uv.lock.
+    pause
+    exit /b 1
 )
 
 echo [3/6] Checking .env...
@@ -111,7 +102,7 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-%PYTHON_CMD% main_controller.py --root . --non-interactive --check-media
+uv run --project "%CD%" main_controller.py --root . --non-interactive --check-media
 if errorlevel 1 (
     echo [ERROR] Python media preflight failed.
     pause
@@ -146,7 +137,7 @@ echo Dashboard browser auto-open is disabled.
 echo Dashboard URL if needed: %DASHBOARD_URL%
 echo.
 
-%PYTHON_CMD% main_controller.py --root . --host 127.0.0.1 --port 17890 --batch-size 10 --non-interactive --recover-existing-assets
+uv run --project "%CD%" main_controller.py --root . --host 127.0.0.1 --port 17890 --batch-size 10 --non-interactive --recover-existing-assets
 
 echo.
 echo Controller exited.

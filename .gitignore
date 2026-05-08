@@ -4,8 +4,10 @@
 .runtime_batch_direction.txt
 001见手青/
 AGENTS.md
+CLAUDE.md
 docs/
 排期池.xlsx
+指令.xlsx
 logs/
 reports/
 .codex-memory/
