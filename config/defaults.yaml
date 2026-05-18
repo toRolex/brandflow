@@ -1,0 +1,7 @@
+control_plane:
+  host: "127.0.0.1"
+  port: 17890
+
+worker:
+  poll_interval_seconds: 5
+  lease_seconds: 300

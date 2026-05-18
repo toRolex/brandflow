@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+Phase = Literal[
+    "queued",
+    "script_generating",
+    "script_review",
+    "tts_generating",
+    "subtitle_generating",
+    "asset_retrieving",
+    "asset_review",
+    "video_rendering",
+    "final_review",
+    "schedule_writing",
+    "completed",
+    "failed",
+    "cancelled",
+    "paused",
+]
+
+ReviewStatus = Literal["none", "pending", "approved", "rejected", "overridden"]
+
+
+class ArtifactPointer(BaseModel):
+    kind: str
+    relative_path: str
+    sha256: str = ""
+    size_bytes: int = 0
+    active: bool = False
+
+
+class JobRecord(BaseModel):
+    job_id: str
+    phase: Phase
+    review_status: ReviewStatus
+    active_attempt_id: str = ""
+    active_versions: dict[str, str] = Field(default_factory=dict)
+    last_error: str = ""
+
+
+class WorkerLease(BaseModel):
+    worker_id: str
+    lease_id: str
+    attempt_id: str
+    task_id: str
+    current_phase: Phase
+    lease_expires_at: str = ""
