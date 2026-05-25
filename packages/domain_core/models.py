@@ -39,6 +39,7 @@ class JobRecord(BaseModel):
     active_attempt_id: str = ""
     active_versions: dict[str, str] = Field(default_factory=dict)
     last_error: str = ""
+    artifacts: list[ArtifactPointer] = []
 
 
 class WorkerLease(BaseModel):
