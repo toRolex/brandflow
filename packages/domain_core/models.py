@@ -27,6 +27,7 @@ ReviewStatus = Literal["none", "pending", "approved", "rejected", "overridden"]
 class ArtifactPointer(BaseModel):
     kind: str
     relative_path: str
+    url: str = ""
     sha256: str = ""
     size_bytes: int = 0
     active: bool = False

@@ -1,0 +1,99 @@
+providers:
+  llm:
+    selected: deepseek
+    providers:
+      deepseek:
+        api_key: sk-1aa09d39183440ada1827b0bc225fcd9
+        endpoint: https://api.deepseek.com/chat/completions
+        model: deepseek-v4-flash
+        temperature: ''
+        max_tokens: ''
+        thinking: disabled
+        organization_id: ''
+        extra_headers: ''
+      kimi:
+        api_key: ''
+        endpoint: https://api.moonshot.cn/v1/chat/completions
+        model: moonshot-v1-8k
+        temperature: ''
+        max_tokens: ''
+        thinking: ''
+        organization_id: ''
+        extra_headers: ''
+      openai:
+        api_key: ''
+        endpoint: https://api.openai.com/v1/chat/completions
+        model: gpt-4o-mini
+        temperature: ''
+        max_tokens: ''
+        thinking: ''
+        organization_id: ''
+        extra_headers: ''
+      custom:
+        api_key: ''
+        endpoint: ''
+        model: ''
+        temperature: ''
+        max_tokens: ''
+        thinking: ''
+        organization_id: ''
+        extra_headers: ''
+  tts:
+    selected: mimo
+    providers:
+      mimo:
+        api_key: sk-c8y8dazhd07hwhxp7r4x0ekv171vgiov8tga601p95mrkqr8
+        endpoint: https://api.xiaomimimo.com/v1
+        group_id: ''
+        model: mimo-v2.5-tts
+        voice: Mia
+        speed: ''
+        vol: ''
+        pitch: ''
+        emotion: ''
+        audio_format: mp3
+        sample_rate: ''
+        bitrate: ''
+        channel: ''
+        style: 自然 清晰 适合短视频带货口播
+        extra_headers: ''
+      minimax:
+        api_key: ''
+        endpoint: https://api-bj.minimaxi.com/v1/t2a_v2
+        group_id: ''
+        model: speech-2.8-hd
+        voice_id: male-qn-qingse
+        voice: ''
+        speed: '1.15'
+        vol: '1.0'
+        pitch: '0'
+        emotion: calm
+        audio_format: mp3
+        sample_rate: '32000'
+        bitrate: '128000'
+        channel: '1'
+        style: ''
+        extra_headers: ''
+      custom:
+        api_key: ''
+        endpoint: ''
+        group_id: ''
+        model: ''
+        voice: ''
+        voice_id: ''
+        speed: ''
+        vol: ''
+        pitch: ''
+        emotion: ''
+        audio_format: ''
+        sample_rate: ''
+        bitrate: ''
+        channel: ''
+        style: ''
+        extra_headers: ''
+  text_to_image:
+    selected: ''
+    providers: {}
+  image_to_video:
+    selected: ''
+    providers: {}

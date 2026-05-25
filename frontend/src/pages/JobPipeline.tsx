@@ -15,6 +15,7 @@ export default function JobPipeline() {
   const [activeStepKey, setActiveStepKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [scriptContent, setScriptContent] = useState("");
   const initialLoad = useRef(true);
 
   const phaseToStepKey = (phase: string): string => {
@@ -48,6 +49,17 @@ export default function JobPipeline() {
     const t = setInterval(load, 10000);
     return () => clearInterval(t);
   }, [id, load]);
+
+  // Fetch script content when script artifact changes
+  useEffect(() => {
+    if (!job) return;
+    const scriptArtifact = job.artifacts?.find((a) => a.kind === "script");
+    if (scriptArtifact?.url) {
+      fetch(scriptArtifact.url).then(r => r.text()).then(setScriptContent).catch(() => setScriptContent(""));
+    } else {
+      setScriptContent("");
+    }
+  }, [job, job?.artifacts]);
 
   if (loading) {
     return <div className="text-center py-12 text-gray-400">加载中...</div>;
@@ -106,7 +118,7 @@ export default function JobPipeline() {
         const scriptArtifact = findArtifact("script");
         return (
           <ScriptPreview
-            script={scriptArtifact?.relative_path || "等待生成..."}
+            script={scriptContent || (scriptArtifact ? "加载中..." : "等待生成...")}
             checks={null}
             onApprove={() => handleApprove("script")}
             onReject={() => handleReject("script")}
