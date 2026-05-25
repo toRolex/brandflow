@@ -15,6 +15,7 @@ tools/bin/
 tools/models/
 tools/downloads/
 .worktrees/
+schedule.db
 workspace/
 worker_workspace/
 __pycache__/
