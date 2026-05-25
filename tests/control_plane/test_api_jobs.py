@@ -8,13 +8,12 @@ from fastapi.testclient import TestClient
 from apps.control_plane.app import create_app
 
 
-def _make_app(tmp_path: Path):
-    app = create_app(tmp_path)
-    return app, TestClient(app)
+def _make_client(tmp_path: Path):
+    return TestClient(create_app(tmp_path))
 
 
 def test_delete_job_success(tmp_path: Path) -> None:
-    app, client = _make_app(tmp_path)
+    client = _make_client(tmp_path)
     # Create a job first
     client.post("/api/projects/prj_001/jobs", json={
         "product": "test", "platforms": ["douyin"],
@@ -34,7 +33,7 @@ def test_delete_job_success(tmp_path: Path) -> None:
 
 
 def test_delete_job_not_found(tmp_path: Path) -> None:
-    _, client = _make_app(tmp_path)
+    client = _make_client(tmp_path)
     resp = client.delete("/api/jobs/nonexistent_job")
     assert resp.status_code == 404
     assert resp.json() == {"detail": "job not found"}
