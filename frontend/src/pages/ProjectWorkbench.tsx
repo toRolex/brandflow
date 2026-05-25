@@ -25,6 +25,7 @@ export default function ProjectWorkbench() {
   const [platforms, setPlatforms] = useState<string[]>(["douyin", "xiaohongshu"]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [tab, setTab] = useState<"jobs" | "schedule">("jobs");
+  const [projectName, setProjectName] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -35,6 +36,7 @@ export default function ProjectWorkbench() {
       ]);
       setJobs((proj as { jobs?: JobSummary[] }).jobs || []);
       setAssets(assetList);
+      setProjectName((proj as { name?: string }).name || id);
     } catch { /* silently fail */ }
     try {
       const sched = await api.getSchedule({ project_id: id });
@@ -86,7 +88,7 @@ export default function ProjectWorkbench() {
           &#8592; 项目列表
         </button>
         <span className="text-gray-300">|</span>
-        <h1 className="text-lg font-bold">{id}</h1>
+        <h1 className="text-lg font-bold">{projectName || id}</h1>
       </div>
 
       {/* Create Job */}

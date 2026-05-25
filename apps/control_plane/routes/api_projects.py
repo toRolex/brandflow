@@ -7,7 +7,6 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
-from apps.control_plane.routes.projects import _scan_projects
 from packages.file_store.repository import FileStoreRepository
 
 router = APIRouter(prefix="/api/projects", tags=["api-projects"])
@@ -18,8 +17,22 @@ class CreateProjectRequest(BaseModel):
 
 
 @router.get("")
-def list_projects():
-    return _scan_projects()
+def list_projects(request: Request):
+    repo = FileStoreRepository(request.app.state.root_dir)
+    projects_root = repo.root / "workspace" / "projects"
+    projects: list[dict[str, object]] = []
+    if projects_root.exists():
+        for prj_dir in sorted(projects_root.iterdir()):
+            if prj_dir.is_dir():
+                meta = repo.load_project_meta(prj_dir.name)
+                jobs = repo.list_jobs(prj_dir.name)
+                projects.append({
+                    "id": prj_dir.name,
+                    "name": meta.get("name", prj_dir.name),
+                    "status": "idle",
+                    "job_count": len(jobs),
+                })
+    return projects
 
 
 @router.post("")

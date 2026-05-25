@@ -1,0 +1,114 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - link "项目列表" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - link "系统配置" [active] [ref=e6] [cursor=pointer]:
+      - /url: /config
+  - generic [ref=e52]:
+    - heading "系统配置" [level=1] [ref=e53]
+    - generic [ref=e54]:
+      - heading "LLM" [level=2] [ref=e55]
+      - generic [ref=e56]:
+        - text: Provider
+        - combobox "Provider" [ref=e57]:
+          - option "未选择"
+          - option "DeepSeek" [selected]
+          - option "Kimi"
+          - option "OpenAI"
+          - option "Custom"
+      - generic [ref=e58]:
+        - text: API Key
+        - textbox "API Key" [ref=e59]
+      - generic [ref=e60]:
+        - text: Endpoint
+        - textbox "Endpoint" [ref=e61]: https://api.deepseek.com/chat/completions
+      - generic [ref=e62]:
+        - text: Model
+        - textbox "Model" [ref=e63]: deepseek-v4-pro
+      - generic [ref=e64]:
+        - text: Temperature
+        - textbox "Temperature" [ref=e65]
+      - generic [ref=e66]:
+        - text: Max Tokens
+        - textbox "Max Tokens" [ref=e67]
+      - generic [ref=e68]:
+        - text: Thinking
+        - combobox "Thinking" [ref=e69]:
+          - option "disabled" [selected]
+          - option "enabled"
+      - generic [ref=e70]:
+        - text: Organization ID
+        - textbox "Organization ID" [ref=e71]
+      - generic [ref=e72]:
+        - text: Extra Headers
+        - textbox "Extra Headers" [ref=e73]
+      - button "保存 LLM 配置" [ref=e74]
+    - generic [ref=e75]:
+      - heading "TTS" [level=2] [ref=e76]
+      - generic [ref=e77]:
+        - text: Provider
+        - combobox "Provider" [ref=e78]:
+          - option "未选择"
+          - option "MiMo" [selected]
+          - option "MiniMax"
+          - option "Custom"
+      - generic [ref=e79]:
+        - text: API Key
+        - textbox "API Key" [ref=e80]
+      - generic [ref=e81]:
+        - text: Endpoint
+        - textbox "Endpoint" [ref=e82]: https://api.xiaomimimo.com/v1
+      - generic [ref=e83]:
+        - text: Group ID
+        - textbox "Group ID" [ref=e84]
+      - generic [ref=e85]:
+        - text: Model
+        - textbox "Model" [ref=e86]: mimo-v2.5-tts
+      - generic [ref=e87]:
+        - text: Voice
+        - textbox "Voice" [ref=e88]: Mia
+      - generic [ref=e89]:
+        - text: Speed
+        - textbox "Speed" [ref=e90]
+      - generic [ref=e91]:
+        - text: Volume
+        - textbox "Volume" [ref=e92]
+      - generic [ref=e93]:
+        - text: Pitch
+        - textbox "Pitch" [ref=e94]
+      - generic [ref=e95]:
+        - text: Emotion
+        - textbox "Emotion" [ref=e96]
+      - generic [ref=e97]:
+        - text: Audio Format
+        - textbox "Audio Format" [ref=e98]: mp3
+      - generic [ref=e99]:
+        - text: Sample Rate
+        - textbox "Sample Rate" [ref=e100]
+      - generic [ref=e101]:
+        - text: Bitrate
+        - textbox "Bitrate" [ref=e102]
+      - generic [ref=e103]:
+        - text: Channel
+        - textbox "Channel" [ref=e104]
+      - generic [ref=e105]:
+        - text: Style
+        - textbox "Style" [ref=e106]: 自然 清晰 适合短视频带货口播
+      - generic [ref=e107]:
+        - text: Extra Headers
+        - textbox "Extra Headers" [ref=e108]
+      - button "保存 TTS 配置" [ref=e109]
+    - generic [ref=e110]:
+      - heading "文生图" [level=2] [ref=e111]
+      - generic [ref=e112]:
+        - text: Provider
+        - combobox "Provider" [ref=e113]:
+          - option "未选择" [selected]
+      - button "保存 文生图 配置" [ref=e114]
+    - generic [ref=e115]:
+      - heading "图生视频" [level=2] [ref=e116]
+      - generic [ref=e117]:
+        - text: Provider
+        - combobox "Provider" [ref=e118]:
+          - option "未选择" [selected]
+      - button "保存 图生视频 配置" [ref=e119]

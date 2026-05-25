@@ -1,0 +1,15 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - link "项目列表" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - link "系统配置" [ref=e6] [cursor=pointer]:
+      - /url: /config
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - heading "项目列表" [level=1] [ref=e9]
+      - generic [ref=e10]:
+        - textbox "新项目名称" [ref=e11]
+        - button "创建项目" [ref=e12]
+    - generic [ref=e13]:
+      - generic [ref=e14]: 📂
+      - paragraph [ref=e15]: 暂无项目，创建一个开始吧

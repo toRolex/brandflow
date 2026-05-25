@@ -1,0 +1,47 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - link "项目列表" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - link "系统配置" [ref=e6] [cursor=pointer]:
+      - /url: /config
+  - generic [ref=e16]:
+    - generic [ref=e17]:
+      - button "← 项目列表" [ref=e18]
+      - generic [ref=e19]: "|"
+      - heading "prj_54cf40d04a9e" [level=1] [ref=e20]
+    - generic [ref=e21]:
+      - heading "创建新 Job" [level=2] [ref=e22]
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - text: 产品
+          - combobox "产品" [ref=e25]:
+            - option "羊肚菌" [selected]
+            - option "见手青"
+            - option "松茸"
+        - generic [ref=e26]:
+          - generic [ref=e27]: 目标平台
+          - generic [ref=e28]:
+            - generic [ref=e29] [cursor=pointer]:
+              - checkbox "抖音" [checked] [ref=e30]
+              - text: 抖音
+            - generic [ref=e31] [cursor=pointer]:
+              - checkbox "小红书" [checked] [ref=e32]
+              - text: 小红书
+            - generic [ref=e33] [cursor=pointer]:
+              - checkbox "视频号" [ref=e34]
+              - text: 视频号
+            - generic [ref=e35] [cursor=pointer]:
+              - checkbox "快手" [ref=e36]
+              - text: 快手
+        - button "点击或拖拽上传视频文件" [ref=e38] [cursor=pointer]:
+          - generic [ref=e39]: 📁
+          - generic [ref=e40]: 拖拽视频文件到此处，或 点击选择文件
+          - generic [ref=e41]: 支持 .mp4 / .mov / .avi
+        - button "创建并开始生产" [ref=e42]
+    - generic [ref=e43]:
+      - button "Job 列表" [ref=e44]
+      - button "排期池" [ref=e45]
+    - paragraph [ref=e46]: 暂无 Job，创建一个开始吧
+    - generic [ref=e47]:
+      - heading "素材库" [level=2] [ref=e48]
+      - generic [ref=e51] [cursor=pointer]: ＋
