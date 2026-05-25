@@ -213,37 +213,9 @@ export default function JobPipeline() {
           completedPhases={[]}
           onStepClick={(key) => setActiveStepKey(key)}
           activeStepKey={activeStepKey}
+          jobInfo={job.product ? `${job.job_id} ${job.product}` : job.job_id}
         />
-        <div className="flex-1 p-5">{renderDetail()}</div>
+        <div className="flex-1 p-5 bg-[#eff2f5]">{renderDetail()}</div>
       </div>
-
-      <div className="flex gap-2 mt-4">
-        <button
-          className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-          onClick={() => api.pauseJob(job.job_id)}
-        >
-          {"\u23F8"} 暂停
-        </button>
-        <button
-          className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-          onClick={handleRetry}
-        >
-          {"\U0001F504"} 重试当前
-        </button>
-        <button
-          className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-          onClick={async () => {
-            try {
-              const r = await api.getJobLogs(job.job_id);
-              alert(r.logs || "无日志");
-            } catch {
-              alert("无法加载日志");
-            }
-          }}
-        >
-          {"\U0001F4CB"} 查看日志
-        </button>
-      </div>
-    </div>
   );
 }
