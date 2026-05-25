@@ -113,10 +113,10 @@ export default function ProjectWorkbench() {
 
       {/* Create Job */}
       <section className="border rounded-xl p-5 mb-6 bg-white">
-        <h2 className="font-semibold mb-4">创建新 Job</h2>
+        <h2 className="text-[15px] font-semibold mb-3.5">创建新 Job</h2>
         <div className="flex gap-4 flex-wrap items-end">
-          <label className="grid gap-1 text-xs text-gray-500">
-            产品
+          <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
+            产品选择
             <select
               className="border rounded-lg px-3 py-2 text-sm"
               value={product}
@@ -128,7 +128,7 @@ export default function ProjectWorkbench() {
             </select>
           </label>
           <div className="grid gap-1 text-xs text-gray-500">
-            <span>目标平台</span>
+            <span className="text-xs text-[#59636e]">目标平台</span>
             <div className="flex gap-3 py-2">
               {PLATFORMS.map((p) => (
                 <label key={p.key} className="flex items-center gap-1 text-sm cursor-pointer">
@@ -149,7 +149,7 @@ export default function ProjectWorkbench() {
             )}
           </div>
           <button
-            className="bg-red-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors h-fit"
+            className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all h-fit"
             onClick={handleCreateJob}
           >
             创建并开始生产
@@ -162,7 +162,7 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "jobs"
-              ? "border-b-2 border-blue-600 text-blue-600"
+              ? "border-b-2 border-[#0969da] text-[#0969da]"
               : "text-gray-500 hover:text-gray-700"
           }`}
           onClick={() => setTab("jobs")}
@@ -172,7 +172,7 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "schedule"
-              ? "border-b-2 border-blue-600 text-blue-600"
+              ? "border-b-2 border-[#0969da] text-[#0969da]"
               : "text-gray-500 hover:text-gray-700"
           }`}
           onClick={() => setTab("schedule")}

@@ -34,7 +34,7 @@ export default function FileDropzone({ onFile, accept = "video/*" }: Props) {
       className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
         over
           ? "border-blue-500 bg-blue-50"
-          : "border-gray-300 bg-gray-50 hover:border-gray-400"
+          : "border-[#393f46] bg-[#eff2f5] hover:border-gray-400"
       }`}
       onDragOver={(e) => {
         e.preventDefault();
