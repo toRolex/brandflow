@@ -90,8 +90,13 @@ export default function ProjectWorkbench() {
 
   const handleDeleteJob = async (jobId: string) => {
     if (!window.confirm(`确认删除 Job ${jobId}？此操作不可撤销。`)) return;
-    await api.deleteJob(jobId);
-    load();
+    try {
+      await api.deleteJob(jobId);
+      load();
+    } catch (e) {
+      console.error("delete job failed", e);
+      setError("删除 Job 失败");
+    }
   };
 
   const togglePlatform = (p: string) => {
