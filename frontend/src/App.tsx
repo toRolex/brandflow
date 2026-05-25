@@ -1,6 +1,7 @@
 import { Routes, Route, Link } from "react-router-dom";
 import ProjectList from "./pages/ProjectList";
 import ProjectWorkbench from "./pages/ProjectWorkbench";
+import ConfigPage from "./pages/ConfigPage";
 
 export default function App() {
   return (
@@ -17,7 +18,7 @@ export default function App() {
         <Route path="/" element={<ProjectList />} />
         <Route path="/projects/:id" element={<ProjectWorkbench />} />
         <Route path="/jobs/:id" element={<div className="text-gray-500">流水线详情（施工中）</div>} />
-        <Route path="/config" element={<div className="text-gray-500">系统配置（施工中）</div>} />
+        <Route path="/config" element={<ConfigPage />} />
       </Routes>
     </div>
   );
