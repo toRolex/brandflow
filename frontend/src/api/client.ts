@@ -2,8 +2,8 @@ const BASE = "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
     ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
   });
   if (!res.ok) {
     const text = await res.text();
@@ -45,7 +45,7 @@ export const api = {
     request<import("../types").AssetFile[]>(`/api/projects/${projectId}/assets`),
 
   deleteAsset: (projectId: string, name: string) =>
-    fetch(`${BASE}/api/projects/${projectId}/assets/${encodeURIComponent(name)}`, {
+    request<{ status: string }>(`/api/projects/${projectId}/assets/${encodeURIComponent(name)}`, {
       method: "DELETE",
     }),
 
@@ -89,7 +89,9 @@ export const api = {
     return request<import("../types").ScheduleEntry[]>(`/api/schedule?${qs.toString()}`);
   },
 
-  exportSchedule: () => `${BASE}/api/schedule/export`,
+  exportSchedule: () => {
+    window.open(`${BASE}/api/schedule/export`, "_blank");
+  },
 
   // Config
   getConfig: () =>
