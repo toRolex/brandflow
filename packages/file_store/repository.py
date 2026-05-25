@@ -12,7 +12,7 @@ class FileStoreRepository:
     def __init__(self, root: Path) -> None:
         self.root = root
 
-    def create_project(self, project_id: str) -> Path:
+    def create_project(self, project_id: str, name: str = "") -> Path:
         root = project_root(self.root, project_id)
         for relative in (
             "control/jobs",
@@ -25,7 +25,15 @@ class FileStoreRepository:
             "logs",
         ):
             (root / relative).mkdir(parents=True, exist_ok=True)
+        meta = {"id": project_id, "name": name}
+        self._write_json(root / "project_meta.json", meta)
         return root
+
+    def load_project_meta(self, project_id: str) -> dict[str, Any]:
+        path = project_root(self.root, project_id) / "project_meta.json"
+        if not path.exists():
+            return {"id": project_id, "name": project_id}
+        return json.loads(path.read_text(encoding="utf-8"))
 
     def save_job(self, project_id: str, record: JobRecord) -> None:
         path = project_root(self.root, project_id) / "control" / "jobs" / f"{record.job_id}.json"

@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from packages.provider_config import (
     load_provider_config,
@@ -18,18 +15,6 @@ from packages.provider_config import (
 from packages.provider_config.store import CLEAR_SECRET_SENTINEL
 
 router = APIRouter(tags=["config"])
-templates = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parent.parent / "templates")
-)
-
-
-@router.get("/config", response_class=HTMLResponse)
-def config_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request=request,
-        name="config.html",
-        context={"title": "系统配置"},
-    )
 
 
 @router.get("/api/config")

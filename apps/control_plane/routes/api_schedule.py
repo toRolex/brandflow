@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/schedule", tags=["api-schedule"])
 
 
 def _get_store(request: Request) -> ScheduleStore:
-    return ScheduleStore(Path(request.app.state.root_dir))
+    return ScheduleStore.get(Path(request.app.state.root_dir))
 
 
 @router.get("")

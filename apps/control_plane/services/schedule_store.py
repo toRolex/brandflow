@@ -1,8 +1,17 @@
 import sqlite3
 from pathlib import Path
 
+_stores: dict[str, "ScheduleStore"] = {}
+
 
 class ScheduleStore:
+    @classmethod
+    def get(cls, root_dir: Path) -> "ScheduleStore":
+        key = str(root_dir.resolve())
+        if key not in _stores:
+            _stores[key] = cls(root_dir)
+        return _stores[key]
+
     def __init__(self, root_dir: Path):
         db_path = root_dir / "schedule.db"
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
