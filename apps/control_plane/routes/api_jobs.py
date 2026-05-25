@@ -28,7 +28,7 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     dispatcher = request.app.state.dispatcher
     dispatcher.enqueue_demo_job(project_id, job_id)
     repo = FileStoreRepository(request.app.state.root_dir)
-    repo.save_job(project_id, JobRecord(job_id=job_id, product=payload.product, phase="queued", review_status="none"))
+    repo.save_job(project_id, JobRecord(job_id=job_id, project_id=project_id, product=payload.product, phase="queued", review_status="none"))
     return {
         "job_id": job_id,
         "project_id": project_id,

@@ -34,6 +34,7 @@ class ArtifactPointer(BaseModel):
 
 class JobRecord(BaseModel):
     job_id: str
+    project_id: str = ""
     product: str = ""
     phase: Phase
     review_status: ReviewStatus
