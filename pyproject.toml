@@ -14,6 +14,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "pyyaml>=6.0.3",
     "httpx>=0.28.1",
+    "python-multipart>=0.0.29",
 ]
 
 [dependency-groups]
@@ -26,3 +27,10 @@ dev = [
 asyncio_mode = "auto"
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[[tool.uv.index]]
+url = "http://mirrors.aliyun.com/pypi/simple/"
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true

@@ -42,6 +42,45 @@ class FileStoreRepository:
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
+    def list_jobs(self, project_id: str) -> list[dict[str, Any]]:
+        jobs_root = project_root(self.root, project_id) / "control" / "jobs"
+        if not jobs_root.exists():
+            return []
+        results: list[dict[str, Any]] = []
+        for f in sorted(jobs_root.iterdir()):
+            if f.is_file() and f.suffix == ".json":
+                try:
+                    record = JobRecord.model_validate_json(f.read_text(encoding="utf-8"))
+                    results.append({
+                        "job_id": record.job_id,
+                        "phase": record.phase,
+                        "review_status": record.review_status,
+                    })
+                except Exception:
+                    results.append({"job_id": f.stem, "phase": "unknown", "review_status": "unknown"})
+        return results
+
+    def list_assets(self, project_id: str) -> list[dict[str, Any]]:
+        assets_root = project_root(self.root, project_id) / "runtime" / "source_assets"
+        if not assets_root.exists():
+            return []
+        results: list[dict[str, Any]] = []
+        for f in sorted(assets_root.iterdir()):
+            if f.is_file():
+                results.append({
+                    "name": f.name,
+                    "size_bytes": f.stat().st_size,
+                    "in_use": False,
+                })
+        return results
+
+    def delete_asset(self, project_id: str, asset_name: str) -> bool:
+        asset_path = project_root(self.root, project_id) / "runtime" / "source_assets" / asset_name
+        if not asset_path.exists():
+            return False
+        asset_path.unlink()
+        return True
+
     def _write_json(self, path: Path, payload: dict[str, Any]) -> None:
         temp_path = path.with_suffix(path.suffix + ".tmp")
         temp_path.write_text(
