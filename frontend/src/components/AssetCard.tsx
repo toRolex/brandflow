@@ -13,10 +13,12 @@ export default function AssetCard({ asset, onDelete }: Props) {
   return (
     <div
       className={`w-44 border rounded-lg overflow-hidden flex-shrink-0 ${
-        asset.in_use ? "border-green-500 bg-green-50" : "border-gray-200"
+        asset.in_use ? "border-[#1a7f37] bg-[#e6f4ea]" : "border-[#eff2f5]"
       }`}
     >
-      <div className="h-24 bg-gray-100 flex items-center justify-center text-2xl">{/* 视频图标 */}</div>
+      <div className="h-[90px] bg-[#eff2f5] flex items-center justify-center text-[28px]">
+        {"\uD83C\uDFAC"}
+      </div>
       <div className="p-2 text-xs">
         <div className="font-medium truncate" title={asset.name}>{asset.name}</div>
         {seconds > 0 && <div className="text-gray-500">{min}:{sec}</div>}

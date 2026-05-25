@@ -45,7 +45,7 @@ export default function ScheduleTable({ entries, onExport }: Props) {
                   <span
                     className={`px-2 py-0.5 rounded text-xs ${
                       e.status === "published"
-                        ? "bg-green-100 text-green-700"
+                        ? "bg-[#e6f4ea] text-[#1a7f37]"
                         : "bg-gray-100 text-gray-600"
                     }`}
                   >
