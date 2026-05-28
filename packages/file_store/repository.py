@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,9 @@ class FileStoreRepository:
         if not path.exists():
             return False
         path.unlink()
+        runtime_dir = project_root(self.root, project_id) / "runtime" / "jobs" / job_id
+        if runtime_dir.exists():
+            shutil.rmtree(runtime_dir)
         return True
 
     def append_review_event(self, project_id: str, event: dict[str, Any]) -> None:

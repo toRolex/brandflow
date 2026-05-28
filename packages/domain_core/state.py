@@ -5,10 +5,8 @@ PHASE_ORDER = [
     "tts_generating",
     "subtitle_generating",
     "asset_retrieving",
-    "asset_review",
     "video_rendering",
     "final_review",
-    "schedule_writing",
     "completed",
 ]
 

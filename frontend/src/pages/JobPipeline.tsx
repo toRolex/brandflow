@@ -12,7 +12,10 @@ function computeCompletedPhases(currentPhase: Phase): Phase[] {
   const terminalPhases: Phase[] = ["completed", "failed", "cancelled", "paused"];
   const nonTerminalSteps = PIPELINE_STEPS.filter((s) => !terminalPhases.includes(s.phase));
   if (terminalPhases.includes(currentPhase)) {
-    return [...nonTerminalSteps.map((s) => s.phase), currentPhase];
+    if (currentPhase === "completed") {
+      return [...nonTerminalSteps.map((s) => s.phase), "completed"];
+    }
+    return [currentPhase];
   }
   const order = PIPELINE_STEPS.map((s) => s.phase);
   const idx = order.indexOf(currentPhase);
@@ -61,6 +64,16 @@ export default function JobPipeline() {
     const t = setInterval(load, 10000);
     return () => clearInterval(t);
   }, [id, load]);
+
+  // Sync activeStepKey when backend phase changes (auto_tick advances)
+  const prevPhaseRef = useRef(job?.phase);
+  useEffect(() => {
+    if (!job) return;
+    if (job.phase !== prevPhaseRef.current) {
+      prevPhaseRef.current = job.phase;
+      setActiveStepKey(phaseToStepKey(job.phase));
+    }
+  }, [job?.phase]);
 
   // Fetch script content when script artifact changes
   useEffect(() => {
@@ -116,15 +129,8 @@ export default function JobPipeline() {
 
   const renderDetail = () => {
     switch (activeStepKey) {
-      case "asset_upload": {
-        const asset = findArtifact("source_video");
-        return (
-          <div>
-            <h3 className="font-semibold text-sm mb-3">上传素材</h3>
-            <MediaPlayer src={asset?.url || ""} kind="video" />
-          </div>
-        );
-      }
+      case "queued":
+        return <div className="text-gray-400 text-sm py-4">任务排队中，等待系统调度...</div>;
       case "script_gen":
       case "script_review": {
         const scriptArtifact = findArtifact("script");
@@ -138,13 +144,6 @@ export default function JobPipeline() {
           />
         );
       }
-      case "packaging":
-        return (
-          <div>
-            <h3 className="font-semibold text-sm mb-3">生成包装</h3>
-            <p className="text-gray-400 text-sm">包装内容（标题、简介、标签）将在脚本审核通过后自动生成</p>
-          </div>
-        );
       case "tts": {
         const audio = findArtifact("tts_audio");
         return (
@@ -167,32 +166,11 @@ export default function JobPipeline() {
           </div>
         );
       }
-      case "asset_review":
-        return (
-          <div>
-            <h3 className="font-semibold text-sm mb-3">素材审核</h3>
-            <p className="text-gray-400 text-sm mb-4">请确认选用的素材片段是否合适</p>
-            <div className="flex gap-2">
-              <button
-                className="bg-[#0969da] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
-                onClick={() => handleApprove("asset")}
-              >
-                {"\u2713"} 通过
-              </button>
-              <button
-                className="bg-[#d1242f] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
-                onClick={() => handleReject("asset")}
-              >
-                {"\u2717"} 打回
-              </button>
-            </div>
-          </div>
-        );
-      case "final_review": {
+            case "final_review": {
         const finalVideo = findArtifact("final_video");
         return (
           <div>
-            <h3 className="font-semibold text-sm mb-3">最终视频</h3>
+            <h3 className="font-semibold text-sm mb-3">终审 · 烧录</h3>
             <MediaPlayer src={finalVideo?.url || ""} kind="video" />
             <div className="flex gap-2 mt-4">
               <button
@@ -211,16 +189,6 @@ export default function JobPipeline() {
           </div>
         );
       }
-      case "schedule":
-        return (
-          <div>
-            <h3 className="font-semibold text-sm mb-3">排期发布</h3>
-            <p className="text-gray-400 text-sm mb-4">各平台发布信息将在视频审核通过后生成</p>
-            <button className="bg-[#0969da] text-white px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all">
-              确认发布
-            </button>
-          </div>
-        );
       case "completed": {
         const finalVideo = findArtifact("final_video");
         return (

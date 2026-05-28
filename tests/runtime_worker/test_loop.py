@@ -66,6 +66,19 @@ class StubMediaBridge:
     def build_script_timed_srt(self, audio_path: Path, srt_path: Path, script_text: str) -> None:
         srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\n测试文案 stub\n", encoding="utf-8")
 
+    def build_base_video(self, project_dir: Path, job_payload: dict[str, Any], output_path: Path) -> None:
+        output_path.write_bytes(b"\x00" * 256)
+
+    def burn_final_video(
+        self,
+        base_video_path: Path,
+        audio_path: Path,
+        srt_path: Path,
+        final_video_path: Path,
+        cover_clip_path: Path | None,
+    ) -> None:
+        final_video_path.write_bytes(b"\x00" * 512)
+
 
 class StubScheduleBridge:
     def append(self, project_name: str, job_payload: dict[str, Any], final_video_path: Path) -> None:

@@ -22,8 +22,6 @@ export default function PipelineSidebar({
   onRetry,
   onViewLogs,
 }: Props) {
-  const currentIdx = PIPELINE_STEPS.findIndex((s) => s.phase === currentPhase);
-
   return (
     <div className="w-52 bg-[#eff2f5] border-r border-[#393f46] p-3 flex-shrink-0 overflow-y-auto">
       {jobInfo && (
@@ -32,8 +30,12 @@ export default function PipelineSidebar({
       <div className="text-xs font-semibold text-[#59636e] uppercase tracking-wide mb-3">
         流水线步骤
       </div>
-      {PIPELINE_STEPS.map((step, i) => {
-        const done = completedPhases.includes(step.phase) || i < currentIdx;
+      {PIPELINE_STEPS.filter((step) => {
+        const terminalPhases: Phase[] = ["completed", "failed", "cancelled", "paused"];
+        return !terminalPhases.includes(step.phase) || step.phase === currentPhase;
+      }).map((step) => {
+        const stepNum = PIPELINE_STEPS.indexOf(step) + 1;
+        const done = completedPhases.includes(step.phase);
         const active = step.key === activeStepKey;
         const isReview = step.isReview;
 
@@ -60,7 +62,7 @@ export default function PipelineSidebar({
                   : "border-1.5 border-[#59636e] text-[#59636e]"
               }`}
             >
-              {done ? "\u2713" : active ? "!" : i + 1}
+              {done ? "\u2713" : active ? "!" : stepNum}
             </span>
             {step.label}
           </button>

@@ -37,12 +37,12 @@ class WorkerLoop:
 
         started_at = datetime.now(timezone.utc).isoformat()
         self.adapter.ensure_tools()
-        attempt_root = self.adapter.attempt_root(self.workspace_root, command["attempt_id"])
+        attempt_root = self.adapter.attempt_root(self.workspace_root, command["attempt_id"]).resolve()
         self.api.download_input_bundle(command["input_bundle_url"])
 
         job_dir = attempt_root / "output"
         job_dir.mkdir(parents=True, exist_ok=True)
-        script_result = self.script_bridge.generate(product=os.environ.get("PRODUCT", "见手青"), output_dir=job_dir, mock=True)
+        script_result = self.script_bridge.generate(product=os.environ.get("PRODUCT", "见手青"), output_dir=job_dir, mock=False)
 
         audio_path = job_dir / "audio.mp3"
         self.media_bridge.synthesize_tts(script_result["final_script"], audio_path)
@@ -51,7 +51,10 @@ class WorkerLoop:
         self.media_bridge.build_script_timed_srt(audio_path, srt_path, script_result["final_script"])
 
         final_video_path = job_dir / "final.mp4"
-        final_video_path.write_bytes(b"stub")
+        project_dir = (Path.cwd() / self.workspace_root / "projects" / command["project_id"]).resolve()
+        base_video_path = job_dir / "base.mp4"
+        self.media_bridge.build_base_video(project_dir, {"job_id": command["job_id"], "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1}, base_video_path)
+        self.media_bridge.burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path=None)
 
         self.schedule_bridge.append(
             command["project_id"],
@@ -59,11 +62,11 @@ class WorkerLoop:
             final_video_path,
         )
 
-        outputs = [Path(script_result["txt_path"]), Path(script_result["json_path"]), audio_path, srt_path, final_video_path]
+        outputs = [Path(script_result["txt_path"]).resolve(), Path(script_result["json_path"]).resolve(), audio_path.resolve(), srt_path.resolve(), final_video_path.resolve()]
 
         uploaded_files = [
             {
-                "relative_path": str(path.relative_to(attempt_root)),
+                "relative_path": str(path.relative_to(attempt_root.resolve())),
                 "size_bytes": path.stat().st_size,
             }
             for path in outputs
@@ -92,7 +95,7 @@ class WorkerLoop:
 
 def main() -> None:
     worker_id = os.environ.get("WORKER_ID", "worker-mac")
-    workspace_root = Path(os.environ.get("WORKSPACE_ROOT", "worker_workspace/mac"))
+    workspace_root = Path(os.environ.get("WORKSPACE_ROOT", "workspace"))
     root_dir = Path.cwd()
     api = WorkerHttpClient(
         base_url=os.environ.get("CONTROL_PLANE_URL", "http://127.0.0.1:17890"),

@@ -6,17 +6,15 @@ from packages.domain_core.worker_protocol import PollCommandRunTask
 def test_phase_progression_reaches_review_gate() -> None:
     assert next_phase("queued") == "script_generating"
     assert next_phase("script_generating") == "script_review"
-    assert next_phase("final_review") == "schedule_writing"
+    assert next_phase("final_review") == "completed"
 
 
 def test_rewind_from_phase_discards_downstream_phases() -> None:
     phases = rewind_from_phase("asset_retrieving")
     assert phases == [
         "asset_retrieving",
-        "asset_review",
         "video_rendering",
         "final_review",
-        "schedule_writing",
     ]
 
 

@@ -1,8 +1,8 @@
 export type Phase =
   | "queued" | "script_generating" | "script_review"
   | "tts_generating" | "subtitle_generating" | "asset_retrieving"
-  | "asset_review" | "video_rendering" | "final_review"
-  | "schedule_writing" | "completed" | "failed" | "cancelled" | "paused";
+  | "video_rendering" | "final_review"
+  | "completed" | "failed" | "cancelled" | "paused";
 
 export type ReviewStatus = "none" | "pending" | "approved" | "rejected" | "overridden";
 
@@ -105,16 +105,13 @@ export interface PipelineStep {
 }
 
 export const PIPELINE_STEPS: PipelineStep[] = [
-  { key: "asset_upload", phase: "asset_retrieving", label: "上传素材", isReview: false },
+  { key: "queued", phase: "queued", label: "排队中", isReview: false },
   { key: "script_gen", phase: "script_generating", label: "生成脚本", isReview: false },
   { key: "script_review", phase: "script_review", label: "脚本审核", isReview: true },
-  { key: "packaging", phase: "script_generating", label: "生成包装", isReview: false },
   { key: "tts", phase: "tts_generating", label: "TTS 配音", isReview: false },
   { key: "subtitle", phase: "subtitle_generating", label: "转录字幕", isReview: false },
   { key: "video_base", phase: "video_rendering", label: "底包拼接", isReview: false },
-  { key: "asset_review", phase: "asset_review", label: "素材审核", isReview: true },
-  { key: "final_review", phase: "final_review", label: "封面·烧录", isReview: true },
-  { key: "schedule", phase: "schedule_writing", label: "排期发布", isReview: false },
+  { key: "final_review", phase: "final_review", label: "终审·烧录", isReview: true },
   { key: "completed", phase: "completed", label: "已完成", isReview: false },
   { key: "failed", phase: "failed", label: "已失败", isReview: false },
   { key: "cancelled", phase: "cancelled", label: "已取消", isReview: false },

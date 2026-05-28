@@ -70,7 +70,7 @@ def test_append_review_event(tmp_path: Path) -> None:
     assert [json.loads(line)["action"] for line in lines] == ["approve", "reject"]
 
 
-def test_delete_job_removes_json_file(tmp_path: Path) -> None:
+def test_delete_job_removes_json_file_and_runtime_dir(tmp_path: Path) -> None:
     repo = FileStoreRepository(tmp_path)
     repo.create_project("prj_001")
     record = JobRecord(job_id="job_test_001", project_id="prj_001", product="test", phase="queued", review_status="none")
@@ -78,9 +78,17 @@ def test_delete_job_removes_json_file(tmp_path: Path) -> None:
     json_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / "job_test_001.json"
     assert json_path.exists()
 
+    # Create a runtime artifacts directory with some files
+    runtime_dir = tmp_path / "workspace" / "projects" / "prj_001" / "runtime" / "jobs" / "job_test_001"
+    runtime_dir.mkdir(parents=True)
+    (runtime_dir / "script.txt").write_text("test script")
+    (runtime_dir / "tts_audio.mp3").write_bytes(b"fake audio")
+    assert runtime_dir.exists()
+
     result = repo.delete_job("prj_001", "job_test_001")
     assert result is True
     assert not json_path.exists()
+    assert not runtime_dir.exists()
 
 
 def test_delete_job_not_found_returns_false(tmp_path: Path) -> None:

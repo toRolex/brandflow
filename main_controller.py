@@ -2634,12 +2634,12 @@ class PipelineController:
         if not voice:
             raise RuntimeError("未配置 MIMO_TTS_VOICE，无法生成音频")
         style = os.getenv("MIMO_TTS_STYLE", ENV_DEFAULTS["MIMO_TTS_STYLE"]).strip()
-        tts_text = f"<style>{style}</style>{script_text}" if style else script_text
+        style_instruction = f"请用{style}的语气合成语音。" if style else "请用自然、清晰的语气合成语音。"
         payload = {
             "model": model or os.getenv("MIMO_TTS_MODEL", ENV_DEFAULTS["MIMO_TTS_MODEL"]).strip(),
             "messages": [
-                {"role": "user", "content": "请用自然、清晰、适合短视频带货口播的语气合成语音。"},
-                {"role": "assistant", "content": tts_text},
+                {"role": "user", "content": style_instruction},
+                {"role": "assistant", "content": script_text},
             ],
             "audio": {
                 "format": audio_format or os.getenv("MIMO_AUDIO_FORMAT", ENV_DEFAULTS["MIMO_AUDIO_FORMAT"]).strip() or "mp3",
@@ -3292,7 +3292,7 @@ class PipelineController:
         return self._resolve_engine_path("封面字体", "COVER_FONT_PATH", DEFAULT_ENGINE_PATHS["cover_font"])
 
     def _subtitle_font_name(self) -> str:
-        return "SimHei"
+        return "PingFang SC"
 
     def _run_subprocess(self, cmd: list[str], label: str) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -3413,7 +3413,7 @@ class PipelineController:
         list_path.parent.mkdir(parents=True, exist_ok=True)
         with list_path.open("w", encoding="utf-8") as handle:
             for clip in clips:
-                handle.write(f"file '{str(clip).replace(chr(92), '/')}'\n")
+                handle.write(f"file '{clip.resolve().as_posix()}'\n")
 
     def _ensure_slice_folders(self, project_dir: Path) -> list[Path]:
         slice_folders = self._slice_folders(project_dir)

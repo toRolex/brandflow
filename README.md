@@ -17,21 +17,33 @@ cd frontend && npm install && cd ..
 
 ### 启动
 
-| 服务 | 命令 | 端口 |
-|------|------|------|
-| 后端 | `uv run python -m apps.control_plane` | `17890` |
-| 前端 | `cd frontend && npm run dev` | `5173` |
+**需要同时开两个终端窗口** — 一个跑后端，一个跑前端。
 
-启动后打开 **http://localhost:5173**。
+**终端 1 — 后端：**
+```bash
+uv run python -m apps.control_plane
+```
+看到 `Uvicorn running on http://127.0.0.1:17890` 即成功。
+
+**终端 2 — 前端：**
+```bash
+cd frontend && npm run dev
+```
+看到 `Local: http://localhost:5173/` 即成功。
+
+然后打开浏览器访问 **http://localhost:5173**。
+
+> 如果前端还没装依赖，先在 `frontend/` 目录执行 `npm install`。
 
 ### 关闭
 
-| 服务 | 方式 |
-|------|------|
-| 后端 | 在运行终端按 `Ctrl+C` |
-| 前端 | 在运行终端按 `Ctrl+C` |
-| 后端（强制） | `kill $(pgrep -f control_plane)` |
-| 前端（强制） | `kill $(pgrep -f vite)` |
+分别在两个终端窗口按 `Ctrl+C`（同时按住 Control 键和 C 键），等待进程停止即可。
+
+> **如果终端已关或 Ctrl+C 不响应**，逐端口杀进程：
+> ```bash
+> kill $(lsof -ti:17890)   # 停后端
+> kill $(lsof -ti:5173)   # 停前端
+> ```
 
 ## 技术栈
 
@@ -58,14 +70,14 @@ cd frontend && npm install && cd ..
            旧核心能力（脚本生成 / TTS / 字幕 / FFmpeg）
 ```
 
-### Job 生命周期（9 步流水线）
+### Job 生命周期（8 步流水线）
 
 ```
-上传素材 → 生成脚本 → [脚本审核] → 生成包装 → TTS 配音
-→ 转录字幕 → 底包拼接 → 素材审核 → [封面·烧录] → 排期发布
+生成脚本 → [脚本审核] → TTS 配音 → 转录字幕
+→ 底包拼接 → [终审·烧录] → 已完成
 ```
 
-`[]` 标记的是人工审核门，需要工作人员在前端确认才能继续。
+`[]` 标记的是人工审核门，需要工作人员在前端确认才能继续。两个审核门：脚本审核、终审·烧录。
 
 ## 目录结构
 
@@ -96,7 +108,7 @@ cd frontend && npm install && cd ..
 │   ├── defaults.yaml
 │   └── profiles/             # mac-local.yaml / windows-prod.yaml
 │
-├── tests/                    # 62 个测试（pytest）
+├── tests/                    # 76 个测试（pytest）
 │
 ├── main_controller.py        # 旧核心（通过 LegacyBridge 过渡引用）
 ├── kimi_two_stage_script.py  # 旧脚本生成器
@@ -107,7 +119,7 @@ cd frontend && npm install && cd ..
 
 ```bash
 # 测试
-uv run pytest tests/ -q                # 全量 62 测试
+uv run pytest tests/ -q                # 全量 76 测试
 
 # 构建前端（生产）
 cd frontend && npm run build
