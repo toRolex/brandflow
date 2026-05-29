@@ -32,6 +32,24 @@ def _to_url_path(path: Path, workspace_dir: Path) -> str:
     return path.relative_to(workspace_dir).as_posix()
 
 
+def _write_concat_file(list_path, clips):
+    list_path.parent.mkdir(parents=True, exist_ok=True)
+    with list_path.open("w", encoding="utf-8") as handle:
+        for clip in clips:
+            handle.write(f"file '{str(clip).replace(chr(92), '/')}'\n")
+
+
+def _get_media_duration(file_path):
+    import subprocess
+    ffprobe = os.environ.get("FFPROBE_PATH", "ffprobe")
+    result = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(file_path)],
+        check=True, capture_output=True, text=True,
+    )
+    return float(result.stdout.strip())
+
+
 def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Path, product: str) -> list[dict]:
     """Execute the real pipeline for the target phase and return artifact pointers."""
     print(f"[PHASE] target={phase}, job={job_id}", flush=True)
@@ -99,19 +117,73 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
             result.append({"kind": "subtitle", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": srt_path.stat().st_size})
 
     elif phase == "asset_retrieving":
-        # _build_base_video handles slice discovery internally via _ensure_slice_folders;
-        # return nothing so auto_tick auto-advances past this phase.
-        pass
+        # Run semantic retrieval: script text → keyword match → selected clips
+        script_text = ""
+        for a in job_dir.glob("*口播文案.txt"):
+            script_text = a.read_text(encoding="utf-8").strip()
+            break
+
+        if script_text:
+            db_path = project_dir / "asset_index.db"
+
+            from packages.pipeline_services.asset_library import AssetRepository, AssetRetriever
+            repo = AssetRepository(db_path)
+            retriever = AssetRetriever(repo)
+
+            product = os.environ.get("PRODUCT", "见手青")
+            selected = retriever.retrieve(script_text, product)
+
+            clip_list_path = job_dir / "selected_clips.json"
+            clip_list_path.write_text(json.dumps(selected, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            result.append({
+                "kind": "selected_clips",
+                "relative_path": _to_url_path(clip_list_path, workspace_dir),
+                "url": f"/workspace/{_to_url_path(clip_list_path, workspace_dir)}",
+                "size_bytes": clip_list_path.stat().st_size,
+            })
 
     elif phase == "video_rendering":
         base_path = job_dir / "base.mp4"
         audio_path = job_dir / "audio.mp3"
-        if audio_path.exists():
+        clip_list_path = job_dir / "selected_clips.json"
+
+        if audio_path.exists() and clip_list_path.exists():
+            selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
+            clip_paths = [Path(item["file_path"]) for item in selected if Path(item["file_path"]).exists()]
+
+            if clip_paths:
+                concat_list = job_dir / "concat_list.txt"
+                _write_concat_file(concat_list, clip_paths)
+                audio_duration = _get_media_duration(audio_path)
+                recipe_idx = hash(job_id) % 4
+                recipes = [
+                    {"name": "小红书", "vf": "eq=brightness=0.02:contrast=1.03:saturation=1.05"},
+                    {"name": "抖音", "vf": "unsharp=5:5:0.8:3:3:0.4,eq=contrast=0.98"},
+                    {"name": "视频号", "vf": "hflip,eq=brightness=-0.01:saturation=0.95"},
+                    {"name": "快手", "vf": "noise=alls=2:allf=t,eq=contrast=1.02"},
+                ]
+                recipe = recipes[recipe_idx]
+                import random as _random
+                vf_combined = f"crop=iw*{1.0 - _random.uniform(0.01, 0.03):.3f}:ih*{1.0 - _random.uniform(0.01, 0.03):.3f},scale=iw:ih,{recipe['vf']}"
+
+                import subprocess as _sp
+                ffmpeg = os.environ.get("FFMPEG_PATH", "ffmpeg")
+                _sp.run(
+                    [ffmpeg, "-f", "concat", "-safe", "0", "-i", str(concat_list),
+                     "-vf", vf_combined, "-an", "-t", f"{audio_duration:.3f}",
+                     "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
+                     "-pix_fmt", "yuv420p", "-y", str(base_path)],
+                    check=True, capture_output=True, text=True,
+                )
+        elif audio_path.exists():
+            # Fallback: use legacy bridge for base video construction
             media_bridge.build_base_video(
                 project_dir,
                 {"job_id": job_id, "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1},
                 base_path,
             )
+
         if base_path.exists():
             rel = _to_url_path(base_path, workspace_dir)
             result.append({"kind": "video_base", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": base_path.stat().st_size})
