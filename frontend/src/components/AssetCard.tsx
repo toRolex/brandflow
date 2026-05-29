@@ -31,18 +31,7 @@ export default function AssetCard({ asset, onDelete, selected = false, onSelect 
   return (
     <div
       className={`w-44 text-left border rounded-lg overflow-hidden flex-shrink-0 transition-colors ${containerClass}`}
-      onClick={isSelectable ? () => onSelect?.(asset.name) : undefined}
-      role={isSelectable ? "button" : undefined}
-      tabIndex={isSelectable ? 0 : undefined}
-      onKeyDown={isSelectable ? (e) => {
-        if (e.target !== e.currentTarget) {
-          return;
-        }
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect?.(asset.name);
-        }
-      } : undefined}
+      role="group"
     >
       <div className="h-[90px] bg-[#eff2f5] flex items-center justify-center text-[28px]">
         {"🎬"}
@@ -58,16 +47,27 @@ export default function AssetCard({ asset, onDelete, selected = false, onSelect 
         {confidence && <div className="text-[#0969da] mt-0.5">置信度 {confidence}</div>}
         {asset.in_use && <div className="text-green-600 mt-0.5">&#10003; 使用中</div>}
         {selected && <div className="text-[#0969da] mt-0.5">&#10003; 已选中</div>}
-        <button
-          type="button"
-          className="text-red-500 hover:underline mt-1"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(asset.name);
-          }}
-        >
-          删除
-        </button>
+        <div className="mt-1 flex items-center gap-2">
+          {isSelectable && (
+            <button
+              type="button"
+              className="text-[#0969da] hover:underline"
+              aria-pressed={selected}
+              onClick={() => onSelect?.(asset.name)}
+            >
+              {selected ? "取消选择" : "选择"}
+            </button>
+          )}
+          <button
+            type="button"
+            className="text-red-500 hover:underline"
+            onClick={() => {
+              onDelete(asset.name);
+            }}
+          >
+            删除
+          </button>
+        </div>
       </div>
     </div>
   );
