@@ -27,9 +27,9 @@ assertType<AssetRecord>({
 });
 
 assertType<AssetStats>({
-  total_clips: 12,
-  available_clips: 10,
-  disabled_clips: 2,
+  total: 12,
+  available: 10,
+  disabled: 2,
   source_videos: 3,
 });
 
