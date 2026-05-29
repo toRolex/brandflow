@@ -98,8 +98,17 @@ providers:
     selected: ''
     providers: {}
   vision:
-    selected: ''
+    selected: xiaomi
     providers:
+      xiaomi:
+        api_key: ''
+        endpoint: ''
+        model: ''
+        temperature: ''
+        max_tokens: '300'
+        thinking: ''
+        organization_id: ''
+        extra_headers: ''
       openai:
         api_key: ''
         endpoint: https://api.openai.com/v1/chat/completions

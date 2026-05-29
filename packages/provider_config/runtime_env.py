@@ -84,6 +84,14 @@ TTS_ENV_MAPPINGS = {
 }
 
 VISION_ENV_MAPPINGS = {
+    "xiaomi": {
+        "provider": "xiaomi",
+        "env": {
+            "XIAOMI_VISION_API_KEY": "api_key",
+            "XIAOMI_VISION_API_URL": "endpoint",
+            "XIAOMI_VISION_MODEL": "model",
+        },
+    },
     "openai": {
         "provider": "openai",
         "env": {
