@@ -64,34 +64,32 @@ def test_post_index_skips_existing_source_video(tmp_path: Path, monkeypatch) -> 
         source_video=str((source_dir / "a.mp4").resolve()),
     ))
 
-    captured: dict[str, list[str]] = {}
+    captured: dict[str, list[str]] = {"videos": []}
 
-    def _fake_ingest(self, ingest_source: Path, output_base: Path):
-        captured["videos"] = sorted(p.name for p in ingest_source.iterdir())
+    def _fake_ingest_one(self, video_path: Path, output_base: Path):
+        captured["videos"].append(video_path.name)
         repo_local = self.repository
         repo_local.insert(AssetRecord(
-            asset_id="asset_new",
-            file_path=str((output_base / "见手青" / "产品特写" / "b_001.mp4").resolve()),
+            asset_id=f"asset_{video_path.stem}",
+            file_path=str((output_base / "见手青" / "产品特写" / f"{video_path.stem}_001.mp4").resolve()),
             category=Category.MACRO,
             product="见手青",
-            source_video=str((source_dir / "b.mp4").resolve()),
+            source_video=str(video_path.resolve()),
         ))
-        return [
-            AssetRecord(
-                asset_id="asset_new",
-                file_path=str((output_base / "见手青" / "产品特写" / "b_001.mp4").resolve()),
-                category=Category.MACRO,
-                product="见手青",
-                source_video=str((source_dir / "b.mp4").resolve()),
-            )
-        ]
+        return []
 
-    monkeypatch.setattr("packages.pipeline_services.asset_library.indexer.AssetIndexer.ingest_videos", _fake_ingest)
+    monkeypatch.setattr("packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video", _fake_ingest_one)
 
     resp = client.post(f"/api/projects/{project_id}/assets/index")
 
     assert resp.status_code == 200
     assert resp.json() == {"indexed": 1, "skipped": 1, "total_clips": 2}
+    assert captured["videos"] == ["b.mp4"]
+
+    resp_again = client.post(f"/api/projects/{project_id}/assets/index")
+
+    assert resp_again.status_code == 200
+    assert resp_again.json() == {"indexed": 0, "skipped": 2, "total_clips": 2}
     assert captured["videos"] == ["b.mp4"]
 
 
@@ -156,4 +154,32 @@ def test_patch_asset_status_batch_requires_asset_ids(tmp_path: Path) -> None:
     )
 
     assert resp.status_code == 400
-    assert resp.json() == {"detail": "asset_ids required for batch"}
+    assert resp.json() == {"detail": "asset_ids must be a non-empty string array"}
+
+
+def test_patch_asset_status_batch_rejects_non_string_array(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    project_id = "prj_assets"
+    _create_project_dir(tmp_path, project_id)
+
+    resp = client.patch(
+        f"/api/projects/{project_id}/assets/batch",
+        json={"status": "disabled", "asset_ids": "asset_1"},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "asset_ids must be a non-empty string array"}
+
+
+def test_patch_asset_status_rejects_non_object_payload(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    project_id = "prj_assets"
+    _create_project_dir(tmp_path, project_id)
+
+    resp = client.patch(
+        f"/api/projects/{project_id}/assets/asset_1",
+        json=[{"status": "disabled"}],
+    )
+
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "request body must be object"}

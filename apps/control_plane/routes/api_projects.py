@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import sqlite3
-import tempfile
 import uuid
 
 from pathlib import Path
@@ -164,11 +163,9 @@ def index_assets(request: Request, project_id: str):
             repository=repository,
             product=os.environ.get("PRODUCT", "见手青"),
         )
-        with tempfile.TemporaryDirectory(prefix="asset_index_staging_") as temp_dir:
-            staging_dir = Path(temp_dir)
-            for video in new_videos:
-                (staging_dir / video.name).write_bytes(video.read_bytes())
-            indexer.ingest_videos(staging_dir, project_dir / "runtime" / "indexed_clips")
+        output_base = project_dir / "runtime" / "indexed_clips"
+        for video in new_videos:
+            indexer._ingest_one_video(video, output_base)
 
     total_clips = total_before
     if db_path.exists():
@@ -186,15 +183,21 @@ def index_assets(request: Request, project_id: str):
 @router.patch("/{project_id}/assets/{asset_id}")
 async def patch_asset_status(request: Request, project_id: str, asset_id: str):
     body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="request body must be object")
+
     status = body.get("status")
     asset_ids = body.get("asset_ids")
 
     if status not in {"pending_review", "available", "disabled"}:
         raise HTTPException(status_code=400, detail="invalid status")
 
-    target_ids = asset_ids if asset_id == "batch" else [asset_id]
-    if asset_id == "batch" and not target_ids:
-        raise HTTPException(status_code=400, detail="asset_ids required for batch")
+    if asset_id == "batch":
+        if not isinstance(asset_ids, list) or not asset_ids or any(not isinstance(item, str) or not item for item in asset_ids):
+            raise HTTPException(status_code=400, detail="asset_ids must be a non-empty string array")
+        target_ids = asset_ids
+    else:
+        target_ids = [asset_id]
 
     project_dir = _project_dir(request.app.state.root_dir, project_id)
     if not project_dir.exists():
