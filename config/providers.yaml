@@ -97,3 +97,33 @@ providers:
   image_to_video:
     selected: ''
     providers: {}
+  vision:
+    selected: ''
+    providers:
+      openai:
+        api_key: ''
+        endpoint: https://api.openai.com/v1/chat/completions
+        model: gpt-4o
+        temperature: ''
+        max_tokens: '300'
+        thinking: ''
+        organization_id: ''
+        extra_headers: ''
+      claude:
+        api_key: ''
+        endpoint: https://api.anthropic.com/v1/messages
+        model: claude-sonnet-4-20250514
+        temperature: ''
+        max_tokens: '300'
+        thinking: ''
+        organization_id: ''
+        extra_headers: ''
+      custom:
+        api_key: ''
+        endpoint: ''
+        model: ''
+        temperature: ''
+        max_tokens: '300'
+        thinking: ''
+        organization_id: ''
+        extra_headers: ''

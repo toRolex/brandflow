@@ -257,6 +257,50 @@ DEFAULT_PROVIDER_DOCUMENT = {
             "selected": "",
             "providers": {},
         },
+        "vision": {
+            "label": "Vision",
+            "providers": {
+                "openai": {
+                    "label": "OpenAI Vision",
+                    "fields": [
+                        {"name": "api_key", "label": "API Key", "kind": "text", "secret": True},
+                        {"name": "endpoint", "label": "Endpoint", "kind": "text"},
+                        {"name": "model", "label": "Model", "kind": "text"},
+                        {"name": "temperature", "label": "Temperature", "kind": "text"},
+                        {"name": "max_tokens", "label": "Max Tokens", "kind": "text"},
+                        {"name": "thinking", "label": "Thinking", "kind": "select", "options": ["disabled", "enabled"]},
+                        {"name": "organization_id", "label": "Organization ID", "kind": "text"},
+                        {"name": "extra_headers", "label": "Extra Headers", "kind": "json"},
+                    ],
+                },
+                "claude": {
+                    "label": "Claude Vision",
+                    "fields": [
+                        {"name": "api_key", "label": "API Key", "kind": "text", "secret": True},
+                        {"name": "endpoint", "label": "Endpoint", "kind": "text"},
+                        {"name": "model", "label": "Model", "kind": "text"},
+                        {"name": "temperature", "label": "Temperature", "kind": "text"},
+                        {"name": "max_tokens", "label": "Max Tokens", "kind": "text"},
+                        {"name": "thinking", "label": "Thinking", "kind": "select", "options": ["disabled", "enabled"]},
+                        {"name": "organization_id", "label": "Organization ID", "kind": "text"},
+                        {"name": "extra_headers", "label": "Extra Headers", "kind": "json"},
+                    ],
+                },
+                "custom": {
+                    "label": "Custom Vision",
+                    "fields": [
+                        {"name": "api_key", "label": "API Key", "kind": "text", "secret": True},
+                        {"name": "endpoint", "label": "Endpoint", "kind": "text"},
+                        {"name": "model", "label": "Model", "kind": "text"},
+                        {"name": "temperature", "label": "Temperature", "kind": "text"},
+                        {"name": "max_tokens", "label": "Max Tokens", "kind": "text"},
+                        {"name": "thinking", "label": "Thinking", "kind": "select", "options": ["disabled", "enabled"]},
+                        {"name": "organization_id", "label": "Organization ID", "kind": "text"},
+                        {"name": "extra_headers", "label": "Extra Headers", "kind": "json"},
+                    ],
+                },
+            },
+        },
     }
 }
 

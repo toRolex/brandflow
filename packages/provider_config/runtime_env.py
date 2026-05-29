@@ -83,6 +83,33 @@ TTS_ENV_MAPPINGS = {
     },
 }
 
+VISION_ENV_MAPPINGS = {
+    "openai": {
+        "provider": "openai",
+        "env": {
+            "VISION_API_KEY": "api_key",
+            "VISION_API_URL": "endpoint",
+            "VISION_MODEL": "model",
+        },
+    },
+    "claude": {
+        "provider": "claude",
+        "env": {
+            "VISION_API_KEY": "api_key",
+            "VISION_API_URL": "endpoint",
+            "VISION_MODEL": "model",
+        },
+    },
+    "custom": {
+        "provider": "custom",
+        "env": {
+            "VISION_API_KEY": "api_key",
+            "VISION_API_URL": "endpoint",
+            "VISION_MODEL": "model",
+        },
+    },
+}
+
 
 def ensure_supported_runtime_selection(payload: dict) -> None:
     if payload.get("providers", {}).get("tts", {}).get("selected") == "custom":
@@ -124,6 +151,14 @@ def provider_env_overrides(payload: dict) -> dict[str, str]:
             providers.get("tts", {}).get("providers", {}),
             TTS_ENV_MAPPINGS,
             "TTS_PROVIDER",
+        )
+    )
+    overrides.update(
+        _section_overrides(
+            providers.get("vision", {}).get("selected", ""),
+            providers.get("vision", {}).get("providers", {}),
+            VISION_ENV_MAPPINGS,
+            "VISION_PROVIDER",
         )
     )
     return overrides
