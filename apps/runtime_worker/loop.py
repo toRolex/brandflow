@@ -55,12 +55,14 @@ class WorkerLoop:
         project_dir = (Path.cwd() / self.workspace_root / "projects" / command["project_id"]).resolve()
 
         # Use selected_clips.json if available (semantic retrieval path)
+        use_legacy = True
         clip_list_path = job_dir / "selected_clips.json"
         if clip_list_path.exists():
             import json as _json
             selected = _json.loads(clip_list_path.read_text(encoding="utf-8"))
             clip_paths = [Path(item["file_path"]) for item in selected if Path(item["file_path"]).exists()]
             if clip_paths:
+                use_legacy = False
                 base_video_path = job_dir / "base.mp4"
                 concat_list = job_dir / "concat_list.txt"
                 write_concat_file(concat_list, clip_paths)
@@ -84,7 +86,8 @@ class WorkerLoop:
                     check=True, capture_output=True, text=True,
                 )
                 self.media_bridge.burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path=None)
-        else:
+
+        if use_legacy:
             # Fallback: use legacy bridge for both build and burn
             base_video_path = job_dir / "base.mp4"
             self.media_bridge.build_base_video(project_dir, {"job_id": command["job_id"], "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1}, base_video_path)

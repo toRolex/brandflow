@@ -131,11 +131,13 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
         audio_path = job_dir / "audio.mp3"
         clip_list_path = job_dir / "selected_clips.json"
 
+        use_legacy = True
         if audio_path.exists() and clip_list_path.exists():
             selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
             clip_paths = [Path(item["file_path"]) for item in selected if Path(item["file_path"]).exists()]
 
             if clip_paths:
+                use_legacy = False
                 concat_list = job_dir / "concat_list.txt"
                 write_concat_file(concat_list, clip_paths)
                 audio_duration = get_media_duration(audio_path)
@@ -159,7 +161,8 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                      "-pix_fmt", "yuv420p", "-y", str(base_path)],
                     check=True, capture_output=True, text=True,
                 )
-        elif audio_path.exists():
+
+        if use_legacy and audio_path.exists():
             # Fallback: use legacy bridge for base video construction
             media_bridge.build_base_video(
                 project_dir,
