@@ -9,6 +9,7 @@ from apps.runtime_worker.http_client import WorkerHttpClient
 from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
 from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+from packages.pipeline_services.media_utils import write_concat_file, get_media_duration
 from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
 
 
@@ -62,10 +63,10 @@ class WorkerLoop:
             if clip_paths:
                 base_video_path = job_dir / "base.mp4"
                 concat_list = job_dir / "concat_list.txt"
-                self._write_concat_file(concat_list, clip_paths)
+                write_concat_file(concat_list, clip_paths)
                 import subprocess as _sp
                 import random as _random
-                audio_duration = self._get_media_duration(audio_path)
+                audio_duration = get_media_duration(audio_path)
                 ffmpeg = str(self.adapter.ffmpeg_path())
                 recipes = [
                     {"vf": "eq=brightness=0.02:contrast=1.03:saturation=1.05"},
@@ -124,25 +125,6 @@ class WorkerLoop:
                 "error": {},
             }
         )
-
-    @staticmethod
-    def _write_concat_file(list_path, clips):
-        list_path.parent.mkdir(parents=True, exist_ok=True)
-        with list_path.open("w", encoding="utf-8") as handle:
-            for clip in clips:
-                handle.write(f"file '{str(clip).replace(chr(92), '/')}'\n")
-
-    @staticmethod
-    def _get_media_duration(file_path):
-        import subprocess
-        ffprobe = os.environ.get("FFPROBE_PATH", "ffprobe")
-        result = subprocess.run(
-            [ffprobe, "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", str(file_path)],
-            check=True, capture_output=True, text=True,
-        )
-        return float(result.stdout.strip())
-
 
 def main() -> None:
     worker_id = os.environ.get("WORKER_ID", "worker-mac")

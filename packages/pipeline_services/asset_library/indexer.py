@@ -10,6 +10,7 @@ from pathlib import Path
 
 from packages.pipeline_services.asset_library.models import AssetRecord, Category
 from packages.pipeline_services.asset_library.repository import AssetRepository
+from packages.pipeline_services.asset_library.vision_client import VisionClient
 
 
 MAX_CLIP_SECONDS = 8
@@ -28,6 +29,17 @@ class AssetIndexer:
         self.repository = repository
         self.vision_config = vision_config or {}
         self.product = product
+        self._vision_client: VisionClient | None = None
+
+    def _get_vision_client(self) -> VisionClient:
+        if self._vision_client is None:
+            self._vision_client = VisionClient(
+                api_key=self.vision_config.get("api_key", ""),
+                endpoint=self.vision_config.get("endpoint", ""),
+                model=self.vision_config.get("model", ""),
+                provider=self.vision_config.get("provider", ""),
+            )
+        return self._vision_client
 
     def ingest_videos(self, source_dir: Path, output_base: Path) -> list[AssetRecord]:
         output_base.mkdir(parents=True, exist_ok=True)
@@ -80,6 +92,7 @@ class AssetIndexer:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     def _scene_detect_and_cut(self, video_path: Path, output_dir: Path) -> list[Path]:
+        """Cut video into fixed-duration segments, then split any oversized clips."""
         output_dir.mkdir(parents=True, exist_ok=True)
         output_pattern = str(output_dir / "clip_%03d.mp4")
 
@@ -90,7 +103,6 @@ class AssetIndexer:
             "-c:v", "libx264",
             "-preset", "ultrafast",
             "-crf", "23",
-            "-sc_threshold", "0.4",
             "-f", "segment",
             "-segment_time", str(MAX_CLIP_SECONDS),
             "-reset_timestamps", "1",
@@ -149,15 +161,13 @@ class AssetIndexer:
         return frame_path
 
     def _classify_frame(self, frame_path: Path) -> str:
-        from packages.pipeline_services.asset_library.vision_client import VisionClient
-
-        client = VisionClient(
-            api_key=self.vision_config.get("api_key", ""),
-            endpoint=self.vision_config.get("endpoint", ""),
-            model=self.vision_config.get("model", ""),
-        )
-        result = client.classify_frame(frame_path)
-        return result.get("category", "产品特写")
+        try:
+            client = self._get_vision_client()
+            result = client.classify_frame(frame_path)
+            return result.get("category", "产品特写")
+        except Exception:
+            print(f"[AssetIndexer] vision classify failed for {frame_path}, falling back to 产品特写")
+            return "产品特写"
 
     def _get_duration(self, video_path: Path) -> float:
         cmd = [

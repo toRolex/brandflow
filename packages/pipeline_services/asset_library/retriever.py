@@ -38,13 +38,12 @@ class AssetRetriever:
             if fallback:
                 selected.append({
                     "sentence": sentence,
-                    "category": fallback.category.value if fallback else "unknown",
-                    "file_path": fallback.file_path if fallback else "",
-                    "asset_id": fallback.asset_id if fallback else "",
+                    "category": fallback.category.value,
+                    "file_path": fallback.file_path,
+                    "asset_id": fallback.asset_id,
                     "method": "fallback",
                 })
-                if fallback:
-                    self.repository.increment_usage(fallback.asset_id)
+                self.repository.increment_usage(fallback.asset_id)
 
         return selected
 

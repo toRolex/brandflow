@@ -21,6 +21,7 @@ from packages.domain_core.state import next_phase
 from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
 from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+from packages.pipeline_services.media_utils import write_concat_file, get_media_duration
 from main_controller import load_environment
 
 REVIEW_PHASES = {"script_review", "final_review"}
@@ -30,24 +31,6 @@ AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 def _to_url_path(path: Path, workspace_dir: Path) -> str:
     """Convert a workspace-relative Path to a URL-safe forward-slash path."""
     return path.relative_to(workspace_dir).as_posix()
-
-
-def _write_concat_file(list_path, clips):
-    list_path.parent.mkdir(parents=True, exist_ok=True)
-    with list_path.open("w", encoding="utf-8") as handle:
-        for clip in clips:
-            handle.write(f"file '{str(clip).replace(chr(92), '/')}'\n")
-
-
-def _get_media_duration(file_path):
-    import subprocess
-    ffprobe = os.environ.get("FFPROBE_PATH", "ffprobe")
-    result = subprocess.run(
-        [ffprobe, "-v", "error", "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", str(file_path)],
-        check=True, capture_output=True, text=True,
-    )
-    return float(result.stdout.strip())
 
 
 def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Path, product: str) -> list[dict]:
@@ -154,8 +137,8 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
 
             if clip_paths:
                 concat_list = job_dir / "concat_list.txt"
-                _write_concat_file(concat_list, clip_paths)
-                audio_duration = _get_media_duration(audio_path)
+                write_concat_file(concat_list, clip_paths)
+                audio_duration = get_media_duration(audio_path)
                 recipe_idx = hash(job_id) % 4
                 recipes = [
                     {"name": "小红书", "vf": "eq=brightness=0.02:contrast=1.03:saturation=1.05"},
