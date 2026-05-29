@@ -8,4 +8,5 @@ __all__ = [
     "retrieval_contract",
     "retrieval_keyword",
     "retrieval_embedding",
+    "asset_library",
 ]
