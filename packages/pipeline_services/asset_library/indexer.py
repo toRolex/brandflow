@@ -1,0 +1,179 @@
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import tempfile
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+from packages.pipeline_services.asset_library.models import AssetRecord, Category
+from packages.pipeline_services.asset_library.repository import AssetRepository
+
+
+MAX_CLIP_SECONDS = 8
+SPLIT_CLIP_SECONDS = 5
+
+
+class AssetIndexer:
+    def __init__(
+        self,
+        ffmpeg_path: str,
+        repository: AssetRepository,
+        vision_config: dict | None = None,
+        product: str = "",
+    ) -> None:
+        self.ffmpeg_path = ffmpeg_path
+        self.repository = repository
+        self.vision_config = vision_config or {}
+        self.product = product
+
+    def ingest_videos(self, source_dir: Path, output_base: Path) -> list[AssetRecord]:
+        output_base.mkdir(parents=True, exist_ok=True)
+        records: list[AssetRecord] = []
+
+        for video_file in sorted(source_dir.iterdir()):
+            if video_file.suffix.lower() not in (".mp4", ".mov", ".avi", ".mkv"):
+                continue
+            records.extend(self._ingest_one_video(video_file, output_base))
+
+        return records
+
+    def _ingest_one_video(self, video_path: Path, output_base: Path) -> list[AssetRecord]:
+        temp_dir = Path(tempfile.mkdtemp(prefix="asset_cut_"))
+        try:
+            clips = self._scene_detect_and_cut(video_path, temp_dir)
+            records: list[AssetRecord] = []
+
+            for clip_path in clips:
+                frame_path = self._extract_mid_frame(clip_path, temp_dir)
+                category_name = self._classify_frame(frame_path) if frame_path.exists() else "产品特写"
+
+                target_category = Category(category_name) if self._is_valid_category(category_name) else Category.MACRO
+                target_dir = output_base / self.product / target_category.value
+                target_dir.mkdir(parents=True, exist_ok=True)
+
+                dest_path = target_dir / clip_path.name
+                shutil.move(str(clip_path), str(dest_path))
+
+                duration = self._get_duration(dest_path)
+                asset_id = f"asset_{uuid.uuid4().hex[:12]}"
+                now = datetime.now(timezone.utc).isoformat()
+
+                record = AssetRecord(
+                    asset_id=asset_id,
+                    file_path=str(dest_path.resolve()),
+                    category=target_category,
+                    product=self.product,
+                    confidence=0.5,
+                    duration_seconds=duration,
+                    status="available",
+                    source_video=str(video_path.resolve()),
+                    created_at=now,
+                )
+                self.repository.insert(record)
+                records.append(record)
+
+            return records
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def _scene_detect_and_cut(self, video_path: Path, output_dir: Path) -> list[Path]:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_pattern = str(output_dir / "clip_%03d.mp4")
+
+        cmd = [
+            self.ffmpeg_path,
+            "-i", str(video_path),
+            "-an",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "23",
+            "-sc_threshold", "0.4",
+            "-f", "segment",
+            "-segment_time", str(MAX_CLIP_SECONDS),
+            "-reset_timestamps", "1",
+            "-y",
+            output_pattern,
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+        clips = sorted(output_dir.glob("clip_*.mp4"))
+
+        result: list[Path] = []
+        for clip in clips:
+            duration = self._get_duration(clip)
+            if duration > MAX_CLIP_SECONDS:
+                sub_clips = self._split_long_clip(clip, output_dir)
+                result.extend(sub_clips)
+                clip.unlink()
+            else:
+                result.append(clip)
+
+        return result
+
+    def _split_long_clip(self, clip_path: Path, output_dir: Path) -> list[Path]:
+        stem = clip_path.stem
+        output_pattern = str(output_dir / f"{stem}_sub_%03d.mp4")
+        cmd = [
+            self.ffmpeg_path,
+            "-i", str(clip_path),
+            "-an",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "23",
+            "-f", "segment",
+            "-segment_time", str(SPLIT_CLIP_SECONDS),
+            "-reset_timestamps", "1",
+            "-y",
+            output_pattern,
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return sorted(output_dir.glob(f"{stem}_sub_*.mp4"))
+
+    def _extract_mid_frame(self, clip_path: Path, output_dir: Path) -> Path:
+        duration = self._get_duration(clip_path)
+        mid_time = duration / 2.0
+        frame_path = output_dir / f"{clip_path.stem}_frame.jpg"
+        cmd = [
+            self.ffmpeg_path,
+            "-ss", f"{mid_time:.2f}",
+            "-i", str(clip_path),
+            "-vframes", "1",
+            "-q:v", "2",
+            "-y",
+            str(frame_path),
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return frame_path
+
+    def _classify_frame(self, frame_path: Path) -> str:
+        from packages.pipeline_services.asset_library.vision_client import VisionClient
+
+        client = VisionClient(
+            api_key=self.vision_config.get("api_key", ""),
+            endpoint=self.vision_config.get("endpoint", ""),
+            model=self.vision_config.get("model", ""),
+        )
+        result = client.classify_frame(frame_path)
+        return result.get("category", "产品特写")
+
+    def _get_duration(self, video_path: Path) -> float:
+        cmd = [
+            os.environ.get("FFPROBE_PATH", self.ffmpeg_path.replace("ffmpeg", "ffprobe")),
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(video_path),
+        ]
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return float(result.stdout.strip())
+
+    @staticmethod
+    def _is_valid_category(name: str) -> bool:
+        try:
+            Category(name)
+            return True
+        except ValueError:
+            return False
