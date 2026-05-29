@@ -44,6 +44,27 @@ export const api = {
   listAssets: (projectId: string) =>
     request<import("../types").AssetFile[]>(`/api/projects/${projectId}/assets`),
 
+  // Asset Library
+  listIndexedAssets: (projectId: string, params?: { category?: string; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.set("category", params.category);
+    if (params?.q) qs.set("q", params.q);
+    return request<{ clips: import("../types").AssetRecord[]; stats: import("../types").AssetStats }>(
+      `/api/projects/${projectId}/assets/indexed?${qs.toString()}`
+    );
+  },
+
+  indexAssets: (projectId: string) =>
+    request<import("../types").IndexResult>(`/api/projects/${projectId}/assets/index`, {
+      method: "POST",
+    }),
+
+  updateAssetStatus: (projectId: string, assetIds: string[], status: string) =>
+    request<{ updated: number }>(`/api/projects/${projectId}/assets/batch`, {
+      method: "PATCH",
+      body: JSON.stringify({ asset_ids: assetIds, status }),
+    }),
+
   deleteAsset: (projectId: string, name: string) =>
     request<{ status: string }>(`/api/projects/${projectId}/assets/${encodeURIComponent(name)}`, {
       method: "DELETE",
