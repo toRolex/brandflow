@@ -121,3 +121,39 @@ def test_patch_asset_status_supports_batch(tmp_path: Path) -> None:
     rows = conn.execute("SELECT asset_id, status FROM assets ORDER BY asset_id").fetchall()
     conn.close()
     assert rows == [("asset_1", "disabled"), ("asset_2", "disabled")]
+
+
+def test_patch_asset_status_updates_single_asset(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    project_id = "prj_assets"
+    project_dir = _create_project_dir(tmp_path, project_id)
+    db_path = project_dir / "asset_index.db"
+    repo = AssetRepository(db_path)
+    repo.insert(AssetRecord(
+        asset_id="asset_1",
+        file_path=str((project_dir / "runtime" / "asset_1.mp4").resolve()),
+        category=Category.MACRO,
+        product="见手青",
+    ))
+
+    resp = client.patch(
+        f"/api/projects/{project_id}/assets/asset_1",
+        json={"status": "disabled"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"updated": 1}
+
+
+def test_patch_asset_status_batch_requires_asset_ids(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    project_id = "prj_assets"
+    _create_project_dir(tmp_path, project_id)
+
+    resp = client.patch(
+        f"/api/projects/{project_id}/assets/batch",
+        json={"status": "disabled"},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "asset_ids required for batch"}

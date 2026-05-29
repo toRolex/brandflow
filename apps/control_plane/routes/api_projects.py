@@ -20,11 +20,6 @@ class CreateProjectRequest(BaseModel):
     name: str
 
 
-class AssetStatusPatchRequest(BaseModel):
-    status: str
-    asset_ids: list[str] | None = None
-
-
 @router.get("")
 def list_projects(request: Request):
     repo = FileStoreRepository(request.app.state.root_dir)
@@ -189,9 +184,17 @@ def index_assets(request: Request, project_id: str):
 
 
 @router.patch("/{project_id}/assets/{asset_id}")
-def patch_asset_status(request: Request, project_id: str, asset_id: str, payload: AssetStatusPatchRequest):
-    if payload.status not in {"pending_review", "available", "disabled"}:
+async def patch_asset_status(request: Request, project_id: str, asset_id: str):
+    body = await request.json()
+    status = body.get("status")
+    asset_ids = body.get("asset_ids")
+
+    if status not in {"pending_review", "available", "disabled"}:
         raise HTTPException(status_code=400, detail="invalid status")
+
+    target_ids = asset_ids if asset_id == "batch" else [asset_id]
+    if asset_id == "batch" and not target_ids:
+        raise HTTPException(status_code=400, detail="asset_ids required for batch")
 
     project_dir = _project_dir(request.app.state.root_dir, project_id)
     if not project_dir.exists():
@@ -201,16 +204,12 @@ def patch_asset_status(request: Request, project_id: str, asset_id: str, payload
     if not db_path.exists():
         return {"updated": 0}
 
-    target_ids = payload.asset_ids if asset_id == "batch" else [asset_id]
-    if not target_ids:
-        raise HTTPException(status_code=400, detail="asset_ids required for batch")
-
     conn = sqlite3.connect(str(db_path))
     updated = 0
     for target_id in target_ids:
         cursor = conn.execute(
             "UPDATE assets SET status = ? WHERE asset_id = ?",
-            (payload.status, target_id),
+            (status, target_id),
         )
         updated += cursor.rowcount
     conn.commit()
