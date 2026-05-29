@@ -3,7 +3,7 @@ providers:
     selected: deepseek
     providers:
       deepseek:
-        api_key: sk-1aa09d39183440ada1827b0bc225fcd9
+        api_key: ''
         endpoint: https://api.deepseek.com/chat/completions
         model: deepseek-v4-flash
         temperature: ''
@@ -42,7 +42,7 @@ providers:
     selected: mimo
     providers:
       mimo:
-        api_key: sk-c8y8dazhd07hwhxp7r4x0ekv171vgiov8tga601p95mrkqr8
+        api_key: ''
         endpoint: https://api.xiaomimimo.com/v1
         group_id: ''
         model: mimo-v2.5-tts
