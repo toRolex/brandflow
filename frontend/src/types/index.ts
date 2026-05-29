@@ -1,6 +1,7 @@
 export type Phase =
   | "queued" | "script_generating" | "script_review"
   | "tts_generating" | "subtitle_generating" | "asset_retrieving"
+  | "asset_review"
   | "video_rendering" | "final_review"
   | "completed" | "failed" | "cancelled" | "paused";
 
@@ -29,6 +30,48 @@ export interface AssetFile {
   duration_seconds?: number;
   resolution?: string;
   in_use: boolean;
+}
+
+export type AssetCategory =
+  | "产地溯源"
+  | "筛选分拣"
+  | "清洗泡发"
+  | "切配处理"
+  | "下锅入锅"
+  | "烹饪翻炒"
+  | "出锅装盘"
+  | "成品展示"
+  | "试吃品尝"
+  | "产品特写";
+
+export interface AssetRecord {
+  asset_id: string;
+  file_path: string;
+  category: AssetCategory;
+  product: string;
+  confidence: number;
+  duration_seconds: number;
+  status: "pending_review" | "available" | "disabled";
+  usage_count: number;
+  source_video: string;
+  tags: string[];
+  created_at: string;
+  last_used_at: string;
+}
+
+export type IndexStatus = "idle" | "processing" | "done";
+
+export interface IndexResult {
+  indexed: number;
+  skipped: number;
+  total_clips: number;
+}
+
+export interface AssetStats {
+  total_clips: number;
+  available_clips: number;
+  disabled_clips: number;
+  source_videos: number;
 }
 
 export interface Artifact {
@@ -110,6 +153,8 @@ export const PIPELINE_STEPS: PipelineStep[] = [
   { key: "script_review", phase: "script_review", label: "脚本审核", isReview: true },
   { key: "tts", phase: "tts_generating", label: "TTS 配音", isReview: false },
   { key: "subtitle", phase: "subtitle_generating", label: "转录字幕", isReview: false },
+  { key: "asset_retrieving", phase: "asset_retrieving", label: "素材检索", isReview: false },
+  { key: "asset_review", phase: "asset_review", label: "素材审核", isReview: true },
   { key: "video_base", phase: "video_rendering", label: "底包拼接", isReview: false },
   { key: "final_review", phase: "final_review", label: "终审·烧录", isReview: true },
   { key: "completed", phase: "completed", label: "已完成", isReview: false },
