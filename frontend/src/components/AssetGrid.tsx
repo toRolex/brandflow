@@ -55,7 +55,6 @@ export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPrevi
                 category: asset.category,
                 confidence: asset.confidence,
               }}
-              onDelete={() => {}}
               selected={selectedIds.has(asset.asset_id)}
               onSelect={(_, event) => {
                 if (event.shiftKey && lastSelectedIndexRef.current !== null) {

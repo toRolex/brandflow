@@ -7,7 +7,7 @@ type AssetCardData = AssetFile & {
 
 interface Props {
   asset: AssetCardData;
-  onDelete: (name: string) => void;
+  onDelete?: (name: string) => void;
   selected?: boolean;
   onSelect?: (name: string, event: React.MouseEvent<HTMLButtonElement>) => void;
 }
@@ -61,15 +61,18 @@ export default function AssetCard({ asset, onDelete, selected = false, onSelect 
               {selected ? "取消选择" : "选择"}
             </button>
           )}
-          <button
-            type="button"
-            className="text-red-500 hover:underline"
-            onClick={() => {
-              onDelete(asset.name);
-            }}
-          >
-            删除
-          </button>
+          {onDelete && (
+            <button
+              type="button"
+              className="text-red-500 hover:underline"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete(asset.name);
+              }}
+            >
+              删除
+            </button>
+          )}
         </div>
       </div>
     </div>
