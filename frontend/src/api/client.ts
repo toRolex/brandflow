@@ -85,6 +85,49 @@ export const api = {
       method: "DELETE",
     }),
 
+  // Shared Asset Library (global, cross-project)
+  uploadAssetShared: (file: File) =>
+    uploadFile<import("../types").AssetFile>("/api/assets/upload", file),
+
+  listIndexedAssetsShared: async (params?: { category?: string; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.set("category", params.category);
+    if (params?.q) qs.set("q", params.q);
+    const res = await request<{
+      assets: import("../types").AssetRecord[];
+      stats: {
+        total_clips: number;
+        available_clips: number;
+        disabled_clips: number;
+        source_videos: number;
+      };
+    }>(`/api/assets/indexed?${qs.toString()}`);
+    return {
+      assets: res.assets,
+      stats: {
+        total: res.stats.total_clips,
+        available: res.stats.available_clips,
+        disabled: res.stats.disabled_clips,
+        source_videos: res.stats.source_videos,
+      },
+    };
+  },
+
+  indexAssetsShared: () =>
+    request<import("../types").IndexResult>("/api/assets/index", { method: "POST" }),
+
+  updateAssetStatusShared: (assetIds: string[], status: string) =>
+    request<{ updated: number }>("/api/assets/batch", {
+      method: "PATCH",
+      body: JSON.stringify({ asset_ids: assetIds, status }),
+    }),
+
+  migrateAssets: () =>
+    request<{ migrated_projects: number; migrated_clips: number; migrated_sources: number }>(
+      "/api/assets/migrate",
+      { method: "POST" },
+    ),
+
   // Jobs
   createJob: (projectId: string, body: { product: string; platforms: string[]; asset?: string }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {

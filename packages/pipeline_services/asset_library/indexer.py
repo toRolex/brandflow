@@ -60,7 +60,10 @@ class AssetIndexer:
 
             for clip_path in clips:
                 frame_path = self._extract_mid_frame(clip_path, temp_dir)
-                category_name = self._classify_frame(frame_path) if frame_path.exists() else "产品特写"
+                if frame_path.exists():
+                    category_name, confidence = self._classify_frame(frame_path)
+                else:
+                    category_name, confidence = "产品特写", 0.0
 
                 target_category = Category(category_name) if self._is_valid_category(category_name) else Category.MACRO
                 target_dir = output_base / self.product / target_category.value
@@ -81,7 +84,7 @@ class AssetIndexer:
                     file_path=str(dest_path.resolve()),
                     category=target_category,
                     product=self.product,
-                    confidence=0.5,
+                    confidence=confidence,
                     duration_seconds=duration,
                     status="available",
                     source_video=str(video_path.resolve()),
@@ -163,14 +166,14 @@ class AssetIndexer:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
         return frame_path
 
-    def _classify_frame(self, frame_path: Path) -> str:
+    def _classify_frame(self, frame_path: Path) -> tuple[str, float]:
         try:
             client = self._get_vision_client()
             result = client.classify_frame(frame_path)
-            return result.get("category", "产品特写")
-        except Exception:
-            print(f"[AssetIndexer] vision classify failed for {frame_path}, falling back to 产品特写")
-            return "产品特写"
+            return result.get("category", "产品特写"), float(result.get("confidence", 0.5))
+        except Exception as exc:
+            print(f"[AssetIndexer] vision classify failed for {frame_path}: {exc}, falling back to 产品特写")
+            return "产品特写", 0.0
 
     def _get_duration(self, video_path: Path) -> float:
         cmd = [

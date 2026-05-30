@@ -54,7 +54,7 @@ class VisionClient:
                     ],
                 }
             ],
-            "max_tokens": 300,
+            "max_tokens": 1000,
             "temperature": 0,
         }
         headers = {
@@ -80,7 +80,7 @@ class VisionClient:
     def _build_claude_request(self, image_b64: str, media_type: str) -> tuple[dict, dict]:
         payload = {
             "model": self.model,
-            "max_tokens": 300,
+            "max_tokens": 1000,
             "messages": [
                 {
                     "role": "user",

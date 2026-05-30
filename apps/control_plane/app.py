@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from apps.control_plane.routes.api_assets import router as api_assets_router
 from apps.control_plane.routes.api_jobs import router as api_jobs_router
 from apps.control_plane.routes.api_projects import router as api_projects_router
 from apps.control_plane.routes.api_schedule import router as api_schedule_router
@@ -308,6 +309,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
     app.state.dispatcher = Dispatcher()
     app.state.root_dir = root_dir or Path.cwd()
+    app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)
     app.include_router(api_schedule_router)

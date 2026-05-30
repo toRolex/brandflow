@@ -50,10 +50,10 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
   const [isPreviewUpdating, setIsPreviewUpdating] = useState(false);
 
   const loadAssets = useCallback(async () => {
-    const res = await api.listIndexedAssets(projectId);
+    const res = await api.listIndexedAssetsShared();
     setAssets(res.assets);
     setStats(res.stats);
-  }, [projectId]);
+  }, []);
 
   useEffect(() => {
     void loadAssets();
@@ -112,13 +112,13 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
 
       try {
         for (const file of files) {
-          await onUpload(file);
+          await api.uploadAssetShared(file);
         }
 
         setIndexStep("frame");
         setIndexProgress(40);
 
-        const result = await api.indexAssets(projectId);
+        const result = await api.indexAssetsShared();
 
         setIndexStep("classify");
         setIndexProgress(80);
@@ -135,7 +135,7 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
         throw error;
       }
     },
-    [onUpload, projectId, loadAssets]
+    [loadAssets]
   );
 
   const handleBatchUpdate = useCallback(
@@ -146,14 +146,14 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
 
       setIsBatchUpdating(true);
       try {
-        await api.updateAssetStatus(projectId, Array.from(selectedIds), status);
+        await api.updateAssetStatusShared(Array.from(selectedIds), status);
         setSelectedIds(new Set());
         await loadAssets();
       } finally {
         setIsBatchUpdating(false);
       }
     },
-    [isBatchUpdating, loadAssets, projectId, selectedIds]
+    [isBatchUpdating, loadAssets, selectedIds]
   );
 
   const handlePreviewStatusToggle = useCallback(
@@ -164,7 +164,7 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
 
       setIsPreviewUpdating(true);
       try {
-        await api.updateAssetStatus(projectId, [asset.asset_id], nextStatus);
+        await api.updateAssetStatusShared([asset.asset_id], nextStatus);
         await loadAssets();
         setPreviewAsset((prev) => {
           if (!prev || prev.asset_id !== asset.asset_id) {
@@ -176,7 +176,7 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
         setIsPreviewUpdating(false);
       }
     },
-    [isPreviewUpdating, loadAssets, projectId]
+    [isPreviewUpdating, loadAssets]
   );
 
   return (
