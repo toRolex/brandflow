@@ -50,13 +50,10 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
   const [isPreviewUpdating, setIsPreviewUpdating] = useState(false);
 
   const loadAssets = useCallback(async () => {
-    const res = await api.listIndexedAssets(projectId, {
-      category: category || undefined,
-      q: keyword || undefined,
-    });
+    const res = await api.listIndexedAssets(projectId);
     setAssets(res.assets);
     setStats(res.stats);
-  }, [projectId, category, keyword]);
+  }, [projectId]);
 
   useEffect(() => {
     void loadAssets();
@@ -69,6 +66,25 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
     }
     return counts;
   }, [assets]);
+
+  const filteredAssets = useMemo(() => {
+    const keywordLower = keyword.trim().toLowerCase();
+
+    return assets.filter((asset) => {
+      if (category && asset.category !== category) {
+        return false;
+      }
+
+      if (!keywordLower) {
+        return true;
+      }
+
+      return [asset.file_path, asset.tags]
+        .join(" ")
+        .toLowerCase()
+        .includes(keywordLower);
+    });
+  }, [assets, category, keyword]);
 
   const toggleSelect = useCallback((assetId: string) => {
     setSelectedIds((prev) => {
@@ -223,7 +239,7 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4 items-start">
         <AssetGrid
-          assets={assets}
+          assets={filteredAssets}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onPreview={setPreviewAsset}
