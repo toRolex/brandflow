@@ -31,14 +31,41 @@ function resolveAssetMediaUrl(filePath: string) {
   if (!filePath) {
     return filePath;
   }
-  if (filePath.startsWith("/workspace/")) {
-    return filePath;
+
+  const normalizedPath = filePath.replaceAll("\\", "/");
+  if (normalizedPath.startsWith("/workspace/")) {
+    return normalizedPath;
   }
-  const workspaceIndex = filePath.indexOf("/workspace/");
+
+  const workspaceIndex = normalizedPath.indexOf("/workspace/");
   if (workspaceIndex >= 0) {
-    return filePath.slice(workspaceIndex);
+    return normalizedPath.slice(workspaceIndex);
   }
-  return filePath;
+
+  return normalizedPath;
+}
+
+function parseAssetTags(rawTags: unknown) {
+  if (Array.isArray(rawTags)) {
+    return rawTags.filter((tag): tag is string => typeof tag === "string" && tag.trim().length > 0);
+  }
+
+  if (typeof rawTags === "string") {
+    const trimmed = rawTags.trim();
+    if (!trimmed) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((tag): tag is string => typeof tag === "string" && tag.trim().length > 0);
+      }
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [];
 }
 
 export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleStatus }: Props) {
@@ -53,6 +80,7 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
   const isAvailable = asset.status === "available";
   const nextStatus: AssetRecord["status"] = isAvailable ? "disabled" : "available";
   const mediaUrl = resolveAssetMediaUrl(asset.file_path);
+  const tags = parseAssetTags(asset.tags as unknown);
 
   return (
     <section className="bg-white border border-[#d0d7de] rounded-lg p-4 space-y-4">
@@ -124,8 +152,8 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
       <div>
         <div className="text-xs text-gray-500 mb-2">标签</div>
         <div className="flex flex-wrap gap-2">
-          {asset.tags.length > 0 ? (
-            asset.tags.map((tag) => (
+          {tags.length > 0 ? (
+            tags.map((tag) => (
               <span key={tag} className="px-2 py-0.5 rounded-full bg-[#ddf4ff] text-[#0969da] text-xs">
                 {tag}
               </span>
