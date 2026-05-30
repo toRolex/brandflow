@@ -217,7 +217,6 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
           count={selectedIds.size}
           onEnable={() => void handleBatchUpdate("available")}
           onDisable={() => void handleBatchUpdate("disabled")}
-          onDelete={() => void handleBatchUpdate("disabled")}
           onClear={() => setSelectedIds(new Set())}
         />
       )}
