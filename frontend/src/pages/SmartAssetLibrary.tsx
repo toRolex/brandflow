@@ -130,8 +130,9 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
         setIndexStatus("done");
 
         await loadAssets();
-      } catch {
+      } catch (error) {
         setIndexStatus("idle");
+        throw error;
       }
     },
     [onUpload, projectId, loadAssets]
