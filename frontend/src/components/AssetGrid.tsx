@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { AssetRecord } from "../types";
 import AssetCard from "./AssetCard";
 
@@ -10,6 +10,8 @@ interface Props {
 }
 
 export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPreview }: Props) {
+  const lastSelectedIndexRef = useRef<number | null>(null);
+
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
@@ -39,7 +41,7 @@ export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPrevi
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
-      {assets.map((asset) => {
+      {assets.map((asset, index) => {
         const fileName = asset.file_path.split("/").pop() || asset.asset_id;
 
         return (
@@ -55,7 +57,23 @@ export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPrevi
               }}
               onDelete={() => {}}
               selected={selectedIds.has(asset.asset_id)}
-              onSelect={() => onToggleSelect(asset.asset_id)}
+              onSelect={(_, event) => {
+                if (event.shiftKey && lastSelectedIndexRef.current !== null) {
+                  const start = Math.min(lastSelectedIndexRef.current, index);
+                  const end = Math.max(lastSelectedIndexRef.current, index);
+
+                  for (let i = start; i <= end; i += 1) {
+                    const rangeAssetId = assets[i]?.asset_id;
+                    if (rangeAssetId && !selectedIds.has(rangeAssetId)) {
+                      onToggleSelect(rangeAssetId);
+                    }
+                  }
+                } else {
+                  onToggleSelect(asset.asset_id);
+                }
+
+                lastSelectedIndexRef.current = index;
+              }}
             />
           </div>
         );

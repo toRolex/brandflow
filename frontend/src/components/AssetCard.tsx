@@ -9,7 +9,7 @@ interface Props {
   asset: AssetCardData;
   onDelete: (name: string) => void;
   selected?: boolean;
-  onSelect?: (name: string) => void;
+  onSelect?: (name: string, event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 export default function AssetCard({ asset, onDelete, selected = false, onSelect }: Props) {
@@ -53,7 +53,10 @@ export default function AssetCard({ asset, onDelete, selected = false, onSelect 
               type="button"
               className="text-[#0969da] hover:underline"
               aria-pressed={selected}
-              onClick={() => onSelect?.(asset.name)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect?.(asset.name, event);
+              }}
             >
               {selected ? "取消选择" : "选择"}
             </button>
