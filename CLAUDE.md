@@ -3,7 +3,7 @@
 github 项目地址：
 https://github.com/toRolex/ai-video-pipeline
 
-windows服务器项目路径：进入"C:\Users\ziyua\Documents\Code\old video pipeline"文件夹
+windows服务器项目路径：进入"C:\Users\ziyua\Documents\Code\ai-video-pipeline"文件夹
 
 ## 远程连接（sshpass）
 
@@ -11,17 +11,14 @@ windows服务器项目路径：进入"C:\Users\ziyua\Documents\Code\old video pi
 - 优先使用环境变量传递密码（`SSHPASS` + `-e`），避免在命令参数里明文使用 `-p`。
 - 远程连接模板示例（优先用WSL而不是Powershell或者cmd）：
 ```bash
-SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 zyt@100.121.152.103 "cmd /c \"cd /d C:\Users\ziyua\Documents\Code\old
-      video pipeline && cd && dir\""
+SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 zyt@100.121.152.103 "cmd /c \"cd /d C:\Users\ziyua\Documents\Code\ai-video-pipeline && cd && dir\""
 ```
 
-
 - 默认只执行只读命令（如 `pwd`、`ls`、`cat`）；涉及修改系统配置、重启服务、删除文件等高风险操作前必须先确认。
-repository.
 
 ## 项目概述
 
-**滋元堂矩阵流水线 3.0** — Pixelle 风格的 `control-plane + runtime-worker` 短视频自动化生产系统。Phase 1 已完成架构骨架，62 测试全绿。
+**滋元堂矩阵流水线 3.0** — Pixelle 风格的 `control-plane + runtime-worker` 短视频自动化生产系统。Phase 1 已完成架构骨架，76 测试全绿。
 
 - 控制面：`apps/control_plane/`（FastAPI + Web 看板，负责状态管理、任务调度、人工审核）
 - 执行器：`apps/runtime_worker/`（拉模式 worker，通过 legacy bridge 调用旧核心能力）
@@ -35,15 +32,26 @@ repository.
 | 类别 | 技术 |
 |------|------|
 | 语言 | Python 3.11+ |
-| Web 框架 | FastAPI + uvicorn + Jinja2 |
+| 后端框架 | FastAPI + Uvicorn |
+| 前端框架 | React 19 + TypeScript 5.7 + Tailwind CSS v4 |
+| 前端构建 | Vite 6（react + tailwind 插件） |
 | 数据模型 | Pydantic v2 |
+| 数据持久化 | 文件系统 JSON（FileStore）+ SQLite（排期） |
 | 依赖管理 | uv（`pyproject.toml` + `uv.lock`） |
 | 媒体引擎 | FFmpeg / ffprobe / whisper-cli |
-| Python 依赖 | `python-dotenv`, `requests`, `httpx`, `fastapi`, `uvicorn`, `jinja2`, `pydantic`, `pyyaml`, `openpyxl`, `Pillow` |
-| 排期汇聚 | `openpyxl` 写入 `排期池.xlsx` |
-| 测试 | pytest + pytest-asyncio（62 测试） |
+| 排期汇聚 | openpyxl → `排期池.xlsx` |
+| 测试 | pytest + pytest-asyncio（76 测试） |
 
 **跨平台**：借鉴 Pixelle-Video 兼容方式，业务链路一致，平台差异通过 `runtime_adapters` 收口。mac 开发和联调、Windows 生产执行，同一条流水线。
+
+## 核心环境变量
+
+| 变量 | 说明 |
+|------|------|
+| `LLM_PROVIDER` | LLM 提供商：`deepseek` / `kimi` / `openai` |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key |
+| `TTS_PROVIDER` | TTS 提供商：`mimo` / `minimax` |
+| `MIMO_API_KEY` | Xiaomi MiMo API Key |
 
 ## 关键命令
 
@@ -67,7 +75,7 @@ packaging\windows\start_worker.bat
 
 ### 测试
 ```bash
-uv run pytest tests/ -q          # 全量 62 测试
+uv run pytest tests/ -q          # 全量 76 测试
 uv run pytest tests/ -q --tb=short
 ```
 
@@ -96,6 +104,7 @@ uv run --project . kimi_two_stage_script.py 羊肚菌 --interval-seconds 10
 │   ├── domain_core/                  # 领域模型、状态机、worker 协议
 │   ├── file_store/                   # 文件系统轻持久化
 │   ├── pipeline_services/            # 业务能力（bridge、检索、phase runner）
+│   ├── provider_config/             # LLM/TTS provider 配置与路由
 │   └── runtime_adapters/             # 平台适配（MacLocal / WindowsProd）
 │
 ├── config/
@@ -104,7 +113,7 @@ uv run --project . kimi_two_stage_script.py 羊肚菌 --interval-seconds 10
 │
 ├── packaging/windows/                # Windows 启动器
 │
-├── tests/                            # 11 个测试文件，62 测试
+├── tests/                            # 9 个子目录，76 测试
 │
 ├── main_controller.py                # 旧核心（LegacyMediaBridge 仍在引用）
 ├── kimi_two_stage_script.py          # 旧脚本生成器（LegacyScriptBridge 仍在引用）
@@ -157,7 +166,7 @@ init → api_assets_done → video_base_done → srt_corrected → burn_complete
 
 ## LLM 架构
 - 文本任务：DeepSeek `deepseek-v4-pro`（`thinking.type=disabled`）
-- TTS 任务：Xiaomi MiMo `mimo-v2.5-tts`
+- TTS 任务：Xiaomi MiMo `mimo-v2.5-tts`（主）/ MiniMax `speech-2.8-hd`（备选）
 - 可按能力维度配置不同 provider：`SCRIPT_LLM_PROVIDER`、`PACKAGING_LLM_PROVIDER`、`CORRECTION_LLM_PROVIDER`
 - 支持 `deepseek`、`kimi`、`openai` 三个 provider
 - 脚本生成：两段式（前半段 4 句 + 后半段 4 句），最多 3 次重试，失败后选最短稿特殊放行
@@ -209,6 +218,7 @@ packages/                          # 共享核心
 ├── domain_core/                   # 领域模型 + 状态机 + worker 协议
 ├── file_store/                    # 文件系统轻持久化
 ├── pipeline_services/             # 业务能力 + legacy bridge
+├── provider_config/               # LLM/TTS provider 配置与路由
 └── runtime_adapters/              # 平台适配（mac / Windows）
 ```
 
