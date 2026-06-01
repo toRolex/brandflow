@@ -201,6 +201,48 @@ async def batch_update_status(request: Request):
     return {"updated": updated}
 
 
+@router.patch("/batch-fields")
+async def batch_update_fields(request: Request):
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="request body must be object")
+
+    asset_ids = body.get("asset_ids")
+    if not isinstance(asset_ids, list) or not asset_ids or any(not isinstance(i, str) or not i for i in asset_ids):
+        raise HTTPException(status_code=400, detail="asset_ids must be a non-empty string array")
+
+    updates = {}
+    if "product" in body:
+        updates["product"] = body["product"]
+    if "category" in body:
+        from packages.pipeline_services.asset_library.models import Category
+        try:
+            Category(body["category"])
+            updates["category"] = body["category"]
+        except ValueError:
+            valid = [c.value for c in Category]
+            raise HTTPException(status_code=400, detail=f"invalid category, must be one of: {valid}")
+
+    if not updates:
+        return {"updated": 0}
+
+    root_dir: Path = request.app.state.root_dir
+    db_path = shared_asset_db_path(root_dir)
+    if not db_path.exists():
+        raise HTTPException(status_code=404, detail="asset db not found")
+
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values())
+    conn = sqlite3.connect(str(db_path))
+    updated = 0
+    for aid in asset_ids:
+        cursor = conn.execute(f"UPDATE assets SET {set_clause} WHERE asset_id = ?", values + [aid])
+        updated += cursor.rowcount
+    conn.commit()
+    conn.close()
+    return {"updated": updated}
+
+
 @router.patch("/{asset_id}")
 async def patch_asset_status(request: Request, asset_id: str):
     body = await request.json()

@@ -128,6 +128,12 @@ export const api = {
       body: JSON.stringify(fields),
     }),
 
+  batchUpdateAssetFields: (assetIds: string[], fields: { product?: string; category?: string }) =>
+    request<{ updated: number }>("/api/assets/batch-fields", {
+      method: "PATCH",
+      body: JSON.stringify({ asset_ids: assetIds, ...fields }),
+    }),
+
   migrateAssets: () =>
     request<{ migrated_projects: number; migrated_clips: number; migrated_sources: number }>(
       "/api/assets/migrate",

@@ -156,6 +156,24 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
     [isBatchUpdating, loadAssets, selectedIds]
   );
 
+  const handleBatchEdit = useCallback(
+    async (fields: { product?: string; category?: string }) => {
+      if (selectedIds.size === 0 || isBatchUpdating) {
+        return;
+      }
+
+      setIsBatchUpdating(true);
+      try {
+        await api.batchUpdateAssetFields(Array.from(selectedIds), fields);
+        setSelectedIds(new Set());
+        await loadAssets();
+      } finally {
+        setIsBatchUpdating(false);
+      }
+    },
+    [isBatchUpdating, loadAssets, selectedIds]
+  );
+
   const handlePreviewStatusToggle = useCallback(
     async (asset: AssetRecord, nextStatus: AssetRecord["status"]) => {
       if (isPreviewUpdating) {
@@ -258,6 +276,7 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
           onEnable={() => void handleBatchUpdate("available")}
           onDisable={() => void handleBatchUpdate("disabled")}
           onClear={() => setSelectedIds(new Set())}
+          onBatchEdit={handleBatchEdit}
         />
       )}
 
