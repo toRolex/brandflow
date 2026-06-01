@@ -52,7 +52,7 @@ cd frontend && npm run dev
 | 前端 | React 19 + TypeScript + Vite + Tailwind CSS v4 |
 | 后端 | Python 3.11+ / FastAPI / Pydantic v2 |
 | 依赖管理 | uv |
-| 媒体引擎 | FFmpeg / ffprobe / whisper-cli |
+| 媒体引擎 | FFmpeg（ffmpeg-full） / ffprobe / whisper-cli |
 | LLM | DeepSeek `deepseek-v4-pro` |
 | TTS | Xiaomi MiMo `mimo-v2.5-tts` |
 | 排期存储 | SQLite |
@@ -70,14 +70,14 @@ cd frontend && npm run dev
            旧核心能力（脚本生成 / TTS / 字幕 / FFmpeg）
 ```
 
-### Job 生命周期（8 步流水线）
+### Job 生命周期（10 步流水线）
 
 ```
-生成脚本 → [脚本审核] → TTS 配音 → 转录字幕
-→ 底包拼接 → [终审·烧录] → 已完成
+生成脚本 → [脚本审核] → TTS 配音 → [TTS 审核] → 转录字幕
+→ 素材检索 → [素材审核] → 底包拼接 → [终审·烧录] → 已完成
 ```
 
-`[]` 标记的是人工审核门，需要工作人员在前端确认才能继续。两个审核门：脚本审核、终审·烧录。
+`[]` 标记的是人工审核门，需要工作人员在前端确认才能继续。四个审核门：脚本审核、TTS 审核、素材审核、终审·烧录。
 
 ## 目录结构
 
@@ -92,8 +92,8 @@ cd frontend && npm run dev
 │
 ├── frontend/                 # React 前端（新）
 │   └── src/
-│       ├── pages/            # 4 个页面
-│       ├── components/       # 复用组件
+│       ├── pages/            # 5 个页面
+│       ├── components/       # 16 个复用组件
 │       ├── api/              # API 客户端
 │       └── types/            # TypeScript 类型定义
 │
@@ -108,7 +108,7 @@ cd frontend && npm run dev
 │   ├── defaults.yaml
 │   └── profiles/             # mac-local.yaml / windows-prod.yaml
 │
-├── tests/                    # 76 个测试（pytest）
+├── tests/                    # 101 个测试（21 个测试文件）试（pytest）
 │
 ├── main_controller.py        # 旧核心（通过 LegacyBridge 过渡引用）
 ├── kimi_two_stage_script.py  # 旧脚本生成器
@@ -119,13 +119,34 @@ cd frontend && npm run dev
 
 ```bash
 # 测试
-uv run pytest tests/ -q                # 全量 76 测试
+uv run pytest tests/ -q                # 全量 101 测试
 
 # 构建前端（生产）
 cd frontend && npm run build
 
 # 旧工具（仍可用）
 uv run --project . kimi_two_stage_script.py 羊肚菌 --mock
+```
+
+## Release 版本
+
+当前最新版本：**v0.1.0-alpha**
+
+### 新功能
+- TTS 审核功能
+- 素材审核增强（匹配文案显示、单独打回）
+- 素材预览优化
+
+### 修复
+- 字幕生成稳定性
+- 状态机优化
+
+### 安装
+```bash
+git clone https://github.com/toRolex/ai-video-pipeline.git
+cd ai-video-pipeline
+git checkout v0.1.0-alpha
+uv sync
 ```
 
 ## 项目状态
@@ -135,9 +156,10 @@ uv run --project . kimi_two_stage_script.py 羊肚菌 --mock
 | Phase 1（架构骨架） | 已完成 |
 | Phase 2（Provider 配置 + 前端改造） | 已完成 |
 | Phase 2.5（前端视觉适配 mockup 方案 A） | 已完成 |
-| Phase 3（智能素材库 + AI 标注） | 规划中 |
+| Phase 3（智能素材库 + AI 标注） | 已完成 |
+| Phase 4（TTS 审核 + 素材审核增强） | 已完成 |
 
-当前 `feature/frontend-redesign` 分支包含完整的前端 React 改造 + 视觉适配，等待合并到 main。
+当前 `main` 分支包含完整的前端 React 改造 + 视觉适配 + 智能素材库 + TTS 审核 + 素材审核增强。
 
 ## 前端视觉设计
 
