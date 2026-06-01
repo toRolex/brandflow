@@ -142,6 +142,12 @@ export const api = {
       method: "DELETE",
     }),
 
+  batchDeleteAssets: (assetIds: string[]) =>
+    request<{ deleted: number; files_deleted: number }>("/api/assets/batch", {
+      method: "DELETE",
+      body: JSON.stringify({ asset_ids: assetIds }),
+    }),
+
   migrateAssets: () =>
     request<{ migrated_projects: number; migrated_clips: number; migrated_sources: number }>(
       "/api/assets/migrate",

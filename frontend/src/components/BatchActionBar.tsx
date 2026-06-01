@@ -17,11 +17,12 @@ interface Props {
   count: number;
   onEnable: () => void;
   onDisable: () => void;
+  onDelete: () => void;
   onClear: () => void;
   onBatchEdit?: (fields: { product?: string; category?: string }) => void;
 }
 
-export default function BatchActionBar({ count, onEnable, onDisable, onClear, onBatchEdit }: Props) {
+export default function BatchActionBar({ count, onEnable, onDisable, onDelete, onClear, onBatchEdit }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [editProduct, setEditProduct] = useState("");
   const [editCategory, setEditCategory] = useState("");
@@ -63,6 +64,12 @@ export default function BatchActionBar({ count, onEnable, onDisable, onClear, on
             onClick={onEnable}
           >
             批量启用
+          </button>
+          <button
+            className="px-3 py-1 text-xs rounded-md bg-red-800 text-white hover:bg-red-900"
+            onClick={onDelete}
+          >
+            批量删除
           </button>
           <button
             className="px-3 py-1 text-xs rounded-md text-gray-500 hover:text-gray-700"

@@ -188,7 +188,7 @@ class AssetIndexer:
             result = client.classify_frame(frame_path)
             return result.get("category", "产品特写"), float(result.get("confidence", 0.5))
         except Exception as exc:
-            print(f"[AssetIndexer] vision classify failed for {frame_path}: {exc}, falling back to 产品特写")
+            logger.error(f"[AssetIndexer] vision classify failed for {frame_path}: {exc}, falling back to 产品特写")
             return "产品特写", 0.0
 
     def _get_duration(self, video_path: Path) -> float:

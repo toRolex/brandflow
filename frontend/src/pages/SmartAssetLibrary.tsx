@@ -189,6 +189,33 @@ export default function SmartAssetLibrary({ projectId: _projectId, onUpload: _on
     [loadAssets]
   );
 
+  const handleBatchDelete = useCallback(
+    async () => {
+      if (selectedIds.size === 0 || isBatchUpdating) {
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `确认删除选中的 ${selectedIds.size} 个素材？此操作不可撤销。`
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      setIsBatchUpdating(true);
+      try {
+        await api.batchDeleteAssets(Array.from(selectedIds));
+        setSelectedIds(new Set());
+        await loadAssets();
+      } catch (error) {
+        console.error("batch delete failed", error);
+      } finally {
+        setIsBatchUpdating(false);
+      }
+    },
+    [isBatchUpdating, loadAssets, selectedIds]
+  );
+
   const handlePreviewStatusToggle = useCallback(
     async (asset: AssetRecord, nextStatus: AssetRecord["status"]) => {
       if (isPreviewUpdating) {
@@ -294,6 +321,7 @@ export default function SmartAssetLibrary({ projectId: _projectId, onUpload: _on
           count={selectedIds.size}
           onEnable={() => void handleBatchUpdate("available")}
           onDisable={() => void handleBatchUpdate("disabled")}
+          onDelete={() => void handleBatchDelete()}
           onClear={() => setSelectedIds(new Set())}
           onBatchEdit={handleBatchEdit}
         />
