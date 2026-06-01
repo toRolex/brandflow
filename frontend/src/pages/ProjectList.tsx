@@ -6,6 +6,7 @@ import type { Project } from "../types";
 export default function ProjectList() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [newName, setNewName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const navigate = useNavigate();
 
   const load = () => {
@@ -22,6 +23,17 @@ export default function ProjectList() {
       const p = await api.createProject(newName.trim());
       setNewName("");
       navigate(`/projects/${p.id}`);
+    } catch {
+      // silently fail
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await api.deleteProject(deleteTarget.id);
+      setDeleteTarget(null);
+      load();
     } catch {
       // silently fail
     }
@@ -71,17 +83,50 @@ export default function ProjectList() {
                   <td className="py-3 px-4 text-gray-500">{p.status}</td>
                   <td className="py-3 px-4 text-gray-500">{p.job_count}</td>
                   <td className="py-3 px-4">
-                    <button
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      onClick={() => navigate(`/projects/${p.id}`)}
-                    >
-                      打开 →
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        onClick={() => navigate(`/projects/${p.id}`)}
+                      >
+                        打开 →
+                      </button>
+                      <button
+                        className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        onClick={() => setDeleteTarget(p)}
+                      >
+                        删除
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-bold mb-2">确认删除</h3>
+            <p className="text-gray-600 mb-6">
+              确定要删除项目「{deleteTarget.name || deleteTarget.id}」吗？此操作不可撤销。
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                onClick={() => setDeleteTarget(null)}
+              >
+                取消
+              </button>
+              <button
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                onClick={confirmDelete}
+              >
+                删除
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

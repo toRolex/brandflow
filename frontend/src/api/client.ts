@@ -38,6 +38,9 @@ export const api = {
       `/api/projects/${id}`
     ),
 
+  deleteProject: (id: string) =>
+    request<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" }),
+
   uploadAsset: (projectId: string, file: File) =>
     uploadFile<import("../types").AssetFile>(`/api/projects/${projectId}/upload`, file),
 
