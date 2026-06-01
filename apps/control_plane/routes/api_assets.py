@@ -211,33 +211,60 @@ async def batch_update_fields(request: Request):
     if not isinstance(asset_ids, list) or not asset_ids or any(not isinstance(i, str) or not i for i in asset_ids):
         raise HTTPException(status_code=400, detail="asset_ids must be a non-empty string array")
 
-    updates = {}
-    if "product" in body:
-        updates["product"] = body["product"]
-    if "category" in body:
+    new_product = body.get("product")
+    new_category = body.get("category")
+
+    if not new_product and not new_category:
+        return {"updated": 0}
+
+    if new_category:
         from packages.pipeline_services.asset_library.models import Category
         try:
-            Category(body["category"])
-            updates["category"] = body["category"]
+            Category(new_category)
         except ValueError:
             valid = [c.value for c in Category]
             raise HTTPException(status_code=400, detail=f"invalid category, must be one of: {valid}")
-
-    if not updates:
-        return {"updated": 0}
 
     root_dir: Path = request.app.state.root_dir
     db_path = shared_asset_db_path(root_dir)
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
 
-    set_clause = ", ".join(f"{k} = ?" for k in updates)
-    values = list(updates.values())
+    indexed_dir = shared_indexed_dir(root_dir)
     conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
     updated = 0
+
     for aid in asset_ids:
-        cursor = conn.execute(f"UPDATE assets SET {set_clause} WHERE asset_id = ?", values + [aid])
-        updated += cursor.rowcount
+        row = conn.execute("SELECT * FROM assets WHERE asset_id = ?", (aid,)).fetchone()
+        if not row:
+            continue
+
+        old_product = row["product"]
+        old_category = row["category"]
+        old_file_path = row["file_path"]
+
+        product = new_product or old_product
+        category = new_category or old_category
+
+        new_dir = indexed_dir / product / category
+        new_dir.mkdir(parents=True, exist_ok=True)
+
+        old_file = Path(old_file_path)
+        if old_file.exists():
+            new_file = new_dir / old_file.name
+            if old_file.parent != new_dir:
+                shutil.move(str(old_file), str(new_file))
+            new_file_path = str(new_file.resolve())
+        else:
+            new_file_path = old_file_path
+
+        conn.execute(
+            "UPDATE assets SET product = ?, category = ?, file_path = ? WHERE asset_id = ?",
+            (product, category, new_file_path, aid)
+        )
+        updated += 1
+
     conn.commit()
     conn.close()
     return {"updated": updated}
@@ -282,21 +309,43 @@ async def patch_asset_fields(request: Request, asset_id: str):
     if not record:
         raise HTTPException(status_code=404, detail="asset not found")
 
-    updates = {}
-    if "product" in body:
-        updates["product"] = body["product"]
-    if "category" in body:
+    new_product = body.get("product")
+    new_category = body.get("category")
+
+    if not new_product and not new_category:
+        return {"updated": 0}
+
+    if new_category:
         from packages.pipeline_services.asset_library.models import Category
         try:
-            updates["category"] = Category(body["category"])
+            Category(new_category)
         except ValueError:
             valid = [c.value for c in Category]
             raise HTTPException(status_code=400, detail=f"invalid category, must be one of: {valid}")
 
-    if not updates:
-        return {"updated": 0}
+    product = new_product or record.product
+    category = new_category or record.category.value
 
-    repo.update_fields(asset_id, **updates)
+    indexed_dir = shared_indexed_dir(root_dir)
+    new_dir = indexed_dir / product / category
+    new_dir.mkdir(parents=True, exist_ok=True)
+
+    old_file = Path(record.file_path)
+    if old_file.exists():
+        new_file = new_dir / old_file.name
+        if old_file.parent != new_dir:
+            shutil.move(str(old_file), str(new_file))
+        new_file_path = str(new_file.resolve())
+    else:
+        new_file_path = record.file_path
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "UPDATE assets SET product = ?, category = ?, file_path = ? WHERE asset_id = ?",
+        (product, category, new_file_path, asset_id)
+    )
+    conn.commit()
+    conn.close()
     return {"updated": 1}
 
 
