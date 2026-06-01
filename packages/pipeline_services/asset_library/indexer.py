@@ -128,7 +128,7 @@ class AssetIndexer:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     def _scene_detect_and_cut(self, video_path: Path, output_dir: Path) -> list[Path]:
-        """Cut video into fixed-duration segments using stream copy (fast)."""
+        """Cut video into fixed-duration segments with re-encoding for keyframe alignment."""
         output_dir.mkdir(parents=True, exist_ok=True)
         output_pattern = str(output_dir / "clip_%03d.mp4")
 
@@ -136,7 +136,11 @@ class AssetIndexer:
             self.ffmpeg_path,
             "-i", str(video_path),
             "-an",
-            "-c", "copy",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            "-force_key_frames", "expr:gte(t,n_forced*1)",
             "-f", "segment",
             "-segment_time", str(MAX_CLIP_SECONDS),
             "-reset_timestamps", "1",
@@ -167,7 +171,11 @@ class AssetIndexer:
             self.ffmpeg_path,
             "-i", str(clip_path),
             "-an",
-            "-c", "copy",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            "-force_key_frames", "expr:gte(t,n_forced*1)",
             "-f", "segment",
             "-segment_time", str(SPLIT_CLIP_SECONDS),
             "-reset_timestamps", "1",
