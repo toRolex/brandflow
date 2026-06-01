@@ -189,6 +189,12 @@ export const api = {
       body: JSON.stringify({ review_gate: gate }),
     }),
 
+  rejectClip: (jobId: string, clipIndex: number) =>
+    request<{ status: string }>(`/api/reviews/${jobId}/reject-clip`, {
+      method: "POST",
+      body: JSON.stringify({ clip_index: clipIndex }),
+    }),
+
   editScript: (jobId: string, scriptText: string, projectId?: string) => {
     const qs = projectId ? `?project_id=${projectId}` : "";
     return request<{ status: string }>(`/api/reviews/${jobId}/edit-script${qs}`, {

@@ -1,11 +1,18 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobDetail, Phase } from "../types";
+import type { JobDetail, Phase, AssetCategory } from "../types";
 import { PIPELINE_STEPS } from "../types";
 import PipelineSidebar from "../components/PipelineSidebar";
 import ScriptPreview from "../components/ScriptPreview";
 import MediaPlayer from "../components/MediaPlayer";
+import AssetGrid from "../components/AssetGrid";
+import ClipReviewCard from "../components/ClipReviewCard";
+
+const VALID_CATEGORIES: AssetCategory[] = [
+  "产地溯源", "筛选分拣", "清洗泡发", "切配处理", "下锅入锅",
+  "烹饪翻炒", "出锅装盘", "成品展示", "试吃品尝", "产品特写",
+];
 
 function computeCompletedPhases(currentPhase: Phase): Phase[] {
   const terminalPhases: Phase[] = ["completed", "failed", "cancelled", "paused"];
@@ -30,6 +37,8 @@ export default function JobPipeline() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [scriptContent, setScriptContent] = useState("");
+  const [selectedClips, setSelectedClips] = useState<Record<string, unknown>[]>([]);
+  const [rejectedClips, setRejectedClips] = useState<Set<number>>(new Set());
   const initialLoad = useRef(true);
 
   const phaseToStepKey = (phase: Phase): string => {
@@ -82,6 +91,20 @@ export default function JobPipeline() {
       fetch(scriptArtifact.url).then(r => r.text()).then(setScriptContent).catch(() => setScriptContent(""));
     } else {
       setScriptContent("");
+    }
+  }, [job, job?.artifacts]);
+
+  // Fetch selected clips when artifact changes
+  useEffect(() => {
+    if (!job) return;
+    const clipsArtifact = job.artifacts?.find((a) => a.kind === "selected_clips");
+    if (clipsArtifact?.url) {
+      fetch(clipsArtifact.url)
+        .then(r => r.json())
+        .then(data => setSelectedClips(Array.isArray(data) ? data : []))
+        .catch(() => setSelectedClips([]));
+    } else {
+      setSelectedClips([]);
     }
   }, [job, job?.artifacts]);
 
@@ -223,20 +246,37 @@ export default function JobPipeline() {
       }
       case "asset_retrieving": {
         const clipsArtifact = findArtifact("selected_clips");
+        const assetRecords = selectedClips.map((clip, index) => {
+          const category = String(clip.category || "");
+          return {
+            asset_id: String(clip.asset_id || `clip-${index}`),
+            file_path: String(clip.file_path || ""),
+            category: VALID_CATEGORIES.includes(category as AssetCategory) ? (category as AssetCategory) : "产品特写",
+            product: "",
+            confidence: 1,
+            duration_seconds: 0,
+            status: "available" as const,
+            usage_count: 0,
+            source_video: "",
+            tags: clip.sentence ? [String(clip.sentence)] : [],
+            created_at: "",
+            last_used_at: "",
+          };
+        });
         return (
           <div>
             <h3 className="font-semibold text-sm mb-3">素材检索</h3>
             {clipsArtifact ? (
               <div>
-                <p className="text-gray-400 text-sm mb-2">已检索到匹配素材</p>
-                <a 
-                  href={clipsArtifact.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[#0969da] hover:underline text-sm"
-                >
-                  查看素材列表 ({clipsArtifact.kind})
-                </a>
+                <p className="text-gray-400 text-sm mb-4">已检索到 {selectedClips.length} 个匹配素材</p>
+                <div className="max-h-[500px] overflow-y-auto">
+                  <AssetGrid
+                    assets={assetRecords}
+                    selectedIds={new Set()}
+                    onToggleSelect={() => {}}
+                    onPreview={() => {}}
+                  />
+                </div>
               </div>
             ) : (
               <p className="text-gray-400 text-sm">等待素材检索...</p>
@@ -246,32 +286,54 @@ export default function JobPipeline() {
       }
       case "asset_review": {
         const clipsArtifact = findArtifact("selected_clips");
+        const handleRejectClip = async (clipIndex: number) => {
+          try {
+            await api.rejectClip(job.job_id, clipIndex);
+            setRejectedClips(prev => new Set([...prev, clipIndex]));
+            load();
+          } catch (e) {
+            console.error("reject clip failed", e);
+            setError("打回素材失败");
+          }
+        };
         return (
           <div>
             <h3 className="font-semibold text-sm mb-3">素材审核</h3>
-            {clipsArtifact ? (
+            {clipsArtifact && selectedClips.length > 0 ? (
               <div>
-                <p className="text-gray-400 text-sm mb-4">请审核检索到的素材</p>
-                <a 
-                  href={clipsArtifact.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[#0969da] hover:underline text-sm mb-4 block"
-                >
-                  查看素材列表
-                </a>
-                <div className="flex gap-2 mt-4">
+                <p className="text-gray-400 text-sm mb-4">
+                  请审核检索到的 {selectedClips.length} 个素材
+                  {rejectedClips.size > 0 && <span className="text-[#d1242f]">（已打回 {rejectedClips.size} 个）</span>}
+                </p>
+                <div className="max-h-[600px] overflow-y-auto space-y-3 mb-4">
+                  {selectedClips.map((clip, index) => (
+                    <ClipReviewCard
+                      key={`${clip.asset_id}-${index}`}
+                      clip={{
+                        sentence: String(clip.sentence || ""),
+                        category: String(clip.category || ""),
+                        file_path: String(clip.file_path || ""),
+                        asset_id: String(clip.asset_id || ""),
+                        method: String(clip.method || ""),
+                      }}
+                      index={index}
+                      onReject={handleRejectClip}
+                      rejected={rejectedClips.has(index)}
+                    />
+                  ))}
+                </div>
+                <div className="flex gap-2">
                   <button
                     className="bg-[#0969da] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
                     onClick={() => handleApprove("asset")}
                   >
-                    {"\u2713"} 通过
+                    {"\u2713"} 全部通过
                   </button>
                   <button
                     className="bg-[#d1242f] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
                     onClick={() => handleReject("asset")}
                   >
-                    {"\u2717"} 打回重新检索
+                    {"\u2717"} 全部打回重新检索
                   </button>
                 </div>
               </div>
