@@ -145,7 +145,6 @@ uv run --project . kimi_two_stage_script.py 羊肚菌 --mock
 ```bash
 git clone https://github.com/toRolex/ai-video-pipeline.git
 cd ai-video-pipeline
-git checkout v0.1.0-alpha
 uv sync
 ```
 
