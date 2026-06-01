@@ -1,0 +1,94 @@
+<h2>智能素材库 Tab — 修订版（增量索引逻辑）</h2>
+<p class="subtitle">核心变更：已索引视频从 DB 去重，仅处理新上传的源素材</p>
+
+<div class="section">
+  <h3>状态 A：有新素材待索引</h3>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">控制栏 — 检测到 2 个新视频</div>
+  <div class="mockup-body" style="padding:12px;">
+
+    <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:16px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:280px;">
+        <div style="font-size:12px; color:#59636e; margin-bottom:4px; font-weight:500;">源素材</div>
+        <div style="border:2px dashed #d0d7de; border-radius:8px; padding:12px; text-align:center; cursor:pointer; background:#f6f8fa;">
+          <span style="font-size:20px;">&#128193;</span>
+          <span style="display:block; font-size:12px; color:#0969da; margin-top:4px;">拖拽视频到此处或点击上传</span>
+          <span style="display:block; font-size:11px; color:#59636e;">支持 .mp4 / .mov / .avi</span>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:flex-end;">
+        <div style="text-align:center;">
+          <span style="display:block; font-size:11px; color:#1a7f37; margin-bottom:2px;">&#128309; 1 个已索引</span>
+          <span style="display:block; font-size:11px; color:#d1242f; margin-bottom:2px;">&#128308; 2 个未处理</span>
+        </div>
+        <button class="mock-button" style="background:#0969da; color:#fff; padding:8px 20px;">&#9881; 索引 2 个新视频</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px;">
+  <h3>状态 B：无新素材（全量已索引）</h3>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">控制栏 — 无待处理视频</div>
+  <div class="mockup-body" style="padding:12px;">
+
+    <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:16px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:280px;">
+        <div style="border:2px dashed #d0d7de; border-radius:8px; padding:12px; text-align:center; cursor:pointer; background:#f6f8fa;">
+          <span style="font-size:20px;">&#128193;</span>
+          <span style="display:block; font-size:12px; color:#0969da; margin-top:4px;">拖拽视频到此处或点击上传</span>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:flex-end;">
+        <div style="text-align:center;">
+          <span style="display:block; font-size:12px; color:#1a7f37;">&#10003; 3 个已索引</span>
+          <span style="display:block; font-size:11px; color:#59636e;">无新素材</span>
+        </div>
+        <button class="mock-button" style="background:#d0d7de; color:#59636e; padding:8px 20px; cursor:default;">&#10003; 已是最新</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px;">
+  <h3>状态 C：索引进行中（仅处理新视频）</h3>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">索引进行中</div>
+  <div class="mockup-body" style="padding:12px;">
+
+    <div style="display:flex; gap:12px; align-items:center; margin-bottom:12px;">
+      <div style="width:20px; height:20px; border:3px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation: spin 1s linear infinite;"></div>
+      <span style="font-size:14px; font-weight:500;">正在索引 source_video_02.mp4...</span>
+    </div>
+    <div style="display:flex; gap:24px; font-size:12px; color:#59636e;">
+      <span>&#10003; scene_cut_01.mp4 — 已处理</span>
+      <span>&#8635; 第 2/2 个视频</span>
+    </div>
+    <div style="margin-top:8px; background:#e1e4e8; border-radius:4px; height:6px; overflow:hidden;">
+      <div style="background:#0969da; height:6px; width:60%; border-radius:4px;"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>后端去重逻辑</h3>
+  <pre style="background:#f6f8fa; padding:16px; border-radius:8px; font-size:12px; line-height:1.6; overflow-x:auto;">
+POST /api/projects/{id}/assets/index
+
+1. 扫描 source_assets/*.mp4
+2. SELECT DISTINCT source_video FROM assets → 已索引集合
+3. diff = 扫描结果 - 已索引集合
+4. 仅对 diff 中的新视频调用 AssetIndexer.ingest_videos()
+5. 返回 { indexed: 2, skipped: 1, total_clips: 15 }
+  </pre>
+</div>

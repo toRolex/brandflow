@@ -50,8 +50,8 @@ class TestKeywordScore:
         )
 
     def test_exact_tag_match_scores_high(self) -> None:
-        seg = self._make_segment("充分烹熟后食用见手青。", tags=["见手青"])
-        score = keyword_score("见手青", seg)
+        seg = self._make_segment("充分烹熟后食用荔枝菌。", tags=["荔枝菌"])
+        score = keyword_score("荔枝菌", seg)
         assert score > 0.5
 
     def test_text_substring_match(self) -> None:
@@ -61,17 +61,17 @@ class TestKeywordScore:
 
     def test_no_match_returns_zero(self) -> None:
         seg = self._make_segment("日常饮食小贴士。", tags=["健康"])
-        score = keyword_score("见手青", seg)
+        score = keyword_score("荔枝菌", seg)
         assert score == 0.0
 
     def test_multiple_tag_matches_score_higher(self) -> None:
-        seg = self._make_segment("见手青需要充分烹熟。", tags=["见手青", "安全", "烹饪"])
-        score_multi = keyword_score("见手青 安全", seg)
-        score_single = keyword_score("见手青", seg)
+        seg = self._make_segment("荔枝菌需要充分烹熟。", tags=["荔枝菌", "安全", "烹饪"])
+        score_multi = keyword_score("荔枝菌 安全", seg)
+        score_single = keyword_score("荔枝菌", seg)
         assert score_multi >= score_single
 
     def test_case_insensitive(self) -> None:
-        seg = self._make_segment("见手青安全指南", tags=["见手青"])
-        score_lower = keyword_score("见手青", seg)
-        score_upper = keyword_score("见手青".upper(), seg)
+        seg = self._make_segment("荔枝菌安全指南", tags=["荔枝菌"])
+        score_lower = keyword_score("荔枝菌", seg)
+        score_upper = keyword_score("荔枝菌".upper(), seg)
         assert score_lower == score_upper

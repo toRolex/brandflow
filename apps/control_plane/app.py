@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from apps.control_plane.routes.api_assets import router as api_assets_router
 from apps.control_plane.routes.api_jobs import router as api_jobs_router
 from apps.control_plane.routes.api_projects import router as api_projects_router
 from apps.control_plane.routes.api_schedule import router as api_schedule_router
@@ -18,12 +19,14 @@ from apps.control_plane.routes.reviews import router as reviews_router
 from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.domain_core.state import next_phase
+from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
 from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+from packages.pipeline_services.media_utils import write_concat_file, get_media_duration
 from main_controller import load_environment
 
-REVIEW_PHASES = {"script_review", "final_review"}
+REVIEW_PHASES = {"script_review", "tts_review", "final_review"}
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 
 
@@ -83,35 +86,117 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
             for f2 in job_dir.iterdir():
                 print(f"  file: {f2.name}", flush=True)
 
+    elif phase == "tts_review":
+        # TTS review phase: just return existing audio artifact for review
+        audio_path = job_dir / "audio.mp3"
+        if audio_path.exists():
+            rel = _to_url_path(audio_path, workspace_dir)
+            result.append({"kind": "tts_audio", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": audio_path.stat().st_size})
+            print(f"[TTS_REVIEW] Audio ready for review: {audio_path}", flush=True)
+        else:
+            print(f"[TTS_REVIEW WARN] No audio found in {job_dir}", flush=True)
+
     elif phase == "subtitle_generating":
         audio_path = job_dir / "audio.mp3"
         srt_path = job_dir / "subtitles.srt"
+        print(f"[SUBTITLE] audio exists={audio_path.exists()}, srt exists={srt_path.exists()}", flush=True)
         if audio_path.exists():
-            # Find script text
             script_text = ""
             for a in job_dir.glob("*口播文案.txt"):
                 script_text = a.read_text(encoding="utf-8").strip()
                 break
+            print(f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}", flush=True)
             if script_text:
-                media_bridge.build_script_timed_srt(audio_path, srt_path, script_text)
+                try:
+                    media_bridge.build_script_timed_srt(audio_path, srt_path, script_text)
+                    print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
+                except Exception as e:
+                    print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
+                    import traceback; traceback.print_exc()
+        else:
+            print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
         if srt_path.exists():
             rel = _to_url_path(srt_path, workspace_dir)
             result.append({"kind": "subtitle", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": srt_path.stat().st_size})
 
     elif phase == "asset_retrieving":
-        # _build_base_video handles slice discovery internally via _ensure_slice_folders;
-        # return nothing so auto_tick auto-advances past this phase.
-        pass
+        # Run semantic retrieval: script text → keyword match → selected clips
+        script_text = ""
+        for a in job_dir.glob("*口播文案.txt"):
+            script_text = a.read_text(encoding="utf-8").strip()
+            break
+
+        if script_text:
+            db_path = shared_asset_db_path(root_dir)
+
+            from packages.pipeline_services.asset_library import AssetRepository, AssetRetriever
+            repo = AssetRepository(db_path)
+            retriever = AssetRetriever(repo)
+
+            selected = retriever.retrieve(script_text, product)
+
+            clip_list_path = job_dir / "selected_clips.json"
+            clip_list_path.write_text(json.dumps(selected, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            result.append({
+                "kind": "selected_clips",
+                "relative_path": _to_url_path(clip_list_path, workspace_dir),
+                "url": f"/workspace/{_to_url_path(clip_list_path, workspace_dir)}",
+                "size_bytes": clip_list_path.stat().st_size,
+            })
+        else:
+            # No script text found — emit sentinel so auto_tick can advance
+            result.append({
+                "kind": "asset_retrieval_done",
+                "relative_path": "",
+                "url": "",
+                "size_bytes": 0,
+            })
 
     elif phase == "video_rendering":
         base_path = job_dir / "base.mp4"
         audio_path = job_dir / "audio.mp3"
-        if audio_path.exists():
+        clip_list_path = job_dir / "selected_clips.json"
+
+        use_legacy = True
+        if audio_path.exists() and clip_list_path.exists():
+            selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
+            clip_paths = [Path(item["file_path"]) for item in selected if Path(item["file_path"]).exists()]
+
+            if clip_paths:
+                use_legacy = False
+                concat_list = job_dir / "concat_list.txt"
+                write_concat_file(concat_list, clip_paths)
+                audio_duration = get_media_duration(audio_path)
+                recipe_idx = int(job_id[-4:], 16) % 4
+                recipes = [
+                    {"name": "小红书", "vf": "eq=brightness=0.02:contrast=1.03:saturation=1.05"},
+                    {"name": "抖音", "vf": "unsharp=5:5:0.8:3:3:0.4,eq=contrast=0.98"},
+                    {"name": "视频号", "vf": "hflip,eq=brightness=-0.01:saturation=0.95"},
+                    {"name": "快手", "vf": "noise=alls=2:allf=t,eq=contrast=1.02"},
+                ]
+                recipe = recipes[recipe_idx]
+                import random as _random
+                vf_combined = f"crop=iw*{1.0 - _random.uniform(0.01, 0.03):.3f}:ih*{1.0 - _random.uniform(0.01, 0.03):.3f},scale=iw:ih,{recipe['vf']}"
+
+                import subprocess as _sp
+                ffmpeg = os.environ.get("FFMPEG_PATH", "ffmpeg")
+                _sp.run(
+                    [ffmpeg, "-f", "concat", "-safe", "0", "-i", str(concat_list),
+                     "-vf", vf_combined, "-an", "-t", f"{audio_duration:.3f}",
+                     "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
+                     "-pix_fmt", "yuv420p", "-y", str(base_path)],
+                    check=True, capture_output=True, text=True,
+                )
+
+        if use_legacy and audio_path.exists():
+            # Fallback: use legacy bridge for base video construction
             media_bridge.build_base_video(
                 project_dir,
                 {"job_id": job_id, "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1},
                 base_path,
             )
+
         if base_path.exists():
             rel = _to_url_path(base_path, workspace_dir)
             result.append({"kind": "video_base", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": base_path.stat().st_size})
@@ -174,7 +259,7 @@ async def _auto_tick(root_dir: Path):
                             target = current
 
                         # Execute real pipeline for the target phase
-                        product = data.get("product", os.environ.get("PRODUCT", "见手青"))
+                        product = data.get("product", os.environ.get("PRODUCT", "荔枝菌"))
                         artifacts = _phase_to_artifacts(target, job_id, project_dir, root_dir, product)
 
                         # Merge artifacts (keep existing, add new ones)
@@ -196,6 +281,11 @@ async def _auto_tick(root_dir: Path):
                                 data["phase"] = next_phase(target)
                             except ValueError:
                                 data["phase"] = "completed"
+                        elif target in ("subtitle_generating", "video_rendering"):
+                            # Critical phases: do NOT auto-advance on failure
+                            # Stay in current phase and log the error
+                            print(f"[AUTO-TICK] {job_id}: {target} produced no artifacts, staying in phase")
+                            data["last_error"] = f"{target} failed to produce artifacts"
                         else:
                             # No artifacts produced - auto-advance (transitional phase or error)
                             try:
@@ -243,6 +333,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
     app.state.dispatcher = Dispatcher()
     app.state.root_dir = root_dir or Path.cwd()
+    app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)
     app.include_router(api_schedule_router)

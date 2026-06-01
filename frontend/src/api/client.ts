@@ -38,16 +38,121 @@ export const api = {
       `/api/projects/${id}`
     ),
 
+  deleteProject: (id: string) =>
+    request<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" }),
+
   uploadAsset: (projectId: string, file: File) =>
     uploadFile<import("../types").AssetFile>(`/api/projects/${projectId}/upload`, file),
 
   listAssets: (projectId: string) =>
     request<import("../types").AssetFile[]>(`/api/projects/${projectId}/assets`),
 
+  // Asset Library
+  listIndexedAssets: async (projectId: string, params?: { category?: string; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.set("category", params.category);
+    if (params?.q) qs.set("q", params.q);
+    const res = await request<{
+      assets: import("../types").AssetRecord[];
+      stats: {
+        total_clips: number;
+        available_clips: number;
+        disabled_clips: number;
+        source_videos: number;
+      };
+    }>(`/api/projects/${projectId}/assets/indexed?${qs.toString()}`);
+    return {
+      assets: res.assets,
+      stats: {
+        total: res.stats.total_clips,
+        available: res.stats.available_clips,
+        disabled: res.stats.disabled_clips,
+        source_videos: res.stats.source_videos,
+      },
+    };
+  },
+
+  indexAssets: (projectId: string) =>
+    request<import("../types").IndexResult>(`/api/projects/${projectId}/assets/index`, {
+      method: "POST",
+    }),
+
+  updateAssetStatus: (projectId: string, assetIds: string[], status: string) =>
+    request<{ updated: number }>(`/api/projects/${projectId}/assets/batch`, {
+      method: "PATCH",
+      body: JSON.stringify({ asset_ids: assetIds, status }),
+    }),
+
   deleteAsset: (projectId: string, name: string) =>
     request<{ status: string }>(`/api/projects/${projectId}/assets/${encodeURIComponent(name)}`, {
       method: "DELETE",
     }),
+
+  // Shared Asset Library (global, cross-project)
+  uploadAssetShared: (file: File) =>
+    uploadFile<import("../types").AssetFile>("/api/assets/upload", file),
+
+  listIndexedAssetsShared: async (params?: { category?: string; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.set("category", params.category);
+    if (params?.q) qs.set("q", params.q);
+    const res = await request<{
+      assets: import("../types").AssetRecord[];
+      stats: {
+        total_clips: number;
+        available_clips: number;
+        disabled_clips: number;
+        source_videos: number;
+      };
+    }>(`/api/assets/indexed?${qs.toString()}`);
+    return {
+      assets: res.assets,
+      stats: {
+        total: res.stats.total_clips,
+        available: res.stats.available_clips,
+        disabled: res.stats.disabled_clips,
+        source_videos: res.stats.source_videos,
+      },
+    };
+  },
+
+  indexAssetsShared: () =>
+    request<import("../types").IndexResult>("/api/assets/index", { method: "POST" }),
+
+  updateAssetStatusShared: (assetIds: string[], status: string) =>
+    request<{ updated: number }>("/api/assets/batch", {
+      method: "PATCH",
+      body: JSON.stringify({ asset_ids: assetIds, status }),
+    }),
+
+  updateAssetFields: (assetId: string, fields: { product?: string; category?: string }) =>
+    request<{ updated: number }>(`/api/assets/${assetId}/fields`, {
+      method: "PATCH",
+      body: JSON.stringify(fields),
+    }),
+
+  batchUpdateAssetFields: (assetIds: string[], fields: { product?: string; category?: string }) =>
+    request<{ updated: number }>("/api/assets/batch-fields", {
+      method: "PATCH",
+      body: JSON.stringify({ asset_ids: assetIds, ...fields }),
+    }),
+
+  deleteAssetShared: (assetId: string) =>
+    request<{ status: string }>(`/api/assets/${assetId}`, {
+      method: "DELETE",
+    }),
+
+  batchDeleteAssets: (assetIds: string[]) =>
+    request<{ deleted: number; files_deleted: number }>("/api/assets/batch", {
+      method: "DELETE",
+      body: JSON.stringify({ asset_ids: assetIds }),
+    }),
+
+  migrateAssets: () =>
+    request<{ migrated_projects: number; migrated_clips: number; migrated_sources: number }>(
+      "/api/assets/migrate",
+      { method: "POST" },
+    ),
 
   // Jobs
   createJob: (projectId: string, body: { product: string; platforms: string[]; asset?: string }) =>
@@ -83,6 +188,31 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ review_gate: gate }),
     }),
+
+  rejectClip: (jobId: string, clipIndex: number) =>
+    request<{ status: string }>(`/api/reviews/${jobId}/reject-clip`, {
+      method: "POST",
+      body: JSON.stringify({ clip_index: clipIndex }),
+    }),
+
+  editScript: (jobId: string, scriptText: string, projectId?: string) => {
+    const qs = projectId ? `?project_id=${projectId}` : "";
+    return request<{ status: string }>(`/api/reviews/${jobId}/edit-script${qs}`, {
+      method: "POST",
+      body: JSON.stringify({ script_text: scriptText }),
+    });
+  },
+
+  regenerateWithPrompt: (jobId: string, customPrompt: string, projectId?: string) => {
+    const qs = projectId ? `?project_id=${projectId}` : "";
+    return request<{ status: string; result: Record<string, unknown> }>(
+      `/api/reviews/${jobId}/regenerate-with-prompt${qs}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ custom_prompt: customPrompt }),
+      }
+    );
+  },
 
   // Schedule
   getSchedule: (params?: { project_id?: string; platform?: string }) => {

@@ -9,7 +9,7 @@ from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 def test_legacy_script_bridge_writes_json_and_txt(tmp_path: Path) -> None:
     bridge = LegacyScriptBridge(root_dir=Path.cwd())
 
-    result = bridge.generate(product="见手青", output_dir=tmp_path, mock=True)
+    result = bridge.generate(product="荔枝菌", output_dir=tmp_path, mock=True)
 
     assert Path(result["txt_path"]).exists()
     assert Path(result["json_path"]).exists()

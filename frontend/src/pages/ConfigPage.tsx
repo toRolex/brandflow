@@ -5,6 +5,7 @@ import type { ProviderConfig, ProviderOptions, ProviderField } from "../types";
 const SECTIONS = [
   { key: "llm", label: "LLM" },
   { key: "tts", label: "TTS" },
+  { key: "vision", label: "Vision（素材识别）" },
   { key: "text_to_image", label: "文生图" },
   { key: "image_to_video", label: "图生视频" },
 ];

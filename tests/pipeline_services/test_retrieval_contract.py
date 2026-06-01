@@ -13,12 +13,12 @@ class TestSegmentRecord:
     def test_minimal_construction(self) -> None:
         seg = SegmentRecord(
             segment_id="seg-001",
-            text="充分烹熟后食用见手青。",
-            tags=["见手青", "安全"],
+            text="充分烹熟后食用荔枝菌。",
+            tags=["荔枝菌", "安全"],
         )
         assert seg.segment_id == "seg-001"
-        assert seg.text == "充分烹熟后食用见手青。"
-        assert seg.tags == ["见手青", "安全"]
+        assert seg.text == "充分烹熟后食用荔枝菌。"
+        assert seg.tags == ["荔枝菌", "安全"]
         assert seg.brand_id == ""
         assert seg.category_id == ""
         assert seg.product_id == ""
@@ -81,8 +81,8 @@ class TestSegmentRecord:
 
 class TestRetrievalRequest:
     def test_defaults(self) -> None:
-        req = RetrievalRequest(query="见手青怎么吃")
-        assert req.query == "见手青怎么吃"
+        req = RetrievalRequest(query="荔枝菌怎么吃")
+        assert req.query == "荔枝菌怎么吃"
         assert req.top_k == 10
         assert req.request_id == ""
         assert req.project_id == ""

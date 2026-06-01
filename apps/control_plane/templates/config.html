@@ -12,12 +12,13 @@
   window.__configOptions = null;
   const CLEAR_SECRET_SENTINEL = "__CLEAR__";
 
-  const sectionOrder = ["llm", "tts", "text_to_image", "image_to_video"];
+  const sectionOrder = ["llm", "tts", "text_to_image", "image_to_video", "vision"];
   const sectionLabels = {
     llm: "LLM",
     tts: "TTS",
     text_to_image: "Text to Image",
     image_to_video: "Image to Video",
+    vision: "Vision",
   };
 
   async function loadConfigPage() {

@@ -9,6 +9,7 @@ Phase = Literal[
     "script_generating",
     "script_review",
     "tts_generating",
+    "tts_review",
     "subtitle_generating",
     "asset_retrieving",
     "video_rendering",

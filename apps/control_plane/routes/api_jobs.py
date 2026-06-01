@@ -113,36 +113,3 @@ def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
             except Exception:
                 continue
     return None
-
-
-@router.post("/api/reviews/{job_id}/approve")
-def approve_review(request: Request, job_id: str, payload: ReviewAction):
-    repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
-    record = repo.load_job(project_id, job_id)
-    try:
-        nxt = next_phase(record.phase)
-    except ValueError:
-        nxt = "completed"
-    repo.save_job(project_id, record.model_copy(update={"phase": nxt, "review_status": "approved"}))
-    repo.append_review_event(project_id, {"job_id": job_id, "gate": payload.review_gate, "action": "approved"})
-    return {"status": "approved", "job_id": job_id, "next_phase": nxt}
-
-
-@router.post("/api/reviews/{job_id}/reject")
-def reject_review(request: Request, job_id: str, payload: ReviewAction):
-    repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
-    record = repo.load_job(project_id, job_id)
-    repo.save_job(
-        project_id,
-        record.model_copy(update={"phase": "queued", "review_status": "none"}),
-    )
-    dispatcher = request.app.state.dispatcher
-    dispatcher.enqueue_demo_job(project_id, job_id)
-    repo.append_review_event(project_id, {"job_id": job_id, "gate": payload.review_gate, "action": "rejected"})
-    return {"status": "rejected", "job_id": job_id, "next_phase": "queued"}

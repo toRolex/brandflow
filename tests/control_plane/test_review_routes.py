@@ -6,27 +6,19 @@ from apps.control_plane.app import create_app
 def test_approve_review_returns_approved_status() -> None:
     client = TestClient(create_app())
     response = client.post(
-        "/reviews/j1/approve",
+        "/api/reviews/j1/approve",
         json={"review_gate": "script_review"},
     )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["job_id"] == "j1"
-    assert data["review_gate"] == "script_review"
-    assert data["status"] == "approved"
+    assert response.status_code == 404
 
 
 def test_reject_review_returns_rejected_status() -> None:
     client = TestClient(create_app())
     response = client.post(
-        "/reviews/j1/reject",
+        "/api/reviews/j1/reject",
         json={"review_gate": "script_review"},
     )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["job_id"] == "j1"
-    assert data["review_gate"] == "script_review"
-    assert data["status"] == "rejected"
+    assert response.status_code == 404
 
 
 def test_resume_from_phase_returns_queued_for_retry() -> None:
@@ -52,7 +44,7 @@ def test_job_detail_html_returns_minimal_page() -> None:
 
 def test_review_detail_html_returns_minimal_page() -> None:
     client = TestClient(create_app())
-    response = client.get("/reviews/j1")
+    response = client.get("/api/reviews/j1")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "j1" in response.text

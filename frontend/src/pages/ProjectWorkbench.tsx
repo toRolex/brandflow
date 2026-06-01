@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobSummary, AssetFile, ScheduleEntry } from "../types";
+import type { JobSummary, ScheduleEntry } from "../types";
 import FileDropzone from "../components/FileDropzone";
 import JobTable from "../components/JobTable";
-import AssetCard from "../components/AssetCard";
 import ScheduleTable from "../components/ScheduleTable";
+import SmartAssetLibrary from "./SmartAssetLibrary";
 
-const PRODUCTS = ["羊肚菌", "见手青", "松茸"];
+const PRODUCTS = ["羊肚菌", "荔枝菌", "松茸"];
 const PLATFORMS = [
   { key: "douyin", label: "抖音" },
   { key: "xiaohongshu", label: "小红书" },
@@ -19,24 +19,19 @@ export default function ProjectWorkbench() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<JobSummary[]>([]);
-  const [assets, setAssets] = useState<AssetFile[]>([]);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [product, setProduct] = useState(PRODUCTS[0]);
   const [platforms, setPlatforms] = useState<string[]>(["douyin", "xiaohongshu"]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [tab, setTab] = useState<"jobs" | "schedule">("jobs");
+  const [tab, setTab] = useState<"jobs" | "schedule" | "assets">("jobs");
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const [proj, assetList] = await Promise.all([
-        api.getProject(id),
-        api.listAssets(id),
-      ]);
+      const proj = await api.getProject(id);
       setJobs((proj as { jobs?: JobSummary[] }).jobs || []);
-      setAssets(assetList);
       setProjectName((proj as { name?: string }).name || id);
       setError("");
     } catch (e) {
@@ -79,12 +74,6 @@ export default function ProjectWorkbench() {
 
   const handleRetry = async (jobId: string) => {
     await api.retryJob(jobId);
-    load();
-  };
-
-  const handleDeleteAsset = async (name: string) => {
-    if (!id) return;
-    await api.deleteAsset(id, name);
     load();
   };
 
@@ -190,40 +179,27 @@ export default function ProjectWorkbench() {
         >
           排期池
         </button>
+        <button
+          className={`pb-2 text-sm font-medium transition-colors ${
+            tab === "assets"
+              ? "border-b-2 border-[#0969da] text-[#0969da]"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+          onClick={() => setTab("assets")}
+        >
+          智能素材库
+        </button>
       </div>
 
       {tab === "jobs" ? (
-        <>
-          <JobTable jobs={jobs} onRetry={handleRetry} onDelete={handleDeleteJob} />
-          <section className="mt-6">
-            <h2 className="font-semibold mb-3">素材库</h2>
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {assets.map((a) => (
-                <AssetCard key={a.name} asset={a} onDelete={handleDeleteAsset} />
-              ))}
-              <div
-                className="w-44 h-36 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer flex-shrink-0 hover:border-gray-400 transition-colors"
-                onClick={() => {
-                  const inp = document.createElement("input");
-                  inp.type = "file";
-                  inp.accept = "video/*";
-                  inp.onchange = () => {
-                    const f = inp.files?.[0];
-                    if (f) handleUpload(f);
-                  };
-                  inp.click();
-                }}
-              >
-                <span className="text-gray-400 text-2xl">&#xFF0B;</span>
-              </div>
-            </div>
-          </section>
-        </>
-      ) : (
+        <JobTable jobs={jobs} onRetry={handleRetry} onDelete={handleDeleteJob} />
+      ) : tab === "schedule" ? (
         <ScheduleTable
           entries={schedule}
           onExport={() => api.exportSchedule()}
         />
+      ) : (
+        <SmartAssetLibrary projectId={id!} onUpload={handleUpload} />
       )}
     </div>
   );

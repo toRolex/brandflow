@@ -169,7 +169,17 @@ def post_llm(payload: dict[str, Any], throttle_path: Path, interval_seconds: flo
     return extract_json_object(body["choices"][0]["message"]["content"])
 
 
-def first_half_payload(product: str, brand: str, scene: str, material: str) -> dict[str, Any]:
+def first_half_payload(product: str, brand: str, scene: str, material: str, custom_prompt: str = "") -> dict[str, Any]:
+    user_content = (
+        f"产品：{product}。\n"
+        f"场景：{scene}。\n"
+        f"素材想象：{material}。\n"
+        "前半段任务：写开场、品名、山野鲜菌画面、家庭餐桌期待感。\n"
+        "输出字段：sentence_1, sentence_2, sentence_3, sentence_4, first_half, structure_check, pass_flag。"
+    )
+    if custom_prompt:
+        user_content += f"\n\n额外要求：{custom_prompt}"
+
     return {
         "response_format": {"type": "json_object"},
         "temperature": 0.2,
@@ -177,38 +187,45 @@ def first_half_payload(product: str, brand: str, scene: str, material: str) -> d
             {
                 "role": "system",
                 "content": (
-                    "你是“滋元堂脚本文案库”的前半段生成器。\n"
+                    '你是"滋元堂脚本文案库"的前半段生成器。\n'
                     "你只生成 video_script 的前半段，不写标题、简介、标签，不写完整结尾，不写品牌 CTA。\n"
                     "目标：按爆款矩阵写到 90+ 分标准；下面的红线是你生成前的自检约束，不要输出红线解释。\n"
                     "硬规则：\n"
                     "1. 只输出 JSON。\n"
                     "2. 必须分别填写 sentence_1、sentence_2、sentence_3、sentence_4，再把四句合并为 first_half。\n"
-                    "3. sentence_1 用自然短句；精准锁定爱吃菌、家常做饭或山野食材爱好者；必须给强认知反差或情绪共鸣；不用疑问句，直接给确定性钩子；禁止平铺直叙、自我介绍式、泛泛无指向，否则视为“开头无有效钩子”。\n"
-                    f"4. sentence_2 18-24 字；严格承接 sentence_1；全文唯一一次出现“{product}”；同步带出核心价值或核心场景；禁止重复品名、脱离钩子跑题、提前植入品牌。\n"
-                    "5. sentence_3 24-32 字；必须和菌子近景、清洗、切片画面 100% 同步；写清洗或切片动作细节；植入 1 个轻量绝对化记忆点，例如“别使劲搓揉”或“顺纹路轻刷”；口语化；禁止口画脱节、无关内容、长难句。\n"
+                    '3. sentence_1 用自然短句；精准锁定爱吃菌、家常做饭或山野食材爱好者；必须给强认知反差或情绪共鸣；不用疑问句，直接给确定性钩子；禁止平铺直叙、自我介绍式、泛泛无指向，否则视为"开头无有效钩子"。\n'
+                    f'4. sentence_2 18-24 字；严格承接 sentence_1；全文唯一一次出现"{product}"；同步带出核心价值或核心场景；禁止重复品名、脱离钩子跑题、提前植入品牌。\n'
+                    '5. sentence_3 24-32 字；必须和菌子近景、清洗、切片画面 100% 同步；写清洗或切片动作细节；植入 1 个轻量绝对化记忆点，例如"别使劲搓揉"或"顺纹路轻刷"；口语化；禁止口画脱节、无关内容、长难句。\n'
                     "6. sentence_4 24-32 字；用具象化感官描述构建家庭餐桌真实食用场景；带出鲜、香、全家适配的期待感；禁止空泛表述，禁止任何功效类表述，只能写口感、场景、食用体验。\n"
-                    f"7. 不出现“{brand}”，不出现“充分烹熟”，这两个留给后半段。\n"
+                    f'7. 不出现"{brand}"，不出现"充分烹熟"，这两个留给后半段。\n'
                     "8. 禁 emoji，禁医疗功效，禁疾病治疗，禁夸大承诺。\n"
                     "9. 口语化，像真实短视频口播，不要文艺腔过重。"
                 ),
             },
             {
                 "role": "user",
-                "content": (
-                    f"产品：{product}。\n"
-                    f"场景：{scene}。\n"
-                    f"素材想象：{material}。\n"
-                    "前半段任务：写开场、品名、山野鲜菌画面、家庭餐桌期待感。\n"
-                    "输出字段：sentence_1, sentence_2, sentence_3, sentence_4, first_half, structure_check, pass_flag。"
-                ),
+                "content": user_content,
             },
         ],
     }
 
 
-def second_half_payload(product: str, brand: str, scene: str, material: str, first_half: str, first_length: int) -> dict[str, Any]:
+def second_half_payload(product: str, brand: str, scene: str, material: str, first_half: str, first_length: int, custom_prompt: str = "") -> dict[str, Any]:
     min_needed = max(90, TARGET_MIN_CHARS - first_length + 10)
     max_allowed = max(min_needed, min(115, TARGET_MAX_CHARS - first_length))
+
+    user_content = (
+        f"前半段全文：{first_half}\n"
+        f"前半段本地统计：{first_length} 字。\n"
+        f"产品：{product}。\n"
+        f"场景：{scene}。\n"
+        f"素材想象：{material}。\n"
+        "后半段任务：继续写烹饪提醒、朋友/家庭分享、品牌轻收束。\n"
+        "输出字段：sentence_5, sentence_6, sentence_7, sentence_8, second_half, structure_check, pass_flag。"
+    )
+    if custom_prompt:
+        user_content += f"\n\n额外要求：{custom_prompt}"
+
     return {
         "response_format": {"type": "json_object"},
         "temperature": 0.2,
@@ -216,33 +233,25 @@ def second_half_payload(product: str, brand: str, scene: str, material: str, fir
             {
                 "role": "system",
                 "content": (
-                    "你是“滋元堂脚本文案库”的后半段生成器。\n"
+                    '你是"滋元堂脚本文案库"的后半段生成器。\n'
                     "你没有记忆，下面会给你前半段全文。你只生成后半段，不要改写前半段，不要重复前半段。\n"
                     "目标：按爆款矩阵写到 90+ 分标准；下面的红线是你生成前的自检约束，不要输出红线解释。\n"
                     "硬规则：\n"
                     "1. 只输出 JSON。\n"
                     "2. 必须分别填写 sentence_5、sentence_6、sentence_7、sentence_8，再把四句合并为 second_half。\n"
                     f"3. second_half 合计目标 {min_needed}-{max_allowed} 个中文字符，宁可接近上限，不要缩水。\n"
-                    f"4. sentence_5 26-34 字；必须自然包含“充分烹熟”；同步明确安全操作要求，给用户可落地的安全指引；强化安全记忆点；禁止省略安全提示，禁止“未炒熟也能吃”一类违规表达，禁止弱化安全要求。\n"
-                    "5. sentence_6 24-32 字；构建具象家庭或朋友分享场景；明确指定转发/分享对象；给用户一个明确分享理由，例如帮到亲友或适合一起尝鲜；禁止“觉得有用就转发”这种模糊引导。\n"
-                    "6. sentence_7 18-28 字；明确带出季节限定、原生态山野鲜或应季尝鲜价值；强化错过难寻的稀缺感；禁止使用“最、第一”等绝对化用语，禁止虚假宣传。\n"
-                    f"7. sentence_8 简短自然；必须自然包含“{brand}”；搭配低门槛轻行动指令，例如认准、尝鲜、关注；禁止复杂高门槛指令，禁止引导私下交易，禁止生硬品牌植入。\n"
-                    f"8. 不得再次出现“{product}”，用“这种菌子/这口山野鲜/这一盘”代称。\n"
+                    f'4. sentence_5 26-34 字；必须自然包含"充分烹熟"；同步明确安全操作要求，给用户可落地的安全指引；强化安全记忆点；禁止省略安全提示，禁止"未炒熟也能吃"一类违规表达，禁止弱化安全要求。\n'
+                    '5. sentence_6 24-32 字；构建具象家庭或朋友分享场景；明确指定转发/分享对象；给用户一个明确分享理由，例如帮到亲友或适合一起尝鲜；禁止"觉得有用就转发"这种模糊引导。\n'
+                    '6. sentence_7 18-28 字；明确带出季节限定、原生态山野鲜或应季尝鲜价值；强化错过难寻的稀缺感；禁止使用"最、第一"等绝对化用语，禁止虚假宣传。\n'
+                    f'7. sentence_8 简短自然；必须自然包含"{brand}"；搭配低门槛轻行动指令，例如认准、尝鲜、关注；禁止复杂高门槛指令，禁止引导私下交易，禁止生硬品牌植入。\n'
+                    f'8. 不得再次出现"{product}"，用"这种菌子/这口山野鲜/这一盘"代称。\n'
                     "9. 禁 emoji，禁医疗功效，禁疾病治疗，禁夸大承诺。\n"
                     "10. 口语化承接前半段，不要写标题、简介、标签。"
                 ),
             },
             {
                 "role": "user",
-                "content": (
-                    f"前半段全文：{first_half}\n"
-                    f"前半段本地统计：{first_length} 字。\n"
-                    f"产品：{product}。\n"
-                    f"场景：{scene}。\n"
-                    f"素材想象：{material}。\n"
-                    "后半段任务：继续写烹饪提醒、朋友/家庭分享、品牌轻收束。\n"
-                    "输出字段：sentence_5, sentence_6, sentence_7, sentence_8, second_half, structure_check, pass_flag。"
-                ),
+                "content": user_content,
             },
         ],
     }
@@ -272,6 +281,7 @@ def generate_script(args: argparse.Namespace) -> dict[str, Any]:
 
     product = mc.project_product_name(args.product.strip())
     brand = args.brand.strip() or DEFAULT_BRAND
+    custom_prompt = getattr(args, "custom_prompt", "") or ""
     attempts: list[dict[str, Any]] = []
     selected_attempt: dict[str, Any] | None = None
     for attempt_no in range(1, MAX_GENERATION_ATTEMPTS + 1):
@@ -281,7 +291,7 @@ def generate_script(args: argparse.Namespace) -> dict[str, Any]:
                 first_raw, second_raw = mock_outputs(product, brand)
             else:
                 first_raw = post_llm(
-                    first_half_payload(product, brand, args.scene, args.material),
+                    first_half_payload(product, brand, args.scene, args.material, custom_prompt),
                     throttle_path,
                     args.interval_seconds,
                     f"first_half_attempt_{attempt_no}",
@@ -289,7 +299,7 @@ def generate_script(args: argparse.Namespace) -> dict[str, Any]:
             first_half = extract_half_text(first_raw, "first_half", [1, 2, 3, 4])
             if not args.mock:
                 second_raw = post_llm(
-                    second_half_payload(product, brand, args.scene, args.material, first_half, compact_len(first_half)),
+                    second_half_payload(product, brand, args.scene, args.material, first_half, compact_len(first_half), custom_prompt),
                     throttle_path,
                     args.interval_seconds,
                     f"second_half_attempt_{attempt_no}",
@@ -370,7 +380,7 @@ def generate_script(args: argparse.Namespace) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="两段式 LLM 口播文案生成器，只输出给 TTS 使用的最终正文。")
-    parser.add_argument("product", nargs="?", help="菌菇/品名，例如：见手青、羊肚菌、松茸")
+    parser.add_argument("product", nargs="?", help="菌菇/品名，例如：荔枝菌、羊肚菌、松茸")
     parser.add_argument("--brand", default=DEFAULT_BRAND, help=f"品牌名，默认：{DEFAULT_BRAND}")
     parser.add_argument("--scene", default=DEFAULT_SCENE, help=f"场景描述，默认：{DEFAULT_SCENE}")
     parser.add_argument("--material", default=DEFAULT_MATERIAL, help=f"素材想象，默认：{DEFAULT_MATERIAL}")
@@ -379,7 +389,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mock", action="store_true", help="离线模拟，不调用 LLM，用于检查脚本流程")
     args = parser.parse_args()
     if not args.product:
-        args.product = input("请输入菌菇/品名（默认：见手青）：").strip() or "见手青"
+        args.product = input("请输入菌菇/品名（默认：荔枝菌）：").strip() or "荔枝菌"
     return args
 
 

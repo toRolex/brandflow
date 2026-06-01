@@ -9,6 +9,7 @@ from apps.runtime_worker.http_client import WorkerHttpClient
 from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
 from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+from packages.pipeline_services.media_utils import write_concat_file, get_media_duration
 from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
 
 
@@ -42,7 +43,7 @@ class WorkerLoop:
 
         job_dir = attempt_root / "output"
         job_dir.mkdir(parents=True, exist_ok=True)
-        script_result = self.script_bridge.generate(product=os.environ.get("PRODUCT", "见手青"), output_dir=job_dir, mock=False)
+        script_result = self.script_bridge.generate(product=os.environ.get("PRODUCT", "荔枝菌"), output_dir=job_dir, mock=False)
 
         audio_path = job_dir / "audio.mp3"
         self.media_bridge.synthesize_tts(script_result["final_script"], audio_path)
@@ -52,9 +53,45 @@ class WorkerLoop:
 
         final_video_path = job_dir / "final.mp4"
         project_dir = (Path.cwd() / self.workspace_root / "projects" / command["project_id"]).resolve()
-        base_video_path = job_dir / "base.mp4"
-        self.media_bridge.build_base_video(project_dir, {"job_id": command["job_id"], "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1}, base_video_path)
-        self.media_bridge.burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path=None)
+
+        # Use selected_clips.json if available (semantic retrieval path)
+        use_legacy = True
+        clip_list_path = job_dir / "selected_clips.json"
+        if clip_list_path.exists():
+            import json as _json
+            selected = _json.loads(clip_list_path.read_text(encoding="utf-8"))
+            clip_paths = [Path(item["file_path"]) for item in selected if Path(item["file_path"]).exists()]
+            if clip_paths:
+                use_legacy = False
+                base_video_path = job_dir / "base.mp4"
+                concat_list = job_dir / "concat_list.txt"
+                write_concat_file(concat_list, clip_paths)
+                import subprocess as _sp
+                import random as _random
+                audio_duration = get_media_duration(audio_path)
+                ffmpeg = str(self.adapter.ffmpeg_path())
+                recipes = [
+                    {"vf": "eq=brightness=0.02:contrast=1.03:saturation=1.05"},
+                    {"vf": "unsharp=5:5:0.8:3:3:0.4,eq=contrast=0.98"},
+                    {"vf": "hflip,eq=brightness=-0.01:saturation=0.95"},
+                    {"vf": "noise=alls=2:allf=t,eq=contrast=1.02"},
+                ]
+                recipe = recipes[hash(command["job_id"]) % 4]
+                vf = f"crop=iw*{1.0 - _random.uniform(0.01, 0.03):.3f}:ih*{1.0 - _random.uniform(0.01, 0.03):.3f},scale=iw:ih,{recipe['vf']}"
+                _sp.run(
+                    [ffmpeg, "-f", "concat", "-safe", "0", "-i", str(concat_list),
+                     "-vf", vf, "-an", "-t", f"{audio_duration:.3f}",
+                     "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
+                     "-pix_fmt", "yuv420p", "-y", str(base_video_path)],
+                    check=True, capture_output=True, text=True,
+                )
+                self.media_bridge.burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path=None)
+
+        if use_legacy:
+            # Fallback: use legacy bridge for both build and burn
+            base_video_path = job_dir / "base.mp4"
+            self.media_bridge.build_base_video(project_dir, {"job_id": command["job_id"], "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1}, base_video_path)
+            self.media_bridge.burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path=None)
 
         self.schedule_bridge.append(
             command["project_id"],
@@ -91,7 +128,6 @@ class WorkerLoop:
                 "error": {},
             }
         )
-
 
 def main() -> None:
     worker_id = os.environ.get("WORKER_ID", "worker-mac")

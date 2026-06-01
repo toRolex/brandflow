@@ -1,0 +1,192 @@
+<h2>智能素材库 Tab — 整体布局设计</h2>
+<p class="subtitle">在 ProjectWorkbench 中新增第三个 Tab，替换当前的简陋素材卡片</p>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>左右分栏布局</h3>
+      <p>左侧为素材上传+索引控制区，右侧为已索引素材的分类网格</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>上下分区布局</h3>
+      <p>上方控制栏（上传/索引/筛选），下方占满宽度的素材网格</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>页面原型预览 — 方案 B（推荐：上下分区，Tab 内空间利用效率最高）</h3>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">智能素材库 Tab 页面布局</div>
+  <div class="mockup-body">
+
+    <!-- Tab 导航器 -->
+    <div style="display:flex; gap:24px; border-bottom:2px solid #e1e4e8; margin-bottom:20px; padding-bottom:0;">
+      <div style="padding:8px 0; font-size:14px; font-weight:500; color:#59636e; border-bottom:2px solid transparent; margin-bottom:-2px;">Job 列表</div>
+      <div style="padding:8px 0; font-size:14px; font-weight:500; color:#59636e; border-bottom:2px solid transparent; margin-bottom:-2px;">排期池</div>
+      <div style="padding:8px 0; font-size:14px; font-weight:600; color:#0969da; border-bottom:2px solid #0969da; margin-bottom:-2px;">智能素材库</div>
+    </div>
+
+    <!-- 顶部控制栏 -->
+    <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:280px;">
+        <div style="font-size:12px; color:#59636e; margin-bottom:4px; font-weight:500;">源素材</div>
+        <div style="border:2px dashed #d0d7de; border-radius:8px; padding:12px; text-align:center; cursor:pointer; background:#f6f8fa;">
+          <span style="font-size:20px;">&#128193;</span>
+          <span style="display:block; font-size:12px; color:#0969da; margin-top:4px;">拖拽视频到此处或点击上传</span>
+          <span style="display:block; font-size:11px; color:#59636e;">支持 .mp4 / .mov / .avi</span>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:flex-end;">
+        <button class="mock-button" style="background:#0969da; color:#fff; padding:8px 20px;">&#9881; 一键索引</button>
+      </div>
+    </div>
+
+    <!-- 统计卡片行 -->
+    <div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:100px; background:#f6f8fa; border-radius:8px; padding:12px; text-align:center; border:1px solid #d0d7de;">
+        <div style="font-size:20px; font-weight:700; color:#1f2328;">9</div>
+        <div style="font-size:11px; color:#59636e;">总切片数</div>
+      </div>
+      <div style="flex:1; min-width:100px; background:#dafbe1; border-radius:8px; padding:12px; text-align:center; border:1px solid #54ae60;">
+        <div style="font-size:20px; font-weight:700; color:#1a7f37;">8</div>
+        <div style="font-size:11px; color:#59636e;">可用</div>
+      </div>
+      <div style="flex:1; min-width:100px; background:#fff1c0; border-radius:8px; padding:12px; text-align:center; border:1px solid #d4a72c;">
+        <div style="font-size:20px; font-weight:700; color:#9a6700;">1</div>
+        <div style="font-size:11px; color:#59636e;">待审核</div>
+      </div>
+      <div style="flex:1; min-width:100px; background:#f6f8fa; border-radius:8px; padding:12px; text-align:center; border:1px solid #d0d7de;">
+        <div style="font-size:20px; font-weight:700; color:#1f2328;">10</div>
+        <div style="font-size:11px; color:#59636e;">分类数</div>
+      </div>
+    </div>
+
+    <!-- 筛选 + 搜索 -->
+    <div style="display:flex; gap:10px; margin-bottom:16px; align-items:center; flex-wrap:wrap;">
+      <select style="padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; font-size:13px; background:#fff;">
+        <option>全部分类</option>
+        <option>产地溯源</option>
+        <option>筛选分拣</option>
+        <option>清洗泡发</option>
+        <option>切配处理</option>
+        <option>下锅入锅</option>
+        <option>烹饪翻炒</option>
+        <option>出锅装盘</option>
+        <option>成品展示</option>
+        <option>试吃品尝</option>
+        <option>产品特写</option>
+      </select>
+      <input class="mock-input" placeholder="搜索关键词..." style="flex:1; min-width:160px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; font-size:13px;">
+      <span style="font-size:12px; color:#0969da; cursor:pointer;">&#8635; 重新索引</span>
+    </div>
+
+    <!-- 分类网格 -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px;">
+
+      <!-- 每张素材卡片 -->
+      <div style="border:1px solid #d0d7de; border-radius:10px; overflow:hidden; background:#fff;">
+        <div style="height:110px; background:linear-gradient(135deg, #eff2f5 0%, #e1e4e8 100%); display:flex; align-items:center; justify-content:center; font-size:36px;">
+          &#127807;
+        </div>
+        <div style="padding:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; background:#ddf4ff; color:#0969da;">产地溯源</span>
+            <span style="font-size:11px; color:#59636e;">95%</span>
+          </div>
+          <div style="font-size:12px; color:#1f2328; margin-top:6px; font-weight:500;">clip_003.mp4</div>
+          <div style="font-size:11px; color:#59636e; margin-top:2px;">5.0s &middot; 使用 0 次</div>
+          <div style="display:flex; gap:4px; margin-top:6px;">
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#f6f8fa; color:#59636e;">采摘</span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#f6f8fa; color:#59636e;">松林</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #d0d7de; border-radius:10px; overflow:hidden; background:#fff;">
+        <div style="height:110px; background:linear-gradient(135deg, #eff2f5 0%, #e1e4e8 100%); display:flex; align-items:center; justify-content:center; font-size:36px;">
+          &#127807;
+        </div>
+        <div style="padding:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; background:#ddf4ff; color:#0969da;">产地溯源</span>
+            <span style="font-size:11px; color:#59636e;">85%</span>
+          </div>
+          <div style="font-size:12px; color:#1f2328; margin-top:6px; font-weight:500;">clip_001.mp4</div>
+          <div style="font-size:11px; color:#59636e; margin-top:2px;">4.5s &middot; 使用 1 次</div>
+          <div style="display:flex; gap:4px; margin-top:6px;">
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#f6f8fa; color:#59636e;">找菌子</span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#f6f8fa; color:#59636e;">竹篮</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #d0d7de; border-radius:10px; overflow:hidden; background:#fff;">
+        <div style="height:110px; background:linear-gradient(135deg, #ddf4ff 0%, #a0cfee 100%); display:flex; align-items:center; justify-content:center; font-size:36px;">
+          &#128167;
+        </div>
+        <div style="padding:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; background:#fff1c0; color:#9a6700;">清洗泡发</span>
+            <span style="font-size:11px; color:#59636e;">95%</span>
+          </div>
+          <div style="font-size:12px; color:#1f2328; margin-top:6px; font-weight:500;">clip_005.mp4</div>
+          <div style="font-size:11px; color:#59636e; margin-top:2px;">5.0s &middot; 使用 0 次</div>
+          <div style="display:flex; gap:4px; margin-top:6px;">
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#f6f8fa; color:#59636e;">清洗</span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#f6f8fa; color:#59636e;">去泥</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid #d0d7de; border-radius:10px; overflow:hidden; background:#fff;">
+        <div style="height:110px; background:linear-gradient(135deg, #fff1c0 0%, #eac54f 100%); display:flex; align-items:center; justify-content:center; font-size:36px;">
+          &#128298;
+        </div>
+        <div style="padding:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; background:#ffd8d2; color:#d1242f;">切配处理</span>
+            <span style="font-size:11px; color:#59636e;">88%</span>
+          </div>
+          <div style="font-size:12px; color:#1f2328; margin-top:6px; font-weight:500;">clip_008.mp4</div>
+          <div style="font-size:11px; color:#59636e; margin-top:2px;">5.0s &middot; 使用 0 次</div>
+          <div style="display:flex; gap:4px; margin-top:6px;">
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#f6f8fa; color:#59636e;">切片</span>
+            <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#f6f8fa; color:#59636e;">改刀</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>核心交互流程</h3>
+  <div class="split">
+    <div style="padding:16px;">
+      <h4>上传 → 索引 → 分类</h4>
+      <ol style="font-size:13px; line-height:2; color:#1f2328;">
+        <li>用户拖拽/点击上传源视频</li>
+        <li>点击「一键索引」触发后端 <code>AssetIndexer</code></li>
+        <li>FFmpeg 场景检测切分 + VisionClient AI 分类</li>
+        <li>切片入库 SQLite，按分类展示</li>
+      </ol>
+    </div>
+    <div style="padding:16px;">
+      <h4>筛选 → 检索 → 复用</h4>
+      <ol style="font-size:13px; line-height:2; color:#1f2328;">
+        <li>按分类下拉筛选或关键词搜索</li>
+        <li>查看每个切片的置信度、使用次数</li>
+        <li>手动禁用低质量切片</li>
+        <li>Job 生产时自动调用 AssetRetriever 匹配</li>
+      </ol>
+    </div>
+  </div>
+</div>

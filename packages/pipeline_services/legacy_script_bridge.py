@@ -11,7 +11,7 @@ class LegacyScriptBridge:
     def __init__(self, root_dir: Path) -> None:
         self.root_dir = root_dir
 
-    def generate(self, product: str, output_dir: Path, mock: bool) -> dict[str, Any]:
+    def generate(self, product: str, output_dir: Path, mock: bool, custom_prompt: str = "") -> dict[str, Any]:
         args = Namespace(
             product=product,
             brand="滋元堂",
@@ -20,5 +20,6 @@ class LegacyScriptBridge:
             output_dir=str(output_dir),
             interval_seconds=10.0,
             mock=mock,
+            custom_prompt=custom_prompt,
         )
         return generate_script(args)
