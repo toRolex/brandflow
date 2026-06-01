@@ -72,6 +72,8 @@ class ThumbnailGenerator:
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="ignore",
                 timeout=FFMPEG_TIMEOUT,
             )
             return True
@@ -91,6 +93,8 @@ class ThumbnailGenerator:
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="ignore",
             timeout=FFMPEG_TIMEOUT,
         )
         return float(result.stdout.strip())

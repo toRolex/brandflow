@@ -131,7 +131,7 @@ class AssetIndexer:
             output_pattern,
         ]
         subprocess.run(cmd, check=True, capture_output=True, text=True,
-                       timeout=FFMPEG_TIMEOUT)
+                       encoding="utf-8", errors="ignore", timeout=FFMPEG_TIMEOUT)
 
         clips = sorted(output_dir.glob("clip_*.mp4"))
 
@@ -162,7 +162,7 @@ class AssetIndexer:
             output_pattern,
         ]
         subprocess.run(cmd, check=True, capture_output=True, text=True,
-                       timeout=FFMPEG_TIMEOUT)
+                       encoding="utf-8", errors="ignore", timeout=FFMPEG_TIMEOUT)
         return sorted(output_dir.glob(f"{stem}_sub_*.mp4"))
 
     def _extract_mid_frame(self, clip_path: Path, output_dir: Path) -> Path:
@@ -179,7 +179,7 @@ class AssetIndexer:
             str(frame_path),
         ]
         subprocess.run(cmd, check=True, capture_output=True, text=True,
-                       timeout=FFMPEG_TIMEOUT)
+                       encoding="utf-8", errors="ignore", timeout=FFMPEG_TIMEOUT)
         return frame_path
 
     def _classify_frame(self, frame_path: Path) -> tuple[str, float]:
@@ -200,7 +200,7 @@ class AssetIndexer:
             str(video_path),
         ]
         result = subprocess.run(cmd, check=True, capture_output=True, text=True,
-                                timeout=FFMPEG_TIMEOUT)
+                                encoding="utf-8", errors="ignore", timeout=FFMPEG_TIMEOUT)
         return float(result.stdout.strip())
 
     @staticmethod
