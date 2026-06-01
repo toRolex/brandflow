@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 from pathlib import Path
 
 from packages.provider_config.runtime_env import VISION_ENV_MAPPINGS, _section_overrides
+
+logger = logging.getLogger(__name__)
 
 
 _VISION_PROMPT = """你是一个菌菇视频素材分类助手。请识别这张图片属于以下哪个类别，只返回一个类别名称：
@@ -23,24 +26,40 @@ class VisionClient:
         self.provider = provider or os.getenv("VISION_PROVIDER", "openai")
 
     def classify_frame(self, image_path: Path) -> dict:
+        logger.info(f"[Vision] 开始分类: {image_path.name}, provider={self.provider}, model={self.model}")
         image_b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
         ext = image_path.suffix.lower().replace(".", "")
         media_type = f"image/{ext}" if ext in ("jpg", "jpeg", "png", "webp") else "image/jpeg"
 
         import requests
 
-        if self.provider == "claude":
-            payload, headers = self._build_claude_request(image_b64, media_type)
-            resp = requests.post(self.endpoint, json=payload, headers=headers, timeout=60)
-            resp.raise_for_status()
-            return self._parse_claude_response(resp.json())
-        else:
-            # Default: OpenAI-compatible format
-            data_url = f"data:{media_type};base64,{image_b64}"
-            payload, headers = self._build_openai_request(data_url)
-            resp = requests.post(self.endpoint, json=payload, headers=headers, timeout=60)
-            resp.raise_for_status()
-            return self._parse_openai_response(resp.json())
+        try:
+            if self.provider == "claude":
+                payload, headers = self._build_claude_request(image_b64, media_type)
+                logger.debug(f"[Vision] 请求 Claude API: {self.endpoint}")
+                resp = requests.post(self.endpoint, json=payload, headers=headers, timeout=60)
+                resp.raise_for_status()
+                result = self._parse_claude_response(resp.json())
+            else:
+                # Default: OpenAI-compatible format
+                data_url = f"data:{media_type};base64,{image_b64}"
+                payload, headers = self._build_openai_request(data_url)
+                logger.debug(f"[Vision] 请求 OpenAI API: {self.endpoint}")
+                resp = requests.post(self.endpoint, json=payload, headers=headers, timeout=60)
+                resp.raise_for_status()
+                result = self._parse_openai_response(resp.json())
+
+            logger.info(f"[Vision] 分类成功: {image_path.name} → {result.get('category')} (置信度: {result.get('confidence', 0):.2f})")
+            return result
+        except requests.exceptions.Timeout:
+            logger.error(f"[Vision] 请求超时: {image_path.name}, endpoint={self.endpoint}")
+            raise
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"[Vision] HTTP 错误: {image_path.name}, status={e.response.status_code}, body={e.response.text[:200]}")
+            raise
+        except Exception as e:
+            logger.error(f"[Vision] 分类失败: {image_path.name}, error={type(e).__name__}: {e}")
+            raise
 
     def _build_openai_request(self, data_url: str) -> tuple[dict, dict]:
         payload = {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
@@ -11,6 +12,8 @@ from pathlib import Path
 from packages.pipeline_services.asset_library.models import AssetRecord, Category
 from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_library.vision_client import VisionClient
+
+logger = logging.getLogger(__name__)
 
 
 MAX_CLIP_SECONDS = 8
@@ -59,17 +62,20 @@ class AssetIndexer:
         return records
 
     def _ingest_one_video(self, video_path: Path, output_base: Path) -> list[AssetRecord]:
+        logger.info(f"[Indexer] 开始处理视频: {video_path.name}")
         temp_dir = Path(tempfile.mkdtemp(prefix="asset_cut_"))
         try:
             clips = self._scene_detect_and_cut(video_path, temp_dir)
+            logger.info(f"[Indexer] 切割完成: {video_path.name} → {len(clips)} 个片段")
             records: list[AssetRecord] = []
 
-            for clip_path in clips:
+            for i, clip_path in enumerate(clips):
                 frame_path = self._extract_mid_frame(clip_path, temp_dir)
                 if frame_path.exists():
                     category_name, confidence = self._classify_frame(frame_path)
                 else:
                     category_name, confidence = "产品特写", 0.0
+                    logger.warning(f"[Indexer] 帧提取失败，使用默认分类: {clip_path.name}")
 
                 target_category = Category(category_name) if self._is_valid_category(category_name) else Category.MACRO
                 target_dir = output_base / self.product / target_category.value
@@ -98,8 +104,13 @@ class AssetIndexer:
                 )
                 self.repository.insert(record)
                 records.append(record)
+                logger.debug(f"[Indexer] 片段 {i+1}/{len(clips)}: {clip_path.name} → {target_category.value} (置信度: {confidence:.2f})")
 
+            logger.info(f"[Indexer] 视频处理完成: {video_path.name} → {len(records)} 条记录")
             return records
+        except Exception as e:
+            logger.error(f"[Indexer] 视频处理失败: {video_path.name}, error={type(e).__name__}: {e}")
+            raise
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
