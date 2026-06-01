@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from packages.file_store.paths import (
@@ -20,6 +21,7 @@ from packages.file_store.paths import (
 )
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
+from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerator
 
 router = APIRouter(prefix="/api/assets", tags=["api-assets"])
 
@@ -508,13 +510,11 @@ async def get_asset_thumbnail(request: Request, asset_id: str):
         if not video_path.exists():
             raise HTTPException(status_code=404, detail="video file not found")
 
-        from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerator
         generator = ThumbnailGenerator()
         success = generator.generate(video_path, thumbnail_path)
         if not success:
             raise HTTPException(status_code=500, detail="failed to generate thumbnail")
 
-    from fastapi.responses import FileResponse
     return FileResponse(thumbnail_path, media_type="image/jpeg")
 
 
