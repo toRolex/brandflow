@@ -6,7 +6,6 @@ import { PIPELINE_STEPS } from "../types";
 import PipelineSidebar from "../components/PipelineSidebar";
 import ScriptPreview from "../components/ScriptPreview";
 import MediaPlayer from "../components/MediaPlayer";
-import SubtitleEditor from "../components/SubtitleEditor";
 
 function computeCompletedPhases(currentPhase: Phase): Phase[] {
   const terminalPhases: Phase[] = ["completed", "failed", "cancelled", "paused"];
@@ -175,10 +174,113 @@ export default function JobPipeline() {
           </div>
         );
       }
-      case "subtitle":
+      case "tts_review": {
+        const audio = findArtifact("tts_audio");
         return (
-          <SubtitleEditor text="" onSave={(text) => console.log("save subtitle", text)} />
+          <div>
+            <h3 className="font-semibold text-sm mb-3">TTS 审核</h3>
+            <p className="text-gray-400 text-sm mb-4">请试听TTS配音效果，确认无误后通过</p>
+            <MediaPlayer src={audio?.url || ""} kind="audio" />
+            <div className="flex gap-2 mt-4">
+              <button
+                className="bg-[#0969da] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                onClick={() => handleApprove("tts")}
+              >
+                {"\u2713"} 通过
+              </button>
+              <button
+                className="bg-[#d1242f] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                onClick={() => handleReject("tts")}
+              >
+                {"\u2717"} 打回重新生成
+              </button>
+            </div>
+          </div>
         );
+      }
+      case "subtitle": {
+        const subtitleArtifact = findArtifact("subtitle");
+        return (
+          <div>
+            <h3 className="font-semibold text-sm mb-3">转录字幕</h3>
+            {subtitleArtifact ? (
+              <div>
+                <p className="text-gray-400 text-sm mb-2">字幕文件已生成</p>
+                <a 
+                  href={subtitleArtifact.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-[#0969da] hover:underline text-sm"
+                >
+                  下载字幕文件 ({subtitleArtifact.kind})
+                </a>
+              </div>
+            ) : (
+              <p className="text-gray-400 text-sm">等待字幕生成...</p>
+            )}
+          </div>
+        );
+      }
+      case "asset_retrieving": {
+        const clipsArtifact = findArtifact("selected_clips");
+        return (
+          <div>
+            <h3 className="font-semibold text-sm mb-3">素材检索</h3>
+            {clipsArtifact ? (
+              <div>
+                <p className="text-gray-400 text-sm mb-2">已检索到匹配素材</p>
+                <a 
+                  href={clipsArtifact.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-[#0969da] hover:underline text-sm"
+                >
+                  查看素材列表 ({clipsArtifact.kind})
+                </a>
+              </div>
+            ) : (
+              <p className="text-gray-400 text-sm">等待素材检索...</p>
+            )}
+          </div>
+        );
+      }
+      case "asset_review": {
+        const clipsArtifact = findArtifact("selected_clips");
+        return (
+          <div>
+            <h3 className="font-semibold text-sm mb-3">素材审核</h3>
+            {clipsArtifact ? (
+              <div>
+                <p className="text-gray-400 text-sm mb-4">请审核检索到的素材</p>
+                <a 
+                  href={clipsArtifact.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-[#0969da] hover:underline text-sm mb-4 block"
+                >
+                  查看素材列表
+                </a>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    className="bg-[#0969da] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                    onClick={() => handleApprove("asset")}
+                  >
+                    {"\u2713"} 通过
+                  </button>
+                  <button
+                    className="bg-[#d1242f] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                    onClick={() => handleReject("asset")}
+                  >
+                    {"\u2717"} 打回重新检索
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-400 text-sm">等待素材加载...</p>
+            )}
+          </div>
+        );
+      }
       case "video_base": {
         const video = findArtifact("video_base");
         return (
