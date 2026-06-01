@@ -1,6 +1,6 @@
 export type Phase =
   | "queued" | "script_generating" | "script_review"
-  | "tts_generating" | "subtitle_generating" | "asset_retrieving"
+  | "tts_generating" | "tts_review" | "subtitle_generating" | "asset_retrieving"
   | "asset_review"
   | "video_rendering" | "final_review"
   | "completed" | "failed" | "cancelled" | "paused";
@@ -152,6 +152,7 @@ export const PIPELINE_STEPS: PipelineStep[] = [
   { key: "script_gen", phase: "script_generating", label: "生成脚本", isReview: false },
   { key: "script_review", phase: "script_review", label: "脚本审核", isReview: true },
   { key: "tts", phase: "tts_generating", label: "TTS 配音", isReview: false },
+  { key: "tts_review", phase: "tts_review", label: "TTS 审核", isReview: true },
   { key: "subtitle", phase: "subtitle_generating", label: "转录字幕", isReview: false },
   { key: "asset_retrieving", phase: "asset_retrieving", label: "素材检索", isReview: false },
   { key: "asset_review", phase: "asset_review", label: "素材审核", isReview: true },
