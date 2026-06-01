@@ -61,6 +61,14 @@ def get_project(request: Request, project_id: str):
     }
 
 
+@router.delete("/{project_id}")
+def delete_project(request: Request, project_id: str):
+    repo = FileStoreRepository(request.app.state.root_dir)
+    if not repo.delete_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"ok": True}
+
+
 def _sanitize_filename(filename: str) -> str:
     return Path(filename).name
 

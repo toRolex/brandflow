@@ -104,6 +104,13 @@ class FileStoreRepository:
         asset_path.unlink()
         return True
 
+    def delete_project(self, project_id: str) -> bool:
+        root = project_root(self.root, project_id)
+        if not root.exists():
+            return False
+        shutil.rmtree(root)
+        return True
+
     def _write_json(self, path: Path, payload: dict[str, Any]) -> None:
         temp_path = path.with_suffix(path.suffix + ".tmp")
         temp_path.write_text(
