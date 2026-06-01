@@ -89,14 +89,22 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
     elif phase == "subtitle_generating":
         audio_path = job_dir / "audio.mp3"
         srt_path = job_dir / "subtitles.srt"
+        print(f"[SUBTITLE] audio exists={audio_path.exists()}, srt exists={srt_path.exists()}", flush=True)
         if audio_path.exists():
-            # Find script text
             script_text = ""
             for a in job_dir.glob("*口播文案.txt"):
                 script_text = a.read_text(encoding="utf-8").strip()
                 break
+            print(f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}", flush=True)
             if script_text:
-                media_bridge.build_script_timed_srt(audio_path, srt_path, script_text)
+                try:
+                    media_bridge.build_script_timed_srt(audio_path, srt_path, script_text)
+                    print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
+                except Exception as e:
+                    print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
+                    import traceback; traceback.print_exc()
+        else:
+            print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
         if srt_path.exists():
             rel = _to_url_path(srt_path, workspace_dir)
             result.append({"kind": "subtitle", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": srt_path.stat().st_size})
