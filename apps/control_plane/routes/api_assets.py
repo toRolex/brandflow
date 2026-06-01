@@ -122,7 +122,7 @@ def get_indexed_assets(
 
 
 @router.post("/index")
-async def index_assets(request: Request, async_mode: bool = Query(True, alias="async")):
+async def index_assets(request: Request, async_mode: bool = Query(True)):
     root_dir: Path = request.app.state.root_dir
     source_dir = shared_source_dir(root_dir)
     source_dir.mkdir(parents=True, exist_ok=True)

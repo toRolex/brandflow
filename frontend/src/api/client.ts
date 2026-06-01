@@ -120,7 +120,7 @@ export const api = {
     request<import("../types").IndexResult>("/api/assets/index", { method: "POST" }),
 
   indexAssetsSharedAsync: () =>
-    request<{ task_id: string; total_videos: number }>("/api/assets/index?async=true", { method: "POST" }),
+    request<{ task_id: string; total_videos: number }>("/api/assets/index?async_mode=true", { method: "POST" }),
 
   getIndexStatus: (taskId: string) =>
     request<import("../types").IndexTaskState>(`/api/assets/index/${taskId}/status`),
