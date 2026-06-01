@@ -134,10 +134,10 @@ def index_assets(request: Request):
     total_before = 0
     if db_path.exists():
         conn = sqlite3.connect(str(db_path))
-        rows = conn.execute("SELECT source_video FROM assets").fetchall()
         total_before = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
         conn.close()
-        indexed_sources = {row[0] for row in rows if row[0]}
+        repository_for_check = AssetRepository(db_path)
+        indexed_sources = repository_for_check.get_indexed_source_paths()
 
     new_videos = [v for v in videos if str(v.resolve()) not in indexed_sources]
 
@@ -162,6 +162,7 @@ def index_assets(request: Request):
         for video in new_videos:
             try:
                 indexer._ingest_one_video(video, output_base)
+                repository.mark_source_indexed(str(video.resolve()))
             except Exception as e:
                 print(f"[INDEX ERROR] {video.name}: {e}")
 

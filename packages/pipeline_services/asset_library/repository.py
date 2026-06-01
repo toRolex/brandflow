@@ -32,9 +32,26 @@ class AssetRepository:
                 last_used_at TEXT NOT NULL DEFAULT ''
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS source_videos (
+                source_path TEXT PRIMARY KEY,
+                indexed_at TEXT NOT NULL DEFAULT ''
+            )
+        """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON assets(category)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_product ON assets(product)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON assets(status)")
+
+        existing_sources = conn.execute("SELECT COUNT(*) FROM source_videos").fetchone()[0]
+        if existing_sources == 0:
+            rows = conn.execute("SELECT DISTINCT source_video FROM assets WHERE source_video != ''").fetchall()
+            now = datetime.now(timezone.utc).isoformat()
+            for row in rows:
+                conn.execute(
+                    "INSERT OR IGNORE INTO source_videos (source_path, indexed_at) VALUES (?, ?)",
+                    (row[0], now),
+                )
+
         conn.commit()
         conn.close()
 
@@ -158,6 +175,31 @@ class AssetRepository:
         conn.commit()
         conn.close()
         return deleted
+
+    def mark_source_indexed(self, source_path: str) -> None:
+        """Record that a source video has been indexed (prevents re-indexing after clip deletion)."""
+        now = datetime.now(timezone.utc).isoformat()
+        conn = sqlite3.connect(str(self.db_path))
+        conn.execute(
+            "INSERT OR REPLACE INTO source_videos (source_path, indexed_at) VALUES (?, ?)",
+            (source_path, now),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_indexed_source_paths(self) -> set[str]:
+        """Return all source video paths that have been indexed at least once."""
+        conn = sqlite3.connect(str(self.db_path))
+        rows = conn.execute("SELECT source_path FROM source_videos").fetchall()
+        conn.close()
+        return {row[0] for row in rows}
+
+    def remove_source_record(self, source_path: str) -> None:
+        """Remove a source video from the indexed-sources tracker (e.g., when source file is deleted)."""
+        conn = sqlite3.connect(str(self.db_path))
+        conn.execute("DELETE FROM source_videos WHERE source_path = ?", (source_path,))
+        conn.commit()
+        conn.close()
 
     def close(self) -> None:
         pass
