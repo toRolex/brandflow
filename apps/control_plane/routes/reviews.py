@@ -194,3 +194,95 @@ def regenerate_with_prompt(
     except Exception as e:
         logger.error(f"[Review] 重新生成失败: job={job_id}, error={e}")
         raise HTTPException(status_code=500, detail=f"Script generation failed: {e}")
+
+
+class RejectClipRequest(BaseModel):
+    clip_index: int
+
+
+@router.post("/{job_id}/reject-clip")
+def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> dict:
+    root_dir = Path(request.app.state.root_dir)
+    project_id = request.query_params.get("project_id", "")
+
+    job_dir = _find_job_dir(root_dir, project_id, job_id)
+    clips_path = job_dir / "selected_clips.json"
+
+    if not clips_path.exists():
+        raise HTTPException(status_code=404, detail="selected_clips.json not found")
+
+    try:
+        clips = json.loads(clips_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read clips: {e}")
+
+    if payload.clip_index < 0 or payload.clip_index >= len(clips):
+        raise HTTPException(status_code=400, detail=f"Invalid clip index: {payload.clip_index}")
+
+    rejected_clip = clips[payload.clip_index]
+    sentence = rejected_clip.get("sentence", "")
+    category = rejected_clip.get("category", "")
+    rejected_asset_id = rejected_clip.get("asset_id", "")
+
+    logger.info(f"[Review] 打回单个素材: job={job_id}, index={payload.clip_index}, sentence={sentence[:30]}..., asset={rejected_asset_id}")
+
+    if not _find_job_project(FileStoreRepository(root_dir), job_id):
+        for project_dir in (root_dir / "workspace" / "projects").iterdir():
+            if not project_dir.is_dir():
+                continue
+            if (project_dir / "runtime" / "jobs" / job_id).exists():
+                project_id = project_dir.name
+                break
+
+    if not project_id:
+        raise HTTPException(status_code=404, detail="project not found for job")
+
+    try:
+        from packages.pipeline_services.asset_library import AssetRepository, AssetRetriever
+        from packages.file_store.paths import shared_asset_db_path
+
+        db_path = shared_asset_db_path(root_dir)
+        repo = AssetRepository(db_path)
+        retriever = AssetRetriever(repo)
+
+        from packages.pipeline_services.asset_library.models import Category
+        category_enum = None
+        for cat in Category:
+            if cat.value == category:
+                category_enum = cat
+                break
+
+        if category_enum:
+            candidates = repo.query_by_category("", category_enum)
+            candidates = [c for c in candidates if c.asset_id != rejected_asset_id and c.usage_count < 2]
+            if candidates:
+                chosen = min(candidates, key=lambda c: c.usage_count)
+                clips[payload.clip_index] = {
+                    "sentence": sentence,
+                    "category": category,
+                    "file_path": chosen.file_path,
+                    "asset_id": chosen.asset_id,
+                    "method": "rejected_replaced",
+                }
+                repo.increment_usage(chosen.asset_id)
+                logger.info(f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}")
+            else:
+                clips[payload.clip_index]["method"] = "rejected_no_alternative"
+                logger.warning(f"[Review] 无替代素材: sentence={sentence[:30]}..., category={category}")
+        else:
+            clips[payload.clip_index]["method"] = "rejected_unknown_category"
+            logger.warning(f"[Review] 未知分类: {category}")
+
+        clips_path.write_text(json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    except Exception as e:
+        logger.error(f"[Review] 替换素材失败: {e}")
+        clips[payload.clip_index]["method"] = "rejected_error"
+        clips_path.write_text(json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return {
+        "status": "clip_rejected",
+        "job_id": job_id,
+        "clip_index": payload.clip_index,
+        "sentence": sentence,
+    }
