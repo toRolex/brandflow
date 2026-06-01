@@ -45,7 +45,25 @@ export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPrevi
         const fileName = asset.file_path.split("/").pop() || asset.asset_id;
 
         return (
-          <div key={asset.asset_id} onClick={() => onPreview(asset)}>
+          <div
+            key={asset.asset_id}
+            onClick={(e) => {
+              if (e.shiftKey && lastSelectedIndexRef.current !== null) {
+                const start = Math.min(lastSelectedIndexRef.current, index);
+                const end = Math.max(lastSelectedIndexRef.current, index);
+                for (let i = start; i <= end; i += 1) {
+                  const rangeAssetId = assets[i]?.asset_id;
+                  if (rangeAssetId && !selectedIds.has(rangeAssetId)) {
+                    onToggleSelect(rangeAssetId);
+                  }
+                }
+              } else {
+                onToggleSelect(asset.asset_id);
+              }
+              lastSelectedIndexRef.current = index;
+            }}
+            onDoubleClick={() => onPreview(asset)}
+          >
             <AssetCard
               asset={{
                 name: fileName,
@@ -56,23 +74,6 @@ export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPrevi
                 confidence: asset.confidence,
               }}
               selected={selectedIds.has(asset.asset_id)}
-              onSelect={(_, event) => {
-                if (event.shiftKey && lastSelectedIndexRef.current !== null) {
-                  const start = Math.min(lastSelectedIndexRef.current, index);
-                  const end = Math.max(lastSelectedIndexRef.current, index);
-
-                  for (let i = start; i <= end; i += 1) {
-                    const rangeAssetId = assets[i]?.asset_id;
-                    if (rangeAssetId && !selectedIds.has(rangeAssetId)) {
-                      onToggleSelect(rangeAssetId);
-                    }
-                  }
-                } else {
-                  onToggleSelect(asset.asset_id);
-                }
-
-                lastSelectedIndexRef.current = index;
-              }}
             />
           </div>
         );
