@@ -4,11 +4,14 @@ from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerato
 
 
 def test_generator_creates_thumbnail(tmp_path):
-    generator = ThumbnailGenerator(ffmpeg_path="ffmpeg")
+    # 使用项目根目录的绝对路径
+    project_root = Path(__file__).parent.parent.parent
+    ffmpeg_path = project_root / "tools" / "bin" / "ffmpeg.exe"
+    generator = ThumbnailGenerator(ffmpeg_path=str(ffmpeg_path))
     video_path = tmp_path / "test.mp4"
     import subprocess
     subprocess.run([
-        "ffmpeg", "-y", "-f", "lavfi", "-i",
+        str(ffmpeg_path), "-y", "-f", "lavfi", "-i",
         "testsrc=duration=5:size=320x240:rate=25",
         "-pix_fmt", "yuv420p",
         str(video_path)

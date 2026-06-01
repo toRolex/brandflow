@@ -12,11 +12,13 @@ from packages.pipeline_services.asset_library.retriever import AssetRetriever
 
 def _create_mock_video(output_path: Path, duration: float = 3.0) -> Path:
     """Create a minimal test video using ffmpeg lavfi."""
-    ffmpeg = os.environ.get("FFMPEG_PATH", "ffmpeg")
-    if not Path(ffmpeg).exists():
-        ffmpeg = "ffmpeg"
+    # 使用项目根目录的绝对路径
+    project_root = Path(__file__).parent.parent.parent
+    ffmpeg = project_root / "tools" / "bin" / "ffmpeg.exe"
+    if not ffmpeg.exists():
+        ffmpeg = os.environ.get("FFMPEG_PATH", "tools/bin/ffmpeg.exe")
     cmd = [
-        ffmpeg,
+        str(ffmpeg),
         "-f", "lavfi",
         "-i", f"color=c=black:s=320x240:d={duration}:r=24",
         "-c:v", "libx264",
