@@ -120,8 +120,13 @@ export default function SmartAssetLibrary({ projectId: _projectId, onUpload: _on
             pollIntervalRef.current = null;
           }
           await loadAssets();
+          setTimeout(() => {
+            setIndexStatus("idle");
+            setIndexTaskId(null);
+          }, 2000);
         } else if (status.status === "failed") {
           setIndexStatus("idle");
+          setIndexTaskId(null);
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
