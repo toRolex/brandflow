@@ -21,11 +21,11 @@ export default function ClipReviewCard({ clip, index, onReject, rejected = false
   const fileName = clip.file_path.split("/").pop() || clip.asset_id;
 
   return (
-    <div className={`border rounded-lg overflow-hidden transition-colors ${rejected ? "border-[#d1242f] bg-[#ffebe9]" : "border-[#d0d7de] bg-white"}`}>
+    <div className={`border rounded-lg overflow-hidden transition-colors max-w-full ${rejected ? "border-[#d1242f] bg-[#ffebe9]" : "border-[#d0d7de] bg-white"}`}>
       <div className="p-3 bg-[#f6f8fa] border-b border-[#d0d7de]">
         <div className="flex items-start gap-2">
           <span className="text-[#57606a] text-xs font-mono shrink-0">#{index + 1}</span>
-          <p className="text-sm text-[#1f2328] leading-relaxed">{clip.sentence}</p>
+          <p className="text-sm text-[#1f2328] leading-relaxed break-words">{clip.sentence}</p>
         </div>
         <div className="flex items-center gap-2 mt-2">
           <span className="inline-flex px-1.5 py-0.5 rounded text-xs bg-[#eaeef2] text-[#59636e]">

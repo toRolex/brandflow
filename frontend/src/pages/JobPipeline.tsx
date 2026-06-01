@@ -305,7 +305,7 @@ export default function JobPipeline() {
                   请审核检索到的 {selectedClips.length} 个素材
                   {rejectedClips.size > 0 && <span className="text-[#d1242f]">（已打回 {rejectedClips.size} 个）</span>}
                 </p>
-                <div className="max-h-[600px] overflow-y-auto space-y-3 mb-4">
+                <div className="max-h-[600px] overflow-y-auto overflow-x-hidden space-y-3 mb-4">
                   {selectedClips.map((clip, index) => (
                     <ClipReviewCard
                       key={`${clip.asset_id}-${index}`}
