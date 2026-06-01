@@ -148,7 +148,7 @@ def index_assets(request: Request):
         providers = load_provider_config(root_dir)
         vision_config = resolve_vision_config(providers)
 
-        product = os.environ.get("PRODUCT", "见手青")
+        product = os.environ.get("PRODUCT", "荔枝菌")
 
         indexer = AssetIndexer(
             ffmpeg_path=os.environ.get("FFMPEG_PATH", "ffmpeg"),
@@ -439,3 +439,27 @@ def migrate_project_assets(request: Request):
         "migrated_clips": migrated_clips,
         "migrated_sources": migrated_sources,
     }
+
+
+@router.delete("/{asset_id}")
+async def delete_asset(request: Request, asset_id: str):
+    root_dir: Path = request.app.state.root_dir
+    db_path = shared_asset_db_path(root_dir)
+    if not db_path.exists():
+        raise HTTPException(status_code=404, detail="asset db not found")
+
+    repo = AssetRepository(db_path)
+    record = repo.query_one(asset_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="asset not found")
+
+    file_path = Path(record.file_path)
+    if file_path.exists():
+        file_path.unlink()
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("DELETE FROM assets WHERE asset_id = ?", (asset_id,))
+    conn.commit()
+    conn.close()
+
+    return {"status": "deleted"}

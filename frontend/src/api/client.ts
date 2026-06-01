@@ -134,6 +134,11 @@ export const api = {
       body: JSON.stringify({ asset_ids: assetIds, ...fields }),
     }),
 
+  deleteAssetShared: (assetId: string) =>
+    request<{ status: string }>(`/api/assets/${assetId}`, {
+      method: "DELETE",
+    }),
+
   migrateAssets: () =>
     request<{ migrated_projects: number; migrated_clips: number; migrated_sources: number }>(
       "/api/assets/migrate",

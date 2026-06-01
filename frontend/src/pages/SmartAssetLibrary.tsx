@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { AssetRecord, AssetStats, IndexStatus } from "../types";
+import type { AssetCategory, AssetRecord, AssetStats, IndexStatus } from "../types";
 import AssetGrid from "../components/AssetGrid";
 import AssetPreviewPanel from "../components/AssetPreviewPanel";
 import AssetUploadZone from "../components/AssetUploadZone";
@@ -32,7 +32,7 @@ const DEFAULT_STATS: AssetStats = {
   source_videos: 0,
 };
 
-export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
+export default function SmartAssetLibrary({ projectId: _projectId, onUpload: _onUpload }: Props) {
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [stats, setStats] = useState<AssetStats>(DEFAULT_STATS);
   const [category, setCategory] = useState("");
@@ -174,6 +174,21 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
     [isBatchUpdating, loadAssets, selectedIds]
   );
 
+  const handleDelete = useCallback(
+    async (assetId: string) => {
+      if (!window.confirm("确认删除此素材？此操作不可撤销。")) {
+        return;
+      }
+      try {
+        await api.deleteAssetShared(assetId);
+        await loadAssets();
+      } catch (error) {
+        console.error("delete asset failed", error);
+      }
+    },
+    [loadAssets]
+  );
+
   const handlePreviewStatusToggle = useCallback(
     async (asset: AssetRecord, nextStatus: AssetRecord["status"]) => {
       if (isPreviewUpdating) {
@@ -211,7 +226,11 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
           if (!prev || prev.asset_id !== asset.asset_id) {
             return prev;
           }
-          return { ...prev, ...fields };
+          return {
+            ...prev,
+            ...(fields.product !== undefined && { product: fields.product }),
+            ...(fields.category !== undefined && { category: fields.category as AssetCategory }),
+          };
         });
       } finally {
         setIsPreviewUpdating(false);
@@ -286,6 +305,7 @@ export default function SmartAssetLibrary({ projectId, onUpload }: Props) {
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onPreview={setPreviewAsset}
+          onDelete={handleDelete}
         />
 
         <div className="xl:sticky xl:top-4">

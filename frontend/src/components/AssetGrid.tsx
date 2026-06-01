@@ -7,9 +7,10 @@ interface Props {
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onPreview: (asset: AssetRecord) => void;
+  onDelete?: (assetId: string) => void;
 }
 
-export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPreview }: Props) {
+export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPreview, onDelete }: Props) {
   const lastSelectedIndexRef = useRef<number | null>(null);
 
   const handleKeyDown = useCallback(
@@ -74,6 +75,7 @@ export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPrevi
                 confidence: asset.confidence,
               }}
               selected={selectedIds.has(asset.asset_id)}
+              onDelete={onDelete ? () => onDelete(asset.asset_id) : undefined}
             />
           </div>
         );
