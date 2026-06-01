@@ -17,6 +17,9 @@ MAX_CLIP_SECONDS = 8
 SPLIT_CLIP_SECONDS = 5
 
 
+FFMPEG_TIMEOUT = 300  # seconds per ffmpeg/ffprobe call
+
+
 class AssetIndexer:
     def __init__(
         self,
@@ -26,6 +29,9 @@ class AssetIndexer:
         product: str = "",
     ) -> None:
         self.ffmpeg_path = ffmpeg_path
+        self.ffprobe_path = os.environ.get(
+            "FFPROBE_PATH", ffmpeg_path.replace("ffmpeg", "ffprobe")
+        )
         self.repository = repository
         self.vision_config = vision_config or {}
         self.product = product
@@ -98,7 +104,7 @@ class AssetIndexer:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     def _scene_detect_and_cut(self, video_path: Path, output_dir: Path) -> list[Path]:
-        """Cut video into fixed-duration segments, then split any oversized clips."""
+        """Cut video into fixed-duration segments using stream copy (fast)."""
         output_dir.mkdir(parents=True, exist_ok=True)
         output_pattern = str(output_dir / "clip_%03d.mp4")
 
@@ -106,16 +112,15 @@ class AssetIndexer:
             self.ffmpeg_path,
             "-i", str(video_path),
             "-an",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-crf", "23",
+            "-c", "copy",
             "-f", "segment",
             "-segment_time", str(MAX_CLIP_SECONDS),
             "-reset_timestamps", "1",
             "-y",
             output_pattern,
         ]
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        subprocess.run(cmd, check=True, capture_output=True, text=True,
+                       timeout=FFMPEG_TIMEOUT)
 
         clips = sorted(output_dir.glob("clip_*.mp4"))
 
@@ -138,16 +143,15 @@ class AssetIndexer:
             self.ffmpeg_path,
             "-i", str(clip_path),
             "-an",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
-            "-crf", "23",
+            "-c", "copy",
             "-f", "segment",
             "-segment_time", str(SPLIT_CLIP_SECONDS),
             "-reset_timestamps", "1",
             "-y",
             output_pattern,
         ]
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        subprocess.run(cmd, check=True, capture_output=True, text=True,
+                       timeout=FFMPEG_TIMEOUT)
         return sorted(output_dir.glob(f"{stem}_sub_*.mp4"))
 
     def _extract_mid_frame(self, clip_path: Path, output_dir: Path) -> Path:
@@ -163,7 +167,8 @@ class AssetIndexer:
             "-y",
             str(frame_path),
         ]
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        subprocess.run(cmd, check=True, capture_output=True, text=True,
+                       timeout=FFMPEG_TIMEOUT)
         return frame_path
 
     def _classify_frame(self, frame_path: Path) -> tuple[str, float]:
@@ -177,13 +182,14 @@ class AssetIndexer:
 
     def _get_duration(self, video_path: Path) -> float:
         cmd = [
-            os.environ.get("FFPROBE_PATH", self.ffmpeg_path.replace("ffmpeg", "ffprobe")),
+            self.ffprobe_path,
             "-v", "error",
             "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1",
             str(video_path),
         ]
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True,
+                                timeout=FFMPEG_TIMEOUT)
         return float(result.stdout.strip())
 
     @staticmethod

@@ -19,6 +19,7 @@ from apps.control_plane.routes.reviews import router as reviews_router
 from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.domain_core.state import next_phase
+from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
 from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
@@ -108,7 +109,7 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
             break
 
         if script_text:
-            db_path = project_dir / "asset_index.db"
+            db_path = shared_asset_db_path(root_dir)
 
             from packages.pipeline_services.asset_library import AssetRepository, AssetRetriever
             repo = AssetRepository(db_path)
