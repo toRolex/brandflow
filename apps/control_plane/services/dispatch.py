@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -11,6 +11,8 @@ class QueuedTask:
     job_id: str
     task_id: str
     task_type: str = "run_phase"
+    manual_script: str = ""
+    uploaded_audio_path: str = ""
 
 
 class Dispatcher:
@@ -18,9 +20,15 @@ class Dispatcher:
         self.queue: list[QueuedTask] = []
         self.current_attempts: dict[str, dict[str, str]] = {}
 
-    def enqueue_demo_job(self, project_id: str, job_id: str) -> None:
+    def enqueue_demo_job(self, project_id: str, job_id: str, manual_script: str = "", uploaded_audio_path: str = "") -> None:
         self.queue.append(
-            QueuedTask(project_id=project_id, job_id=job_id, task_id=f"task-{job_id}")
+            QueuedTask(
+                project_id=project_id,
+                job_id=job_id,
+                task_id=f"task-{job_id}",
+                manual_script=manual_script,
+                uploaded_audio_path=uploaded_audio_path,
+            )
         )
 
     def poll(self, worker_id: str) -> dict[str, object]:
@@ -54,6 +62,8 @@ class Dispatcher:
             "heartbeat_url": f"/workers/tasks/{task.task_id}/heartbeat",
             "expected_outputs": ["script", "audio", "subtitles", "final_video"],
             "runtime_limits": {"max_seconds": 1800},
+            "manual_script": task.manual_script,
+            "uploaded_audio_path": task.uploaded_audio_path,
         }
 
     def accept_report(self, task_id: str, attempt_id: str, lease_id: str) -> bool:

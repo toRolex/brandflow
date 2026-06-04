@@ -22,7 +22,6 @@ const CATEGORIES = [
 
 interface Props {
   projectId: string;
-  onUpload: (file: File) => Promise<void>;
 }
 
 const DEFAULT_STATS: AssetStats = {
@@ -32,7 +31,7 @@ const DEFAULT_STATS: AssetStats = {
   source_videos: 0,
 };
 
-export default function SmartAssetLibrary({ projectId: _projectId, onUpload: _onUpload }: Props) {
+export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [stats, setStats] = useState<AssetStats>(DEFAULT_STATS);
   const [category, setCategory] = useState("");

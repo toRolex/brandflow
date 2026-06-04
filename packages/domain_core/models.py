@@ -12,6 +12,7 @@ Phase = Literal[
     "tts_review",
     "subtitle_generating",
     "asset_retrieving",
+    "asset_review",
     "video_rendering",
     "final_review",
     "completed",
@@ -42,6 +43,8 @@ class JobRecord(BaseModel):
     active_versions: dict[str, str] = Field(default_factory=dict)
     last_error: str = ""
     artifacts: list[ArtifactPointer] = []
+    manual_script: str = ""  # 手动输入的文案，如果非空则跳过LLM生成
+    uploaded_audio_path: str = ""  # 上传的音频文件路径，如果非空则跳过TTS生成
 
 
 class WorkerLease(BaseModel):

@@ -43,13 +43,34 @@ class WorkerLoop:
 
         job_dir = attempt_root / "output"
         job_dir.mkdir(parents=True, exist_ok=True)
-        script_result = self.script_bridge.generate(product=os.environ.get("PRODUCT", "荔枝菌"), output_dir=job_dir, mock=False)
+
+        manual_script = command.get("manual_script", "")
+        uploaded_audio_path = command.get("uploaded_audio_path", "")
+
+        if manual_script:
+            final_script = manual_script
+            script_path = job_dir / "script.txt"
+            script_path.write_text(final_script, encoding="utf-8")
+            script_json_path = job_dir / "script.json"
+            script_json_path.write_text(f'{{"final_script": "{final_script}", "source": "manual"}}', encoding="utf-8")
+            script_result = {"final_script": final_script, "source": "manual", "txt_path": str(script_path), "json_path": str(script_json_path)}
+        else:
+            script_result = self.script_bridge.generate(product=os.environ.get("PRODUCT", "荔枝菌"), output_dir=job_dir, mock=False)
+            final_script = script_result["final_script"]
 
         audio_path = job_dir / "audio.mp3"
-        self.media_bridge.synthesize_tts(script_result["final_script"], audio_path)
+        if uploaded_audio_path:
+            src_audio = Path.cwd() / uploaded_audio_path
+            if src_audio.exists():
+                import shutil
+                shutil.copy2(src_audio, audio_path)
+            else:
+                self.media_bridge.synthesize_tts(final_script, audio_path)
+        else:
+            self.media_bridge.synthesize_tts(final_script, audio_path)
 
         srt_path = job_dir / "subtitles.srt"
-        self.media_bridge.build_script_timed_srt(audio_path, srt_path, script_result["final_script"])
+        self.media_bridge.build_script_timed_srt(audio_path, srt_path, final_script)
 
         final_video_path = job_dir / "final.mp4"
         project_dir = (Path.cwd() / self.workspace_root / "projects" / command["project_id"]).resolve()
