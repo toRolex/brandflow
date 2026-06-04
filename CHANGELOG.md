@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-06-04
+
+### New Features
+
+- **feat**: 支持手动输入文案和上传音频，跳过LLM/TTS生成
+  - 允许用户直接输入文案，无需 DeepSeek 脚本生成
+  - 允许上传音频文件，跳过 MiMo TTS 合成步骤
+
+### Bug Fixes
+
+- **fix**: 修复测试中的路径问题并添加启动脚本
+
 ## [0.1.1] - 2026-06-02
 
 ### Bug Fixes
