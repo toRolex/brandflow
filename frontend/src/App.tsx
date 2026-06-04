@@ -3,6 +3,8 @@ import ProjectList from "./pages/ProjectList";
 import ProjectWorkbench from "./pages/ProjectWorkbench";
 import JobPipeline from "./pages/JobPipeline";
 import ConfigPage from "./pages/ConfigPage";
+import TTSConfig from "./pages/TTSConfig";
+import TTSMonitor from "./pages/TTSMonitor";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 function NavLink({ to, label }: { to: string; label: string }) {
@@ -28,6 +30,8 @@ export default function App() {
       <nav className="flex items-center gap-2 pb-3 border-b border-gray-200 mb-6">
         <NavLink to="/" label="项目列表" />
         <NavLink to="/config" label="系统配置" />
+        <NavLink to="/tts-config" label="TTS 配置" />
+        <NavLink to="/tts-monitor" label="TTS 监控" />
       </nav>
       <ErrorBoundary>
         <Routes>
@@ -35,6 +39,8 @@ export default function App() {
           <Route path="/projects/:id" element={<ProjectWorkbench />} />
           <Route path="/jobs/:id" element={<JobPipeline />} />
           <Route path="/config" element={<ConfigPage />} />
+          <Route path="/tts-config" element={<TTSConfig />} />
+          <Route path="/tts-monitor" element={<TTSMonitor />} />
         </Routes>
       </ErrorBoundary>
     </div>

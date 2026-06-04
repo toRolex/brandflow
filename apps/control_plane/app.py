@@ -17,6 +17,7 @@ from apps.control_plane.routes.jobs import router as jobs_router
 from apps.control_plane.routes.projects import router as projects_router
 from apps.control_plane.routes.reviews import router as reviews_router
 from apps.control_plane.routes.workers import router as workers_router
+from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.domain_core.state import next_phase
 from packages.file_store.paths import shared_asset_db_path
@@ -355,6 +356,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(workers_router)
     app.include_router(jobs_router)
     app.include_router(reviews_router)
+    app.include_router(tts_router)
 
     workspace = root_dir or Path.cwd() / "workspace"
     if workspace.exists():

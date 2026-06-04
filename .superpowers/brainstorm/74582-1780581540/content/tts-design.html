@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TTS 配置与监控 - 设计原型</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .tab-active { color: #0969da; background: #eff2f5; }
+    .card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; }
+    .metric-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .success-card { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+    .warning-card { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+    .error-card { background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%); }
+    .waveform { background: linear-gradient(90deg, #0969da 0%, #4f9cf7 50%, #0969da 100%); }
+    .progress-bar { background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+    .progress-fill { background: linear-gradient(90deg, #0969da, #4f9cf7); height: 100%; transition: width 0.3s; }
+    .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- 顶部导航 -->
+  <nav class="bg-white border-b border-gray-200 px-4 py-3">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-xl font-bold text-gray-800">🎬 滋元堂矩阵流水线</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="#" class="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e] hover:text-gray-700 hover:bg-gray-50">项目列表</a>
+        <a href="#" class="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e] hover:text-gray-700 hover:bg-gray-50">系统配置</a>
+        <a href="#config" class="px-3 py-2 rounded-xl text-sm font-medium tab-active">TTS 配置</a>
+        <a href="#monitor" class="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e] hover:text-gray-700 hover:bg-gray-50">TTS 监控</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-6xl mx-auto px-4 py-6">
+    <!-- 页面标题 -->
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">TTS 配置中心</h1>
+      <p class="text-gray-500 mt-1">管理语音合成配置，预览不同风格效果</p>
+    </div>
+
+    <!-- 主要内容区域 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- 左侧：配置面板 -->
+      <div class="lg:col-span-2 space-y-6">
+        
+        <!-- 模型选择卡片 -->
+        <div class="card">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">🤖 TTS 模型选择</h2>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="border-2 border-[#0969da] rounded-xl p-4 bg-blue-50 cursor-pointer">
+              <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-[#0969da] rounded-lg flex items-center justify-center text-white">🎵</div>
+                <div>
+                  <h3 class="font-semibold text-gray-800">预置音色</h3>
+                  <p class="text-sm text-gray-500">mimo-v2.5-tts</p>
+                </div>
+              </div>
+              <p class="text-sm text-gray-600">使用官方精选音色，开箱即用，支持音色随机化</p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">Mia</span>
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">Dean</span>
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">冰糖</span>
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">白桦</span>
+              </div>
+            </div>
+            
+            <div class="border-2 border-gray-200 rounded-xl p-4 hover:border-gray-300 cursor-pointer transition-colors">
+              <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center text-white">🎨</div>
+                <div>
+                  <h3 class="font-semibold text-gray-800">音色设计</h3>
+                  <p class="text-sm text-gray-500">mimo-v2.5-tts-voicedesign</p>
+                </div>
+              </div>
+              <p class="text-sm text-gray-600">通过文字描述自定义音色，无需预置音色</p>
+              <div class="mt-3 px-3 py-2 bg-gray-50 rounded-lg text-sm text-gray-600">
+                "年轻女性，声音甜美清澈..."
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 预置音色配置 -->
+        <div class="card">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">🎤 预置音色配置</h2>
+          
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">主音色</label>
+                <select class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0969da] focus:border-transparent">
+                  <option selected>Mia (英文女声)</option>
+                  <option>Dean (英文男声)</option>
+                  <option>冰糖 (中文女声)</option>
+                  <option>白桦 (中文男声)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">备用音色</label>
+                <select class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0969da] focus:border-transparent">
+                  <option>Mia (英文女声)</option>
+                  <option selected>Dean (英文男声)</option>
+                  <option>冰糖 (中文女声)</option>
+                  <option>白桦 (中文男声)</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+              <input type="checkbox" id="randomize" checked class="w-4 h-4 text-[#0969da] rounded focus:ring-[#0969da]">
+              <label for="randomize" class="text-sm text-gray-700">启用音色随机化</label>
+              <span class="text-xs text-gray-500">(每次合成随机选择音色，增加多样性)</span>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">随机音色池</label>
+              <div class="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg">
+                <span class="px-3 py-1 bg-[#0969da] text-white text-sm rounded-full flex items-center gap-1">
+                  Mia <button class="hover:text-red-200">×</button>
+                </span>
+                <span class="px-3 py-1 bg-[#0969da] text-white text-sm rounded-full flex items-center gap-1">
+                  Dean <button class="hover:text-red-200">×</button>
+                </span>
+                <span class="px-3 py-1 bg-[#0969da] text-white text-sm rounded-full flex items-center gap-1">
+                  冰糖 <button class="hover:text-red-200">×</button>
+                </span>
+                <span class="px-3 py-1 bg-[#0969da] text-white text-sm rounded-full flex items-center gap-1">
+                  白桦 <button class="hover:text-red-200">×</button>
+                </span>
+                <button class="px-3 py-1 border-2 border-dashed border-gray-300 text-gray-500 text-sm rounded-full hover:border-[#0969da] hover:text-[#0969da]">
+                  + 添加音色
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 风格控制配置 -->
+        <div class="card">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">🎭 风格控制</h2>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">风格指令</label>
+              <textarea 
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0969da] focus:border-transparent resize-none"
+                rows="3"
+                placeholder="用自然语言描述想要的语音风格..."
+              >用活泼热情的语气，语速稍快，带着发现美食的惊喜感，声音明亮有感染力</textarea>
+              <p class="mt-1 text-xs text-gray-500">
+                💡 提示：支持多风格切换、多情绪混合、多粒度控制（段落级→句子级→词级→字级）
+              </p>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">预设风格模板</label>
+              <div class="flex flex-wrap gap-2">
+                <button class="px-4 py-2 bg-[#0969da] text-white text-sm rounded-lg">自然口播</button>
+                <button class="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200">热情推荐</button>
+                <button class="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200">沉稳讲解</button>
+                <button class="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200">美食探店</button>
+                <button class="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200">情感故事</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 音频参数配置 -->
+        <div class="card">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">⚙️ 音频参数</h2>
+          
+          <div class="grid grid-cols-4 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">音频格式</label>
+              <select class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0969da]">
+                <option selected>mp3</option>
+                <option>wav</option>
+                <option>pcm</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">采样率</label>
+              <select class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0969da]">
+                <option>16000</option>
+                <option selected>24000</option>
+                <option>32000</option>
+                <option>44100</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">比特率</label>
+              <select class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0969da]">
+                <option>64000</option>
+                <option selected>128000</option>
+                <option>192000</option>
+                <option>256000</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">声道数</label>
+              <select class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0969da]">
+                <option selected>1 (单声道)</option>
+                <option>2 (立体声)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="flex items-center gap-4">
+          <button class="px-6 py-3 bg-[#0969da] text-white font-medium rounded-xl hover:bg-blue-700 transition-colors">
+            💾 保存配置
+          </button>
+          <button class="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors">
+            🔄 重置默认
+          </button>
+        </div>
+      </div>
+
+      <!-- 右侧：预览面板 -->
+      <div class="space-y-6">
+        
+        <!-- TTS 预览卡片 -->
+        <div class="card sticky top-6">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">🎧 TTS 预览</h2>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">测试文本</label>
+              <textarea 
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0969da] focus:border-transparent resize-none"
+                rows="3"
+                placeholder="输入要预览的文本..."
+              >见手青是云南最美味的野生菌，口感鲜嫩，营养丰富，一定要充分烹熟才能享用。</textarea>
+            </div>
+            
+            <button class="w-full px-4 py-3 bg-[#0969da] text-white font-medium rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+              <span>▶</span> 播放预览
+            </button>
+            
+            <!-- 音频播放器 -->
+            <div class="bg-gray-50 rounded-xl p-4">
+              <div class="flex items-center gap-3 mb-3">
+                <button class="w-8 h-8 bg-[#0969da] text-white rounded-full flex items-center justify-center hover:bg-blue-700">
+                  ▶
+                </button>
+                <div class="flex-1">
+                  <div class="h-2 waveform rounded-full"></div>
+                </div>
+                <span class="text-sm text-gray-500">0:03</span>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-2 text-sm">
+                <div class="flex items-center gap-2 text-gray-600">
+                  <span class="text-gray-400">音色</span>
+                  <span class="font-medium">Mia</span>
+                </div>
+                <div class="flex items-center gap-2 text-gray-600">
+                  <span class="text-gray-400">时长</span>
+                  <span class="font-medium">3.2s</span>
+                </div>
+                <div class="flex items-center gap-2 text-gray-600">
+                  <span class="text-gray-400">耗时</span>
+                  <span class="font-medium">1.8s</span>
+                </div>
+                <div class="flex items-center gap-2 text-gray-600">
+                  <span class="text-gray-400">状态</span>
+                  <span class="font-medium text-green-600">✓ 成功</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 历史预览记录 -->
+            <div>
+              <h3 class="text-sm font-medium text-gray-700 mb-2">最近预览</h3>
+              <div class="space-y-2">
+                <div class="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                  <span class="text-green-500">✓</span>
+                  <span class="text-sm text-gray-600 flex-1 truncate">见手青是云南...</span>
+                  <span class="text-xs text-gray-400">1.8s</span>
+                </div>
+                <div class="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                  <span class="text-green-500">✓</span>
+                  <span class="text-sm text-gray-600 flex-1 truncate">羊肚菌炖鸡...</span>
+                  <span class="text-xs text-gray-400">2.1s</span>
+                </div>
+                <div class="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                  <span class="text-green-500">✓</span>
+                  <span class="text-sm text-gray-600 flex-1 truncate">滋元堂精选...</span>
+                  <span class="text-xs text-gray-400">1.5s</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TTS 监控页面预览 -->
+    <div id="monitor" class="mt-12 pt-8 border-t border-gray-200">
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">TTS 监控面板</h1>
+        <p class="text-gray-500 mt-1">实时监控TTS服务状态和性能指标</p>
+      </div>
+
+      <!-- 时间范围选择 -->
+      <div class="flex items-center gap-4 mb-6">
+        <div class="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+          <button class="px-3 py-1 text-sm rounded-md bg-white text-gray-800 shadow-sm">1小时</button>
+          <button class="px-3 py-1 text-sm rounded-md text-gray-600 hover:text-gray-800">24小时</button>
+          <button class="px-3 py-1 text-sm rounded-md text-gray-600 hover:text-gray-800">7天</button>
+          <button class="px-3 py-1 text-sm rounded-md text-gray-600 hover:text-gray-800">30天</button>
+        </div>
+        <span class="text-sm text-gray-500">最后更新: 2025-06-01 12:34:56</span>
+      </div>
+
+      <!-- 核心指标卡片 -->
+      <div class="grid grid-cols-5 gap-4 mb-6">
+        <div class="metric-card rounded-xl p-4 text-white">
+          <p class="text-sm opacity-90">总请求</p>
+          <p class="text-3xl font-bold mt-1">1,234</p>
+          <p class="text-xs opacity-75 mt-2">↑ 12% vs 昨日</p>
+        </div>
+        <div class="success-card rounded-xl p-4 text-white">
+          <p class="text-sm opacity-90">成功率</p>
+          <p class="text-3xl font-bold mt-1">98.5%</p>
+          <p class="text-xs opacity-75 mt-2">↑ 0.3% vs 昨日</p>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+          <p class="text-sm text-gray-500">平均延迟</p>
+          <p class="text-3xl font-bold text-gray-800 mt-1">1.2s</p>
+          <p class="text-xs text-green-600 mt-2">↓ 0.1s vs 昨日</p>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+          <p class="text-sm text-gray-500">总音频时长</p>
+          <p class="text-3xl font-bold text-gray-800 mt-1">45min</p>
+          <p class="text-xs text-gray-500 mt-2">今日累计</p>
+        </div>
+        <div class="warning-card rounded-xl p-4 text-white">
+          <p class="text-sm opacity-90">失败次数</p>
+          <p class="text-3xl font-bold mt-1">18</p>
+          <p class="text-xs opacity-75 mt-2">↓ 5 vs 昨日</p>
+        </div>
+      </div>
+
+      <!-- 请求趋势图 -->
+      <div class="card mb-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">📈 请求趋势</h2>
+        <div class="h-48 bg-gradient-to-b from-blue-50 to-white rounded-lg flex items-end justify-around px-4 pb-4">
+          <div class="flex flex-col items-center gap-1">
+            <div class="w-8 bg-[#0969da] rounded-t" style="height: 60%"></div>
+            <span class="text-xs text-gray-500">8:00</span>
+          </div>
+          <div class="flex flex-col items-center gap-1">
+            <div class="w-8 bg-[#0969da] rounded-t" style="height: 75%"></div>
+            <span class="text-xs text-gray-500">9:00</span>
+          </div>
+          <div class="flex flex-col items-center gap-1">
+            <div class="w-8 bg-[#0969da] rounded-t" style="height: 90%"></div>
+            <span class="text-xs text-gray-500">10:00</span>
+          </div>
+          <div class="flex flex-col items-center gap-1">
+            <div class="w-8 bg-[#0969da] rounded-t" style="height: 100%"></div>
+            <span class="text-xs text-gray-500">11:00</span>
+          </div>
+          <div class="flex flex-col items-center gap-1">
+            <div class="w-8 bg-[#0969da] rounded-t" style="height: 85%"></div>
+            <span class="text-xs text-gray-500">12:00</span>
+          </div>
+          <div class="flex flex-col items-center gap-1">
+            <div class="w-8 bg-red-400 rounded-t" style="height: 5%"></div>
+            <span class="text-xs text-gray-500">13:00</span>
+          </div>
+          <div class="flex flex-col items-center gap-1">
+            <div class="w-8 bg-[#0969da] rounded-t" style="height: 40%"></div>
+            <span class="text-xs text-gray-500">14:00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 错误分布和最近日志 -->
+      <div class="grid grid-cols-2 gap-6">
+        <!-- 错误分布 -->
+        <div class="card">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">⚠️ 错误分布</h2>
+          <div class="space-y-3">
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-600">限流错误 (429)</span>
+                <span class="font-medium">8次 (45%)</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: 45%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-600">网络超时</span>
+                <span class="font-medium">4次 (22%)</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: 22%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-600">音色不可用</span>
+                <span class="font-medium">2次 (11%)</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: 11%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-600">配额耗尽</span>
+                <span class="font-medium">2次 (11%)</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: 11%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-600">其他错误</span>
+                <span class="font-medium">2次 (11%)</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: 11%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 最近请求日志 -->
+        <div class="card">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">📋 最近请求</h2>
+          <div class="space-y-2">
+            <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+              <span class="text-green-500">✓</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-800 truncate">见手青是云南最美味的...</p>
+                <p class="text-xs text-gray-500">Mia · 1.2s · 3.2s音频</p>
+              </div>
+              <span class="text-xs text-gray-400">12:34:56</span>
+            </div>
+            <div class="flex items-center gap-3 p-3 bg-red-50 rounded-lg">
+              <span class="text-red-500">✗</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-800 truncate">羊肚菌炖鸡汤的做法...</p>
+                <p class="text-xs text-red-500">Dean · 5.1s · 限流错误</p>
+              </div>
+              <span class="text-xs text-gray-400">12:34:50</span>
+            </div>
+            <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+              <span class="text-green-500">✓</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-800 truncate">滋元堂精选野生菌...</p>
+                <p class="text-xs text-gray-500">冰糖 · 1.5s · 4.1s音频</p>
+              </div>
+              <span class="text-xs text-gray-400">12:34:45</span>
+            </div>
+            <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+              <span class="text-green-500">✓</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-800 truncate">今天给大家分享...</p>
+                <p class="text-xs text-gray-500">Mia · 1.8s · 2.8s音频</p>
+              </div>
+              <span class="text-xs text-gray-400">12:34:40</span>
+            </div>
+            <div class="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+              <span class="text-green-500">✓</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-800 truncate">口感鲜嫩营养丰富...</p>
+                <p class="text-xs text-gray-500">白桦 · 1.3s · 3.5s音频</p>
+              </div>
+              <span class="text-xs text-gray-400">12:34:35</span>
+            </div>
+          </div>
+          <button class="w-full mt-4 px-4 py-2 text-sm text-[#0969da] hover:bg-blue-50 rounded-lg transition-colors">
+            查看全部日志 →
+          </button>
+        </div>
+      </div>
+
+      <!-- 音色使用分布 -->
+      <div class="card mt-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">🎤 音色使用分布</h2>
+        <div class="grid grid-cols-4 gap-4">
+          <div class="text-center p-4 bg-blue-50 rounded-xl">
+            <div class="w-16 h-16 bg-[#0969da] rounded-full flex items-center justify-center text-white text-2xl mx-auto mb-2">M</div>
+            <p class="font-medium text-gray-800">Mia</p>
+            <p class="text-2xl font-bold text-[#0969da]">45%</p>
+            <p class="text-xs text-gray-500">556 次</p>
+          </div>
+          <div class="text-center p-4 bg-purple-50 rounded-xl">
+            <div class="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center text-white text-2xl mx-auto mb-2">D</div>
+            <p class="font-medium text-gray-800">Dean</p>
+            <p class="text-2xl font-bold text-purple-500">28%</p>
+            <p class="text-xs text-gray-500">345 次</p>
+          </div>
+          <div class="text-center p-4 bg-green-50 rounded-xl">
+            <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white text-2xl mx-auto mb-2">冰</div>
+            <p class="font-medium text-gray-800">冰糖</p>
+            <p class="text-2xl font-bold text-green-500">18%</p>
+            <p class="text-xs text-gray-500">222 次</p>
+          </div>
+          <div class="text-center p-4 bg-orange-50 rounded-xl">
+            <div class="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center text-white text-2xl mx-auto mb-2">白</div>
+            <p class="font-medium text-gray-800">白桦</p>
+            <p class="text-2xl font-bold text-orange-500">9%</p>
+            <p class="text-xs text-gray-500">111 次</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部信息 -->
+  <footer class="mt-12 py-6 bg-white border-t border-gray-200">
+    <div class="max-w-6xl mx-auto px-4 text-center text-sm text-gray-500">
+      <p>滋元堂矩阵流水线 3.0 · TTS 配置与监控设计原型</p>
+      <p class="mt-1">设计规格文档 · 2025-06-01</p>
+    </div>
+  </footer>
+</body>
+</html>
