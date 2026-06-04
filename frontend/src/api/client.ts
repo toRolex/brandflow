@@ -163,7 +163,7 @@ export const api = {
     ),
 
   // Jobs
-  createJob: (projectId: string, body: { product: string; platforms: string[]; asset?: string }) =>
+  createJob: (projectId: string, body: { product: string; platforms: string[]; asset?: string; manual_script?: string }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {
       method: "POST",
       body: JSON.stringify(body),
@@ -184,6 +184,18 @@ export const api = {
   getJobLogs: (jobId: string) =>
     request<{ logs: string }>(`/api/jobs/${jobId}/logs`),
 
+  updateJobScript: (jobId: string, manual_script: string) =>
+    request<{ status: string; job_id: string; manual_script: string }>(`/api/jobs/${jobId}/script`, {
+      method: "POST",
+      body: JSON.stringify({ manual_script }),
+    }),
+
+  uploadJobAudio: (jobId: string, file: File) =>
+    uploadFile<{ status: string; job_id: string; audio_path: string; size_bytes: number }>(
+      `/api/jobs/${jobId}/audio`,
+      file
+    ),
+
   // Reviews
   approveReview: (jobId: string, gate: string) =>
     request<{ status: string }>(`/api/reviews/${jobId}/approve`, {
@@ -197,11 +209,13 @@ export const api = {
       body: JSON.stringify({ review_gate: gate }),
     }),
 
-  rejectClip: (jobId: string, clipIndex: number) =>
-    request<{ status: string }>(`/api/reviews/${jobId}/reject-clip`, {
+  rejectClip: (jobId: string, clipIndex: number, projectId?: string) => {
+    const qs = projectId ? `?project_id=${projectId}` : "";
+    return request<{ status: string }>(`/api/reviews/${jobId}/reject-clip${qs}`, {
       method: "POST",
       body: JSON.stringify({ clip_index: clipIndex }),
-    }),
+    });
+  },
 
   editScript: (jobId: string, scriptText: string, projectId?: string) => {
     const qs = projectId ? `?project_id=${projectId}` : "";

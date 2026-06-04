@@ -26,7 +26,7 @@ from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 from packages.pipeline_services.media_utils import write_concat_file, get_media_duration
 from main_controller import load_environment
 
-REVIEW_PHASES = {"script_review", "tts_review", "final_review"}
+REVIEW_PHASES = {"script_review", "tts_review", "asset_review", "final_review"}
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 
 
@@ -35,7 +35,7 @@ def _to_url_path(path: Path, workspace_dir: Path) -> str:
     return path.relative_to(workspace_dir).as_posix()
 
 
-def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Path, product: str) -> list[dict]:
+def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Path, product: str, manual_script: str = "", uploaded_audio_path: str = "") -> list[dict]:
     """Execute the real pipeline for the target phase and return artifact pointers."""
     print(f"[PHASE] target={phase}, job={job_id}", flush=True)
     load_environment(root_dir)
@@ -48,7 +48,14 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
     schedule_bridge = LegacyScheduleBridge(root_dir / "排期池.xlsx")
 
     if phase == "script_generating":
-        script_result = script_bridge.generate(product=product, output_dir=job_dir, mock=False)
+        if manual_script:
+            txt_path = job_dir / "口播文案.txt"
+            txt_path.write_text(manual_script, encoding="utf-8")
+            json_path = job_dir / "口播文案.json"
+            json_path.write_text(json.dumps({"text": manual_script, "source": "manual"}, ensure_ascii=False), encoding="utf-8")
+            script_result = {"txt_path": str(txt_path), "json_path": str(json_path), "final_script": manual_script}
+        else:
+            script_result = script_bridge.generate(product=product, output_dir=job_dir, mock=False)
         txt_path = Path(script_result["txt_path"])
         json_path = Path(script_result["json_path"])
         for p in [txt_path, json_path]:
@@ -57,34 +64,38 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                 result.append({"kind": "script", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": p.stat().st_size})
 
     elif phase == "tts_generating":
-        # Find the script text from existing artifacts
-        existing_script = None
-        for a in job_dir.glob("*口播文案.txt"):
-            existing_script = a.read_text(encoding="utf-8").strip()
-            break
-        if not existing_script:
-            # Fallback: read from json
-            for a in job_dir.glob("*口播文案.json"):
-                jdata = json.loads(a.read_text(encoding="utf-8"))
-                existing_script = jdata.get("text", "").strip()
-                break
-        import sys
-        print(f"[TTS DEBUG] phase=tts_generating, script_found={existing_script is not None}, len={len(existing_script) if existing_script else 0}", flush=True)
-        if existing_script:
-            audio_path = job_dir / "audio.mp3"
-            try:
-                media_bridge.synthesize_tts(existing_script, audio_path)
-                print(f"[TTS] Synthesized: {audio_path.exists()}, size={audio_path.stat().st_size if audio_path.exists() else 0}", flush=True)
-            except Exception as e:
-                print(f"[TTS ERROR] {type(e).__name__}: {e}", flush=True)
-                import traceback; traceback.print_exc()
-            if audio_path.exists():
-                rel = _to_url_path(audio_path, workspace_dir)
-                result.append({"kind": "tts_audio", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": audio_path.stat().st_size})
+        audio_path = job_dir / "audio.mp3"
+        if uploaded_audio_path:
+            src_audio = root_dir / uploaded_audio_path
+            if src_audio.exists():
+                import shutil
+                shutil.copy2(src_audio, audio_path)
+                print(f"[TTS] Using uploaded audio: {src_audio}", flush=True)
+            else:
+                print(f"[TTS WARN] Uploaded audio not found: {src_audio}", flush=True)
         else:
-            print(f"[TTS WARN] No script text found in {job_dir}", flush=True)
-            for f2 in job_dir.iterdir():
-                print(f"  file: {f2.name}", flush=True)
+            existing_script = None
+            for a in job_dir.glob("*口播文案.txt"):
+                existing_script = a.read_text(encoding="utf-8").strip()
+                break
+            if not existing_script:
+                for a in job_dir.glob("*口播文案.json"):
+                    jdata = json.loads(a.read_text(encoding="utf-8"))
+                    existing_script = jdata.get("text", "").strip()
+                    break
+            print(f"[TTS DEBUG] phase=tts_generating, script_found={existing_script is not None}, len={len(existing_script) if existing_script else 0}", flush=True)
+            if existing_script:
+                try:
+                    media_bridge.synthesize_tts(existing_script, audio_path)
+                    print(f"[TTS] Synthesized: {audio_path.exists()}, size={audio_path.stat().st_size if audio_path.exists() else 0}", flush=True)
+                except Exception as e:
+                    print(f"[TTS ERROR] {type(e).__name__}: {e}", flush=True)
+                    import traceback; traceback.print_exc()
+            else:
+                print(f"[TTS WARN] No script text found in {job_dir}", flush=True)
+        if audio_path.exists():
+            rel = _to_url_path(audio_path, workspace_dir)
+            result.append({"kind": "tts_audio", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": audio_path.stat().st_size})
 
     elif phase == "tts_review":
         # TTS review phase: just return existing audio artifact for review
@@ -260,7 +271,9 @@ async def _auto_tick(root_dir: Path):
 
                         # Execute real pipeline for the target phase
                         product = data.get("product", os.environ.get("PRODUCT", "荔枝菌"))
-                        artifacts = _phase_to_artifacts(target, job_id, project_dir, root_dir, product)
+                        manual_script = data.get("manual_script", "")
+                        uploaded_audio_path = data.get("uploaded_audio_path", "")
+                        artifacts = _phase_to_artifacts(target, job_id, project_dir, root_dir, product, manual_script, uploaded_audio_path)
 
                         # Merge artifacts (keep existing, add new ones)
                         existing = data.get("artifacts", [])

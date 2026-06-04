@@ -13,6 +13,7 @@ def test_rewind_from_phase_discards_downstream_phases() -> None:
     phases = rewind_from_phase("asset_retrieving")
     assert phases == [
         "asset_retrieving",
+        "asset_review",
         "video_rendering",
         "final_review",
     ]

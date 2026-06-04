@@ -6,6 +6,7 @@ PHASE_ORDER = [
     "tts_review",
     "subtitle_generating",
     "asset_retrieving",
+    "asset_review",
     "video_rendering",
     "final_review",
     "completed",

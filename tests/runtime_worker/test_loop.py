@@ -49,8 +49,12 @@ class StubApi:
         self.reports.append(payload)
 
 
-class StubScriptBridge:
+class SpyScriptBridge:
+    def __init__(self) -> None:
+        self.generate_calls: list[dict] = []
+
     def generate(self, product: str, output_dir: Path, mock: bool) -> dict[str, Any]:
+        self.generate_calls.append({"product": product, "output_dir": str(output_dir), "mock": mock})
         txt_path = output_dir / "stub_script.txt"
         json_path = output_dir / "stub_script.json"
         txt_path.write_text("测试文案 stub\n", encoding="utf-8")
@@ -58,8 +62,12 @@ class StubScriptBridge:
         return {"txt_path": str(txt_path), "json_path": str(json_path), "final_script": "测试文案 stub"}
 
 
-class StubMediaBridge:
+class SpyMediaBridge:
+    def __init__(self) -> None:
+        self.tts_calls: list[dict] = []
+
     def synthesize_tts(self, script_text: str, output_path: Path) -> Path:
+        self.tts_calls.append({"script_text": script_text, "output_path": str(output_path)})
         output_path.write_bytes(b"\x00" * 128)
         return output_path
 
@@ -68,6 +76,58 @@ class StubMediaBridge:
 
     def build_base_video(self, project_dir: Path, job_payload: dict[str, Any], output_path: Path) -> None:
         output_path.write_bytes(b"\x00" * 256)
+
+    def burn_final_video(
+        self,
+        base_video_path: Path,
+        audio_path: Path,
+        srt_path: Path,
+        final_video_path: Path,
+        cover_clip_path: Path | None,
+    ) -> None:
+        final_video_path.write_bytes(b"\x00" * 512)
+
+
+StubScriptBridge = SpyScriptBridge
+StubMediaBridge = SpyMediaBridge
+
+
+class StubApiWithManualInputs:
+    def __init__(self, manual_script: str = "", uploaded_audio_path: str = "") -> None:
+        self.reports: list[dict] = []
+        self.uploads: list[tuple[str, list[dict]]] = []
+        self.download_requests: list[str] = []
+        self.manual_script = manual_script
+        self.uploaded_audio_path = uploaded_audio_path
+
+    def poll(self) -> dict:
+        return {
+            "command": "run_task",
+            "project_id": "project-001",
+            "job_id": "job-001",
+            "task_id": "task-001",
+            "task_type": "run_phase",
+            "lease_id": "lease-001",
+            "attempt_id": "attempt-001",
+            "lease_expires_at": "2026-05-18T12:00:00Z",
+            "input_bundle_url": "/bundle",
+            "report_url": "/report",
+            "heartbeat_url": "/heartbeat",
+            "expected_outputs": ["script", "audio", "subtitles", "final_video"],
+            "runtime_limits": {"max_seconds": 60},
+            "manual_script": self.manual_script,
+            "uploaded_audio_path": self.uploaded_audio_path,
+        }
+
+    def download_input_bundle(self, bundle_url: str) -> dict:
+        self.download_requests.append(bundle_url)
+        return {"project_id": "project-001", "job_id": "job-001"}
+
+    def upload_artifacts(self, task_id: str, files: list[dict]) -> None:
+        self.uploads.append((task_id, files))
+
+    def report(self, payload: dict) -> None:
+        self.reports.append(payload)
 
     def burn_final_video(
         self,
@@ -137,3 +197,73 @@ def test_worker_loop_reports_success_and_uploads_artifacts(tmp_path: Path) -> No
     assert api.reports[0]["status"] == "succeeded"
     assert api.reports[0]["attempt_id"] == "attempt-001"
     assert api.reports[0]["started_at"] <= api.reports[0]["finished_at"]
+
+
+def test_worker_loop_skips_llm_when_manual_script_provided(tmp_path: Path) -> None:
+    manual_script = "这是手动输入的测试文案，用于验证跳过LLM生成功能。"
+    api = StubApiWithManualInputs(manual_script=manual_script)
+    spy_script = SpyScriptBridge()
+    spy_media = SpyMediaBridge()
+    loop = WorkerLoop(
+        api=api,
+        worker_id="worker-mac",
+        workspace_root=tmp_path,
+        script_bridge=spy_script,
+        media_bridge=spy_media,
+        schedule_bridge=StubScheduleBridge(),
+    )
+
+    loop.run_once()
+
+    assert len(spy_script.generate_calls) == 0, f"LLM should be skipped but was called {len(spy_script.generate_calls)} times"
+    assert len(spy_media.tts_calls) == 1
+    assert spy_media.tts_calls[0]["script_text"] == manual_script
+
+
+def test_worker_loop_skips_tts_when_audio_uploaded(tmp_path: Path) -> None:
+    audio_dir = tmp_path / "uploaded"
+    audio_dir.mkdir()
+    fake_audio = audio_dir / "my_audio.mp3"
+    fake_audio.write_bytes(b"\x00" * 256)
+
+    api = StubApiWithManualInputs(uploaded_audio_path=str(fake_audio))
+    spy_script = SpyScriptBridge()
+    spy_media = SpyMediaBridge()
+    loop = WorkerLoop(
+        api=api,
+        worker_id="worker-mac",
+        workspace_root=tmp_path,
+        script_bridge=spy_script,
+        media_bridge=spy_media,
+        schedule_bridge=StubScheduleBridge(),
+    )
+
+    loop.run_once()
+
+    assert len(spy_script.generate_calls) == 1, "LLM should be called when no manual script"
+    assert len(spy_media.tts_calls) == 0, f"TTS should be skipped but was called {len(spy_media.tts_calls)} times"
+
+
+def test_worker_loop_skips_both_when_manual_script_and_audio_provided(tmp_path: Path) -> None:
+    audio_dir = tmp_path / "uploaded"
+    audio_dir.mkdir()
+    fake_audio = audio_dir / "my_audio.mp3"
+    fake_audio.write_bytes(b"\x00" * 256)
+
+    manual_script = "手动输入的文案"
+    api = StubApiWithManualInputs(manual_script=manual_script, uploaded_audio_path=str(fake_audio))
+    spy_script = SpyScriptBridge()
+    spy_media = SpyMediaBridge()
+    loop = WorkerLoop(
+        api=api,
+        worker_id="worker-mac",
+        workspace_root=tmp_path,
+        script_bridge=spy_script,
+        media_bridge=spy_media,
+        schedule_bridge=StubScheduleBridge(),
+    )
+
+    loop.run_once()
+
+    assert len(spy_script.generate_calls) == 0, f"LLM should be skipped but was called {len(spy_script.generate_calls)} times"
+    assert len(spy_media.tts_calls) == 0, f"TTS should be skipped but was called {len(spy_media.tts_calls)} times"

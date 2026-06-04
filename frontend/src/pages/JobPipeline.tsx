@@ -288,7 +288,7 @@ export default function JobPipeline() {
         const clipsArtifact = findArtifact("selected_clips");
         const handleRejectClip = async (clipIndex: number) => {
           try {
-            await api.rejectClip(job.job_id, clipIndex);
+            await api.rejectClip(job.job_id, clipIndex, job.project_id);
             setRejectedClips(prev => new Set([...prev, clipIndex]));
             load();
           } catch (e) {

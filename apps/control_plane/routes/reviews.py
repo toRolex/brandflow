@@ -237,6 +237,13 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
     if not project_id:
         raise HTTPException(status_code=404, detail="project not found for job")
 
+    product = ""
+    control_jobs_dir = root_dir / "workspace" / "projects" / project_id / "control" / "jobs"
+    job_json_path = control_jobs_dir / f"{job_id}.json"
+    if job_json_path.exists():
+        job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
+        product = job_data.get("product", "")
+
     try:
         from packages.pipeline_services.asset_library import AssetRepository, AssetRetriever
         from packages.file_store.paths import shared_asset_db_path
@@ -253,7 +260,7 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
                 break
 
         if category_enum:
-            candidates = repo.query_by_category("", category_enum)
+            candidates = repo.query_by_category(product, category_enum)
             candidates = [c for c in candidates if c.asset_id != rejected_asset_id and c.usage_count < 2]
             if candidates:
                 chosen = min(candidates, key=lambda c: c.usage_count)

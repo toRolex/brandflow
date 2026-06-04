@@ -22,6 +22,8 @@ export interface JobSummary {
   phase_index: number;
   phase_total: number;
   last_error?: string;
+  manual_script?: string;
+  uploaded_audio_path?: string;
 }
 
 export interface AssetFile {
@@ -90,6 +92,8 @@ export interface JobDetail {
   artifacts: Artifact[];
   last_error?: string;
   logs?: string;
+  manual_script?: string;
+  uploaded_audio_path?: string;
 }
 
 export interface ScriptCheckResult {

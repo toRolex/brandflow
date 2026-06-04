@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { JobSummary, ScheduleEntry } from "../types";
-import FileDropzone from "../components/FileDropzone";
 import JobTable from "../components/JobTable";
 import ScheduleTable from "../components/ScheduleTable";
 import SmartAssetLibrary from "./SmartAssetLibrary";
@@ -22,10 +21,13 @@ export default function ProjectWorkbench() {
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [product, setProduct] = useState(PRODUCTS[0]);
   const [platforms, setPlatforms] = useState<string[]>(["douyin", "xiaohongshu"]);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [tab, setTab] = useState<"jobs" | "schedule" | "assets">("jobs");
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState("");
+  const [manualScript, setManualScript] = useState("");
+  const [scriptMode, setScriptMode] = useState<"auto" | "manual">("auto");
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioMode, setAudioMode] = useState<"tts" | "upload">("tts");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -48,23 +50,17 @@ export default function ProjectWorkbench() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleUpload = async (file: File) => {
-    if (!id) return;
-    setSelectedFile(file.name);
-    try {
-      await api.uploadAsset(id, file);
-      load();
-    } catch (e) {
-      console.error("upload failed", e);
-      setError("上传失败");
-    }
-    setSelectedFile(null);
-  };
-
   const handleCreateJob = async () => {
     if (!id) return;
     try {
-      const job = await api.createJob(id, { product, platforms });
+      const job = await api.createJob(id, {
+        product,
+        platforms,
+        manual_script: scriptMode === "manual" ? manualScript : "",
+      });
+      if (audioMode === "upload" && audioFile) {
+        await api.uploadJobAudio(job.job_id, audioFile);
+      }
       navigate(`/jobs/${job.job_id}`);
     } catch (e) {
       console.error("create job failed", e);
@@ -142,14 +138,85 @@ export default function ProjectWorkbench() {
               ))}
             </div>
           </div>
-          <div className="flex-1 min-w-64">
-            <FileDropzone onFile={handleUpload} />
-            {selectedFile && (
-              <div className="text-xs text-green-600 mt-1">&#10003; {selectedFile}</div>
-            )}
+        </div>
+
+        {/* Script Input Section */}
+        <div className="mt-4 pt-4 border-t">
+          <div className="flex items-center gap-4 mb-3">
+            <span className="text-xs text-[#59636e] font-medium">文案来源</span>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input
+                type="radio"
+                name="scriptMode"
+                checked={scriptMode === "auto"}
+                onChange={() => setScriptMode("auto")}
+              />
+              自动生成（LLM）
+            </label>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input
+                type="radio"
+                name="scriptMode"
+                checked={scriptMode === "manual"}
+                onChange={() => setScriptMode("manual")}
+              />
+              手动输入
+            </label>
           </div>
+          {scriptMode === "manual" && (
+            <textarea
+              className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px] placeholder:text-gray-400"
+              placeholder="请输入文案内容（150-200字）..."
+              value={manualScript}
+              onChange={(e) => setManualScript(e.target.value)}
+            />
+          )}
+        </div>
+
+        {/* Audio Upload Section */}
+        <div className="mt-4 pt-4 border-t">
+          <div className="flex items-center gap-4 mb-3">
+            <span className="text-xs text-[#59636e] font-medium">音频来源</span>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input
+                type="radio"
+                name="audioMode"
+                checked={audioMode === "tts"}
+                onChange={() => setAudioMode("tts")}
+              />
+              TTS 生成
+            </label>
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input
+                type="radio"
+                name="audioMode"
+                checked={audioMode === "upload"}
+                onChange={() => setAudioMode("upload")}
+              />
+              上传音频
+            </label>
+          </div>
+          {audioMode === "upload" && (
+            <div className="flex items-center gap-3">
+              <label className="border-2 border-dashed border-gray-300 rounded-lg px-6 py-4 text-sm text-gray-500 hover:border-gray-400 cursor-pointer transition-colors">
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                />
+                {audioFile ? audioFile.name : "点击选择音频文件"}
+              </label>
+              {audioFile && (
+                <span className="text-xs text-green-600">&#10003; 已选择</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 pt-4 border-t flex justify-end">
           <button
-            className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all h-fit"
+            className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all"
             onClick={handleCreateJob}
           >
             创建并开始生产
@@ -199,7 +266,7 @@ export default function ProjectWorkbench() {
           onExport={() => api.exportSchedule()}
         />
       ) : (
-        <SmartAssetLibrary projectId={id!} onUpload={handleUpload} />
+        <SmartAssetLibrary projectId={id!} />
       )}
     </div>
   );
