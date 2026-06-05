@@ -1,0 +1,115 @@
+<h2>配置页面布局 — 视觉对比</h2>
+<p class="subtitle">四种 Provider 统一管理页面的三种呈现方式</p>
+
+<div class="cards">
+  <div class="card" data-choice="tabbed" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="margin:0;border:none;">
+        <div class="mockup-header">Tab 切换式</div>
+        <div class="mockup-body" style="padding:0;">
+          <div style="display:flex;background:#f0f0f0;border-bottom:2px solid #ddd;">
+            <div style="padding:10px 16px;background:#fff;border-bottom:2px solid #4A90D9;font-weight:bold;font-size:13px;">LLM</div>
+            <div style="padding:10px 16px;color:#888;font-size:13px;">TTS</div>
+            <div style="padding:10px 16px;color:#888;font-size:13px;">文生图</div>
+            <div style="padding:10px 16px;color:#888;font-size:13px;">图生视频</div>
+          </div>
+          <div style="padding:16px;">
+            <div class="label" style="margin-bottom:4px;">Provider</div>
+            <div class="mock-input" placeholder="DeepSeek" style="margin-bottom:12px;"></div>
+            <div class="label" style="margin-bottom:4px;">API Key</div>
+            <div class="mock-input" placeholder="sk-••••••••" style="margin-bottom:12px;"></div>
+            <div class="label" style="margin-bottom:4px;">Model</div>
+            <div class="mock-input" placeholder="deepseek-v4-pro" style="margin-bottom:16px;"></div>
+            <div style="display:flex; justify-content:flex-end;">
+              <button class="mock-button">保存全部</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Tab 切换式</h3>
+      <p>顶部切换，字段随 Provider 变化。一键保存全部。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="single-page" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="margin:0;border:none;">
+        <div class="mockup-header">单页纵向排列</div>
+        <div class="mockup-body" style="padding:12px;">
+          <div style="border:1px solid #e0e0e0;border-radius:6px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <strong style="font-size:13px;"> LLM 脚本生成</strong>
+              <span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;">DeepSeek</span>
+            </div>
+            <div class="mock-input" placeholder="sk-••••••••" style="font-size:12px;"></div>
+            <div style="text-align:right;margin-top:6px;"><button class="mock-button" style="font-size:11px;padding:4px 12px;">保存</button></div>
+          </div>
+          <div style="border:1px solid #e0e0e0;border-radius:6px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <strong style="font-size:13px;"> TTS 语音合成</strong>
+              <span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-size:11px;">MiMo</span>
+            </div>
+            <div class="mock-input" placeholder="group_id" style="font-size:12px;"></div>
+            <div style="text-align:right;margin-top:6px;"><button class="mock-button" style="font-size:11px;padding:4px 12px;">保存</button></div>
+          </div>
+          <div style="border:1px solid #e0e0e0;border-radius:6px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <strong style="font-size:13px;"> 文生图</strong>
+              <span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px;">未配置</span>
+            </div>
+            <div class="placeholder" style="font-size:12px;">选择 Provider 后显示配置项</div>
+          </div>
+          <div style="border:1px solid #e0e0e0;border-radius:6px;padding:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <strong style="font-size:13px;"> 图生视频</strong>
+              <span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px;">未配置</span>
+            </div>
+            <div class="placeholder" style="font-size:12px;">选择 Provider 后显示配置项</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — 单页纵向排列</h3>
+      <p>四个区块堆叠，一目了然。每个区块独立保存。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="card-grid" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="margin:0;border:none;">
+        <div class="mockup-header">卡片网格</div>
+        <div class="mockup-body" style="padding:12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="border:2px solid #4A90D9;border-radius:8px;padding:20px;text-align:center;cursor:pointer;">
+              <div style="font-size:28px;margin-bottom:6px;"></div>
+              <strong style="font-size:13px;">LLM 脚本</strong>
+              <div style="font-size:11px;color:#4A90D9;margin-top:4px;">DeepSeek 已配置</div>
+            </div>
+            <div style="border:1px solid #e0e0e0;border-radius:8px;padding:20px;text-align:center;cursor:pointer;">
+              <div style="font-size:28px;margin-bottom:6px;"></div>
+              <strong style="font-size:13px;">TTS 语音</strong>
+              <div style="font-size:11px;color:#888;margin-top:4px;">MiMo 已配置</div>
+            </div>
+            <div style="border:1px solid #e0e0e0;border-radius:8px;padding:20px;text-align:center;cursor:pointer;background:#fafafa;">
+              <div style="font-size:28px;margin-bottom:6px;">+</div>
+              <strong style="font-size:13px;">文生图</strong>
+              <div style="font-size:11px;color:#aaa;margin-top:4px;">点击配置</div>
+            </div>
+            <div style="border:1px solid #e0e0e0;border-radius:8px;padding:20px;text-align:center;cursor:pointer;background:#fafafa;">
+              <div style="font-size:28px;margin-bottom:6px;">+</div>
+              <strong style="font-size:13px;">图生视频</strong>
+              <div style="font-size:11px;color:#aaa;margin-top:4px;">点击配置</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — 卡片网格</h3>
+      <p>2×2 卡片，点击弹出侧栏编辑。适合概览状态。</p>
+    </div>
+  </div>
+</div>

@@ -54,6 +54,8 @@ except ImportError:  # pragma: no cover
     ImageDraw = None  # type: ignore[assignment]
     ImageFont = None  # type: ignore[assignment]
 
+from packages.provider_config.app_config import AppConfigManager
+
 
 LOGGER = logging.getLogger("ziyuantang.monolith")
 EMOJI_RE = re.compile(
@@ -2630,19 +2632,21 @@ class PipelineController:
         api_key = os.getenv("MIMO_API_KEY", "").strip().strip('"').strip("'")
         if not api_key:
             raise RuntimeError("未配置 MIMO_API_KEY，无法生成音频")
-        voice = voice_id or os.getenv("MIMO_TTS_VOICE", ENV_DEFAULTS["MIMO_TTS_VOICE"]).strip()
+        app_config = AppConfigManager()
+        tts_config = app_config.get_tts_config()
+        voice = voice_id or tts_config.get("voice", "Mia")
         if not voice:
             raise RuntimeError("未配置 MIMO_TTS_VOICE，无法生成音频")
-        style = os.getenv("MIMO_TTS_STYLE", ENV_DEFAULTS["MIMO_TTS_STYLE"]).strip()
+        style = tts_config.get("style_prompt", "")
         style_instruction = f"请用{style}的语气合成语音。" if style else "请用自然、清晰的语气合成语音。"
         payload = {
-            "model": model or os.getenv("MIMO_TTS_MODEL", ENV_DEFAULTS["MIMO_TTS_MODEL"]).strip(),
+            "model": model or tts_config.get("model", "mimo-v2.5-tts"),
             "messages": [
                 {"role": "user", "content": style_instruction},
                 {"role": "assistant", "content": script_text},
             ],
             "audio": {
-                "format": audio_format or os.getenv("MIMO_AUDIO_FORMAT", ENV_DEFAULTS["MIMO_AUDIO_FORMAT"]).strip() or "mp3",
+                "format": audio_format or tts_config.get("audio_format", "mp3"),
                 "voice": voice,
             },
             "stream": False,
@@ -2795,14 +2799,16 @@ class PipelineController:
         raise TTSBlockedError(f"MiMo TTS voice={voice_id} 未返回可解析音频数据，已停止后续视频生成，等待手动音频或额度恢复。")
 
     def _mimo_tts_attempts(self) -> list[tuple[str, str]]:
-        model = os.getenv("MIMO_TTS_MODEL", ENV_DEFAULTS["MIMO_TTS_MODEL"]).strip()
-        fallback_model = os.getenv("MIMO_TTS_FALLBACK_MODEL", ENV_DEFAULTS["MIMO_TTS_FALLBACK_MODEL"]).strip()
-        voice = os.getenv("MIMO_TTS_VOICE", ENV_DEFAULTS["MIMO_TTS_VOICE"]).strip()
-        fallback_voice = os.getenv("MIMO_TTS_FALLBACK_VOICE", ENV_DEFAULTS["MIMO_TTS_FALLBACK_VOICE"]).strip()
-        randomize_voice = parse_env_bool(os.getenv("MIMO_TTS_RANDOMIZE_VOICE", ENV_DEFAULTS["MIMO_TTS_RANDOMIZE_VOICE"]), True)
+        app_config = AppConfigManager()
+        tts_config = app_config.get_tts_config()
+        model = tts_config.get("model", "mimo-v2.5-tts")
+        fallback_model = tts_config.get("fallback_model", "mimo-v2.5-tts")
+        voice = tts_config.get("voice", "Mia")
+        fallback_voice = tts_config.get("fallback_voice", "Dean")
+        randomize_voice = tts_config.get("randomize_voice", True)
         random_voice_ids: list[str] = []
         if randomize_voice:
-            random_voice_pool = os.getenv("MIMO_TTS_RANDOM_VOICES", ENV_DEFAULTS["MIMO_TTS_RANDOM_VOICES"]).strip()
+            random_voice_pool = tts_config.get("random_voices", "Mia,Dean")
             if random_voice_pool.lower() in {"all", "*"}:
                 random_voice_ids = [data["id"] for data in MIMO_TTS_VOICES.values()]
             else:
@@ -2859,7 +2865,10 @@ class PipelineController:
     def validate_tts_connection(self) -> dict[str, Any]:
         if self.dry_run:
             return {"ok": True, "mode": "dry_run"}
-        output_path = self.root_dir / "logs" / f"tts_probe_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{os.getenv('MIMO_AUDIO_FORMAT', 'mp3')}"
+        app_config = AppConfigManager()
+        tts_config = app_config.get_tts_config()
+        audio_format = tts_config.get("audio_format", "mp3")
+        output_path = self.root_dir / "logs" / f"tts_probe_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{audio_format}"
         audio_path = self._synthesize_tts("连通测试，滋元堂短视频配音链路正常。", output_path)
         duration = 0.0
         try:
@@ -2867,10 +2876,11 @@ class PipelineController:
                 duration = self._get_media_duration(audio_path)
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("TTS 探针音频已生成，但 ffprobe 时长检查失败：%s", exc)
+        model = tts_config.get("model", "mimo-v2.5-tts") if self._tts_provider() == "mimo" else os.getenv("MINIMAX_TTS_MODEL", ENV_DEFAULTS["MINIMAX_TTS_MODEL"])
         return {
             "ok": True,
             "provider": self._tts_provider(),
-            "model": os.getenv("MIMO_TTS_MODEL", ENV_DEFAULTS["MIMO_TTS_MODEL"]) if self._tts_provider() == "mimo" else os.getenv("MINIMAX_TTS_MODEL", ENV_DEFAULTS["MINIMAX_TTS_MODEL"]),
+            "model": model,
             "audio_path": str(audio_path),
             "duration": duration,
         }

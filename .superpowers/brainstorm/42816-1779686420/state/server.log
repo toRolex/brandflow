@@ -1,0 +1,11 @@
+{"type":"server-started","port":57046,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:57046","screen_dir":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/42816-1779686420/content","state_dir":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/42816-1779686420/state"}
+{"type":"screen-added","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/42816-1779686420/content/all-layouts.html"}
+{"type":"screen-added","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/42816-1779686420/content/workbench.html"}
+{"type":"screen-added","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/42816-1779686420/content/pipeline.html"}
+{"type":"screen-added","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/42816-1779686420/content/index.html"}
+{"type":"screen-updated","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/42816-1779686420/content/all-layouts.html"}
+{"type":"screen-updated","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/42816-1779686420/content/workbench.html"}
+{"type":"screen-updated","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/42816-1779686420/content/pipeline.html"}
+{"source":"user-event","type":"click","text":"A\n      \n        左侧步骤条 + 右侧详情（如上图）\n        竖排步骤列表始终可见，点击切换右侧内容。适合步骤多、需要整体把握进度的场景","choice":"sidebar","id":null,"timestamp":1779686505688}
+{"source":"user-event","type":"click","text":"B\n      \n        顶部横向步骤条 + 下方详情\n        类似购买流程的横向步骤条，当前步骤展开详细信息。占用空间更小，但步骤超过6个时拥挤","choice":"tabs","id":null,"timestamp":1779686592340}
+{"type":"server-stopped","reason":"idle timeout"}

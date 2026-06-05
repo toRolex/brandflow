@@ -1,0 +1,176 @@
+<h2>方案 A：左侧步骤条 + 右侧详情</h2>
+<p class="subtitle">竖排步骤列表始终可见，点击切换右侧内容。适合步骤多、需整体把握进度的场景</p>
+
+<div style="display:flex;border:1px solid #393f46;border-radius:12px;overflow:hidden;min-height:400px;margin-top:16px">
+  <div style="width:200px;background:#eff2f5;padding:16px 10px;border-right:1px solid #393f46;flex-shrink:0">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:#59636e">Job #003 羊肚菌</div>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;background:#0969da;color:#fff;margin-bottom:3px;font-size:12px"><span style="width:18px;height:18px;border-radius:50%;background:#fff;color:#0969da;text-align:center;line-height:18px;font-size:10px;font-weight:700">✓</span>① 素材</div>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;background:#0969da;color:#fff;margin-bottom:3px;font-size:12px"><span style="width:18px;height:18px;border-radius:50%;background:#fff;color:#0969da;text-align:center;line-height:18px;font-size:10px;font-weight:700">✓</span>② 脚本</div>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;background:#e8b931;color:#1e2327;margin-bottom:3px;font-size:12px;font-weight:600"><span style="width:18px;height:18px;border-radius:50%;background:#fff;color:#e8b931;text-align:center;line-height:18px;font-size:12px">!</span>③ 审核</div>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;font-size:12px;color:#59636e"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:16px;font-size:10px">4</span>④ 包装</div>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;font-size:12px;color:#59636e"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:16px;font-size:10px">5</span>⑤ 配音</div>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;font-size:12px;color:#59636e"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:16px;font-size:10px">6</span>⑥ 转录</div>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;font-size:12px;color:#59636e"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:16px;font-size:10px">7</span>⑦ 底包</div>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;font-size:12px;color:#59636e"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:16px;font-size:10px">8</span>⑧ 烧录</div>
+    <div style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;font-size:12px;color:#59636e"><span style="width:18px;height:18px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:16px;font-size:10px">9</span>⑨ 排期</div>
+  </div>
+  <div style="flex:1;padding:16px;background:#fff">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">③ 脚本审核 — 待审核</div>
+    <div style="background:#eff2f5;border-radius:8px;padding:14px;margin-bottom:12px;font-size:13px;line-height:1.7">
+      羊肚菌，大自然的黑色珍宝。滋元堂精选优质羊肚菌，每一朵都源自深山纯净环境...烹饪时请务必充分烹熟。煲汤、清炒皆宜，轻松为家人补充满满营养。
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button style="background:#0969da;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:12px">✓ 通过</button>
+      <button style="background:#d1242f;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:12px">✗ 打回</button>
+      <button style="background:#fff;border:1px solid #393f46;padding:8px 16px;border-radius:6px;font-size:12px">🔄 重生成</button>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros"><h4>优点</h4><ul><li>9步始终可见，全局进度一目了然</li><li>点击任意步骤快速跳转</li><li>适合宽屏显示器</li></ul></div>
+  <div class="cons"><h4>缺点</h4><ul><li>占用左侧 200px 固定空间</li><li>小屏幕时详情区偏窄</li></ul></div>
+</div>
+
+<div style="margin-top:40px;border-top:2px solid #eff2f5;padding-top:32px">
+  <h2>方案 B：顶部横向步骤条 + 下方详情</h2>
+  <p class="subtitle">类似购买流程，步骤少时简洁。但 9 步略拥挤</p>
+
+  <div style="border:1px solid #393f46;border-radius:12px;overflow:hidden;min-height:380px;margin-top:16px">
+    <div style="display:flex;justify-content:space-between;background:#eff2f5;padding:14px 8px;border-bottom:1px solid #393f46;overflow-x:auto;gap:2px">
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;min-width:56px;justify-content:center"><span style="width:16px;height:16px;border-radius:50%;background:#0969da;color:#fff;text-align:center;line-height:16px;font-size:9px">✓</span><span style="color:#0969da">素材</span></div>
+      <span style="color:#393f46;line-height:16px">▸</span>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;min-width:56px;justify-content:center"><span style="width:16px;height:16px;border-radius:50%;background:#0969da;color:#fff;text-align:center;line-height:16px;font-size:9px">✓</span><span style="color:#0969da">脚本</span></div>
+      <span style="color:#393f46;line-height:16px">▸</span>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;min-width:56px;justify-content:center;font-weight:600"><span style="width:16px;height:16px;border-radius:50%;background:#e8b931;color:#1e2327;text-align:center;line-height:16px;font-size:10px">!</span><span style="color:#e8b931">审核</span></div>
+      <span style="color:#393f46;line-height:16px">▸</span>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;min-width:56px;justify-content:center;color:#59636e"><span style="width:16px;height:16px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:14px;font-size:9px">4</span>包装</div>
+      <span style="color:#393f46;line-height:16px">▸</span>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;min-width:56px;justify-content:center;color:#59636e"><span style="width:16px;height:16px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:14px;font-size:9px">5</span>配音</div>
+      <span style="color:#393f46;line-height:16px">▸</span>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;min-width:56px;justify-content:center;color:#59636e"><span style="width:16px;height:16px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:14px;font-size:9px">6</span>转录</div>
+      <span style="color:#393f46;line-height:16px">▸</span>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;min-width:56px;justify-content:center;color:#59636e"><span style="width:16px;height:16px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:14px;font-size:9px">7</span>底包</div>
+      <span style="color:#393f46;line-height:16px">▸</span>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;min-width:56px;justify-content:center;color:#59636e"><span style="width:16px;height:16px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:14px;font-size:9px">8</span>烧录</div>
+      <span style="color:#393f46;line-height:16px">▸</span>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;min-width:56px;justify-content:center;color:#59636e"><span style="width:16px;height:16px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:14px;font-size:9px">9</span>排期</div>
+    </div>
+    <div style="padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">③ 脚本审核 — 待审核</div>
+      <div style="background:#eff2f5;border-radius:8px;padding:14px;margin-bottom:12px;font-size:13px;line-height:1.7">
+        羊肚菌，大自然的黑色珍宝。滋元堂精选优质羊肚菌...烹饪时请务必充分烹熟。
+      </div>
+      <div style="display:flex;gap:6px">
+        <button style="background:#0969da;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:12px">✓ 通过</button>
+        <button style="background:#d1242f;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:12px">✗ 打回</button>
+        <button style="background:#fff;border:1px solid #393f46;padding:8px 16px;border-radius:6px;font-size:12px">🔄 重生成</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pros"><h4>优点</h4><ul><li>内容区更宽，无侧边栏占用</li><li>横向布局用户熟悉（类似购物流程）</li></ul></div>
+    <div class="cons"><h4>缺点</h4><ul><li>9 步在窄屏被截断需横向滚动</li><li>同时只能看到相邻几步，丢失全局感</li><li>步骤名需缩写，信息密度不足</li></ul></div>
+  </div>
+</div>
+
+<div style="margin-top:40px;border-top:2px solid #eff2f5;padding-top:32px">
+  <h2>方案 C：纵向全部展开</h2>
+  <p class="subtitle">9 个步骤垂直排列，每步有自己的预览和操作区。滚动查看，一目了然</p>
+
+  <div style="border:1px solid #393f46;border-radius:12px;overflow:hidden;min-height:380px;margin-top:16px">
+    <div style="padding:16px;max-height:400px;overflow-y:auto">
+      <!-- 步骤1 -->
+      <div style="display:flex;gap:12px;margin-bottom:12px;padding:12px;border:1px solid #eff2f5;border-radius:8px">
+        <div style="width:28px;height:28px;border-radius:50%;background:#0969da;color:#fff;text-align:center;line-height:28px;font-size:12px;font-weight:700;flex-shrink:0">✓</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:#0969da">① 上传素材 — 已完成</div>
+          <div style="font-size:11px;color:#59636e;margin-top:4px">羊肚菌_产地实拍.mp4 · 2分30秒 · 1080p</div>
+        </div>
+      </div>
+      <!-- 步骤2 -->
+      <div style="display:flex;gap:12px;margin-bottom:12px;padding:12px;border:1px solid #eff2f5;border-radius:8px">
+        <div style="width:28px;height:28px;border-radius:50%;background:#0969da;color:#fff;text-align:center;line-height:28px;font-size:12px;font-weight:700;flex-shrink:0">✓</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:#0969da">② 生成脚本 — 已完成</div>
+          <div style="font-size:11px;color:#59636e;margin-top:4px">178 字 · 质检全部通过 · 重试 1 次</div>
+        </div>
+      </div>
+      <!-- 步骤3 当前 -->
+      <div style="display:flex;gap:12px;margin-bottom:12px;padding:12px;border:2px solid #e8b931;border-radius:8px;background:#fffdf0">
+        <div style="width:28px;height:28px;border-radius:50%;background:#e8b931;color:#1e2327;text-align:center;line-height:28px;font-size:14px;font-weight:700;flex-shrink:0">!</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">③ 脚本审核 — 待审核</div>
+          <div style="background:#fff;border:1px solid #e8b931;border-radius:6px;padding:10px;margin-top:8px;font-size:12px;line-height:1.6">
+            羊肚菌，大自然的黑色珍宝。滋元堂精选优质羊肚菌，每一朵都源自深山纯净环境...烹饪时请务必充分烹熟。
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button style="background:#0969da;color:#fff;border:none;padding:6px 14px;border-radius:4px;font-size:11px">✓ 通过</button>
+            <button style="background:#d1242f;color:#fff;border:none;padding:6px 14px;border-radius:4px;font-size:11px">✗ 打回</button>
+            <button style="background:#fff;border:1px solid #393f46;padding:6px 14px;border-radius:4px;font-size:11px">🔄 重生成</button>
+          </div>
+        </div>
+      </div>
+      <!-- 步骤4-9 -->
+      <div style="display:flex;gap:12px;margin-bottom:12px;padding:12px;border:1px solid #eff2f5;border-radius:8px;opacity:0.6">
+        <div style="width:28px;height:28px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:26px;font-size:11px;flex-shrink:0;color:#59636e">4</div>
+        <div style="flex:1"><div style="font-size:13px;color:#59636e">④ 生成包装 — 等待中</div></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:12px;padding:12px;border:1px solid #eff2f5;border-radius:8px;opacity:0.6">
+        <div style="width:28px;height:28px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:26px;font-size:11px;flex-shrink:0;color:#59636e">5</div>
+        <div style="flex:1"><div style="font-size:13px;color:#59636e">⑤ TTS 配音 — 等待中</div></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:12px;padding:12px;border:1px solid #eff2f5;border-radius:8px;opacity:0.6">
+        <div style="width:28px;height:28px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:26px;font-size:11px;flex-shrink:0;color:#59636e">6</div>
+        <div style="flex:1"><div style="font-size:13px;color:#59636e">⑥ 转录字幕 — 等待中</div></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:12px;padding:12px;border:1px solid #eff2f5;border-radius:8px;opacity:0.6">
+        <div style="width:28px;height:28px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:26px;font-size:11px;flex-shrink:0;color:#59636e">7</div>
+        <div style="flex:1"><div style="font-size:13px;color:#59636e">⑦ 底包拼接 — 等待中</div></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:12px;padding:12px;border:1px solid #eff2f5;border-radius:8px;opacity:0.6">
+        <div style="width:28px;height:28px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:26px;font-size:11px;flex-shrink:0;color:#59636e">8</div>
+        <div style="flex:1"><div style="font-size:13px;color:#59636e">⑧ 封面·烧录 — 等待中</div></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:12px;padding:12px;border:1px solid #eff2f5;border-radius:8px;opacity:0.6">
+        <div style="width:28px;height:28px;border-radius:50%;border:1.5px solid #59636e;text-align:center;line-height:26px;font-size:11px;flex-shrink:0;color:#59636e">9</div>
+        <div style="flex:1"><div style="font-size:13px;color:#59636e">⑨ 排期发布 — 等待中</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pros"><h4>优点</h4><ul><li>所有步骤一页尽览，信息最全</li><li>已完成步骤的产物（脚本/音频/视频）可随意回看</li><li>无需点击切换，操作最直接</li></ul></div>
+    <div class="cons"><h4>缺点</h4><ul><li>后期步骤多时页面很长需滚动</li><li>当前步骤定位不如方案 A 明显</li><li>画面密度高，非技术人员可能觉得杂乱</li></ul></div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:32px">
+  <h3>你的选择</h3>
+  <p class="subtitle">三种方案都展示在上面了。哪个更适合你的工作人员日常使用？</p>
+
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>左侧步骤条</h3>
+        <p>进度总览 + 点击切换详情，结构清晰</p>
+      </div>
+    </div>
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>顶部步骤条</h3>
+        <p>内容区更宽，横向流程感</p>
+      </div>
+    </div>
+    <div class="option" data-choice="c" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>纵向全部展开</h3>
+        <p>一页看全，滚动浏览所有步骤</p>
+      </div>
+    </div>
+  </div>
+</div>

@@ -58,6 +58,21 @@ cd frontend && npm run dev
 | 排期存储 | SQLite |
 | 目标平台 | 抖音、小红书、视频号、快手 |
 
+## 配置
+
+**所有配置统一在 `.env` 文件**，前端通过 Web 界面读写。
+
+```bash
+# 复制示例文件并填入真实密钥
+cp .env.example .env
+```
+
+核心配置项：
+- `MIMO_API_KEY` — MiMo TTS API Key
+- `DEEPSEEK_API_KEY` — DeepSeek LLM API Key
+- `MIMO_TTS_MODEL` — TTS 模型（默认 `mimo-v2.5-tts`）
+- `MIMO_TTS_VOICE` — TTS 音色（默认 `Mia`）
+
 ## 核心概念
 
 ```

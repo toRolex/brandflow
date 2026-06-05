@@ -1,0 +1,58 @@
+<h2>Pixelle Phase 2 整体架构</h2>
+<p class="subtitle">配置页 → 看板 → Worker → 生产链</p>
+
+<div class="mockup" style="max-width:800px;">
+  <div class="mockup-header">Control Plane（看板 http://127.0.0.1:17890）</div>
+  <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.8;">
+
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+      <div style="flex:1;min-width:160px;border:2px solid #4A90D9;border-radius:6px;padding:10px;text-align:center;">
+        <strong>项目列表</strong><br>
+        <span style="color:#888;font-size:11px;">/ 已有</span>
+      </div>
+      <div style="flex:1;min-width:160px;border:2px solid #2e7d32;border-radius:6px;padding:10px;text-align:center;">
+        <strong>系统配置</strong><br>
+        <span style="color:#2e7d32;font-size:11px;">/config 新增</span>
+      </div>
+      <div style="flex:1;min-width:160px;border:2px solid #e65100;border-radius:6px;padding:10px;text-align:center;">
+        <strong>项目详情/Job管理</strong><br>
+        <span style="color:#e65100;font-size:11px;">/projects/{name}/jobs 新增</span>
+      </div>
+      <div style="flex:1;min-width:160px;border:1px solid #ddd;border-radius:6px;padding:10px;text-align:center;">
+        <strong>审核工作台</strong><br>
+        <span style="color:#888;font-size:11px;">/reviews 已有骨架</span>
+      </div>
+    </div>
+
+    <div style="border:2px solid #1565c0;border-radius:6px;padding:12px;margin-bottom:12px;">
+      <strong>Dispatcher 调度器</strong><br>
+      <span style="font-size:12px;">内存队列 → Worker poll → 分发 task → 接收 report</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="border:2px solid #7b1fa2;border-radius:6px;padding:10px;">
+        <strong>Runtime Worker</strong><br>
+        <span style="font-size:11px;">
+          poll() 持续轮询<br>
+          领取 task → 调 Bridge<br>
+          → report() 上报结果
+        </span>
+      </div>
+      <div style="border:1px solid #ccc;border-radius:6px;padding:10px;background:#fafafa;">
+        <strong>Legacy Bridges</strong><br>
+        <span style="font-size:11px;">
+          ScriptBridge (LLM)<br>
+          MediaBridge (TTS → SRT → FFmpeg)<br>
+          ScheduleBridge (排期池.xlsx)
+        </span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div style="max-width:800px;margin-top:16px;font-size:13px;">
+  <p><strong>数据流</strong>：用户在配置页选定 Provider → 保存到 <code>config/providers.yaml</code>
+  → Worker 启动时读取 providers.yaml → 创建 Bridge 实例时注入对应 Provider 配置
+  → 项目详情页点「创建 Job」→ Dispatcher 入队 → Worker poll 领取 → Bridge 执行真实 API</p>
+</div>

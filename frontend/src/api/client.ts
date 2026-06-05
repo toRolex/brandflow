@@ -260,4 +260,47 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+
+  // TTS
+  getTTSConfig: (projectId?: string) =>
+    request<Record<string, unknown>>(`/api/tts/config${projectId ? `?project_id=${projectId}` : ""}`),
+
+  saveTTSConfig: (config: Record<string, unknown>, projectId?: string) =>
+    request<{ success: boolean }>(`/api/tts/config${projectId ? `?project_id=${projectId}` : ""}`, {
+      method: "PUT",
+      body: JSON.stringify(config),
+    }),
+
+  getTTSVoices: () =>
+    request<{ preset_voices: Array<{ id: string; label: string; note: string }> }>("/api/tts/voices"),
+
+  previewTTS: async (requestBody: { text: string; model?: string; voice?: string; style_prompt?: string; voice_design_prompt?: string }) => {
+    const res = await fetch("/api/tts/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text}`);
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
+
+  getTTSMetrics: (projectId?: string, range?: string) => {
+    const qs = new URLSearchParams();
+    if (projectId) qs.set("project_id", projectId);
+    if (range) qs.set("range", range);
+    return request<Record<string, unknown>>(`/api/tts/metrics?${qs.toString()}`);
+  },
+
+  getTTSLogs: (params?: { project_id?: string; limit?: number; offset?: number; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.project_id) qs.set("project_id", params.project_id);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.offset) qs.set("offset", String(params.offset));
+    if (params?.status) qs.set("status", params.status);
+    return request<Array<Record<string, unknown>>>(`/api/tts/logs?${qs.toString()}`);
+  },
 };

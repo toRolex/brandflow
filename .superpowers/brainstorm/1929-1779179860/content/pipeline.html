@@ -1,0 +1,118 @@
+<h2>Job 流水线详情页 — 布局方案</h2>
+<p class="subtitle">左侧 9 步流水线 + 右侧当前阶段详情与操作。这是整个前端的核心页面</p>
+
+<div style="display:flex;border:1px solid #393f46;border-radius:12px;overflow:hidden;min-height:480px;margin-top:16px">
+  <!-- 左侧步骤条 -->
+  <div style="width:220px;background:#eff2f5;padding:16px 12px;border-right:1px solid #393f46;flex-shrink:0">
+    <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:#59636e">Job #003 羊肚菌</div>
+
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;background:#0969da;color:#fff;margin-bottom:4px">
+      <span style="width:20px;height:20px;border-radius:50%;background:#fff;color:#0969da;text-align:center;line-height:20px;font-size:12px;font-weight:700">✓</span>
+      <span style="font-size:13px">① 上传素材</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;background:#0969da;color:#fff;margin-bottom:4px">
+      <span style="width:20px;height:20px;border-radius:50%;background:#fff;color:#0969da;text-align:center;line-height:20px;font-size:12px;font-weight:700">✓</span>
+      <span style="font-size:13px">② 生成脚本</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;background:#e8b931;color:#1e2327;margin-bottom:4px">
+      <span style="width:20px;height:20px;border-radius:50%;background:#fff;color:#e8b931;text-align:center;line-height:20px;font-size:14px">!</span>
+      <span style="font-size:13px;font-weight:600">③ 脚本审核</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;margin-bottom:4px;color:#59636e">
+      <span style="width:20px;height:20px;border-radius:50%;border:2px solid #59636e;text-align:center;line-height:18px;font-size:12px">4</span>
+      <span style="font-size:13px">④ 生成包装</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;margin-bottom:4px;color:#59636e">
+      <span style="width:20px;height:20px;border-radius:50%;border:2px solid #59636e;text-align:center;line-height:18px;font-size:12px">5</span>
+      <span style="font-size:13px">⑤ TTS 配音</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;margin-bottom:4px;color:#59636e">
+      <span style="width:20px;height:20px;border-radius:50%;border:2px solid #59636e;text-align:center;line-height:18px;font-size:12px">6</span>
+      <span style="font-size:13px">⑥ 转录字幕</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;margin-bottom:4px;color:#59636e">
+      <span style="width:20px;height:20px;border-radius:50%;border:2px solid #59636e;text-align:center;line-height:18px;font-size:12px">7</span>
+      <span style="font-size:13px">⑦ 底包拼接</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;margin-bottom:4px;color:#59636e">
+      <span style="width:20px;height:20px;border-radius:50%;border:2px solid #59636e;text-align:center;line-height:18px;font-size:12px">8</span>
+      <span style="font-size:13px">⑧ 封面·烧录</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;margin-bottom:4px;color:#59636e">
+      <span style="width:20px;height:20px;border-radius:50%;border:2px solid #59636e;text-align:center;line-height:18px;font-size:12px">9</span>
+      <span style="font-size:13px">⑨ 排期发布</span>
+    </div>
+
+    <div style="margin-top:16px;border-top:1px solid #393f46;padding-top:12px">
+      <button class="mock-button" style="width:100%;margin-bottom:6px">⏸ 暂停</button>
+      <button class="mock-button" style="width:100%;margin-bottom:6px">🔄 重试当前</button>
+      <button class="mock-button" style="width:100%">📋 查看日志</button>
+    </div>
+  </div>
+
+  <!-- 右侧详情区 -->
+  <div style="flex:1;padding:20px">
+    <div style="background:#eff2f5;border-radius:8px;padding:16px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px">③ 脚本审核 — 待审核</div>
+
+      <div style="background:#fff;border:1px solid #393f46;border-radius:8px;padding:16px;margin-bottom:12px">
+        <div style="font-size:13px;color:#59636e;margin-bottom:4px">口播脚本</div>
+        <div style="font-size:14px;line-height:1.8;margin-bottom:12px">
+          羊肚菌，大自然的黑色珍宝。滋元堂精选优质羊肚菌，每一朵都源自深山纯净环境，富含多种氨基酸和微量元素。烹饪时请务必充分烹熟，保留鲜美口感的同时确保食用安全。煲汤、清炒皆宜，轻松为家人补充满满营养。选择滋元堂羊肚菌，让健康从舌尖开始。
+        </div>
+        <div style="display:flex;gap:24px;font-size:12px;color:#59636e">
+          <span>字数: 178 ✓</span>
+          <span>品牌"滋元堂": 1次 ✓</span>
+          <span>品名"羊肚菌": 1次 ✓</span>
+          <span>充分烹熟: ✓</span>
+          <span>禁词: 无 ✓</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button style="background:#0969da;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer">✓ 通过</button>
+        <button style="background:#d1242f;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer">✗ 打回</button>
+        <button style="background:#eff2f5;color:#1e2327;border:1px solid #393f46;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer">🔄 重生成脚本</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <h3>设计要点</h3>
+  <ul>
+    <li>左侧步骤条三种状态：<span style="color:#0969da">✓ 已完成（蓝底白字）</span>、<span style="color:#e8b931">! 待审核（黄底，当前聚焦）</span>、数字 待执行（灰色）</li>
+    <li>审核门（脚本审核、最终审核）用黄色高亮，需要人工确认才能继续</li>
+    <li>右侧根据当前步骤动态切换内容：脚本显示全文+质检，配音显示播放器，封面显示图片，烧录显示视频</li>
+    <li>底部操作栏固定在底部，始终可访问</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>布局方案选择</h3>
+  <p class="subtitle">上面的示例用了"左侧步骤条 + 右侧详情"，还有一个备选方案：</p>
+
+  <div class="options">
+    <div class="option" data-choice="sidebar" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>左侧步骤条 + 右侧详情（如上图）</h3>
+        <p>竖排步骤列表始终可见，点击切换右侧内容。适合步骤多、需要整体把握进度的场景</p>
+      </div>
+    </div>
+    <div class="option" data-choice="tabs" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>顶部横向步骤条 + 下方详情</h3>
+        <p>类似购买流程的横向步骤条，当前步骤展开详细信息。占用空间更小，但步骤超过6个时拥挤</p>
+      </div>
+    </div>
+    <div class="option" data-choice="full" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>单页纵向全部展开</h3>
+        <p>9个步骤垂直排列在一页内，滚动查看。每个步骤显示自己的预览和操作区。一目了然但页面很长</p>
+      </div>
+    </div>
+  </div>
+</div>
