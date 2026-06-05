@@ -52,9 +52,14 @@ class TTSPreviewRequest(BaseModel):
 
 
 PRESET_VOICES = [
-    {"id": "冰糖", "label": "冰糖", "note": "中文女声，甜美亲切"},
+    {"id": "mimo_default", "label": "MiMo 默认音色", "note": "官方默认音色，中国区通常映射为冰糖"},
+    {"id": "冰糖", "label": "冰糖", "note": "中文女声，清亮自然"},
+    {"id": "茉莉", "label": "茉莉", "note": "中文女声，柔和亲切"},
+    {"id": "苏打", "label": "苏打", "note": "中文男声，适合短视频口播"},
     {"id": "白桦", "label": "白桦", "note": "中文男声，稳重讲解"},
     {"id": "Mia", "label": "Mia", "note": "英文女声"},
+    {"id": "Chloe", "label": "Chloe", "note": "英文女声"},
+    {"id": "Milo", "label": "Milo", "note": "英文男声"},
     {"id": "Dean", "label": "Dean", "note": "英文男声"},
 ]
 
