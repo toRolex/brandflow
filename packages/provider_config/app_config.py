@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,39 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """深度合并两个字典，override 中的值覆盖 base 中的值，嵌套字典递归合并。"""
+    result = deepcopy(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = deepcopy(value)
+    return result
+
+
+def _get_nested(data: dict[str, Any], key_path: str, default: Any = None) -> Any:
+    """通过点分路径获取嵌套字典的值，如 'director.character'。"""
+    keys = key_path.split(".")
+    current = data
+    for key in keys:
+        if not isinstance(current, dict) or key not in current:
+            return default
+        current = current[key]
+    return current
+
+
+def _set_nested(data: dict[str, Any], key_path: str, value: Any) -> None:
+    """通过点分路径设置嵌套字典的值，如 'director.character'。"""
+    keys = key_path.split(".")
+    current = data
+    for key in keys[:-1]:
+        if key not in current or not isinstance(current[key], dict):
+            current[key] = {}
+        current = current[key]
+    current[keys[-1]] = value
+
+
 class AppConfigManager:
     """统一配置管理器，读写 config/app_config.json"""
 
@@ -70,31 +104,19 @@ class AppConfigManager:
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
 
-    def _merge_defaults(self, config: dict[str, Any]) -> dict[str, Any]:
-        result = {}
-        for key, default_value in DEFAULTS.items():
-            if key in config:
-                if isinstance(default_value, dict) and isinstance(config[key], dict):
-                    result[key] = {**default_value, **config[key]}
-                else:
-                    result[key] = config[key]
-            else:
-                result[key] = default_value
-        return result
-
     def get_tts_config(self) -> dict[str, Any]:
         config = self._load()
         tts = config.get("tts", {})
         defaults = DEFAULTS["tts"]
-        return {**defaults, **tts}
+        return _deep_merge(defaults, tts)
 
     def set_tts(self, key: str, value: Any) -> None:
         config = self._load()
         if "tts" not in config:
             config["tts"] = {}
-        config["tts"][key] = value
+        _set_nested(config["tts"], key, value)
         self._save(config)
 
     def get_tts_value(self, key: str, default: Any = None) -> Any:
         config = self.get_tts_config()
-        return config.get(key, default)
+        return _get_nested(config, key, default)

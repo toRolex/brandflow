@@ -59,3 +59,57 @@ def test_get_nested_tts_config() -> None:
         config = manager.get_tts_config()
         assert "director" in config
         assert "character" in config["director"]
+
+
+def test_set_tts_nested_key() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.set_tts("director.character", "测试角色")
+        assert manager.get_tts_value("director.character") == "测试角色"
+
+
+def test_set_tts_nested_key_preserves_sibling() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.set_tts("director.character", "测试角色")
+        manager.set_tts("director.scene", "测试场景")
+        assert manager.get_tts_value("director.character") == "测试角色"
+        assert manager.get_tts_value("director.scene") == "测试场景"
+
+
+def test_get_tts_value_nested_default() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        assert manager.get_tts_value("director.character") == ""
+
+
+def test_get_tts_value_nested_missing_default() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        assert manager.get_tts_value("nonexistent.key", "fallback") == "fallback"
+
+
+def test_get_tts_config_deep_merge_preserves_nested_defaults() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.set_tts("director.character", "自定义角色")
+        config = manager.get_tts_config()
+        assert config["director"]["character"] == "自定义角色"
+        assert config["director"]["scene"] == ""
+        assert config["director"]["guidance"] == ""
+
+
+def test_set_tts_flat_key_still_works() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.set_tts("model", "custom-model")
+        assert manager.get_tts_value("model") == "custom-model"
+
+
+def test_set_tts_audio_tags_nested() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.set_tts("audio_tags.enabled", True)
+        manager.set_tts("audio_tags.tags", "(温柔)[笑声]")
+        assert manager.get_tts_value("audio_tags.enabled") is True
+        assert manager.get_tts_value("audio_tags.tags") == "(温柔)[笑声]"
