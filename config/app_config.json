@@ -18,13 +18,13 @@
     "voice_design_prompt": "年轻女性，声音甜美",
     "style_control_mode": "simple",
     "director": {
-      "character": "",
-      "scene": "",
-      "guidance": ""
+      "character": "年轻女性",
+      "scene": "厨房",
+      "guidance": "热情洋溢"
     },
     "audio_tags": {
-      "enabled": false,
-      "tags": ""
+      "enabled": true,
+      "tags": "(温柔)[笑声]"
     },
     "audio_format": "wav",
     "sample_rate": 44100,
