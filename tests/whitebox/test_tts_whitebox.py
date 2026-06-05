@@ -21,7 +21,7 @@ class TestTTSConfigWhiteBox:
             log_audio_duration=False
         )
         data = config.to_dict()
-        assert len(data) == 14
+        assert len(data) == 20
         assert data["model"] == "test"
         assert data["voice"] == "v"
         assert data["fallback_voice"] == "fv"

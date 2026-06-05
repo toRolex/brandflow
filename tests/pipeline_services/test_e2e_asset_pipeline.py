@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -12,11 +13,7 @@ from packages.pipeline_services.asset_library.retriever import AssetRetriever
 
 def _create_mock_video(output_path: Path, duration: float = 3.0) -> Path:
     """Create a minimal test video using ffmpeg lavfi."""
-    # 使用项目根目录的绝对路径
-    project_root = Path(__file__).parent.parent.parent
-    ffmpeg = project_root / "tools" / "bin" / "ffmpeg.exe"
-    if not ffmpeg.exists():
-        ffmpeg = os.environ.get("FFMPEG_PATH", "tools/bin/ffmpeg.exe")
+    ffmpeg = shutil.which("ffmpeg") or os.environ.get("FFMPEG_PATH", "ffmpeg")
     cmd = [
         str(ffmpeg),
         "-f", "lavfi",
