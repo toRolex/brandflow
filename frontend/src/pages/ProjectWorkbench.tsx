@@ -25,6 +25,7 @@ export default function ProjectWorkbench() {
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState("");
   const [manualScript, setManualScript] = useState("");
+  const [jobName, setJobName] = useState("");
   const [scriptMode, setScriptMode] = useState<"auto" | "manual">("auto");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioMode, setAudioMode] = useState<"tts" | "upload">("tts");
@@ -56,6 +57,7 @@ export default function ProjectWorkbench() {
       const job = await api.createJob(id, {
         product,
         platforms,
+        name: jobName || undefined,
         manual_script: scriptMode === "manual" ? manualScript : "",
       });
       if (audioMode === "upload" && audioFile) {
@@ -82,6 +84,10 @@ export default function ProjectWorkbench() {
       console.error("delete job failed", e);
       setError("删除 Job 失败");
     }
+  };
+
+  const handleRenameJob = async (jobId: string, name: string) => {
+    await api.renameJob(jobId, name);
   };
 
   const togglePlatform = (p: string) => {
@@ -122,6 +128,16 @@ export default function ProjectWorkbench() {
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
+          </label>
+          <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
+            任务名称（可选）
+            <input
+              type="text"
+              className="border rounded-lg px-3 py-2 text-sm"
+              placeholder="默认使用产品名"
+              value={jobName}
+              onChange={(e) => setJobName(e.target.value)}
+            />
           </label>
           <div className="grid gap-1 text-xs text-gray-500">
             <span className="text-xs text-[#59636e]">目标平台</span>
@@ -259,7 +275,7 @@ export default function ProjectWorkbench() {
       </div>
 
       {tab === "jobs" ? (
-        <JobTable jobs={jobs} onRetry={handleRetry} onDelete={handleDeleteJob} />
+        <JobTable jobs={jobs} onRetry={handleRetry} onDelete={handleDeleteJob} onRename={handleRenameJob} />
       ) : tab === "schedule" ? (
         <ScheduleTable
           entries={schedule}

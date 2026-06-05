@@ -17,6 +17,7 @@ export interface Project {
 export interface JobSummary {
   job_id: string;
   product: string;
+  name?: string;
   phase: Phase;
   review_status: ReviewStatus;
   phase_index: number;
@@ -86,6 +87,7 @@ export interface JobDetail {
   job_id: string;
   project_id: string;
   product: string;
+  name?: string;
   platforms: string[];
   phase: Phase;
   review_status: ReviewStatus;

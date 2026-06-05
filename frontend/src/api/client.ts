@@ -163,7 +163,7 @@ export const api = {
     ),
 
   // Jobs
-  createJob: (projectId: string, body: { product: string; platforms: string[]; asset?: string; manual_script?: string }) =>
+  createJob: (projectId: string, body: { product: string; platforms: string[]; name?: string; manual_script?: string }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {
       method: "POST",
       body: JSON.stringify(body),
@@ -171,6 +171,12 @@ export const api = {
 
   getJob: (jobId: string) =>
     request<import("../types").JobDetail>(`/api/jobs/${jobId}`),
+
+  renameJob: (jobId: string, name: string) =>
+    request<{ job_id: string; name: string }>(`/api/jobs/${jobId}/rename`, {
+      method: "PUT",
+      body: JSON.stringify({ name }),
+    }),
 
   pauseJob: (jobId: string) =>
     request<{ status: string }>(`/api/jobs/${jobId}/pause`, { method: "POST" }),

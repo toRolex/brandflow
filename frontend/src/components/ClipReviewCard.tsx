@@ -3,6 +3,7 @@ import { useState } from "react";
 interface ClipData {
   sentence: string;
   category: string;
+  requested_category?: string;
   file_path: string;
   asset_id: string;
   method: string;
@@ -20,6 +21,9 @@ export default function ClipReviewCard({ clip, index, onReject, rejected = false
   const thumbnailUrl = clip.asset_id ? `/api/assets/${clip.asset_id}/thumbnail` : null;
   const fileName = clip.file_path.split("/").pop() || clip.asset_id;
 
+  const isFallback = clip.method === "fallback";
+  const hasDowngradeInfo = isFallback && clip.requested_category && clip.requested_category !== clip.category;
+
   return (
     <div className={`border rounded-lg overflow-hidden transition-colors max-w-full ${rejected ? "border-[#d1242f] bg-[#ffebe9]" : "border-[#d0d7de] bg-white"}`}>
       <div className="p-3 bg-[#f6f8fa] border-b border-[#d0d7de]">
@@ -27,13 +31,19 @@ export default function ClipReviewCard({ clip, index, onReject, rejected = false
           <span className="text-[#57606a] text-xs font-mono shrink-0">#{index + 1}</span>
           <p className="text-sm text-[#1f2328] leading-relaxed break-words">{clip.sentence}</p>
         </div>
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex flex-wrap items-center gap-2 mt-2">
           <span className="inline-flex px-1.5 py-0.5 rounded text-xs bg-[#eaeef2] text-[#59636e]">
             {clip.category}
           </span>
-          <span className={`text-xs ${clip.method === "keyword_match" ? "text-[#1a7f37]" : "text-[#9a6700]"}`}>
-            {clip.method === "keyword_match" ? "关键词匹配" : "降级匹配"}
-          </span>
+          {hasDowngradeInfo ? (
+            <span className="text-xs text-[#9a6700]">
+              想匹配：{clip.requested_category} → 降级为：{clip.category}
+            </span>
+          ) : (
+            <span className={`text-xs ${clip.method === "llm_match" ? "text-[#1a7f37]" : "text-[#9a6700]"}`}>
+              {clip.method === "llm_match" ? "LLM 匹配" : "降级匹配"}
+            </span>
+          )}
         </div>
       </div>
       <div className="p-3">
@@ -57,15 +67,10 @@ export default function ClipReviewCard({ clip, index, onReject, rejected = false
         </div>
         <button
           type="button"
-          disabled={rejected}
-          className={`w-full px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-            rejected
-              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-              : "bg-[#d1242f] text-white hover:bg-[#b6232d]"
-          }`}
+          className="w-full px-3 py-1.5 rounded text-xs font-medium transition-colors bg-[#d1242f] text-white hover:bg-[#b6232d]"
           onClick={() => onReject(index)}
         >
-          {rejected ? "已打回" : "打回检索"}
+          打回检索
         </button>
       </div>
     </div>

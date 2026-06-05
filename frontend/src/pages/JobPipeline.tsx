@@ -312,6 +312,7 @@ export default function JobPipeline() {
                       clip={{
                         sentence: String(clip.sentence || ""),
                         category: String(clip.category || ""),
+                        requested_category: clip.requested_category ? String(clip.requested_category) : undefined,
                         file_path: String(clip.file_path || ""),
                         asset_id: String(clip.asset_id || ""),
                         method: String(clip.method || ""),
@@ -431,7 +432,7 @@ export default function JobPipeline() {
           {"\u2190"} 返回工作台
         </button>
         <span className="text-gray-300">|</span>
-        <h1 className="text-lg font-bold font-mono">{job.job_id}</h1>
+        <h1 className="text-lg font-bold font-mono">{job.name || job.job_id}</h1>
         {job.product && (
           <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
             {job.product}
@@ -452,7 +453,7 @@ export default function JobPipeline() {
           completedPhases={computeCompletedPhases(job.phase)}
           onStepClick={(key) => setActiveStepKey(key)}
           activeStepKey={activeStepKey}
-          jobInfo={job.product ? `${job.job_id} ${job.product}` : job.job_id}
+          jobInfo={job.name ? `${job.name} (${job.product})` : (job.product ? `${job.job_id} ${job.product}` : job.job_id)}
           onPause={() => api.pauseJob(job.job_id)}
           onRetry={handleRetry}
           onViewLogs={async () => {
