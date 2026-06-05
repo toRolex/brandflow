@@ -89,6 +89,20 @@ def _set_nested(data: dict[str, Any], key_path: str, value: Any) -> None:
 class AppConfigManager:
     """统一配置管理器，读写 config/app_config.json"""
 
+    API_KEY_ENV_MAP = {
+        "mimo": "MIMO_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "kimi": "KIMI_API_KEY",
+        "minimax": "MINIMAX_API_KEY",
+    }
+
+    API_BASE_URL_ENV_MAP = {
+        "mimo": "MIMO_API_BASE_URL",
+        "deepseek": "DEEPSEEK_API_URL",
+        "kimi": "KIMI_API_URL",
+        "minimax": "MINIMAX_TTS_URL",
+    }
+
     def __init__(self, config_dir: str | Path = "config") -> None:
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(parents=True, exist_ok=True)
@@ -120,3 +134,13 @@ class AppConfigManager:
     def get_tts_value(self, key: str, default: Any = None) -> Any:
         config = self.get_tts_config()
         return _get_nested(config, key, default)
+
+    def get_api_key(self, provider: str) -> str:
+        import os
+        env_key = self.API_KEY_ENV_MAP.get(provider, "")
+        return os.getenv(env_key, "").strip().strip('"').strip("'")
+
+    def get_api_base_url(self, provider: str) -> str:
+        import os
+        env_key = self.API_BASE_URL_ENV_MAP.get(provider, "")
+        return os.getenv(env_key, "").strip().rstrip("/")

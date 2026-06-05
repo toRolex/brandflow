@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from pathlib import Path
 
@@ -113,3 +114,27 @@ def test_set_tts_audio_tags_nested() -> None:
         manager.set_tts("audio_tags.tags", "(温柔)[笑声]")
         assert manager.get_tts_value("audio_tags.enabled") is True
         assert manager.get_tts_value("audio_tags.tags") == "(温柔)[笑声]"
+
+
+def test_get_api_key_from_env(monkeypatch) -> None:
+    """API Key 应从环境变量读取"""
+    monkeypatch.setenv("MIMO_API_KEY", "test-key-123")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        assert manager.get_api_key("mimo") == "test-key-123"
+
+
+def test_get_api_key_missing(monkeypatch) -> None:
+    """API Key 不存在时应返回空字符串"""
+    monkeypatch.delenv("MIMO_API_KEY", raising=False)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        assert manager.get_api_key("mimo") == ""
+
+
+def test_get_api_base_url_from_env(monkeypatch) -> None:
+    """API Base URL 应从环境变量读取"""
+    monkeypatch.setenv("MIMO_API_BASE_URL", "https://custom.api.com/v1")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        assert manager.get_api_base_url("mimo") == "https://custom.api.com/v1"
