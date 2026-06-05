@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from packages.provider_config.app_config import AppConfigManager
 from packages.provider_config.tts_config import TTSConfig, TTSConfigManager
 from packages.pipeline_services.tts_monitor import TTSMonitor, TTSMetrics
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 
+app_config = AppConfigManager()
 config_manager = TTSConfigManager()
 monitor = TTSMonitor()
 
@@ -152,14 +153,15 @@ async def get_error_distribution(
 @router.post("/preview")
 async def preview_tts(request: TTSPreviewRequest):
     try:
+        import requests
         from packages.pipeline_services.tts_provider import MiMoTTSProvider
 
-        api_key = os.getenv("MIMO_API_KEY", "")
+        api_key = app_config.get_api_key("mimo")
         if not api_key:
             raise HTTPException(status_code=500, detail="未配置 MIMO_API_KEY")
 
         provider = MiMoTTSProvider(api_key=api_key)
-        config = config_manager.get_config()
+        config = config_manager.get_config().with_defaults()
 
         if request.model:
             config.model = request.model
@@ -170,11 +172,38 @@ async def preview_tts(request: TTSPreviewRequest):
         if request.voice_design_prompt:
             config.voice_design_prompt = request.voice_design_prompt
 
-        return {
-            "success": True,
-            "message": "预览功能需要配置真实的MIMO_API_KEY",
-            "config": config.to_dict()
+        request_payload = provider._build_request(request.text, config)
+
+        base_url = app_config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1"
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "api-key": api_key,
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
         }
+
+        response = requests.post(url, json=request_payload, headers=headers, timeout=180)
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+
+        data = response.json()
+
+        if "choices" in data and len(data["choices"]) > 0:
+            message = data["choices"][0].get("message", {})
+            audio_data = message.get("audio", {}).get("data")
+            if audio_data:
+                import base64
+                audio_bytes = base64.b64decode(audio_data)
+                from fastapi.responses import Response
+                return Response(
+                    content=audio_bytes,
+                    media_type="audio/mpeg",
+                    headers={"Content-Disposition": "attachment; filename=preview.mp3"}
+                )
+
+        raise HTTPException(status_code=500, detail="TTS API未返回音频数据")
+
     except HTTPException:
         raise
     except Exception as e:
