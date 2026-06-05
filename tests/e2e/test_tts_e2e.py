@@ -34,7 +34,7 @@ class TestTTSEndToEnd:
 
     @pytest.mark.e2e
     def test_tts_config_page_loads(self):
-        self._open_browser("http://localhost:17890")
+        self._open_browser("http://localhost:17890/tts-config")
         snapshot = self._take_snapshot()
         assert "TTS 配置" in snapshot or "tts-config" in snapshot.lower()
 
@@ -55,6 +55,7 @@ class TestTTSEndToEnd:
     @pytest.mark.e2e
     def test_tts_config_voice_selection(self):
         self._open_browser("http://localhost:17890/tts-config")
+        self._click_element("e16")
         snapshot = self._take_snapshot()
         assert "主音色" in snapshot
         assert "备用音色" in snapshot

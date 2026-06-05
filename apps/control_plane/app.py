@@ -4,8 +4,9 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from apps.control_plane.routes.api_assets import router as api_assets_router
@@ -364,6 +365,13 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
     frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
     if frontend_dist.exists():
-        app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+        app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
+        @app.get("/{full_path:path}")
+        async def serve_spa(request: Request, full_path: str):
+            file_path = frontend_dist / full_path
+            if file_path.exists() and file_path.is_file():
+                return FileResponse(file_path)
+            return FileResponse(frontend_dist / "index.html")
 
     return app
