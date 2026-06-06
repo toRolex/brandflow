@@ -63,7 +63,8 @@ export default function TTSConfigPage() {
   const [config, setConfig] = useState<TTSConfig | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [previewText, setPreviewText] = useState("见手青是云南最美味的野生菌，口感鲜嫩，营养丰富。");
-  const [previewResult, setPreviewResult] = useState<Record<string, unknown> | null>(null);
+  const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
@@ -98,6 +99,7 @@ export default function TTSConfigPage() {
   const handlePreview = async () => {
     if (!config) return;
     setLoading(true);
+    setPreviewError(null);
     try {
       const result = await api.previewTTS({
         text: previewText,
@@ -106,9 +108,10 @@ export default function TTSConfigPage() {
         style_prompt: config.style_prompt,
         voice_design_prompt: config.voice_design_prompt,
       });
-      setPreviewResult(result);
+      if (previewAudioUrl) URL.revokeObjectURL(previewAudioUrl);
+      setPreviewAudioUrl(result);
     } catch {
-      setPreviewResult({ error: "预览失败" });
+      setPreviewError("预览失败");
     }
     setLoading(false);
   };
@@ -539,12 +542,18 @@ export default function TTSConfigPage() {
               >
                 {loading ? "生成中..." : "播放预览"}
               </button>
-              {previewResult && (
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <pre className="text-sm text-gray-600 whitespace-pre-wrap">
-                    {JSON.stringify(previewResult, null, 2)}
-                  </pre>
+              {previewError && (
+                <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3">
+                  {previewError}
                 </div>
+              )}
+              {previewAudioUrl && (
+                <audio
+                  className="w-full"
+                  controls
+                  autoPlay
+                  src={previewAudioUrl}
+                />
               )}
             </div>
           </section>
