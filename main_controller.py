@@ -2778,15 +2778,18 @@ class PipelineController:
         randomize_voice = tts_config.get("randomize_voice", True)
         random_voice_ids: list[str] = []
         if randomize_voice:
-            random_voice_pool = tts_config.get("random_voices", "Mia,Dean")
-            if random_voice_pool.lower() in {"all", "*"}:
-                random_voice_ids = [data["id"] for data in MIMO_TTS_VOICES.values()]
-            else:
-                random_voice_ids = [
-                    item.strip()
-                    for item in re.split(r"[,，;；\s]+", random_voice_pool)
-                    if item.strip()
-                ]
+            random_voice_pool = tts_config.get("random_voices", ["Mia", "Dean"])
+            if isinstance(random_voice_pool, list):
+                random_voice_ids = [v for v in random_voice_pool if v]
+            elif isinstance(random_voice_pool, str):
+                if random_voice_pool.lower() in {"all", "*"}:
+                    random_voice_ids = [data["id"] for data in MIMO_TTS_VOICES.values()]
+                else:
+                    random_voice_ids = [
+                        item.strip()
+                        for item in re.split(r"[,，;；\s]+", random_voice_pool)
+                        if item.strip()
+                    ]
             random.shuffle(random_voice_ids)
 
         candidates = []
