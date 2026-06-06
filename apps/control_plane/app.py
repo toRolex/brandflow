@@ -153,13 +153,12 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
 
             classify_fn = None
             if api_key and api_url:
-                # 确保 api_url 以 /chat/completions 结尾
                 if not api_url.endswith("/chat/completions"):
                     api_url = f"{api_url}/chat/completions"
                 classify_fn = create_classify_fn(
                     api_url=api_url,
                     api_key=api_key,
-                    model=llm_config.get("model", "deepseek-v4-pro"),
+                    model="deepseek-v3-flash",
                 )
 
             repo = AssetRepository(db_path)
