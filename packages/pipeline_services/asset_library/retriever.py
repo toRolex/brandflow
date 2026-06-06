@@ -92,6 +92,7 @@ def _compute_trim_params(clips: list[dict], audio_duration: float) -> list[dict]
     """为每个素材计算裁剪参数：起始偏移(ss)和裁剪时长(duration)。
 
     每句分配均等时长，ss 在 [0, 1] 随机偏移。
+    如果素材时长不足，会调整 ss 确保能裁剪出足够时长。
     """
     if not clips:
         return []
@@ -99,10 +100,19 @@ def _compute_trim_params(clips: list[dict], audio_duration: float) -> list[dict]
     per_clip = audio_duration / len(clips)
     params = []
     for clip in clips:
+        clip_duration = clip.get("duration_seconds", 0)
         ss = random.uniform(0, 1)
+        duration = per_clip
+        
+        if clip_duration > 0 and ss + duration > clip_duration:
+            ss = max(0, clip_duration - duration)
+            if ss < 0:
+                ss = 0
+                duration = clip_duration
+        
         params.append({
             **clip,
             "ss": round(ss, 3),
-            "duration": round(per_clip, 3),
+            "duration": round(duration, 3),
         })
     return params
