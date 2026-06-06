@@ -3031,7 +3031,18 @@ class PipelineController:
             snapped[index + 1][1] = nearest
         snapped[0][1] = 0.0
         snapped[-1][2] = duration
-        return [(int(index), float(start), float(end), str(text)) for index, start, end, text in snapped if float(end) > float(start)]
+        result: list[tuple[int, float, float, str]] = []
+        for index, start, end, text in snapped:
+            s, e = float(start), float(end)
+            if e <= s:
+                if not str(text).strip():
+                    continue
+                e = s + 0.1
+            result.append((int(index), s, e, str(text)))
+        if result:
+            last_idx, last_s, _, last_t = result[-1]
+            result[-1] = (last_idx, last_s, duration, last_t)
+        return result
 
     def _build_script_timed_srt(self, audio_path: Path, srt_path: Path, script_text: str) -> None:
         duration = self._get_media_duration(audio_path)
