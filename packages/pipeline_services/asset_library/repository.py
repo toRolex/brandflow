@@ -130,6 +130,15 @@ class AssetRepository:
         conn.commit()
         conn.close()
 
+    def decrement_usage(self, asset_id: str) -> None:
+        conn = sqlite3.connect(str(self.db_path))
+        conn.execute(
+            "UPDATE assets SET usage_count = MAX(0, usage_count - 1) WHERE asset_id = ?",
+            (asset_id,),
+        )
+        conn.commit()
+        conn.close()
+
     def update_status(self, asset_id: str, status: AssetStatus) -> None:
         conn = sqlite3.connect(str(self.db_path))
         conn.execute(

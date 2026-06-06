@@ -274,6 +274,7 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
                     "asset_id": chosen.asset_id,
                     "method": "rejected_replaced",
                 }
+                repo.decrement_usage(rejected_asset_id)
                 repo.increment_usage(chosen.asset_id)
                 logger.info(f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}")
             else:
