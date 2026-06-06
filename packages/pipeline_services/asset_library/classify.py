@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 CATEGORY_NAMES = [c.value for c in Category]
 
 CLASSIFY_PROMPT = (
-    "你是一个视频素材分类助手。根据文案句子的语义，从以下分类中选择最匹配的一个：\n"
+    "你是视频素材分类助手。根据文案句子的语义，从以下分类中选择最匹配的一个：\n"
     + ", ".join(CATEGORY_NAMES)
-    + "\n\n只返回JSON：{\"category\": \"分类名\"}"
+    + "\n\n严格只返回一个JSON对象，不要有任何其他文字：{\"category\": \"分类名\"}"
 )
 
 
@@ -65,13 +65,20 @@ def create_classify_fn(
             logger.debug("LLM 返回内容: %s", content)
             
             import re
-            json_match = re.search(r'\{[^}]*\}', content)
+            
+            json_match = re.search(r'\{[^}]*"category"\s*:\s*"[^"]*"\s*\}', content)
+            if not json_match:
+                json_match = re.search(r'\{[^}]+\}', content)
+            
             if json_match:
-                parsed = json.loads(json_match.group())
-                cat_name = parsed.get("category", "")
-                if cat_name in CATEGORY_NAMES:
-                    return cat_name
-                logger.warning("LLM 返回无效分类名: %s", cat_name)
+                try:
+                    parsed = json.loads(json_match.group())
+                    cat_name = parsed.get("category", "")
+                    if cat_name in CATEGORY_NAMES:
+                        return cat_name
+                    logger.warning("LLM 返回无效分类名: %s", cat_name)
+                except json.JSONDecodeError as e:
+                    logger.warning("JSON 解析失败: %s, 原始内容: %s", e, json_match.group())
             else:
                 logger.warning("LLM 返回中未找到 JSON: %s", content[:200])
             return None
