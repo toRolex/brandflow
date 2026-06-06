@@ -158,7 +158,7 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                 classify_fn = create_classify_fn(
                     api_url=api_url,
                     api_key=api_key,
-                    model="deepseek-v3-flash",
+                    model="deepseek-v4-flash",
                 )
 
             repo = AssetRepository(db_path)
