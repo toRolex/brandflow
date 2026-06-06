@@ -143,8 +143,24 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
             db_path = shared_asset_db_path(root_dir)
 
             from packages.pipeline_services.asset_library import AssetRepository, AssetRetriever
+            from packages.pipeline_services.asset_library.classify import create_classify_fn
+            from packages.provider_config.app_config import AppConfigManager
+
+            app_config = AppConfigManager()
+            llm_config = app_config.get_llm_config()
+            api_key = app_config.get_api_key(llm_config.get("provider", "deepseek"))
+            api_url = app_config.get_api_base_url(llm_config.get("provider", "deepseek"))
+
+            classify_fn = None
+            if api_key and api_url:
+                classify_fn = create_classify_fn(
+                    api_url=f"{api_url}/chat/completions",
+                    api_key=api_key,
+                    model=llm_config.get("model", "deepseek-v4-pro"),
+                )
+
             repo = AssetRepository(db_path)
-            retriever = AssetRetriever(repo)
+            retriever = AssetRetriever(repo, classify_fn=classify_fn)
 
             selected = retriever.retrieve(script_text, product)
 

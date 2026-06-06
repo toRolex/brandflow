@@ -135,6 +135,12 @@ class AppConfigManager:
         config = self.get_tts_config()
         return _get_nested(config, key, default)
 
+    def get_llm_config(self) -> dict[str, Any]:
+        config = self._load()
+        llm = config.get("llm", {})
+        defaults = DEFAULTS["llm"]
+        return _deep_merge(defaults, llm)
+
     def get_api_key(self, provider: str) -> str:
         import os
         env_key = self.API_KEY_ENV_MAP.get(provider, "")
