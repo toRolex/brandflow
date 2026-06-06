@@ -47,7 +47,7 @@ def create_classify_fn(
                 {"role": "user", "content": sentence},
             ],
             "temperature": 0,
-            "max_tokens": 100,
+            "max_tokens": 200,
         }
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
@@ -65,7 +65,7 @@ def create_classify_fn(
             logger.debug("LLM 返回内容: %s", content)
             
             import re
-            json_match = re.search(r'\{[^}]+\}', content)
+            json_match = re.search(r'\{[^}]*\}', content)
             if json_match:
                 parsed = json.loads(json_match.group())
                 cat_name = parsed.get("category", "")
@@ -73,7 +73,7 @@ def create_classify_fn(
                     return cat_name
                 logger.warning("LLM 返回无效分类名: %s", cat_name)
             else:
-                logger.warning("LLM 返回中未找到 JSON: %s", content[:100])
+                logger.warning("LLM 返回中未找到 JSON: %s", content[:200])
             return None
         except Exception as exc:
             logger.warning("LLM 句子分类失败: %s", exc)
