@@ -1,6 +1,0 @@
-{"type":"server-started","port":65508,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:65508","screen_dir":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/26098-1779674733/content","state_dir":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/26098-1779674733/state"}
-{"type":"screen-added","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/26098-1779674733/content/all-layouts.html"}
-{"type":"screen-added","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/26098-1779674733/content/workbench.html"}
-{"type":"screen-added","file":"/Users/rolex/Documents/Codes/githubProject/MyProject/video pipeline 2.0/.superpowers/brainstorm/26098-1779674733/content/pipeline.html"}
-{"source":"user-event","type":"click","text":"A\n      \n        左侧步骤条 + 右侧详情（如上图）\n        竖排步骤列表始终可见，点击切换右侧内容。适合步骤多、需要整体把握进度的场景","choice":"sidebar","id":null,"timestamp":1779674791538}
-{"type":"server-stopped","reason":"owner process exited"}
