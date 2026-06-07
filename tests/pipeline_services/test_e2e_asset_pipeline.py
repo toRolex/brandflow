@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 import subprocess
@@ -33,7 +32,6 @@ class TestE2EAssetPipeline:
     def test_full_index_retrieve_cycle(self, tmp_path):
         # 1. Create mock clips in a simulated semantic directory structure
         source_dir = tmp_path / "source"
-        output_base = tmp_path / "素材库"
         db_path = tmp_path / "asset_index.db"
         source_dir.mkdir(parents=True)
 
@@ -56,7 +54,7 @@ class TestE2EAssetPipeline:
             ),
             AssetRecord(
                 asset_id="e2e_003", file_path=str(source_dir / "clip_macro.mp4"),
-                category=Category.MACRO, product="荔枝菌", confidence=0.7,
+                category=Category.FINISHED, product="荔枝菌", confidence=0.7,
                 duration_seconds=3.0, status="available",
             ),
         ]
@@ -69,14 +67,27 @@ class TestE2EAssetPipeline:
         assert results[0].asset_id == "e2e_001"
 
         # 4. Run retrieval against a real script
-        retriever = AssetRetriever(repo)
+        def classify_fn(sentence: str) -> str | None:
+            if "切" in sentence or "片" in sentence:
+                return Category.CUTTING.value
+            if "炒" in sentence or "烹熟" in sentence:
+                return Category.STIR_FRY.value
+            if "成品" in sentence or "展示" in sentence:
+                return Category.FINISHED.value
+            return None
+
+        retriever = AssetRetriever(repo, classify_fn=classify_fn)
         script = "荔枝菌切片后下锅翻炒。充分烹熟后出锅装盘。这是成品展示。"
         selected = retriever.retrieve(script, "荔枝菌")
 
         assert len(selected) == 3
         categories = [s["category"] for s in selected]
-        assert "切配处理" in categories
-        assert "烹饪翻炒" in categories
+        assert categories == [
+            Category.CUTTING.value,
+            Category.STIR_FRY.value,
+            Category.FINISHED.value,
+        ]
+        assert all(s["method"] == "llm_match" for s in selected)
 
         # 5. Verify usage count increased
         assert repo.get_usage_count("e2e_001") >= 0
