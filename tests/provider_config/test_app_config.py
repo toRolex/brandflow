@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import json
-import os
 import tempfile
-from pathlib import Path
 
 from packages.provider_config.app_config import AppConfigManager
 
@@ -181,6 +178,7 @@ def test_set_vision_model() -> None:
 
 def test_vision_api_key_empty_when_not_set(monkeypatch) -> None:
     monkeypatch.delenv("XIAOMI_VISION_API_KEY", raising=False)
+    monkeypatch.delenv("VISION_API_KEY", raising=False)
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = AppConfigManager(config_dir=tmpdir)
         assert manager.get_vision_api_key() == ""
@@ -204,6 +202,7 @@ def test_get_llm_endpoint_from_env(monkeypatch) -> None:
 
 def test_get_llm_api_key_empty_when_not_set(monkeypatch) -> None:
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = AppConfigManager(config_dir=tmpdir)
         assert manager.get_llm_api_key() == ""
