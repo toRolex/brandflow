@@ -36,3 +36,7 @@ frontend/package-lock.json
 .claude/
 .sisyphus/
 .superpowers/
+*.png
+*.mp3
+*.yml
+skills-lock.json
