@@ -139,9 +139,26 @@ def resolve_vision_config(providers_payload: dict) -> dict:
     selected = vision_section.get("selected", "")
     providers = vision_section.get("providers", {})
     overrides = _section_overrides(selected, providers, VISION_ENV_MAPPINGS, "VISION_PROVIDER")
+
+    # Fallback: read provider-specific env vars directly when yaml config is empty
+    provider_cfg = VISION_ENV_MAPPINGS.get(selected, {})
+    env_section = provider_cfg.get("env", {}) if isinstance(provider_cfg, dict) else {}
+    env_reverse: dict[str, str] = {}
+    if isinstance(env_section, dict):
+        for k, v in env_section.items():
+            env_reverse[v] = k
+
+    def _get(field: str, fallback_env: str = "") -> str:
+        val = overrides.get(fallback_env or env_reverse.get(field, ""), "")
+        if not val:
+            env_key = env_reverse.get(field, "")
+            if env_key:
+                val = os.getenv(env_key, "")
+        return val
+
     return {
         "provider": overrides.get("VISION_PROVIDER", selected),
-        "api_key": overrides.get("VISION_API_KEY", ""),
-        "endpoint": overrides.get("VISION_API_URL", ""),
-        "model": overrides.get("VISION_MODEL", ""),
+        "api_key": _get("api_key", "VISION_API_KEY"),
+        "endpoint": _get("endpoint", "VISION_API_URL"),
+        "model": _get("model", "VISION_MODEL"),
     }
