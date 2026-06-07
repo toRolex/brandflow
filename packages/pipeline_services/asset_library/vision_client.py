@@ -6,7 +6,7 @@ import logging
 import os
 from pathlib import Path
 
-from packages.provider_config.runtime_env import VISION_ENV_MAPPINGS, _section_overrides
+from packages.provider_config.app_config import AppConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -134,31 +134,12 @@ class VisionClient:
 
 
 def resolve_vision_config(providers_payload: dict) -> dict:
-    """Resolve vision provider config from the full providers.yaml payload."""
-    vision_section = providers_payload.get("providers", {}).get("vision", {})
-    selected = vision_section.get("selected", "")
-    providers = vision_section.get("providers", {})
-    overrides = _section_overrides(selected, providers, VISION_ENV_MAPPINGS, "VISION_PROVIDER")
-
-    # Fallback: read provider-specific env vars directly when yaml config is empty
-    provider_cfg = VISION_ENV_MAPPINGS.get(selected, {})
-    env_section = provider_cfg.get("env", {}) if isinstance(provider_cfg, dict) else {}
-    env_reverse: dict[str, str] = {}
-    if isinstance(env_section, dict):
-        for k, v in env_section.items():
-            env_reverse[v] = k
-
-    def _get(field: str, fallback_env: str = "") -> str:
-        val = overrides.get(fallback_env or env_reverse.get(field, ""), "")
-        if not val:
-            env_key = env_reverse.get(field, "")
-            if env_key:
-                val = os.getenv(env_key, "")
-        return val
-
+    """Resolve vision provider config from AppConfigManager."""
+    manager = AppConfigManager()
+    config = manager.get_vision_config()
     return {
-        "provider": overrides.get("VISION_PROVIDER", selected),
-        "api_key": _get("api_key", "VISION_API_KEY"),
-        "endpoint": _get("endpoint", "VISION_API_URL"),
-        "model": _get("model", "VISION_MODEL"),
+        "provider": config.get("provider", "xiaomi"),
+        "api_key": manager.get_vision_api_key(),
+        "endpoint": manager.get_vision_endpoint(),
+        "model": manager.get_vision_model(),
     }
