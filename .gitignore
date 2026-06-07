@@ -34,3 +34,5 @@ frontend/package-lock.json
 .gstack/
 .agents/
 .claude/
+.sisyphus/
+.superpowers/
