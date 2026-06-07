@@ -210,6 +210,15 @@ class AssetRepository:
         conn.commit()
         conn.close()
 
+    def count_by_source(self, source_path: str) -> int:
+        """Count how many assets reference a given source video."""
+        conn = sqlite3.connect(str(self.db_path))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM assets WHERE source_video = ?", (source_path,)
+        ).fetchone()
+        conn.close()
+        return row[0] if row else 0
+
     def close(self) -> None:
         pass
 

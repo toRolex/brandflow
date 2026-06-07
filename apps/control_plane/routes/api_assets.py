@@ -555,16 +555,22 @@ async def batch_delete_assets(request: Request):
     if not db_path.exists():
         return {"deleted": 0}
 
+    repository = AssetRepository(db_path)
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     deleted = 0
     files_deleted = 0
     thumbnail_dir = shared_assets_root(root_dir) / "thumbnails"
+    source_videos_to_check: set[str] = set()
 
     for aid in asset_ids:
-        row = conn.execute("SELECT file_path FROM assets WHERE asset_id = ?", (aid,)).fetchone()
+        row = conn.execute("SELECT file_path, source_video FROM assets WHERE asset_id = ?", (aid,)).fetchone()
         if row:
             file_path = Path(row["file_path"])
+            source_video = row["source_video"]
+            if source_video:
+                source_videos_to_check.add(source_video)
+
             if file_path.exists():
                 try:
                     file_path.unlink()
@@ -584,6 +590,13 @@ async def batch_delete_assets(request: Request):
 
     conn.commit()
     conn.close()
+
+    # 检查是否还有其他资产引用同一个源视频，如果没有则删除 source_videos 记录
+    for source_path in source_videos_to_check:
+        remaining = repository.count_by_source(source_path)
+        if remaining == 0:
+            repository.remove_source_record(source_path)
+
     return {"deleted": deleted, "files_deleted": files_deleted}
 
 
