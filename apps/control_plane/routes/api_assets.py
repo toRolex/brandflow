@@ -160,11 +160,10 @@ async def index_assets(request: Request, async_mode: bool = Query(True)):
         return {"task_id": task.task_id, "total_videos": len(new_videos)}
 
     repository = AssetRepository(db_path)
-    from packages.provider_config.store import load_provider_config
-    from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
+    from packages.provider_config.app_config import AppConfigManager
 
-    providers = load_provider_config(root_dir)
-    vision_config = resolve_vision_config(providers)
+    app_config = AppConfigManager()
+    vision_config = app_config.get_vision_config()
     product = os.environ.get("PRODUCT", "荔枝菌")
     ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
     indexer = AssetIndexer(
@@ -201,11 +200,10 @@ async def _run_index_task(task_id: str, root_dir: Path, videos: list[Path], db_p
 
     try:
         repository = AssetRepository(db_path)
-        from packages.provider_config.store import load_provider_config
-        from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
+        from packages.provider_config.app_config import AppConfigManager
 
-        providers = load_provider_config(root_dir)
-        vision_config = resolve_vision_config(providers)
+        app_config = AppConfigManager()
+        vision_config = app_config.get_vision_config()
         product = os.environ.get("PRODUCT", "荔枝菌")
         ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
         indexer = AssetIndexer(

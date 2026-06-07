@@ -201,11 +201,10 @@ def index_assets(request: Request, project_id: str):
     if new_videos:
         repository = AssetRepository(db_path)
 
-        from packages.provider_config.store import load_provider_config
-        from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
+        from packages.provider_config.app_config import AppConfigManager
 
-        providers = load_provider_config(request.app.state.root_dir)
-        vision_config = resolve_vision_config(providers)
+        app_config = AppConfigManager()
+        vision_config = app_config.get_vision_config()
 
         repo = FileStoreRepository(request.app.state.root_dir)
         meta = repo.load_project_meta(project_id)
