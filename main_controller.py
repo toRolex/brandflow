@@ -456,7 +456,8 @@ def safe_input(prompt: str, default: str = "") -> str:
 
 def choose_voice_interactive(default_voice_id: str) -> dict[str, str]:
     print(color_text("请选择本批次视频的配音员：", ANSI_GREEN))
-    voice_options = MIMO_TTS_VOICES if os.getenv("TTS_PROVIDER", ENV_DEFAULTS["TTS_PROVIDER"]).strip().lower() == "mimo" else MINIMAX_VOICES
+    app_config = AppConfigManager()
+    voice_options = MIMO_TTS_VOICES if app_config.get_tts_config()["provider"] == "mimo" else MINIMAX_VOICES
     reverse_lookup = {data["id"]: index for index, data in voice_options.items()}
     default_index = reverse_lookup.get(default_voice_id, "1")
     for index, data in voice_options.items():
@@ -500,7 +501,8 @@ def interactive_bootstrap(root_dir: Path, default_batch_size: int, host: str, po
         if missing_required:
             raise RuntimeError(f"非交互模式下缺少关键配置: {', '.join(missing_required)}")
         load_environment(root_dir)
-        tts_provider = os.getenv("TTS_PROVIDER", ENV_DEFAULTS["TTS_PROVIDER"]).strip().lower()
+        app_config = AppConfigManager()
+        tts_provider = app_config.get_tts_config()["provider"]
         voice_key = "MIMO_TTS_VOICE" if tts_provider == "mimo" else "MINIMAX_VOICE_ID"
         voice_default = ENV_DEFAULTS["MIMO_TTS_VOICE"] if tts_provider == "mimo" else ENV_DEFAULTS["MINIMAX_VOICE_ID"]
         voice_options = MIMO_TTS_VOICES if tts_provider == "mimo" else MINIMAX_VOICES
@@ -513,7 +515,8 @@ def interactive_bootstrap(root_dir: Path, default_batch_size: int, host: str, po
     ensure_env_file_interactive(root_dir)
     load_environment(root_dir)
 
-    tts_provider = os.getenv("TTS_PROVIDER", ENV_DEFAULTS["TTS_PROVIDER"]).strip().lower()
+    app_config = AppConfigManager()
+    tts_provider = app_config.get_tts_config()["provider"]
     voice_key = "MIMO_TTS_VOICE" if tts_provider == "mimo" else "MINIMAX_VOICE_ID"
     voice_default = ENV_DEFAULTS["MIMO_TTS_VOICE"] if tts_provider == "mimo" else ENV_DEFAULTS["MINIMAX_VOICE_ID"]
     selected_voice = choose_voice_interactive(os.getenv(voice_key, voice_default))
@@ -743,22 +746,24 @@ class PipelineController:
         }
 
     def _resolve_llm_provider(self, capability: str) -> str:
-        return (os.getenv(f"{capability.upper()}_LLM_PROVIDER", "").strip() or os.getenv("LLM_PROVIDER", "deepseek").strip() or "deepseek").lower()
+        app_config = AppConfigManager()
+        return (os.getenv(f"{capability.upper()}_LLM_PROVIDER", "").strip() or app_config.get_llm_config()["provider"]).lower()
 
     def _provider_request_meta(self, capability: str) -> dict[str, str]:
+        app_config = AppConfigManager()
         provider = self._resolve_llm_provider(capability)
         if provider == "deepseek":
             return {
                 "provider": provider,
-                "url": os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions"),
-                "api_key": os.getenv("DEEPSEEK_API_KEY", ""),
+                "url": app_config.get_api_base_url("deepseek") or "https://api.deepseek.com/chat/completions",
+                "api_key": app_config.get_api_key("deepseek"),
                 "model": os.getenv(f"{capability.upper()}_LLM_MODEL", "").strip() or os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro"),
             }
         if provider == "kimi":
             return {
                 "provider": provider,
-                "url": os.getenv("KIMI_API_URL", "https://api.moonshot.cn/v1/chat/completions"),
-                "api_key": os.getenv("KIMI_API_KEY", ""),
+                "url": app_config.get_api_base_url("kimi") or "https://api.moonshot.cn/v1/chat/completions",
+                "api_key": app_config.get_api_key("kimi"),
                 "model": os.getenv(f"{capability.upper()}_LLM_MODEL", "").strip() or os.getenv("KIMI_MODEL", "moonshot-v1-8k"),
             }
         if provider == "openai":
@@ -776,7 +781,8 @@ class PipelineController:
         request_payload = dict(payload)
         request_payload["model"] = request_payload.get("model") or meta["model"]
         if meta["provider"] == "deepseek" and "thinking" not in request_payload:
-            thinking_mode = os.getenv("DEEPSEEK_THINKING", "disabled").strip().lower()
+            app_config = AppConfigManager()
+            thinking_mode = app_config.get_llm_config().get("thinking", "disabled")
             request_payload["thinking"] = {"type": "enabled" if thinking_mode == "enabled" else "disabled"}
         response = requests.post(
             meta["url"],
@@ -1543,7 +1549,7 @@ class PipelineController:
                     if self.tts_circuit_open:
                         raise TTSBlockedError(f"TTS 熔断中且未找到手动音频：{self.tts_circuit_reason}")
                     audio_path = self._synthesize_tts(tts_text, paths["audio_path"])
-                    audio_source = os.getenv("TTS_PROVIDER", ENV_DEFAULTS["TTS_PROVIDER"]).strip().lower() or "tts"
+                    audio_source = self._tts_provider() or "tts"
                     manual_audio_original_path = ""
                 manifest = self._build_asset_manifest(assets, tts_text, str(audio_path), audio_source, manual_audio_original_path)
                 atomic_write_json(paths["manifest_path"], manifest)
@@ -2584,10 +2590,12 @@ class PipelineController:
         return EMOJI_RE.sub("", text).strip()
 
     def _tts_provider(self) -> str:
-        return (os.getenv("TTS_PROVIDER", ENV_DEFAULTS["TTS_PROVIDER"]).strip() or "mimo").lower()
+        app_config = AppConfigManager()
+        return app_config.get_tts_config()["provider"]
 
     def _mimo_tts_url(self) -> str:
-        base_url = os.getenv("MIMO_API_BASE_URL", ENV_DEFAULTS["MIMO_API_BASE_URL"]).strip().rstrip("/")
+        app_config = AppConfigManager()
+        base_url = app_config.get_api_base_url("mimo") or ENV_DEFAULTS["MIMO_API_BASE_URL"]
         if base_url.endswith("/chat/completions"):
             return base_url
         return f"{base_url}/chat/completions"
@@ -2599,10 +2607,10 @@ class PipelineController:
         model: str | None = None,
         audio_format: str | None = None,
     ) -> dict[str, Any]:
-        api_key = os.getenv("MIMO_API_KEY", "").strip().strip('"').strip("'")
+        app_config = AppConfigManager()
+        api_key = app_config.get_api_key("mimo")
         if not api_key:
             raise RuntimeError("未配置 MIMO_API_KEY，无法生成音频")
-        app_config = AppConfigManager()
         tts_config = app_config.get_tts_config()
         voice = voice_id or tts_config.get("voice", "Mia")
         if not voice:
@@ -2629,10 +2637,11 @@ class PipelineController:
         }
 
     def _build_minimax_request(self, script_text: str) -> dict[str, Any]:
+        app_config = AppConfigManager()
         primary_voice = os.getenv("MINIMAX_VOICE_ID", "male-qn-qingse").strip()
         if not primary_voice:
             raise RuntimeError("未配置 MINIMAX_VOICE_ID，无法生成音频")
-        api_key = os.getenv("MINIMAX_API_KEY", "").strip().strip('"').strip("'")
+        api_key = app_config.get_api_key("minimax")
 
         payload = {
             "model": os.getenv("MINIMAX_TTS_MODEL", "speech-2.8-hd"),
@@ -2656,7 +2665,7 @@ class PipelineController:
         }
 
         request_kwargs: dict[str, Any] = {
-            "url": os.getenv("MINIMAX_TTS_URL", "https://api-bj.minimaxi.com/v1/t2a_v2"),
+            "url": app_config.get_api_base_url("minimax") or "https://api-bj.minimaxi.com/v1/t2a_v2",
             "headers": {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             "json": payload,
             "timeout": 120,
