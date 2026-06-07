@@ -32,3 +32,11 @@ frontend/dist/
 frontend/node_modules/
 frontend/package-lock.json
 .gstack/
+.agents/
+.claude/
+.sisyphus/
+.superpowers/
+*.png
+*.mp3
+*.yml
+skills-lock.json
