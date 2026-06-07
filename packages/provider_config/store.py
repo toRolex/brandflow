@@ -236,6 +236,57 @@ def _sync_secrets_to_env(root_dir: Path, payload: dict) -> dict:
     return result
 
 
+def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
+    """Sync business config from providers.yaml to app_config.json for AppConfigManager."""
+    import json
+    from packages.provider_config.app_config import AppConfigManager, DEFAULTS, _deep_merge
+
+    manager = AppConfigManager(config_dir=root_dir / "config")
+    app_config = manager._load()
+    providers = providers_payload.get("providers", {})
+
+    # Sync LLM config (provider, model, thinking)
+    llm_section = providers.get("llm", {})
+    llm_selected = llm_section.get("selected", "")
+    if llm_selected and llm_selected in llm_section.get("providers", {}):
+        llm_provider = llm_section["providers"][llm_selected]
+        if "llm" not in app_config:
+            app_config["llm"] = {}
+        app_config["llm"]["provider"] = llm_selected
+        if llm_provider.get("model"):
+            app_config["llm"]["model"] = llm_provider["model"]
+        if llm_provider.get("thinking"):
+            app_config["llm"]["thinking"] = llm_provider["thinking"]
+
+    # Sync TTS config (provider, model, voice)
+    tts_section = providers.get("tts", {})
+    tts_selected = tts_section.get("selected", "")
+    if tts_selected and tts_selected in tts_section.get("providers", {}):
+        tts_provider = tts_section["providers"][tts_selected]
+        if "tts" not in app_config:
+            app_config["tts"] = {}
+        app_config["tts"]["provider"] = tts_selected
+        if tts_provider.get("model"):
+            app_config["tts"]["model"] = tts_provider["model"]
+        if tts_provider.get("voice"):
+            app_config["tts"]["voice"] = tts_provider["voice"]
+        if tts_provider.get("style"):
+            app_config["tts"]["style_prompt"] = tts_provider["style"]
+
+    # Sync Vision config (provider, model)
+    vision_section = providers.get("vision", {})
+    vision_selected = vision_section.get("selected", "")
+    if vision_selected and vision_selected in vision_section.get("providers", {}):
+        vision_provider = vision_section["providers"][vision_selected]
+        if "vision" not in app_config:
+            app_config["vision"] = {}
+        app_config["vision"]["provider"] = vision_selected
+        if vision_provider.get("model"):
+            app_config["vision"]["model"] = vision_provider["model"]
+
+    manager._save(app_config)
+
+
 def save_provider_config(root_dir: Path, payload: dict) -> None:
     root = Path(root_dir)
     config_dir = root / "config"
@@ -252,6 +303,8 @@ def save_provider_config(root_dir: Path, payload: dict) -> None:
         encoding="utf-8",
     )
     temp_path.replace(config_path)
+    # Sync business config to app_config.json for AppConfigManager
+    _sync_to_app_config(root, normalized)
 
 
 def mask_provider_config(payload: dict) -> dict:
