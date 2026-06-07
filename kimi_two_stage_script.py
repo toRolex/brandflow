@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import main_controller as mc
+from packages.provider_config.app_config import AppConfigManager
 
 
 TARGET_MIN_CHARS = 150
@@ -140,17 +141,12 @@ def throttle_before_call(throttle_path: Path, interval_seconds: float, label: st
 
 def post_llm(payload: dict[str, Any], throttle_path: Path, interval_seconds: float, label: str) -> dict[str, Any]:
     mc.require_dependency("requests", mc.requests)
-    provider = (os.getenv("LLM_PROVIDER", "deepseek").strip() or "deepseek").lower()
-    if provider == "deepseek":
-        api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-        api_url = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
-        model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
-    elif provider == "kimi":
-        api_key = os.getenv("KIMI_API_KEY", "").strip()
-        api_url = os.getenv("KIMI_API_URL", "https://api.moonshot.cn/v1/chat/completions")
-        model = os.getenv("KIMI_MODEL", "moonshot-v1-8k")
-    else:
-        raise RuntimeError(f"暂不支持的 LLM_PROVIDER: {provider}")
+    app_config = AppConfigManager()
+    llm_config = app_config.get_llm_config()
+    provider = llm_config.get("provider", "deepseek")
+    api_key = app_config.get_llm_api_key()
+    api_url = app_config.get_llm_endpoint()
+    model = llm_config.get("model", "deepseek-v4-pro")
     if not api_key:
         raise RuntimeError(f"缺少 {provider.upper()} API Key，请先在 .env 中配置。")
     throttle_before_call(throttle_path, interval_seconds, label)
