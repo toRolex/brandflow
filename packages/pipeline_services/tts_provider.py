@@ -86,13 +86,6 @@ class MiMoTTSProvider:
             "stream": False,
         }
 
-        if config.sample_rate:
-            payload["audio"]["sample_rate"] = config.sample_rate
-        if config.bitrate:
-            payload["audio"]["bitrate"] = config.bitrate
-        if config.channel:
-            payload["audio"]["channel"] = config.channel
-
         return payload
 
     def _build_voicedesign_request(
@@ -114,12 +107,5 @@ class MiMoTTSProvider:
             },
             "stream": False,
         }
-
-        if config.sample_rate:
-            payload["audio"]["sample_rate"] = config.sample_rate
-        if config.bitrate:
-            payload["audio"]["bitrate"] = config.bitrate
-        if config.channel:
-            payload["audio"]["channel"] = config.channel
 
         return payload
