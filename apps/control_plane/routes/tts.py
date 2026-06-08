@@ -178,7 +178,6 @@ async def preview_tts(request: TTSPreviewRequest):
         url = f"{base_url}/chat/completions"
         headers = {
             "api-key": api_key,
-            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
 
