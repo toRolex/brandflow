@@ -54,6 +54,7 @@ except ImportError:  # pragma: no cover
     ImageDraw = None  # type: ignore[assignment]
     ImageFont = None  # type: ignore[assignment]
 
+from packages.pipeline_services.media_utils import assemble_vertical_base_video
 from packages.provider_config.app_config import AppConfigManager
 
 
@@ -3435,29 +3436,14 @@ class PipelineController:
             )
             trimmed_paths.append(trimmed)
 
-        concat_list = output_path.parent / f"{job['job_id']}_concat_list.txt"
-        self._write_concat_file(concat_list, trimmed_paths)
-
-        vf_combined = f"crop=iw*{1.0 - random.uniform(0.01, 0.03):.3f}:ih*{1.0 - random.uniform(0.01, 0.03):.3f},scale=iw:ih"
-
-        def build_cmd(encoder_args: list[str]) -> list[str]:
-            return [
-                str(self._ffmpeg_path()),
-                "-f", "concat", "-safe", "0",
-                "-i", str(concat_list),
-                "-vf", vf_combined,
-                "-an",
-                *encoder_args,
-                "-movflags", "+faststart",
-                "-y",
-                str(output_path),
-            ]
-
         try:
-            self._run_ffmpeg_with_encoder_fallback(build_cmd, f"底包生成 {job['job_id']}")
+            assemble_vertical_base_video(
+                ffmpeg_path=str(self._ffmpeg_path()),
+                clip_paths=trimmed_paths,
+                audio_duration=audio_duration,
+                output_path=output_path,
+            )
         finally:
-            if concat_list.exists():
-                concat_list.unlink()
             for tp in trimmed_paths:
                 if tp.exists():
                     tp.unlink()
