@@ -25,7 +25,7 @@ SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
 - 旧核心（仍被 bridge 引用）：`main_controller.py`（TTS/字幕/视频） + `kimi_two_stage_script.py`（脚本生成）
 - 目标平台：抖音、小红书、视频号、快手
 - 默认 LLM 配置（见 `AppConfigManager.DEFAULTS`）：DeepSeek `deepseek-v4-pro`，`thinking=disabled`
-- 默认 TTS 配置（见 `AppConfigManager.DEFAULTS`）：Xiaomi MiMo `mimo-v2.5-tts`，默认音色池 `Mia` / `Dean`
+- 默认 TTS 配置（见 `AppConfigManager.DEFAULTS`）：Xiaomi MiMo，支持 4 种模型：`mimo-v2.5-tts`（预置音色）、`mimo-v2.5-tts-voicedesign`（音色设计）、`mimo-v2.5-tts-voiceclone`（音色克隆）、`mimo-v2-tts`（V2 预置），默认音色池 `Mia` / `Dean`
 - 默认 Vision 配置（见 `AppConfigManager.DEFAULTS`）：Xiaomi `mimo-v2.5`
 
 ## 技术栈
