@@ -9,7 +9,7 @@ from apps.runtime_worker.http_client import WorkerHttpClient
 from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
 from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-from packages.pipeline_services.media_utils import write_concat_file, get_media_duration
+from packages.pipeline_services.media_utils import assemble_vertical_base_video, get_media_duration
 from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
 
 
@@ -85,10 +85,6 @@ class WorkerLoop:
             if clip_paths:
                 use_legacy = False
                 base_video_path = job_dir / "base.mp4"
-                concat_list = job_dir / "concat_list.txt"
-                write_concat_file(concat_list, clip_paths)
-                import subprocess as _sp
-                import random as _random
                 audio_duration = get_media_duration(audio_path)
                 ffmpeg = str(self.adapter.ffmpeg_path())
                 recipes = [
@@ -98,13 +94,12 @@ class WorkerLoop:
                     {"vf": "noise=alls=2:allf=t,eq=contrast=1.02"},
                 ]
                 recipe = recipes[hash(command["job_id"]) % 4]
-                vf = f"crop=iw*{1.0 - _random.uniform(0.01, 0.03):.3f}:ih*{1.0 - _random.uniform(0.01, 0.03):.3f},scale=iw:ih,{recipe['vf']}"
-                _sp.run(
-                    [ffmpeg, "-f", "concat", "-safe", "0", "-i", str(concat_list),
-                     "-vf", vf, "-an", "-t", f"{audio_duration:.3f}",
-                     "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-                     "-pix_fmt", "yuv420p", "-y", str(base_video_path)],
-                    check=True, capture_output=True, text=True,
+                assemble_vertical_base_video(
+                    ffmpeg_path=ffmpeg,
+                    clip_paths=clip_paths,
+                    audio_duration=audio_duration,
+                    output_path=base_video_path,
+                    recipe_filter=recipe["vf"],
                 )
                 self.media_bridge.burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path=None)
 

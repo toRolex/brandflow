@@ -25,7 +25,7 @@ from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
 from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-from packages.pipeline_services.media_utils import write_concat_file, get_media_duration
+from packages.pipeline_services.media_utils import assemble_vertical_base_video, get_media_duration
 from main_controller import load_environment
 
 REVIEW_PHASES = {"script_review", "tts_review", "asset_review", "final_review"}
@@ -196,8 +196,6 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
 
             if clip_paths:
                 use_legacy = False
-                concat_list = job_dir / "concat_list.txt"
-                write_concat_file(concat_list, clip_paths)
                 audio_duration = get_media_duration(audio_path)
                 recipe_idx = int(job_id[-4:], 16) % 4
                 recipes = [
@@ -207,17 +205,12 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                     {"name": "快手", "vf": "noise=alls=2:allf=t,eq=contrast=1.02"},
                 ]
                 recipe = recipes[recipe_idx]
-                import random as _random
-                vf_combined = f"crop=iw*{1.0 - _random.uniform(0.01, 0.03):.3f}:ih*{1.0 - _random.uniform(0.01, 0.03):.3f},scale=iw:ih,{recipe['vf']}"
-
-                import subprocess as _sp
-                ffmpeg = os.environ.get("FFMPEG_PATH", "ffmpeg")
-                _sp.run(
-                    [ffmpeg, "-f", "concat", "-safe", "0", "-i", str(concat_list),
-                     "-vf", vf_combined, "-an", "-t", f"{audio_duration:.3f}",
-                     "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-                     "-pix_fmt", "yuv420p", "-y", str(base_path)],
-                    check=True, capture_output=True, text=True,
+                assemble_vertical_base_video(
+                    ffmpeg_path=os.environ.get("FFMPEG_PATH", "ffmpeg"),
+                    clip_paths=clip_paths,
+                    audio_duration=audio_duration,
+                    output_path=base_path,
+                    recipe_filter=recipe["vf"],
                 )
 
         if use_legacy and audio_path.exists():
