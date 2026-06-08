@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 from packages.pipeline_services.asset_library.models import AssetRecord, Category
 from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_library.retriever import AssetRetriever
@@ -42,6 +41,27 @@ def test_retrieve_fallback_when_no_match(repo):
     results = retriever.retrieve(script, "荔枝菌")
     assert len(results) == 2
     assert all(r["method"] == "fallback" for r in results)
+
+
+def test_retrieve_includes_duration_seconds(tmp_path):
+    db_path = tmp_path / "duration_test.db"
+    repo = AssetRepository(db_path)
+    repo.insert(AssetRecord(
+        asset_id="dur-1",
+        file_path="/data/clip.mp4",
+        category=Category.CUTTING,
+        product="荔枝菌",
+        confidence=0.9,
+        duration_seconds=7.5,
+    ))
+
+    def classify_fn(sentence: str) -> str | None:
+        return Category.CUTTING.value if sentence else None
+
+    retriever = AssetRetriever(repo, classify_fn=classify_fn)
+    results = retriever.retrieve("把荔枝菌切好。", "荔枝菌")
+
+    assert results[0]["duration_seconds"] == 7.5
 
 
 def test_split_sentences():

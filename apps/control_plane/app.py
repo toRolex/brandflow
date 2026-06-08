@@ -25,7 +25,6 @@ from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
 from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-from packages.pipeline_services.media_utils import write_concat_file, get_media_duration
 from main_controller import load_environment
 
 REVIEW_PHASES = {"script_review", "tts_review", "asset_review", "final_review"}
@@ -189,44 +188,21 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
         audio_path = job_dir / "audio.mp3"
         clip_list_path = job_dir / "selected_clips.json"
 
-        use_legacy = True
         if audio_path.exists() and clip_list_path.exists():
             selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
-            clip_paths = [Path(item["file_path"]) for item in selected if Path(item["file_path"]).exists()]
+            selected = [item for item in selected if Path(item["file_path"]).exists()]
 
-            if clip_paths:
-                use_legacy = False
-                concat_list = job_dir / "concat_list.txt"
-                write_concat_file(concat_list, clip_paths)
-                audio_duration = get_media_duration(audio_path)
-                recipe_idx = int(job_id[-4:], 16) % 4
-                recipes = [
-                    {"name": "小红书", "vf": "eq=brightness=0.02:contrast=1.03:saturation=1.05"},
-                    {"name": "抖音", "vf": "unsharp=5:5:0.8:3:3:0.4,eq=contrast=0.98"},
-                    {"name": "视频号", "vf": "hflip,eq=brightness=-0.01:saturation=0.95"},
-                    {"name": "快手", "vf": "noise=alls=2:allf=t,eq=contrast=1.02"},
-                ]
-                recipe = recipes[recipe_idx]
-                import random as _random
-                vf_combined = f"crop=iw*{1.0 - _random.uniform(0.01, 0.03):.3f}:ih*{1.0 - _random.uniform(0.01, 0.03):.3f},scale=iw:ih,{recipe['vf']}"
-
-                import subprocess as _sp
-                ffmpeg = os.environ.get("FFMPEG_PATH", "ffmpeg")
-                _sp.run(
-                    [ffmpeg, "-f", "concat", "-safe", "0", "-i", str(concat_list),
-                     "-vf", vf_combined, "-an", "-t", f"{audio_duration:.3f}",
-                     "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
-                     "-pix_fmt", "yuv420p", "-y", str(base_path)],
-                    check=True, capture_output=True, text=True,
+            if selected:
+                base_path = job_dir / "base.mp4"
+                media_bridge.build_base_video(
+                    project_dir,
+                    {
+                        "job_id": job_id,
+                        "asset_bundle": {"audio_path": str(audio_path), "selected_clips": selected},
+                        "sequence": 1,
+                    },
+                    base_path,
                 )
-
-        if use_legacy and audio_path.exists():
-            # Fallback: use legacy bridge for base video construction
-            media_bridge.build_base_video(
-                project_dir,
-                {"job_id": job_id, "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1},
-                base_path,
-            )
 
         if base_path.exists():
             rel = _to_url_path(base_path, workspace_dir)
