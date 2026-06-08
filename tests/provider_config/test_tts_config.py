@@ -41,7 +41,7 @@ def test_default_style_prompt() -> None:
 
 
 def test_default_audio_format() -> None:
-    assert TTSConfig().with_defaults().audio_format == "mp3"
+    assert TTSConfig().with_defaults().audio_format == "wav"
 
 
 def test_default_sample_rate() -> None:
