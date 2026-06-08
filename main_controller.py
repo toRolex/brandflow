@@ -3413,6 +3413,8 @@ class PipelineController:
         from packages.pipeline_services.asset_library.retriever import _compute_trim_params
         trim_params = _compute_trim_params(selected_clips, audio_duration)
 
+        target_width, target_height = self._get_video_size(Path(selected_clips[0]["file_path"]))
+
         trimmed_paths = []
         for i, tp in enumerate(trim_params):
             src = Path(tp["file_path"])
@@ -3423,6 +3425,7 @@ class PipelineController:
                     "-ss", f"{tp['ss']:.3f}",
                     "-t", f"{tp['duration']:.3f}",
                     "-i", str(src),
+                    "-vf", f"scale={target_width}:{target_height},fps=30,setsar=1",
                     "-c:v", "libx264",
                     "-preset", "ultrafast",
                     "-an",
