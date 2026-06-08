@@ -27,7 +27,14 @@ class TTSConfig:
     # 标签控制
     audio_tags_enabled: bool | None = None  # 是否启用标签控制
     audio_tags: str | None = None  # 音频标签，如 "(温柔)[笑声]文本内容[叹气]"
-    
+
+    # 音色克隆
+    voice_clone_sample_path: str | None = None
+    voice_clone_mime_type: str | None = None
+
+    # 文本优化预览（仅适用于 voicedesign 模型）
+    optimize_text_preview: bool = False
+
     audio_format: str | None = None
     sample_rate: int | None = None
     bitrate: int | None = None
@@ -51,6 +58,9 @@ class TTSConfig:
             "director_guidance": self.director_guidance,
             "audio_tags_enabled": self.audio_tags_enabled,
             "audio_tags": self.audio_tags,
+            "voice_clone_sample_path": self.voice_clone_sample_path,
+            "voice_clone_mime_type": self.voice_clone_mime_type,
+            "optimize_text_preview": self.optimize_text_preview,
             "audio_format": self.audio_format,
             "sample_rate": self.sample_rate,
             "bitrate": self.bitrate,
@@ -76,6 +86,9 @@ class TTSConfig:
             director_guidance=data.get("director_guidance"),
             audio_tags_enabled=data.get("audio_tags_enabled"),
             audio_tags=data.get("audio_tags"),
+            voice_clone_sample_path=data.get("voice_clone_sample_path"),
+            voice_clone_mime_type=data.get("voice_clone_mime_type"),
+            optimize_text_preview=data.get("optimize_text_preview", False),
             audio_format=data.get("audio_format"),
             sample_rate=data.get("sample_rate"),
             bitrate=data.get("bitrate"),
