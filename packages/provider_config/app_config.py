@@ -31,7 +31,7 @@ DEFAULTS: dict[str, Any] = {
             "enabled": False,
             "tags": "",
         },
-        "audio_format": "mp3",
+        "audio_format": "wav",
         "sample_rate": None,
         "bitrate": None,
         "channel": None,

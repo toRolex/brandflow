@@ -261,7 +261,7 @@ DEFAULT_PROVIDER_DOCUMENT = {
                     "vol": "",
                     "pitch": "",
                     "emotion": "",
-                    "audio_format": "mp3",
+                    "audio_format": "wav",
                     "sample_rate": "",
                     "bitrate": "",
                     "channel": "",

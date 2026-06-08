@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from pathlib import Path
 from pydantic import BaseModel
 
 from packages.provider_config.app_config import AppConfigManager
@@ -178,7 +179,6 @@ async def preview_tts(request: TTSPreviewRequest):
         url = f"{base_url}/chat/completions"
         headers = {
             "api-key": api_key,
-            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
 
@@ -196,10 +196,23 @@ async def preview_tts(request: TTSPreviewRequest):
                 import base64
                 audio_bytes = base64.b64decode(audio_data)
                 from fastapi.responses import Response
+
+                # 根据 audio_format 设置正确的 media_type
+                audio_format = config.audio_format or "wav"
+                if audio_format == "wav":
+                    media_type = "audio/wav"
+                    filename = "preview.wav"
+                elif audio_format == "pcm16":
+                    media_type = "audio/L16;rate=24000;channels=1"
+                    filename = "preview.pcm"
+                else:
+                    media_type = "audio/wav"
+                    filename = "preview.wav"
+
                 return Response(
                     content=audio_bytes,
-                    media_type="audio/mpeg",
-                    headers={"Content-Disposition": "attachment; filename=preview.mp3"}
+                    media_type=media_type,
+                    headers={"Content-Disposition": f"attachment; filename={filename}"}
                 )
 
         raise HTTPException(status_code=500, detail="TTS API未返回音频数据")
@@ -208,3 +221,62 @@ async def preview_tts(request: TTSPreviewRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/voice-clone-sample")
+async def upload_voice_clone_sample(
+    request: Request,
+    file: UploadFile = File(...),
+    project_id: str | None = None,
+):
+    """上传 voiceclone 音频样本"""
+    # 验证文件格式
+    if file.content_type not in ("audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav"):
+        raise HTTPException(
+            status_code=400,
+            detail="只支持 mp3 或 wav 格式的音频文件",
+        )
+
+    # 读取文件内容
+    content = await file.read()
+
+    # 验证文件大小（10MB 限制）
+    max_size = 10 * 1024 * 1024
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件大小超过 10MB 限制（当前 {len(content) / 1024 / 1024:.2f}MB）",
+        )
+
+    # 确定 MIME 类型
+    mime_type = "audio/mpeg" if file.content_type in ("audio/mpeg", "audio/mp3") else "audio/wav"
+
+    # 使用 root_dir 派生 config_dir，确保测试与生产一致
+    root_dir: Path = request.app.state.root_dir
+    local_config_manager = TTSConfigManager(config_dir=str(root_dir / "config"))
+
+    # 确定保存路径
+    if project_id:
+        save_dir = Path(local_config_manager.config_dir) / "projects" / project_id
+    else:
+        save_dir = Path(local_config_manager.config_dir)
+
+    save_dir.mkdir(parents=True, exist_ok=True)
+    save_path = save_dir / "voice_clone_sample.mp3"
+
+    # 保存文件
+    with open(save_path, "wb") as f:
+        f.write(content)
+
+    # 更新配置
+    config = local_config_manager.get_config(project_id)
+    config.voice_clone_sample_path = str(save_path)
+    config.voice_clone_mime_type = mime_type
+    local_config_manager.save_config(config, project_id)
+
+    return {
+        "success": True,
+        "path": str(save_path),
+        "mime_type": mime_type,
+        "size_bytes": len(content),
+    }
