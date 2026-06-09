@@ -6,13 +6,33 @@ import JobTable from "../components/JobTable";
 import ScheduleTable from "../components/ScheduleTable";
 import SmartAssetLibrary from "./SmartAssetLibrary";
 
-const PRODUCTS = ["羊肚菌", "荔枝菌", "松茸"];
+const PRODUCTS = ["荔枝菌", "羊肚菌", "松茸"];
 const PLATFORMS = [
   { key: "douyin", label: "抖音" },
   { key: "xiaohongshu", label: "小红书" },
   { key: "shipinhao", label: "视频号" },
   { key: "kuaishou", label: "快手" },
 ];
+
+interface BatchConfig {
+  name: string;
+  scriptMode: "auto" | "manual";
+  manualScript: string;
+  skipSubtitle: boolean;
+  audioMode: "tts" | "upload";
+  audioFile: File | null;
+}
+
+function defaultBatchConfig(): BatchConfig {
+  return {
+    name: "",
+    scriptMode: "auto",
+    manualScript: "",
+    skipSubtitle: false,
+    audioMode: "tts",
+    audioFile: null,
+  };
+}
 
 export default function ProjectWorkbench() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +49,31 @@ export default function ProjectWorkbench() {
   const [scriptMode, setScriptMode] = useState<"auto" | "manual">("auto");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioMode, setAudioMode] = useState<"tts" | "upload">("tts");
+
+  /* ── 批量创建相关状态 ── */
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchCount, setBatchCount] = useState(2);
+  const [batchConfigs, setBatchConfigs] = useState<BatchConfig[]>(() =>
+    Array.from({ length: 2 }, () => defaultBatchConfig()),
+  );
+  const [autoApprove, setAutoApprove] = useState(false);
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+  const [batchCreating, setBatchCreating] = useState(false);
+
+  /* 批量数量变化时同步 batchConfigs 长度 */
+  useEffect(() => {
+    setBatchConfigs((prev) => {
+      if (prev.length === batchCount) return prev;
+      if (prev.length < batchCount) {
+        const added = Array.from(
+          { length: batchCount - prev.length },
+          () => defaultBatchConfig(),
+        );
+        return [...prev, ...added];
+      }
+      return prev.slice(0, batchCount);
+    });
+  }, [batchCount]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -51,6 +96,7 @@ export default function ProjectWorkbench() {
 
   useEffect(() => { load(); }, [load]);
 
+  /* ── 单个创建（保持现有流程不变） ── */
   const handleCreateJob = async () => {
     if (!id) return;
     try {
@@ -69,6 +115,31 @@ export default function ProjectWorkbench() {
       setError("创建 Job 失败");
     }
   };
+
+  /* ── 批量创建 ── */
+  const handleBatchCreate = async () => {
+    if (!id) return;
+    setBatchCreating(true);
+    try {
+      await api.batchCreateJobs(id, { product, platforms, auto_approve: autoApprove, jobs: batchConfigs.map((c, i) => ({
+        name: c.name || `${product} #${String(i + 1).padStart(3, "0")}`,
+        manual_script: c.scriptMode === "manual" ? c.manualScript : "",
+        skip_subtitle: c.skipSubtitle,
+      })) });
+      load();
+    } catch (e) {
+      console.error("batch create failed", e);
+      setError("批量创建失败");
+    } finally {
+      setBatchCreating(false);
+    }
+  };
+
+  function updateBatchConfig(index: number, partial: Partial<BatchConfig>) {
+    setBatchConfigs((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, ...partial } : c)),
+    );
+  }
 
   const handleRetry = async (jobId: string) => {
     await api.retryJob(jobId);
@@ -92,7 +163,7 @@ export default function ProjectWorkbench() {
 
   const togglePlatform = (p: string) => {
     setPlatforms((prev) =>
-      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]
+      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
     );
   };
 
@@ -113,9 +184,44 @@ export default function ProjectWorkbench() {
         </div>
       )}
 
-      {/* Create Job */}
+      {/* ── 创建 Job ── */}
       <section className="border rounded-xl p-5 mb-6 bg-white">
         <h2 className="text-[15px] font-semibold mb-3.5">创建新 Job</h2>
+
+        {/* ── 创建模式切换 ── */}
+        <div className="flex items-center gap-4 mb-4 pb-4 border-b">
+          <span className="text-xs text-[#59636e] font-medium">创建模式</span>
+          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input
+              type="radio"
+              name="createMode"
+              checked={!batchMode}
+              onChange={() => setBatchMode(false)}
+            />
+            单个创建
+          </label>
+          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <input
+              type="radio"
+              name="createMode"
+              checked={batchMode}
+              onChange={() => setBatchMode(true)}
+            />
+            批量创建
+          </label>
+          {batchMode && (
+            <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
+              <input
+                type="checkbox"
+                checked={autoApprove}
+                onChange={(e) => setAutoApprove(e.target.checked)}
+              />
+              全自动（跳过审核）
+            </label>
+          )}
+        </div>
+
+        {/* ── 共享设置：产品 + 平台 ── */}
         <div className="flex gap-4 flex-wrap items-end">
           <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
             产品选择
@@ -129,16 +235,18 @@ export default function ProjectWorkbench() {
               ))}
             </select>
           </label>
-          <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
-            任务名称（可选）
-            <input
-              type="text"
-              className="border rounded-lg px-3 py-2 text-sm"
-              placeholder="默认使用产品名"
-              value={jobName}
-              onChange={(e) => setJobName(e.target.value)}
-            />
-          </label>
+          {!batchMode && (
+            <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
+              任务名称（可选）
+              <input
+                type="text"
+                className="border rounded-lg px-3 py-2 text-sm"
+                placeholder="默认使用产品名"
+                value={jobName}
+                onChange={(e) => setJobName(e.target.value)}
+              />
+            </label>
+          )}
           <div className="grid gap-1 text-xs text-gray-500">
             <span className="text-xs text-[#59636e]">目标平台</span>
             <div className="flex gap-3 py-2">
@@ -156,88 +264,223 @@ export default function ProjectWorkbench() {
           </div>
         </div>
 
-        {/* Script Input Section */}
-        <div className="mt-4 pt-4 border-t">
-          <div className="flex items-center gap-4 mb-3">
-            <span className="text-xs text-[#59636e] font-medium">文案来源</span>
-            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-              <input
-                type="radio"
-                name="scriptMode"
-                checked={scriptMode === "auto"}
-                onChange={() => setScriptMode("auto")}
-              />
-              自动生成（LLM）
-            </label>
-            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-              <input
-                type="radio"
-                name="scriptMode"
-                checked={scriptMode === "manual"}
-                onChange={() => setScriptMode("manual")}
-              />
-              手动输入
-            </label>
-          </div>
-          {scriptMode === "manual" && (
-            <textarea
-              className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px] placeholder:text-gray-400"
-              placeholder="请输入文案内容（150-200字）..."
-              value={manualScript}
-              onChange={(e) => setManualScript(e.target.value)}
-            />
-          )}
-        </div>
-
-        {/* Audio Upload Section */}
-        <div className="mt-4 pt-4 border-t">
-          <div className="flex items-center gap-4 mb-3">
-            <span className="text-xs text-[#59636e] font-medium">音频来源</span>
-            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-              <input
-                type="radio"
-                name="audioMode"
-                checked={audioMode === "tts"}
-                onChange={() => setAudioMode("tts")}
-              />
-              TTS 生成
-            </label>
-            <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-              <input
-                type="radio"
-                name="audioMode"
-                checked={audioMode === "upload"}
-                onChange={() => setAudioMode("upload")}
-              />
-              上传音频
-            </label>
-          </div>
-          {audioMode === "upload" && (
-            <div className="flex items-center gap-3">
-              <label className="border-2 border-dashed border-gray-300 rounded-lg px-6 py-4 text-sm text-gray-500 hover:border-gray-400 cursor-pointer transition-colors">
+        {/* ── 批量模式 UI ── */}
+        {batchMode ? (
+          <>
+            {/* 创建数量 */}
+            <div className="mt-4 pt-4 border-t">
+              <label className="grid gap-1.5 text-xs text-[#59636e] w-32">
+                创建数量
                 <input
-                  type="file"
-                  accept="audio/*"
-                  className="hidden"
-                  onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                  type="number"
+                  min={2}
+                  max={20}
+                  value={batchCount}
+                  onChange={(e) => {
+                    const v = Math.max(2, Math.min(20, Number(e.target.value) || 2));
+                    setBatchCount(v);
+                  }}
+                  className="border rounded-lg px-3 py-2 text-sm"
                 />
-                {audioFile ? audioFile.name : "点击选择音频文件"}
               </label>
-              {audioFile && (
-                <span className="text-xs text-green-600">&#10003; 已选择</span>
+            </div>
+
+            {/* 每个 Job 的独立配置卡片 */}
+            {batchConfigs.map((c, i) => (
+              <div key={i} className="mt-4 pt-4 border-t">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm font-semibold text-[#0969da]">
+                    #{String(i + 1).padStart(3, "0")}
+                  </span>
+                  <input
+                    type="text"
+                    placeholder={`${product} 任务`}
+                    value={c.name}
+                    onChange={(e) => updateBatchConfig(i, { name: e.target.value })}
+                    className="border rounded-lg px-3 py-1.5 text-sm flex-1 max-w-xs"
+                  />
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
+                    <input
+                      type="checkbox"
+                      checked={c.skipSubtitle}
+                      onChange={(e) => updateBatchConfig(i, { skipSubtitle: e.target.checked })}
+                    />
+                    跳过字幕
+                  </label>
+                </div>
+
+                {/* 文案来源 */}
+                <div className="flex items-center gap-4 mb-3">
+                  <span className="text-xs text-[#59636e] font-medium">文案来源</span>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`batchScriptMode-${i}`}
+                      checked={c.scriptMode === "auto"}
+                      onChange={() => updateBatchConfig(i, { scriptMode: "auto" })}
+                    />
+                    自动生成（LLM）
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`batchScriptMode-${i}`}
+                      checked={c.scriptMode === "manual"}
+                      onChange={() => updateBatchConfig(i, { scriptMode: "manual" })}
+                    />
+                    手动输入
+                  </label>
+                </div>
+                {c.scriptMode === "manual" && (
+                  <textarea
+                    className="w-full border rounded-lg px-3 py-2 text-sm min-h-[80px] mb-3 placeholder:text-gray-400"
+                    placeholder="请输入文案内容（150-200字）..."
+                    value={c.manualScript}
+                    onChange={(e) => updateBatchConfig(i, { manualScript: e.target.value })}
+                  />
+                )}
+
+                {/* 音频来源 */}
+                <div className="flex items-center gap-4 mb-3">
+                  <span className="text-xs text-[#59636e] font-medium">音频来源</span>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`batchAudioMode-${i}`}
+                      checked={c.audioMode === "tts"}
+                      onChange={() => updateBatchConfig(i, { audioMode: "tts" })}
+                    />
+                    TTS 生成
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`batchAudioMode-${i}`}
+                      checked={c.audioMode === "upload"}
+                      onChange={() => updateBatchConfig(i, { audioMode: "upload" })}
+                    />
+                    上传音频
+                  </label>
+                </div>
+                {c.audioMode === "upload" && (
+                  <div className="flex items-center gap-3">
+                    <label className="border-2 border-dashed border-gray-300 rounded-lg px-6 py-3 text-sm text-gray-500 hover:border-gray-400 cursor-pointer transition-colors">
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        className="hidden"
+                        onChange={(e) =>
+                          updateBatchConfig(i, { audioFile: e.target.files?.[0] || null })
+                        }
+                      />
+                      {c.audioFile ? c.audioFile.name : "点击选择音频文件"}
+                    </label>
+                    {c.audioFile && (
+                      <span className="text-xs text-green-600">&#10003; 已选择</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* 批量创建按钮 */}
+            <div className="mt-4 pt-4 border-t flex justify-end">
+              <button
+                className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all disabled:opacity-50"
+                onClick={handleBatchCreate}
+                disabled={batchCreating}
+              >
+                {batchCreating ? "创建中…" : `批量创建 ${batchCount} 个 Job`}
+              </button>
+            </div>
+          </>
+        ) : (
+          /* ── 单个创建 UI（保持现有流程不变） ── */
+          <>
+            {/* Script Input Section */}
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex items-center gap-4 mb-3">
+                <span className="text-xs text-[#59636e] font-medium">文案来源</span>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="scriptMode"
+                    checked={scriptMode === "auto"}
+                    onChange={() => setScriptMode("auto")}
+                  />
+                  自动生成（LLM）
+                </label>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="scriptMode"
+                    checked={scriptMode === "manual"}
+                    onChange={() => setScriptMode("manual")}
+                  />
+                  手动输入
+                </label>
+              </div>
+              {scriptMode === "manual" && (
+                <textarea
+                  className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px] placeholder:text-gray-400"
+                  placeholder="请输入文案内容（150-200字）..."
+                  value={manualScript}
+                  onChange={(e) => setManualScript(e.target.value)}
+                />
               )}
             </div>
-          )}
-        </div>
 
-        <div className="mt-4 pt-4 border-t flex justify-end">
-          <button
-            className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all"
-            onClick={handleCreateJob}
-          >
-            创建并开始生产
-          </button>
-        </div>
+            {/* Audio Upload Section */}
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex items-center gap-4 mb-3">
+                <span className="text-xs text-[#59636e] font-medium">音频来源</span>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="audioMode"
+                    checked={audioMode === "tts"}
+                    onChange={() => setAudioMode("tts")}
+                  />
+                  TTS 生成
+                </label>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="audioMode"
+                    checked={audioMode === "upload"}
+                    onChange={() => setAudioMode("upload")}
+                  />
+                  上传音频
+                </label>
+              </div>
+              {audioMode === "upload" && (
+                <div className="flex items-center gap-3">
+                  <label className="border-2 border-dashed border-gray-300 rounded-lg px-6 py-4 text-sm text-gray-500 hover:border-gray-400 cursor-pointer transition-colors">
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      className="hidden"
+                      onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                    />
+                    {audioFile ? audioFile.name : "点击选择音频文件"}
+                  </label>
+                  {audioFile && (
+                    <span className="text-xs text-green-600">&#10003; 已选择</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t flex justify-end">
+              <button
+                className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all"
+                onClick={handleCreateJob}
+              >
+                创建并开始生产
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       {/* Tab: Jobs / Schedule */}
@@ -275,7 +518,14 @@ export default function ProjectWorkbench() {
       </div>
 
       {tab === "jobs" ? (
-        <JobTable jobs={jobs} onRetry={handleRetry} onDelete={handleDeleteJob} onRename={handleRenameJob} />
+        <JobTable
+          jobs={jobs}
+          onRetry={handleRetry}
+          onDelete={handleDeleteJob}
+          onRename={handleRenameJob}
+          selectedJobIds={selectedJobIds}
+          onSelectionChange={setSelectedJobIds}
+        />
       ) : tab === "schedule" ? (
         <ScheduleTable
           entries={schedule}

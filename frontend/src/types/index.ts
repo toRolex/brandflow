@@ -25,6 +25,10 @@ export interface JobSummary {
   last_error?: string;
   manual_script?: string;
   uploaded_audio_path?: string;
+  display_index?: string;
+  skip_subtitle?: boolean;
+  auto_approve?: boolean;
+  artifacts?: Artifact[];
 }
 
 export interface AssetFile {
@@ -96,6 +100,35 @@ export interface JobDetail {
   logs?: string;
   manual_script?: string;
   uploaded_audio_path?: string;
+}
+
+export interface BatchJobItem {
+  name: string;
+  manual_script: string;
+  skip_subtitle: boolean;
+}
+
+export interface BatchCreateRequest {
+  product: string;
+  platforms: string[];
+  auto_approve?: boolean;
+  jobs: BatchJobItem[];
+}
+
+export interface BatchCreateResponse {
+  product: string;
+  platforms: string[];
+  auto_approve: boolean;
+  count: number;
+  results: Array<{
+    job_id: string;
+    display_index: string;
+    product: string;
+    name: string;
+    phase: string;
+    skip_subtitle: boolean;
+    auto_approve: boolean;
+  }>;
 }
 
 export interface ScriptCheckResult {
