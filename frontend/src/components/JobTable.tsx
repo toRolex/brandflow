@@ -8,42 +8,173 @@ interface Props {
   onRetry: (jobId: string) => void;
   onDelete: (jobId: string) => void;
   onRename?: (jobId: string, name: string) => Promise<void>;
+  /** 当前选中的 job ID 集合，传入即启用多选模式 */
+  selectedJobIds?: Set<string>;
+  /** 选中变化回调 */
+  onSelectionChange?: (ids: Set<string>) => void;
 }
 
-export default function JobTable({ jobs, onRetry, onDelete, onRename }: Props) {
+export default function JobTable({ jobs, onRetry, onDelete, onRename, selectedJobIds, onSelectionChange }: Props) {
   const navigate = useNavigate();
+  const [exporting, setExporting] = useState(false);
 
   if (jobs.length === 0) {
     return <p className="text-sm text-[#59636e] py-4">暂无 Job，创建一个开始吧</p>;
   }
 
+  const showCheckbox = selectedJobIds !== undefined;
+
+  const completedJobs = jobs.filter((j) => j.phase === "completed");
+  const allCompletedSelected =
+    completedJobs.length > 0 && completedJobs.every((j) => selectedJobIds?.has(j.job_id));
+
+  function toggleSelectAll() {
+    if (!onSelectionChange || !selectedJobIds) return;
+    const newSet = new Set(selectedJobIds);
+    if (allCompletedSelected) {
+      completedJobs.forEach((j) => newSet.delete(j.job_id));
+    } else {
+      completedJobs.forEach((j) => newSet.add(j.job_id));
+    }
+    onSelectionChange(newSet);
+  }
+
+  function toggleJob(jobId: string) {
+    if (!onSelectionChange || !selectedJobIds) return;
+    const newSet = new Set(selectedJobIds);
+    if (newSet.has(jobId)) {
+      newSet.delete(jobId);
+    } else {
+      newSet.add(jobId);
+    }
+    onSelectionChange(newSet);
+  }
+
+  const selectedCompletedCount = jobs.filter(
+    (j) => selectedJobIds?.has(j.job_id) && j.phase === "completed",
+  ).length;
+
+  async function handleExport() {
+    if (!selectedJobIds || !onSelectionChange) return;
+    setExporting(true);
+    try {
+      // File System Access API — 仅在 Chromium 系浏览器可用
+      const dirHandle = await (window as any).showDirectoryPicker();
+      const selected = jobs.filter(
+        (j) => selectedJobIds.has(j.job_id) && j.phase === "completed",
+      );
+      for (const job of selected) {
+        const ext = job;
+        const finalVideo = ext.artifacts?.find((a) => a.kind === "final_video");
+        if (!finalVideo?.url) continue;
+
+        const response = await fetch(finalVideo.url);
+        if (!response.ok) continue;
+        const blob = await response.blob();
+
+        const idx = ext.display_index ?? "_";
+        const product = job.product || "unknown";
+        const name = job.name || job.product || "untitled";
+        const rawName = `${idx}_${product}_${name}.mp4`;
+        const filename = rawName.replace(/[/\\?%*:|"<>]/g, "_");
+
+        const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      }
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
-    <table className="w-full border-collapse text-[13px]">
-      <thead>
-        <tr className="border-b border-[#393f46] text-left text-[#59636e]">
-          <th className="py-2 px-2 font-medium">Job ID</th>
-          <th className="py-2 px-2 font-medium">名称</th>
-          <th className="py-2 px-2 font-medium">产品</th>
-          <th className="py-2 px-2 font-medium">状态</th>
-          <th className="py-2 px-2 font-medium">进度</th>
-          <th className="py-2 px-2 font-medium">操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {jobs.map((j) => (
-          <NameRow key={j.job_id} job={j} onRename={onRename} onRetry={onRetry} onDelete={onDelete} navigate={navigate} />
-        ))}
-      </tbody>
-    </table>
+    <div>
+      <table className="w-full border-collapse text-[13px]">
+        <thead>
+          <tr className="border-b border-[#393f46] text-left text-[#59636e]">
+            {showCheckbox && (
+              <th className="py-2 px-2 font-medium w-8">
+                <input
+                  type="checkbox"
+                  checked={allCompletedSelected}
+                  onChange={toggleSelectAll}
+                  className="accent-[#0969da]"
+                />
+              </th>
+            )}
+            <th className="py-2 px-2 font-medium w-12">序号</th>
+            <th className="py-2 px-2 font-medium">Job ID</th>
+            <th className="py-2 px-2 font-medium">名称</th>
+            <th className="py-2 px-2 font-medium">产品</th>
+            <th className="py-2 px-2 font-medium">状态</th>
+            <th className="py-2 px-2 font-medium">进度</th>
+            <th className="py-2 px-2 font-medium">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.map((j) => {
+            const ext = j;
+            const isCompleted = j.phase === "completed";
+            return (
+              <NameRow
+                key={j.job_id}
+                job={j}
+                onRename={onRename}
+                onRetry={onRetry}
+                onDelete={onDelete}
+                navigate={navigate}
+                showCheckbox={showCheckbox}
+                isSelected={selectedJobIds?.has(j.job_id) ?? false}
+                isCompleted={isCompleted}
+                displayIndex={ext.display_index}
+                onToggle={() => toggleJob(j.job_id)}
+              />
+            );
+          })}
+        </tbody>
+      </table>
+
+      {showCheckbox && selectedJobIds!.size > 0 && (
+        <div className="flex items-center justify-between mt-3 px-3 py-2 bg-[#f6f8fa] border border-[#d0d7de] rounded-md">
+          <span className="text-sm text-[#59636e]">
+            已选 {selectedCompletedCount} 个已完成 Job
+          </span>
+          <button
+            className="px-3 py-1.5 bg-[#0969da] text-white text-xs rounded-md hover:bg-[#0860c0] disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={exporting || selectedCompletedCount === 0}
+            onClick={handleExport}
+          >
+            {exporting ? "导出中…" : "导出视频"}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
-function NameRow({ job, onRename, onRetry, onDelete, navigate }: {
+function NameRow({
+  job,
+  onRename,
+  onRetry,
+  onDelete,
+  navigate,
+  showCheckbox,
+  isSelected,
+  isCompleted,
+  displayIndex,
+  onToggle,
+}: {
   job: JobSummary;
   onRename?: (jobId: string, name: string) => Promise<void>;
   onRetry: (jobId: string) => void;
   onDelete: (jobId: string) => void;
   navigate: ReturnType<typeof useNavigate>;
+  showCheckbox?: boolean;
+  isSelected?: boolean;
+  isCompleted?: boolean;
+  displayIndex?: string;
+  onToggle?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(job.name || job.product);
@@ -61,6 +192,20 @@ function NameRow({ job, onRename, onRetry, onDelete, navigate }: {
 
   return (
     <tr className="border-b border-[#eff2f5] hover:bg-gray-50">
+      {showCheckbox && (
+        <td className="py-2.5 px-2">
+          <input
+            type="checkbox"
+            checked={isSelected ?? false}
+            onChange={onToggle}
+            disabled={!isCompleted}
+            className="accent-[#0969da] disabled:opacity-30"
+          />
+        </td>
+      )}
+      <td className="py-2.5 px-2 font-mono text-[#0969da] text-xs">
+        {displayIndex != null ? displayIndex : "—"}
+      </td>
       <td className="py-2.5 px-2 font-mono text-xs">{job.job_id}</td>
       <td className="py-2.5 px-2">
         {editing ? (
@@ -72,7 +217,10 @@ function NameRow({ job, onRename, onRetry, onDelete, navigate }: {
             onBlur={commit}
             onKeyDown={(e) => {
               if (e.key === "Enter") commit();
-              if (e.key === "Escape") { setEditing(false); setDraft(job.name || job.product); }
+              if (e.key === "Escape") {
+                setEditing(false);
+                setDraft(job.name || job.product);
+              }
             }}
             autoFocus
           />
@@ -80,7 +228,10 @@ function NameRow({ job, onRename, onRetry, onDelete, navigate }: {
           <span
             className="cursor-pointer hover:text-[#0969da]"
             title="双击编辑名称"
-            onDoubleClick={() => { setEditing(true); setDraft(job.name || job.product); }}
+            onDoubleClick={() => {
+              setEditing(true);
+              setDraft(job.name || job.product);
+            }}
           >
             {displayName}
           </span>
