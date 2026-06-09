@@ -29,8 +29,10 @@ class LegacyMediaBridge:
         self,
         base_video_path: Path,
         audio_path: Path,
-        srt_path: Path,
-        final_video_path: Path,
-        cover_clip_path: Path | None,
+        srt_path: Path | None = None,
+        final_video_path: Path | None = None,
+        cover_clip_path: Path | None = None,
     ) -> None:
+        if final_video_path is None:
+            raise TypeError("final_video_path is required")
         self.controller._burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path)

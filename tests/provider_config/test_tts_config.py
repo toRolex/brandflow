@@ -41,7 +41,7 @@ def test_default_style_prompt() -> None:
 
 
 def test_default_audio_format() -> None:
-    assert TTSConfig().with_defaults().audio_format == "mp3"
+    assert TTSConfig().with_defaults().audio_format == "wav"
 
 
 def test_default_sample_rate() -> None:
@@ -105,7 +105,7 @@ def test_custom_channel() -> None:
 def test_to_dict_returns_all_fields() -> None:
     config = TTSConfig()
     data = config.to_dict()
-    assert len(data) == 20
+    assert len(data) == 23
 
 
 def test_to_dict_values_match_defaults() -> None:

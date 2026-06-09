@@ -54,6 +54,7 @@ except ImportError:  # pragma: no cover
     ImageDraw = None  # type: ignore[assignment]
     ImageFont = None  # type: ignore[assignment]
 
+from packages.pipeline_services.media_utils import assemble_vertical_base_video
 from packages.provider_config.app_config import AppConfigManager
 
 
@@ -3435,29 +3436,14 @@ class PipelineController:
             )
             trimmed_paths.append(trimmed)
 
-        concat_list = output_path.parent / f"{job['job_id']}_concat_list.txt"
-        self._write_concat_file(concat_list, trimmed_paths)
-
-        vf_combined = f"crop=iw*{1.0 - random.uniform(0.01, 0.03):.3f}:ih*{1.0 - random.uniform(0.01, 0.03):.3f},scale=iw:ih"
-
-        def build_cmd(encoder_args: list[str]) -> list[str]:
-            return [
-                str(self._ffmpeg_path()),
-                "-f", "concat", "-safe", "0",
-                "-i", str(concat_list),
-                "-vf", vf_combined,
-                "-an",
-                *encoder_args,
-                "-movflags", "+faststart",
-                "-y",
-                str(output_path),
-            ]
-
         try:
-            self._run_ffmpeg_with_encoder_fallback(build_cmd, f"底包生成 {job['job_id']}")
+            assemble_vertical_base_video(
+                ffmpeg_path=str(self._ffmpeg_path()),
+                clip_paths=trimmed_paths,
+                audio_duration=audio_duration,
+                output_path=output_path,
+            )
         finally:
-            if concat_list.exists():
-                concat_list.unlink()
             for tp in trimmed_paths:
                 if tp.exists():
                     tp.unlink()
@@ -3568,22 +3554,37 @@ class PipelineController:
             "封面图片转视频流",
         )
 
-    def _burn_final_video(self, base_video_path: Path, audio_path: Path, srt_path: Path, final_video_path: Path, cover_clip_path: Path | None) -> None:
+    def _burn_final_video(self, base_video_path: Path, audio_path: Path, srt_path: Path | None, final_video_path: Path, cover_clip_path: Path | None) -> None:
         final_video_path.parent.mkdir(parents=True, exist_ok=True)
         if self.dry_run:
             final_video_path.write_bytes(b"DRY_RUN_FINAL_VIDEO")
             return
 
-        srt_ffmpeg = self._escape_subtitles_path(srt_path)
         subtitle_style = (
             f"Fontname={self._subtitle_font_name()},Fontsize=12,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,Outline=2,MarginV=30,Bold=1"
         )
+        has_subtitles = srt_path is not None
+        if srt_path is not None:
+            srt_ffmpeg = self._escape_subtitles_path(srt_path)
+        else:
+            srt_ffmpeg = ""
 
         if cover_clip_path and cover_clip_path.exists():
             width, height = self._get_video_size(base_video_path)
 
             def build_cmd(encoder_args: list[str]) -> list[str]:
+                filter_complex = (
+                    f"[0:v]scale={width}:{height},setsar=1[v0];"
+                    f"[1:v]scale={width}:{height},setsar=1[v1];"
+                    f"[v0][v1]concat=n=2:v=1:a=0[cv]"
+                )
+                if has_subtitles:
+                    filter_complex += f";[cv]subtitles='{srt_ffmpeg}':force_style='{subtitle_style}'[v]"
+                    video_map = "[v]"
+                else:
+                    filter_complex += ";[cv]null[v]"
+                    video_map = "[v]"
                 return [
                     str(self._ffmpeg_path()),
                     "-i",
@@ -3593,12 +3594,9 @@ class PipelineController:
                     "-i",
                     str(audio_path),
                     "-filter_complex",
-                    f"[0:v]scale={width}:{height},setsar=1[v0];"
-                    f"[1:v]scale={width}:{height},setsar=1[v1];"
-                    f"[v0][v1]concat=n=2:v=1:a=0[cv];"
-                    f"[cv]subtitles='{srt_ffmpeg}':force_style='{subtitle_style}'[v]",
+                    filter_complex,
                     "-map",
-                    "[v]",
+                    video_map,
                     "-map",
                     "2:a:0",
                     *encoder_args,
@@ -3617,14 +3615,19 @@ class PipelineController:
             return
 
         def build_cmd_no_cover(encoder_args: list[str]) -> list[str]:
-            return [
+            cmd = [
                 str(self._ffmpeg_path()),
                 "-i",
                 str(base_video_path),
                 "-i",
                 str(audio_path),
-                "-vf",
-                f"subtitles='{srt_ffmpeg}':force_style='{subtitle_style}'",
+            ]
+            if has_subtitles:
+                cmd.extend([
+                    "-vf",
+                    f"subtitles='{srt_ffmpeg}':force_style='{subtitle_style}'",
+                ])
+            cmd.extend([
                 "-map",
                 "0:v:0",
                 "-map",
@@ -3639,7 +3642,8 @@ class PipelineController:
                 "+faststart",
                 "-y",
                 str(final_video_path),
-            ]
+            ])
+            return cmd
 
         self._run_ffmpeg_with_encoder_fallback(build_cmd_no_cover, f"终极烧录 {final_video_path.stem}")
 

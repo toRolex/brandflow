@@ -53,25 +53,36 @@ cd frontend && npm run dev
 | 后端 | Python 3.11+ / FastAPI / Pydantic v2 |
 | 依赖管理 | uv |
 | 媒体引擎 | FFmpeg（ffmpeg-full） / ffprobe / whisper-cli |
-| LLM | DeepSeek `deepseek-v4-pro` |
-| TTS | Xiaomi MiMo `mimo-v2.5-tts` |
+| LLM | DeepSeek / Kimi / OpenAI（默认实现见 `AppConfigManager.DEFAULTS`） |
+| TTS | Xiaomi MiMo / MiniMax（默认实现见 `AppConfigManager.DEFAULTS`） |
+| Vision | Xiaomi / OpenAI / Claude 兼容接口（默认实现见 `AppConfigManager.DEFAULTS`） |
 | 排期存储 | SQLite |
 | 目标平台 | 抖音、小红书、视频号、快手 |
 
 ## 配置
 
-**所有配置统一在 `.env` 文件**，前端通过 Web 界面读写。
+运行时统一通过 `packages/provider_config/app_config.py` 中的 `AppConfigManager` 读取配置。
 
 ```bash
 # 复制示例文件并填入真实密钥
 cp .env.example .env
 ```
 
-核心配置项：
-- `MIMO_API_KEY` — MiMo TTS API Key
-- `DEEPSEEK_API_KEY` — DeepSeek LLM API Key
-- `MIMO_TTS_MODEL` — TTS 模型（默认 `mimo-v2.5-tts`）
-- `MIMO_TTS_VOICE` — TTS 音色（默认 `Mia`）
+配置职责：
+- `.env` — 保存 API Key 与可选环境变量覆盖
+- `config/app_config.json` — 保存 provider、model、voice、thinking 等业务配置
+- `config/providers.yaml` — 前端“系统配置”页面的兼容存储；保存时会同步到 `app_config.json` 与 `.env`
+
+常见配置项：
+- `LLM_API_KEY` / `TTS_API_KEY` / `VISION_API_KEY` — 通用 key，适合单 provider 场景
+- `DEEPSEEK_API_KEY` / `MIMO_API_KEY` / `XIAOMI_VISION_API_KEY` — provider 专用 key，优先级高于通用 key
+- provider、model、voice、thinking 等业务参数 — 通常通过前端“系统配置”页面写入 `config/app_config.json`
+
+配置优先级：
+1. provider 专用环境变量
+2. 通用环境变量
+3. `config/app_config.json`
+4. 代码默认值（`packages/provider_config/app_config.py` 中的 `DEFAULTS`）
 
 ## 核心概念
 
@@ -116,14 +127,16 @@ cp .env.example .env
 │   ├── domain_core/          # 领域模型 + 状态机 + worker 协议
 │   ├── file_store/           # 文件系统轻持久化
 │   ├── pipeline_services/    # 业务能力（legacy bridge）
-│   ├── provider_config/      # Provider 配置管理
+│   ├── provider_config/      # 统一配置入口与 provider 配置桥接
 │   └── runtime_adapters/     # 平台适配（Mac / Windows）
 │
 ├── config/
+│   ├── app_config.json       # 业务配置（provider / model / voice / thinking）
+│   ├── providers.yaml        # 系统配置页兼容存储，保存时同步到 app_config.json / .env
 │   ├── defaults.yaml
 │   └── profiles/             # mac-local.yaml / windows-prod.yaml
 │
-├── tests/                    # 101 个测试（21 个测试文件）试（pytest）
+├── tests/                    # pytest 测试
 │
 ├── main_controller.py        # 旧核心（通过 LegacyBridge 过渡引用）
 ├── kimi_two_stage_script.py  # 旧脚本生成器
@@ -134,7 +147,7 @@ cp .env.example .env
 
 ```bash
 # 测试
-uv run pytest tests/ -q                # 全量 101 测试
+uv run pytest tests/ -q                # 全量测试
 
 # 构建前端（生产）
 cd frontend && npm run build

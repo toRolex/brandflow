@@ -56,7 +56,11 @@ def _find_script_file(job_dir: Path) -> Path | None:
 
 
 def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
-    for project_dir in repo.root.joinpath("workspace", "projects").iterdir():
+    projects_root = repo.root.joinpath("workspace", "projects")
+    if not projects_root.exists():
+        return None
+
+    for project_dir in projects_root.iterdir():
         if not project_dir.is_dir():
             continue
         try:

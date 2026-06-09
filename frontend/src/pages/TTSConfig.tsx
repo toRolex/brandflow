@@ -19,6 +19,9 @@ interface TTSConfig {
   sample_rate: number | null;
   bitrate: number | null;
   channel: number | null;
+  optimize_text_preview?: boolean;
+  voice_clone_sample_path?: string | null;
+  voice_clone_mime_type?: string | null;
 }
 
 interface Voice {
@@ -36,32 +39,124 @@ const STYLE_PRESETS = [
   { label: "活力青春", value: "活力四射，语速偏快，充满青春气息" },
 ];
 
+const VOICE_POOLS: Record<string, Voice[]> = {
+  "mimo-v2.5-tts": [
+    { id: "mimo_default", label: "MiMo 默认", note: "官方默认音色" },
+    { id: "冰糖", label: "冰糖", note: "中文女声，清亮自然" },
+    { id: "茉莉", label: "茉莉", note: "中文女声，柔和亲切" },
+    { id: "苏打", label: "苏打", note: "中文男声，适合短视频口播" },
+    { id: "白桦", label: "白桦", note: "中文男声，稳重讲解" },
+    { id: "Mia", label: "Mia", note: "英文女声" },
+    { id: "Chloe", label: "Chloe", note: "英文女声" },
+    { id: "Milo", label: "Milo", note: "英文男声" },
+    { id: "Dean", label: "Dean", note: "英文男声" },
+  ],
+  "mimo-v2-tts": [
+    { id: "mimo_default", label: "MiMo 默认", note: "官方默认音色" },
+    { id: "default_zh", label: "中文女声", note: "default_zh" },
+    { id: "default_en", label: "英文女声", note: "default_en" },
+  ],
+};
+
 const STYLE_TAGS = [
+  // 情绪
   { label: "开心", value: "(开心)" },
   { label: "悲伤", value: "(悲伤)" },
+  { label: "愤怒", value: "(愤怒)" },
+  { label: "恐惧", value: "(恐惧)" },
+  { label: "惊讶", value: "(惊讶)" },
+  { label: "兴奋", value: "(兴奋)" },
+  { label: "委屈", value: "(委屈)" },
+  { label: "平静", value: "(平静)" },
+  { label: "冷漠", value: "(冷漠)" },
+  { label: "怅然", value: "(怅然)" },
+  { label: "欣慰", value: "(欣慰)" },
+  { label: "无奈", value: "(无奈)" },
+  { label: "愧疚", value: "(愧疚)" },
+  { label: "释然", value: "(释然)" },
+  { label: "嫉妒", value: "(嫉妒)" },
+  { label: "厌倦", value: "(厌倦)" },
+  { label: "忐忑", value: "(忐忑)" },
+  { label: "动情", value: "(动情)" },
+  // 语气
   { label: "温柔", value: "(温柔)" },
   { label: "活泼", value: "(活泼)" },
   { label: "严肃", value: "(严肃)" },
+  { label: "高冷", value: "(高冷)" },
+  { label: "慵懒", value: "(慵懒)" },
+  { label: "俏皮", value: "(俏皮)" },
+  { label: "深沉", value: "(深沉)" },
+  { label: "干练", value: "(干练)" },
+  { label: "凌厉", value: "(凌厉)" },
+  // 音色
   { label: "磁性", value: "(磁性)" },
   { label: "甜美", value: "(甜美)" },
+  { label: "醇厚", value: "(醇厚)" },
+  { label: "清亮", value: "(清亮)" },
+  { label: "空灵", value: "(空灵)" },
+  { label: "稚嫩", value: "(稚嫩)" },
+  { label: "苍老", value: "(苍老)" },
+  { label: "沙哑", value: "(沙哑)" },
+  { label: "醇雅", value: "(醇雅)" },
+  // 角色声音
+  { label: "夹子音", value: "(夹子音)" },
+  { label: "御姐音", value: "(御姐音)" },
+  { label: "正太音", value: "(正太音)" },
+  { label: "大叔音", value: "(大叔音)" },
+  { label: "台湾腔", value: "(台湾腔)" },
+  // 方言
   { label: "东北话", value: "(东北话)" },
   { label: "四川话", value: "(四川话)" },
+  { label: "河南话", value: "(河南话)" },
+  { label: "粤语", value: "(粤语)" },
+  // 角色扮演
+  { label: "孙悟空", value: "(孙悟空)" },
+  { label: "林黛玉", value: "(林黛玉)" },
+  // 唱歌
+  { label: "唱歌", value: "(唱歌)" },
 ];
 
 const AUDIO_TAGS = [
-  { label: "笑声", value: "[笑声]" },
-  { label: "叹气", value: "[叹气]" },
-  { label: "停顿", value: "[停顿]" },
+  // 呼吸
+  { label: "吸气", value: "[吸气]" },
   { label: "深呼吸", value: "[深呼吸]" },
+  { label: "叹气", value: "[叹气]" },
+  { label: "长叹一口气", value: "[长叹一口气]" },
+  { label: "喘息", value: "[喘息]" },
+  { label: "屏息", value: "[屏息]" },
+  // 情绪
   { label: "紧张", value: "[紧张]" },
+  { label: "害怕", value: "[害怕]" },
   { label: "激动", value: "[激动]" },
   { label: "疲惫", value: "[疲惫]" },
+  { label: "委屈", value: "[委屈]" },
   { label: "撒娇", value: "[撒娇]" },
+  { label: "心虚", value: "[心虚]" },
+  { label: "震惊", value: "[震惊]" },
+  { label: "不耐烦", value: "[不耐烦]" },
+  // 声音特征
+  { label: "颤抖", value: "[颤抖]" },
+  { label: "变调", value: "[变调]" },
+  { label: "破音", value: "[破音]" },
+  { label: "鼻音", value: "[鼻音]" },
+  { label: "气声", value: "[气声]" },
+  { label: "沙哑", value: "[沙哑]" },
+  // 笑/哭
+  { label: "笑声", value: "[笑声]" },
+  { label: "笑", value: "[笑]" },
+  { label: "轻笑", value: "[轻笑]" },
+  { label: "大笑", value: "[大笑]" },
+  { label: "冷笑", value: "[冷笑]" },
+  { label: "抽泣", value: "[抽泣]" },
+  { label: "呜咽", value: "[呜咽]" },
+  { label: "哽咽", value: "[哽咽]" },
+  { label: "嚎啕大哭", value: "[嚎啕大哭]" },
+  // 停顿
+  { label: "停顿", value: "[停顿]" },
 ];
 
 export default function TTSConfigPage() {
   const [config, setConfig] = useState<TTSConfig | null>(null);
-  const [voices, setVoices] = useState<Voice[]>([]);
   const [previewText, setPreviewText] = useState("见手青是云南最美味的野生菌，口感鲜嫩，营养丰富。");
   const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -70,17 +165,11 @@ export default function TTSConfigPage() {
 
   useEffect(() => {
     loadConfig();
-    loadVoices();
   }, []);
 
   const loadConfig = async () => {
     const data = await api.getTTSConfig();
     setConfig(data as unknown as TTSConfig);
-  };
-
-  const loadVoices = async () => {
-    const data = await api.getTTSVoices();
-    setVoices(data.preset_voices || []);
   };
 
   const handleSave = async () => {
@@ -155,7 +244,7 @@ export default function TTSConfigPage() {
         <div className="lg:col-span-2 space-y-6">
           <section className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="text-lg font-semibold mb-4">TTS 模型选择</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div
                 className={`border-2 rounded-xl p-4 cursor-pointer ${
                   config.model === "mimo-v2.5-tts"
@@ -180,69 +269,100 @@ export default function TTSConfigPage() {
                 <p className="text-sm text-gray-500">mimo-v2.5-tts-voicedesign</p>
                 <p className="text-sm text-gray-600 mt-2">通过文字描述自定义音色</p>
               </div>
+              <div
+                className={`border-2 rounded-xl p-4 cursor-pointer ${
+                  config.model === "mimo-v2.5-tts-voiceclone"
+                    ? "border-green-500 bg-green-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+                onClick={() => setConfig({ ...config, model: "mimo-v2.5-tts-voiceclone" })}
+              >
+                <h3 className="font-semibold">音色克隆</h3>
+                <p className="text-sm text-gray-500">mimo-v2.5-tts-voiceclone</p>
+                <p className="text-sm text-gray-600 mt-2">通过音频样本克隆音色</p>
+              </div>
+              <div
+                className={`border-2 rounded-xl p-4 cursor-pointer ${
+                  config.model === "mimo-v2-tts"
+                    ? "border-orange-500 bg-orange-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+                onClick={() => setConfig({ ...config, model: "mimo-v2-tts" })}
+              >
+                <h3 className="font-semibold">V2 预置</h3>
+                <p className="text-sm text-gray-500">mimo-v2-tts</p>
+                <p className="text-sm text-gray-600 mt-2">旧版 V2 预置音色</p>
+              </div>
             </div>
           </section>
 
-          {config.model === "mimo-v2.5-tts" && (
+          {(config.model === "mimo-v2.5-tts" || config.model === "mimo-v2-tts") && (
             <section className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-lg font-semibold mb-4">预置音色配置</h2>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">主音色</label>
-                  <select
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                    value={config.voice}
-                    onChange={(e) => setConfig({ ...config, voice: e.target.value })}
-                  >
-                    {voices.map(v => (
-                      <option key={v.id} value={v.id}>{v.label} - {v.note}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">备用音色</label>
-                  <select
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                    value={config.fallback_voice}
-                    onChange={(e) => setConfig({ ...config, fallback_voice: e.target.value })}
-                  >
-                    {voices.map(v => (
-                      <option key={v.id} value={v.id}>{v.label} - {v.note}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 mb-4">
-                <input
-                  type="checkbox"
-                  id="randomize"
-                  checked={config.randomize_voice}
-                  onChange={(e) => setConfig({ ...config, randomize_voice: e.target.checked })}
-                  className="rounded"
-                />
-                <label htmlFor="randomize" className="text-sm">启用音色随机化</label>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">随机音色池</label>
-                <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg">
-                  {config.random_voices.map(voiceId => (
-                    <span key={voiceId} className="px-3 py-1 bg-blue-500 text-white text-sm rounded-full flex items-center gap-1">
-                      {voiceId}
-                      <button onClick={() => removeVoiceFromPool(voiceId)} className="hover:text-red-200">×</button>
-                    </span>
-                  ))}
-                  <select
-                    className="px-3 py-1 border-2 border-dashed border-gray-300 text-sm rounded-full"
-                    onChange={(e) => { addVoiceToPool(e.target.value); e.target.value = ""; }}
-                    value=""
-                  >
-                    <option value="" disabled>+ 添加音色</option>
-                    {voices.filter(v => !config.random_voices.includes(v.id)).map(v => (
-                      <option key={v.id} value={v.id}>{v.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              {(() => {
+                const pool = VOICE_POOLS[config.model] || [];
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">主音色</label>
+                        <select
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                          value={config.voice}
+                          onChange={(e) => setConfig({ ...config, voice: e.target.value })}
+                        >
+                          {pool.map(v => (
+                            <option key={v.id} value={v.id}>{v.label} - {v.note}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">备用音色</label>
+                        <select
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                          value={config.fallback_voice}
+                          onChange={(e) => setConfig({ ...config, fallback_voice: e.target.value })}
+                        >
+                          {pool.map(v => (
+                            <option key={v.id} value={v.id}>{v.label} - {v.note}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <input
+                        type="checkbox"
+                        id="randomize"
+                        checked={config.randomize_voice}
+                        onChange={(e) => setConfig({ ...config, randomize_voice: e.target.checked })}
+                        className="rounded"
+                      />
+                      <label htmlFor="randomize" className="text-sm">启用音色随机化</label>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">随机音色池</label>
+                      <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg">
+                        {config.random_voices.map(voiceId => (
+                          <span key={voiceId} className="px-3 py-1 bg-blue-500 text-white text-sm rounded-full flex items-center gap-1">
+                            {voiceId}
+                            <button onClick={() => removeVoiceFromPool(voiceId)} className="hover:text-red-200">×</button>
+                          </span>
+                        ))}
+                        <select
+                          className="px-3 py-1 border-2 border-dashed border-gray-300 text-sm rounded-full"
+                          onChange={(e) => { addVoiceToPool(e.target.value); e.target.value = ""; }}
+                          value=""
+                        >
+                          <option value="" disabled>+ 添加音色</option>
+                          {pool.filter(v => !config.random_voices.includes(v.id)).map(v => (
+                            <option key={v.id} value={v.id}>{v.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </section>
           )}
 
@@ -258,6 +378,69 @@ export default function TTSConfigPage() {
                   value={config.voice_design_prompt}
                   onChange={(e) => setConfig({ ...config, voice_design_prompt: e.target.value })}
                 />
+              </div>
+              <div className="flex items-center gap-3 mt-4">
+                <input
+                  type="checkbox"
+                  id="optimize_text_preview"
+                  checked={config.optimize_text_preview || false}
+                  onChange={(e) => setConfig({ ...config, optimize_text_preview: e.target.checked })}
+                  className="rounded"
+                />
+                <label htmlFor="optimize_text_preview" className="text-sm font-medium text-gray-700">启用文本优化预览</label>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">启用后，系统会自动润色 assistant 文本</p>
+            </section>
+          )}
+
+          {config.model === "mimo-v2.5-tts-voiceclone" && (
+            <section className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold mb-4">音色克隆配置</h2>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                {config.voice_clone_sample_path ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-green-600">✓ 已上传音频样本</p>
+                    <p className="text-xs text-gray-500">{config.voice_clone_sample_path}</p>
+                    <button
+                      className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                      onClick={() => setConfig({ ...config, voice_clone_sample_path: null, voice_clone_mime_type: null })}
+                    >
+                      删除并重新上传
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600">点击上传音频样本</p>
+                    <p className="text-xs text-gray-500">支持 mp3/wav 格式，最大 10MB</p>
+                    <input
+                      type="file"
+                      accept=".mp3,.wav,audio/mpeg,audio/wav"
+                      className="hidden"
+                      id="voice-clone-upload"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const formData = new FormData();
+                        formData.append("file", file);
+                        try {
+                          const response = await fetch("/api/tts/voice-clone-sample", { method: "POST", body: formData });
+                          if (!response.ok) {
+                            const error = await response.json();
+                            alert(error.detail || "上传失败");
+                            return;
+                          }
+                          const data = await response.json();
+                          setConfig({ ...config, voice_clone_sample_path: data.path, voice_clone_mime_type: data.mime_type });
+                        } catch {
+                          alert("上传失败");
+                        }
+                      }}
+                    />
+                    <label htmlFor="voice-clone-upload" className="inline-block px-4 py-2 bg-blue-500 text-white rounded-lg cursor-pointer hover:bg-blue-600">
+                      选择文件
+                    </label>
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -462,9 +645,8 @@ export default function TTSConfigPage() {
                   value={config.audio_format}
                   onChange={(e) => setConfig({ ...config, audio_format: e.target.value })}
                 >
-                  <option value="mp3">mp3</option>
                   <option value="wav">wav</option>
-                  <option value="pcm">pcm</option>
+                  <option value="pcm16">pcm16</option>
                 </select>
               </div>
               <div>

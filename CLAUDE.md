@@ -18,14 +18,15 @@ SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
 
 ## 项目概述
 
-**滋元堂矩阵流水线 3.0** — Pixelle 风格的 `control-plane + runtime-worker` 短视频自动化生产系统。Phase 1 已完成架构骨架，76 测试全绿。
+**滋元堂矩阵流水线 3.0** — Pixelle 风格的 `control-plane + runtime-worker` 短视频自动化生产系统。Phase 1 已完成架构骨架。
 
 - 控制面：`apps/control_plane/`（FastAPI + Web 看板，负责状态管理、任务调度、人工审核）
 - 执行器：`apps/runtime_worker/`（拉模式 worker，通过 legacy bridge 调用旧核心能力）
 - 旧核心（仍被 bridge 引用）：`main_controller.py`（TTS/字幕/视频） + `kimi_two_stage_script.py`（脚本生成）
 - 目标平台：抖音、小红书、视频号、快手
-- 当前 LLM 提供商：DeepSeek `deepseek-v4-pro`
-- 当前 TTS 提供商：Xiaomi MiMo `mimo-v2.5-tts`，随机音色池 `Mia` / `Dean`
+- 默认 LLM 配置（见 `AppConfigManager.DEFAULTS`）：DeepSeek `deepseek-v4-pro`，`thinking=disabled`
+- 默认 TTS 配置（见 `AppConfigManager.DEFAULTS`）：Xiaomi MiMo，支持 4 种模型：`mimo-v2.5-tts`（预置音色）、`mimo-v2.5-tts-voicedesign`（音色设计）、`mimo-v2.5-tts-voiceclone`（音色克隆）、`mimo-v2-tts`（V2 预置），默认音色池 `Mia` / `Dean`
+- 默认 Vision 配置（见 `AppConfigManager.DEFAULTS`）：Xiaomi `mimo-v2.5`
 
 ## 技术栈
 
@@ -40,7 +41,7 @@ SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
 | 依赖管理 | uv（`pyproject.toml` + `uv.lock`） |
 | 媒体引擎 | FFmpeg / ffprobe / whisper-cli |
 | 排期汇聚 | openpyxl → `排期池.xlsx` |
-| 测试 | pytest + pytest-asyncio（76 测试） |
+| 测试 | pytest + pytest-asyncio |
 
 **跨平台**：借鉴 Pixelle-Video 兼容方式，业务链路一致，平台差异通过 `runtime_adapters` 收口。mac 开发和联调、Windows 生产执行，同一条流水线。
 
@@ -48,10 +49,26 @@ SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
 
 | 变量 | 说明 |
 |------|------|
-| `LLM_PROVIDER` | LLM 提供商：`deepseek` / `kimi` / `openai` |
-| `DEEPSEEK_API_KEY` | DeepSeek API Key |
-| `TTS_PROVIDER` | TTS 提供商：`mimo` / `minimax` |
-| `MIMO_API_KEY` | Xiaomi MiMo API Key |
+| `LLM_API_KEY` | 当前 LLM provider 的通用回退 key |
+| `TTS_API_KEY` | 当前 TTS provider 的通用回退 key |
+| `VISION_API_KEY` | 当前 Vision provider 的通用回退 key |
+| `DEEPSEEK_API_KEY` / `KIMI_API_KEY` | provider 专用 LLM key |
+| `MIMO_API_KEY` / `MINIMAX_API_KEY` | provider 专用 TTS key |
+| `MINIMAX_GROUP_ID` | MiniMax TTS 额外租户标识（legacy 代码仍直接读取） |
+| `XIAOMI_VISION_API_KEY` | Xiaomi Vision 专用 key |
+| `LLM_API_URL` / `TTS_API_URL` / `VISION_API_URL` | 通用 endpoint override |
+| `DEEPSEEK_API_URL` / `KIMI_API_URL` / `MIMO_API_BASE_URL` / `MINIMAX_TTS_URL` / `XIAOMI_VISION_API_URL` | provider 专用 endpoint override |
+| `VISION_MODEL` / `XIAOMI_VISION_MODEL` | Vision model override |
+
+## 配置系统架构
+
+- 运行时统一通过 `packages/provider_config/app_config.py` 中的 `AppConfigManager` 读取配置。
+- `get_llm_config()`、`get_tts_config()`、`get_vision_config()` 读取业务配置；`get_llm_api_key()`、`get_api_key(provider)`、`get_vision_api_key()` 读取 secret。
+- `config/app_config.json` 保存 provider、model、voice、thinking 等非 secret 业务配置，并与 `AppConfigManager.DEFAULTS` 深度合并。
+- `.env` 保存 API Key 与可选环境变量覆盖；优先级为 provider 专用环境变量 → 通用环境变量 → `config/app_config.json` / `DEFAULTS`。
+- 前端 `/api/config` 仍经 `apps/control_plane/routes/config.py` 调用 `packages/provider_config/store.py` 兼容 `providers.yaml`。
+- `load_provider_config()` 已 deprecated；`save_provider_config()` 保存时会把 secret 同步到 `.env`，把业务配置同步到 `config/app_config.json`。
+- 新代码读取配置时优先使用 `AppConfigManager`，不要把 `providers.yaml`、`tts_config.json` 或零散 `os.getenv(...)` 当作主入口。
 
 ## 关键命令
 
@@ -75,7 +92,7 @@ packaging\windows\start_worker.bat
 
 ### 测试
 ```bash
-uv run pytest tests/ -q          # 全量 76 测试
+uv run pytest tests/ -q          # 全量测试
 uv run pytest tests/ -q --tb=short
 ```
 
@@ -104,16 +121,18 @@ uv run --project . kimi_two_stage_script.py 羊肚菌 --interval-seconds 10
 │   ├── domain_core/                  # 领域模型、状态机、worker 协议
 │   ├── file_store/                   # 文件系统轻持久化
 │   ├── pipeline_services/            # 业务能力（bridge、检索、phase runner）
-│   ├── provider_config/             # LLM/TTS provider 配置与路由
+│   ├── provider_config/              # AppConfigManager + provider 配置桥接
 │   └── runtime_adapters/             # 平台适配（MacLocal / WindowsProd）
 │
 ├── config/
+│   ├── app_config.json               # 非 secret 业务配置（provider / model / voice / thinking）
+│   ├── providers.yaml                # 系统配置页兼容存储，保存时同步到 app_config.json / .env
 │   ├── defaults.yaml
 │   └── profiles/                     # mac-local.yaml / windows-prod.yaml
 │
 ├── packaging/windows/                # Windows 启动器
 │
-├── tests/                            # 9 个子目录，76 测试
+├── tests/                            # pytest 测试
 │
 ├── main_controller.py                # 旧核心（LegacyMediaBridge 仍在引用）
 ├── kimi_two_stage_script.py          # 旧脚本生成器（LegacyScriptBridge 仍在引用）
@@ -121,7 +140,7 @@ uv run --project . kimi_two_stage_script.py 羊肚菌 --interval-seconds 10
 │
 ├── pyproject.toml                    # uv 项目配置
 ├── uv.lock                           # uv 锁定依赖
-├── .env / .env.example               # 环境配置（API Key 仅放 .env）
+├── .env / .env.example               # 环境变量（secret + 可选 override）
 ├── dynamic_rules.txt                 # LLM 动态规则库
 ├── 爆款对标_人工投放.txt              # 人工维护的爆款对标上下文
 │
@@ -164,11 +183,12 @@ init → api_assets_done → video_base_done → srt_corrected → burn_complete
 - Phase 1 新系统不再沿用旧的 `001xxx` 目录结构，项目数据统一落在 `workspace/projects/{project_id}/`
 - 旧规则（`001见手青` 等旧项目已在清理中移除）
 
-## LLM 架构
-- 文本任务：DeepSeek `deepseek-v4-pro`（`thinking.type=disabled`）
-- TTS 任务：Xiaomi MiMo `mimo-v2.5-tts`（主）/ MiniMax `speech-2.8-hd`（备选）
-- 可按能力维度配置不同 provider：`SCRIPT_LLM_PROVIDER`、`PACKAGING_LLM_PROVIDER`、`CORRECTION_LLM_PROVIDER`
-- 支持 `deepseek`、`kimi`、`openai` 三个 provider
+## LLM / TTS / Vision 架构
+- 文本能力支持 `deepseek`、`kimi`、`openai`，默认值见 `AppConfigManager.DEFAULTS["llm"]`
+- TTS 能力支持 `mimo`、`minimax`，默认值见 `AppConfigManager.DEFAULTS["tts"]`
+- Vision 能力支持 `xiaomi`、`openai`、`claude` 兼容接口，默认值见 `AppConfigManager.DEFAULTS["vision"]`
+- 运行时优先通过 `get_llm_config()`、`get_tts_config()`、`get_vision_config()` 读取业务配置，通过 `get_llm_api_key()`、`get_api_key(provider)`、`get_vision_api_key()` 读取 secret
+- 旧的 `SCRIPT_LLM_PROVIDER`、`PACKAGING_LLM_PROVIDER`、`CORRECTION_LLM_PROVIDER` 仅属于 legacy fallback，不应作为新配置入口
 - 脚本生成：两段式（前半段 4 句 + 后半段 4 句），最多 3 次重试，失败后选最短稿特殊放行
 
 ## 脚本质检硬条件
@@ -180,9 +200,9 @@ init → api_assets_done → video_base_done → srt_corrected → burn_complete
 
 ## 重要约束
 
-- **API Key 安全**：只放本机 `.env`，不得写入代码、文档、报告或聊天
+- **API Key 安全**：secret 只放本机 `.env`，不得写入代码、文档、报告或聊天
 - **TTS 配额**：MiniMax 日额度有限，MiMo 需关注用量
-- **媒体路径**：ffmpeg/ffprobe/whisper 默认走 `tools/bin/`；Whisper 在 Windows 下对中文路径敏感
+- **媒体路径**：默认值以 `AppConfigManager.DEFAULTS` 与部署环境覆盖为准；Windows 可通过环境变量或 profile 覆盖。Whisper 在 Windows 下对中文路径敏感
 - **Python 版本**：需要 Python 3.11+（通过 `uv run` / `uv sync` 管理）
 - **平台**：Phase 1 架构已支持跨平台（mac 开发 + Windows 生产），平台差异收口在 `runtime_adapters` 层
 

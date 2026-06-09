@@ -20,10 +20,43 @@ class CreateJobRequest(BaseModel):
     manual_script: str = ""
     uploaded_audio_path: str = ""
     name: str = ""
+    skip_subtitle: bool = False
+    auto_approve: bool = False
+
+
+class BatchJobItem(BaseModel):
+    name: str = ""
+    manual_script: str = ""
+    skip_subtitle: bool = False
+
+
+class BatchCreateRequest(BaseModel):
+    product: str
+    platforms: list[str]
+    auto_approve: bool = False
+    jobs: list[BatchJobItem]
 
 
 class ReviewAction(BaseModel):
     review_gate: str
+
+
+def _make_job_response(record: JobRecord, display_index: str, platforms: list[str]) -> dict:
+    return {
+        "job_id": record.job_id,
+        "project_id": record.project_id,
+        "product": record.product,
+        "name": record.name or record.product,
+        "platforms": platforms,
+        "phase": record.phase,
+        "review_status": record.review_status,
+        "artifacts": [a.model_dump() for a in record.artifacts],
+        "manual_script": record.manual_script,
+        "uploaded_audio_path": record.uploaded_audio_path,
+        "skip_subtitle": record.skip_subtitle,
+        "auto_approve": record.auto_approve,
+        "display_index": display_index,
+    }
 
 
 @router.post("/api/projects/{project_id}/jobs")
@@ -37,7 +70,7 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         uploaded_audio_path=payload.uploaded_audio_path,
     )
     repo = FileStoreRepository(request.app.state.root_dir)
-    repo.save_job(project_id, JobRecord(
+    record = JobRecord(
         job_id=job_id,
         project_id=project_id,
         product=payload.product,
@@ -46,18 +79,55 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         review_status="none",
         manual_script=payload.manual_script,
         uploaded_audio_path=payload.uploaded_audio_path,
-    ))
+        skip_subtitle=payload.skip_subtitle,
+        auto_approve=payload.auto_approve,
+    )
+    repo.save_job(project_id, record)
+
+    # 计算 display_index：当前已有 job 数 + 1
+    existing_jobs = repo.list_jobs(project_id)
+    display_index = f"{len(existing_jobs):03d}"
+
+    return _make_job_response(record, display_index, payload.platforms)
+
+
+@router.post("/api/projects/{project_id}/jobs/batch")
+def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateRequest):
+    repo = FileStoreRepository(request.app.state.root_dir)
+    dispatcher = request.app.state.dispatcher
+    existing_count = len(repo.list_jobs(project_id))
+
+    results: list[dict] = []
+    for i, item in enumerate(payload.jobs):
+        job_id = f"job_{payload.product}_{uuid4().hex[:8]}"
+        dispatcher.enqueue_demo_job(
+            project_id,
+            job_id,
+            manual_script=item.manual_script,
+            uploaded_audio_path="",
+        )
+        record = JobRecord(
+            job_id=job_id,
+            project_id=project_id,
+            product=payload.product,
+            name=item.name or payload.product,
+            phase="queued",
+            review_status="none",
+            manual_script=item.manual_script,
+            uploaded_audio_path="",
+            skip_subtitle=item.skip_subtitle,
+            auto_approve=payload.auto_approve,
+        )
+        repo.save_job(project_id, record)
+        display_index = f"{existing_count + i + 1:03d}"
+        results.append(_make_job_response(record, display_index, payload.platforms))
+
     return {
-        "job_id": job_id,
-        "project_id": project_id,
         "product": payload.product,
-        "name": payload.name or payload.product,
         "platforms": payload.platforms,
-        "phase": "queued",
-        "review_status": "none",
-        "artifacts": [],
-        "manual_script": payload.manual_script,
-        "uploaded_audio_path": payload.uploaded_audio_path,
+        "auto_approve": payload.auto_approve,
+        "count": len(results),
+        "results": results,
     }
 
 

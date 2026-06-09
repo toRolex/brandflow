@@ -12,6 +12,173 @@ def _make_client(tmp_path: Path):
     return TestClient(create_app(tmp_path))
 
 
+# ── 单个 create_job ──────────────────────────────────────────────
+
+def test_create_job_persists_skip_subtitle(tmp_path: Path) -> None:
+    """单次 create_job 将 skip_subtitle=True 写入 JobRecord。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs", json={
+        "product": "test", "platforms": ["douyin"],
+        "skip_subtitle": True,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["skip_subtitle"] is True
+
+    # 从磁盘直接读 JobRecord 验证持久化
+    job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{data['job_id']}.json"
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["skip_subtitle"] is True
+
+
+def test_create_job_persists_auto_approve(tmp_path: Path) -> None:
+    """单次 create_job 将 auto_approve=True 写入 JobRecord。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs", json={
+        "product": "test", "platforms": ["douyin"],
+        "auto_approve": True,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["auto_approve"] is True
+
+    job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{data['job_id']}.json"
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["auto_approve"] is True
+
+
+def test_create_job_defaults_skip_subtitle_false(tmp_path: Path) -> None:
+    """未传 skip_subtitle 时默认值为 False。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs", json={
+        "product": "test", "platforms": ["douyin"],
+    })
+    assert resp.status_code == 200
+    assert resp.json()["skip_subtitle"] is False
+
+
+# ── 批量创建接口 ─────────────────────────────────────────────────
+
+def test_batch_create_jobs_basic(tmp_path: Path) -> None:
+    """批量创建 2 个 job，返回正确的 display_index。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs/batch", json={
+        "product": "荔枝菌",
+        "platforms": ["douyin", "xiaohongshu"],
+        "jobs": [
+            {"name": "第一条", "manual_script": "这是第一条文案"},
+            {"name": "第二条", "manual_script": "这是第二条文案"},
+        ],
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["product"] == "荔枝菌"
+    assert len(data["results"]) == 2
+
+    r1 = data["results"][0]
+    r2 = data["results"][1]
+    assert r1["display_index"] == "001"
+    assert r1["name"] == "第一条"
+    assert r1["product"] == "荔枝菌"
+    assert r1["phase"] == "queued"
+    assert r2["display_index"] == "002"
+    assert r2["name"] == "第二条"
+
+    # 每个 job 都能通过 GET /api/jobs/{job_id} 查回
+    for r in data["results"]:
+        detail = client.get(f"/api/jobs/{r['job_id']}")
+        assert detail.status_code == 200
+        assert detail.json()["product"] == "荔枝菌"
+
+
+def test_batch_create_jobs_display_index_offset(tmp_path: Path) -> None:
+    """批量创建时 display_index 从已有 job 数 + 1 开始。"""
+    client = _make_client(tmp_path)
+    # 先创建 2 个 job
+    client.post("/api/projects/prj_001/jobs", json={
+        "product": "test", "platforms": ["douyin"],
+    })
+    client.post("/api/projects/prj_001/jobs", json={
+        "product": "test", "platforms": ["douyin"],
+    })
+
+    resp = client.post("/api/projects/prj_001/jobs/batch", json={
+        "product": "荔枝菌",
+        "platforms": ["douyin"],
+        "jobs": [
+            {"name": "批量1"},
+            {"name": "批量2"},
+        ],
+    })
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert results[0]["display_index"] == "003"
+    assert results[1]["display_index"] == "004"
+
+
+def test_batch_create_jobs_per_job_skip_subtitle(tmp_path: Path) -> None:
+    """批量请求中 per-job 的 skip_subtitle 能持久化到磁盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs/batch", json={
+        "product": "荔枝菌",
+        "platforms": ["douyin"],
+        "jobs": [
+            {"name": "无字幕", "manual_script": "", "skip_subtitle": True},
+            {"name": "有字幕", "manual_script": "", "skip_subtitle": False},
+        ],
+    })
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert results[0]["skip_subtitle"] is True
+    assert results[1]["skip_subtitle"] is False
+
+    # 磁盘验证
+    for r in results:
+        job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{r['job_id']}.json"
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        if r["name"] == "无字幕":
+            assert raw["skip_subtitle"] is True
+        else:
+            assert raw["skip_subtitle"] is False
+
+
+def test_batch_create_jobs_top_level_auto_approve(tmp_path: Path) -> None:
+    """批量请求顶层 auto_approve=True 对所有 job 生效并落盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs/batch", json={
+        "product": "荔枝菌",
+        "platforms": ["douyin"],
+        "auto_approve": True,
+        "jobs": [
+            {"name": "自动审核1"},
+            {"name": "自动审核2"},
+        ],
+    })
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert len(results) == 2
+    for r in results:
+        assert r["auto_approve"] is True
+        job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{r['job_id']}.json"
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["auto_approve"] is True
+
+
+def test_batch_create_jobs_empty_list(tmp_path: Path) -> None:
+    """空 jobs 列表返回空 results，不算错误。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs/batch", json={
+        "product": "荔枝菌",
+        "platforms": ["douyin"],
+        "jobs": [],
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["results"] == []
+
+
+# ── 原有 delete job 测试 ─────────────────────────────────────────
+
 def test_delete_job_success(tmp_path: Path) -> None:
     client = _make_client(tmp_path)
     # Create a job first

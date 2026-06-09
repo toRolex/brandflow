@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +66,7 @@ class SpyScriptBridge:
 class SpyMediaBridge:
     def __init__(self) -> None:
         self.tts_calls: list[dict] = []
+        self.build_base_video_calls: list[dict] = []
 
     def synthesize_tts(self, script_text: str, output_path: Path) -> Path:
         self.tts_calls.append({"script_text": script_text, "output_path": str(output_path)})
@@ -75,6 +77,7 @@ class SpyMediaBridge:
         srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\n测试文案 stub\n", encoding="utf-8")
 
     def build_base_video(self, project_dir: Path, job_payload: dict[str, Any], output_path: Path) -> None:
+        self.build_base_video_calls.append({"project_dir": str(project_dir), "output_path": str(output_path)})
         output_path.write_bytes(b"\x00" * 256)
 
     def burn_final_video(
@@ -197,6 +200,62 @@ def test_worker_loop_reports_success_and_uploads_artifacts(tmp_path: Path) -> No
     assert api.reports[0]["status"] == "succeeded"
     assert api.reports[0]["attempt_id"] == "attempt-001"
     assert api.reports[0]["started_at"] <= api.reports[0]["finished_at"]
+
+
+def test_worker_loop_uses_shared_vertical_assembler_for_selected_clips(tmp_path: Path, monkeypatch) -> None:
+    clip_a = tmp_path / "clip_a.mp4"
+    clip_b = tmp_path / "clip_b.mp4"
+    clip_a.write_bytes(b"a")
+    clip_b.write_bytes(b"b")
+
+    class SemanticPathApi(StubApi):
+        def download_input_bundle(self, bundle_url: str) -> dict:
+            payload = super().download_input_bundle(bundle_url)
+            job_dir = tmp_path / "attempts" / "attempt-001" / "output"
+            job_dir.mkdir(parents=True, exist_ok=True)
+            (job_dir / "selected_clips.json").write_text(
+                json.dumps(
+                    [
+                        {"file_path": str(clip_a)},
+                        {"file_path": str(clip_b)},
+                    ],
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            return payload
+
+    api = SemanticPathApi()
+    spy_media = SpyMediaBridge()
+    captured: dict[str, object] = {}
+
+    def fake_assemble_vertical_base_video(**kwargs):
+        captured.update(kwargs)
+        Path(kwargs["output_path"]).write_bytes(b"base-video")
+
+    monkeypatch.setattr(
+        "apps.runtime_worker.loop.assemble_vertical_base_video",
+        fake_assemble_vertical_base_video,
+        raising=False,
+    )
+
+    loop = WorkerLoop(
+        api=api,
+        worker_id="worker-mac",
+        workspace_root=tmp_path,
+        script_bridge=StubScriptBridge(),
+        media_bridge=spy_media,
+        schedule_bridge=StubScheduleBridge(),
+    )
+    monkeypatch.setattr(loop.adapter, "ensure_tools", lambda: None)
+    monkeypatch.setattr(loop.adapter, "attempt_root", lambda workspace_root, attempt_id: workspace_root / "attempts" / attempt_id)
+
+    loop.run_once()
+
+    assert captured["clip_paths"] == [clip_a, clip_b]
+    assert "crop=iw*" not in str(captured["recipe_filter"])
+    assert "scale=iw:ih" not in str(captured["recipe_filter"])
+    assert len(spy_media.build_base_video_calls) == 0
 
 
 def test_worker_loop_skips_llm_when_manual_script_provided(tmp_path: Path) -> None:

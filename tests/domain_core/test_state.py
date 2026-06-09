@@ -19,6 +19,26 @@ def test_rewind_from_phase_discards_downstream_phases() -> None:
     ]
 
 
+def test_job_record_defaults_skip_subtitle_and_auto_approve_to_false() -> None:
+    record = JobRecord(job_id="job-1", phase="queued", review_status="none")
+
+    assert record.skip_subtitle is False
+    assert record.auto_approve is False
+
+
+def test_job_record_preserves_explicit_skip_subtitle_and_auto_approve() -> None:
+    record = JobRecord(
+        job_id="job-1",
+        phase="queued",
+        review_status="none",
+        skip_subtitle=True,
+        auto_approve=True,
+    )
+
+    assert record.skip_subtitle is True
+    assert record.auto_approve is True
+
+
 def test_job_record_serializes_review_state() -> None:
     record = JobRecord(job_id="job-1", phase="queued", review_status="none")
     assert record.model_dump()["phase"] == "queued"
