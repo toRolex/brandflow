@@ -213,8 +213,20 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
         base_path = job_dir / "base.mp4"
         audio_path = job_dir / "audio.mp3"
         srt_path = job_dir / "subtitles.srt"
-        if base_path.exists() and audio_path.exists() and srt_path.exists():
-            media_bridge.burn_final_video(base_path, audio_path, srt_path, final_path, cover_clip_path=None)
+        job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
+        skip_subtitle = False
+        if job_json_path.exists():
+            job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
+            skip_subtitle = job_data.get("skip_subtitle", False)
+        actual_srt_path = None if skip_subtitle else srt_path
+        if base_path.exists() and audio_path.exists() and (skip_subtitle or srt_path.exists()):
+            media_bridge.burn_final_video(
+                base_path,
+                audio_path,
+                actual_srt_path,
+                final_path,
+                cover_clip_path=None,
+            )
         if final_path.exists():
             rel = _to_url_path(final_path, workspace_dir)
             result.append({"kind": "final_video", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": final_path.stat().st_size})
@@ -256,6 +268,15 @@ async def _auto_tick(root_dir: Path):
                             continue
                         # Skip review gates that are already pending approval (not yet approved)
                         if current in REVIEW_PHASES and data.get("review_status") not in ("approved",):
+                            if data.get("auto_approve", False):
+                                try:
+                                    data["phase"] = next_phase(current)
+                                except ValueError:
+                                    data["phase"] = "completed"
+                                data["review_status"] = "approved"
+                                f.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                                print(f"[AUTO-TICK] {job_id}: auto_approved {current} -> {data['phase']}")
+                                continue
                             continue
 
                         # Process the current phase, then advance if artifacts are produced
@@ -264,6 +285,12 @@ async def _auto_tick(root_dir: Path):
                             target = "script_generating"
                         else:
                             target = current
+
+                        if current == "subtitle_generating" and data.get("skip_subtitle", False):
+                            data["phase"] = next_phase("subtitle_generating")
+                            f.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                            print(f"[AUTO-TICK] {job_id}: skip subtitle_generating -> {data['phase']}")
+                            continue
 
                         # Execute real pipeline for the target phase
                         product = data.get("product", os.environ.get("PRODUCT", "荔枝菌"))
