@@ -68,19 +68,30 @@ class FileStoreRepository:
         if not jobs_root.exists():
             return []
         results: list[dict[str, Any]] = []
-        for f in sorted(jobs_root.iterdir()):
-            if f.is_file() and f.suffix == ".json":
-                try:
-                    record = JobRecord.model_validate_json(f.read_text(encoding="utf-8"))
-                    results.append({
-                        "job_id": record.job_id,
-                        "product": record.product,
-                        "phase": record.phase,
-                        "review_status": record.review_status,
-                        "artifacts": [a.model_dump() for a in record.artifacts],
-                    })
-                except Exception:
-                    results.append({"job_id": f.stem, "phase": "unknown", "review_status": "unknown"})
+        files = sorted(
+            [f for f in jobs_root.iterdir() if f.is_file() and f.suffix == ".json"],
+            key=lambda f: f.stat().st_mtime,
+        )
+        for idx, f in enumerate(files, start=1):
+            display_index = f"{idx:03d}"
+            try:
+                record = JobRecord.model_validate_json(f.read_text(encoding="utf-8"))
+                results.append({
+                    "job_id": record.job_id,
+                    "product": record.product,
+                    "phase": record.phase,
+                    "review_status": record.review_status,
+                    "artifacts": [a.model_dump() for a in record.artifacts],
+                    "display_index": display_index,
+                    "name": record.name,
+                    "skip_subtitle": record.skip_subtitle,
+                    "auto_approve": record.auto_approve,
+                })
+            except Exception:
+                results.append({
+                    "job_id": f.stem, "phase": "unknown", "review_status": "unknown",
+                    "display_index": display_index,
+                })
         return results
 
     def list_assets(self, project_id: str) -> list[dict[str, Any]]:
