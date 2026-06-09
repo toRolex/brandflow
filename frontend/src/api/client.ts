@@ -163,8 +163,14 @@ export const api = {
     ),
 
   // Jobs
-  createJob: (projectId: string, body: { product: string; platforms: string[]; name?: string; manual_script?: string }) =>
+  createJob: (projectId: string, body: { product: string; platforms: string[]; name?: string; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  batchCreateJobs: (projectId: string, body: import("../types").BatchCreateRequest) =>
+    request<import("../types").BatchCreateResponse>(`/api/projects/${projectId}/jobs/batch`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
