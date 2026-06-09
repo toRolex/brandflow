@@ -50,6 +50,37 @@ def test_save_and_load_job_record(tmp_path: Path) -> None:
         ).read_text(encoding="utf-8")
     )
     assert raw["job_id"] == "job-1"
+    assert raw["skip_subtitle"] is False
+    assert raw["auto_approve"] is False
+
+
+def test_save_and_load_job_record_preserves_true_flags(tmp_path: Path) -> None:
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+    record = JobRecord(
+        job_id="job-1",
+        phase="queued",
+        review_status="none",
+        skip_subtitle=True,
+        auto_approve=True,
+    )
+
+    repo.save_job("project-001", record)
+
+    raw = json.loads(
+        (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "project-001"
+            / "control"
+            / "jobs"
+            / "job-1.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert raw["skip_subtitle"] is True
+    assert raw["auto_approve"] is True
+    assert repo.load_job("project-001", "job-1") == record
 
 
 def test_append_review_event(tmp_path: Path) -> None:
@@ -96,3 +127,94 @@ def test_delete_job_not_found_returns_false(tmp_path: Path) -> None:
     repo.create_project("prj_001")
     result = repo.delete_job("prj_001", "nonexistent")
     assert result is False
+
+
+# ——— list_jobs 排序与 display_index ———
+
+
+def test_list_jobs_empty_project_returns_empty_list(tmp_path: Path) -> None:
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+
+    result = repo.list_jobs("project-001")
+
+    assert result == []
+
+
+def test_list_jobs_returns_sorted_by_mtime_with_display_index(tmp_path: Path) -> None:
+    """按 mtime 升序返回，并分配 001/002 三位数 display_index。"""
+    import time
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+
+    # 先创建 job_b，再创建 job_a，让 job_a 的 mtime 更大
+    record_b = JobRecord(job_id="job_b", phase="queued", review_status="none",
+                         name="Beta", skip_subtitle=True, auto_approve=False)
+    repo.save_job("project-001", record_b)
+    time.sleep(0.05)  # 确保 mtime 有差异
+    record_a = JobRecord(job_id="job_a", phase="queued", review_status="none",
+                         name="Alpha", skip_subtitle=False, auto_approve=True)
+    repo.save_job("project-001", record_a)
+
+    result = repo.list_jobs("project-001")
+
+    # mtime 升序：job_b 先，job_a 后
+    assert len(result) == 2
+    assert result[0]["job_id"] == "job_b"
+    assert result[0]["display_index"] == "001"
+    assert result[0]["name"] == "Beta"
+    assert result[0]["skip_subtitle"] is True
+    assert result[0]["auto_approve"] is False
+
+    assert result[1]["job_id"] == "job_a"
+    assert result[1]["display_index"] == "002"
+    assert result[1]["name"] == "Alpha"
+    assert result[1]["skip_subtitle"] is False
+    assert result[1]["auto_approve"] is True
+
+
+def test_list_jobs_name_skip_subtitle_auto_approve_from_record(tmp_path: Path) -> None:
+    """验证 name/skip_subtitle/auto_approve 从 JobRecord 正确带出。"""
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+
+    record = JobRecord(job_id="job-1", phase="queued", review_status="none",
+                       name="测试项目", skip_subtitle=True, auto_approve=True)
+    repo.save_job("project-001", record)
+
+    result = repo.list_jobs("project-001")
+
+    assert len(result) == 1
+    assert result[0]["display_index"] == "001"
+    assert result[0]["name"] == "测试项目"
+    assert result[0]["skip_subtitle"] is True
+    assert result[0]["auto_approve"] is True
+
+
+def test_list_jobs_bad_json_still_gets_display_index(tmp_path: Path) -> None:
+    """解析失败的兜底记录也带 display_index。"""
+    import time
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+
+    # 正常 job
+    record = JobRecord(job_id="job_good", phase="queued", review_status="none")
+    repo.save_job("project-001", record)
+    time.sleep(0.05)
+
+    # 写入一个坏 json 文件
+    jobs_dir = tmp_path / "workspace" / "projects" / "project-001" / "control" / "jobs"
+    bad_path = jobs_dir / "job_bad.json"
+    bad_path.write_text("this is not valid json", encoding="utf-8")
+
+    result = repo.list_jobs("project-001")
+
+    assert len(result) == 2
+    # mtime 升序：先 good，再 bad
+    assert result[0]["job_id"] == "job_good"
+    assert result[0]["display_index"] == "001"
+
+    assert result[1]["job_id"] == "job_bad"
+    assert "display_index" in result[1]
+    # 兜底 display_index 可任意值，这里只验证它存在
+    assert result[1]["phase"] == "unknown"
