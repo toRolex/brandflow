@@ -5,28 +5,34 @@ https://github.com/toRolex/ai-video-pipeline
 
 windows服务器项目路径：进入"C:\Users\ziyua\Documents\Code\ai-video-pipeline"文件夹
 
+## 项目上下文维护
+
+**每次提交 git 前，必须检查并更新 `CLAUDE.md` 和 `README.md`，确保它们反映最新的项目状态。** 具体包括：
+- 新增/移除的功能、API 端点、配置项
+- 状态机或流程变更
+- 依赖或技术栈变更
+- 目录结构变更
+
 ## 远程连接（sshpass）
 
-- 需要连接远程服务器时，统一使用 `sshpass` 的非交互命令模式。
-- 优先使用环境变量传递密码（`SSHPASS` + `-e`），避免在命令参数里明文使用 `-p`。
-- 远程连接模板示例（优先用WSL而不是Powershell或者cmd）：
 ```bash
-SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 zyt@100.121.152.103 "cmd /c \"cd /d C:\Users\ziyua\Documents\Code\ai-video-pipeline && cd && dir\""
+SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 zyt@100.121.152.103 "cmd /c \"cd /d C:\Users\ziyua\Documents\Code\ai-video-pipeline && <命令>\""
 ```
 
-- 默认只执行只读命令（如 `pwd`、`ls`、`cat`）；涉及修改系统配置、重启服务、删除文件等高风险操作前必须先确认。
+- 优先用 WSL，优先用环境变量传密码（`SSHPASS` + `-e`）
+- 默认只执行只读命令；高风险操作（修改配置、重启、删除）前必须先确认
 
 ## 项目概述
 
-**滋元堂矩阵流水线 3.0** — Pixelle 风格的 `control-plane + runtime-worker` 短视频自动化生产系统。Phase 1 已完成架构骨架。
+**滋元堂矩阵流水线 3.0** — `control-plane + runtime-worker` 短视频自动化生产系统。
 
-- 控制面：`apps/control_plane/`（FastAPI + Web 看板，负责状态管理、任务调度、人工审核）
-- 执行器：`apps/runtime_worker/`（拉模式 worker，通过 legacy bridge 调用旧核心能力）
-- 旧核心（仍被 bridge 引用）：`main_controller.py`（TTS/字幕/视频） + `kimi_two_stage_script.py`（脚本生成）
+- 控制面：`apps/control_plane/`（FastAPI + Web 看板，任务调度、审核）
+- 执行器：`apps/runtime_worker/`（拉模式 worker，通过 legacy bridge 调用旧核心）
+- 旧核心（仍在调用）：`main_controller.py`（TTS/字幕/视频） + `kimi_two_stage_script.py`（脚本生成）
 - 目标平台：抖音、小红书、视频号、快手
-- 默认 LLM 配置（见 `AppConfigManager.DEFAULTS`）：DeepSeek `deepseek-v4-pro`，`thinking=disabled`
-- 默认 TTS 配置（见 `AppConfigManager.DEFAULTS`）：Xiaomi MiMo，支持 4 种模型：`mimo-v2.5-tts`（预置音色）、`mimo-v2.5-tts-voicedesign`（音色设计）、`mimo-v2.5-tts-voiceclone`（音色克隆）、`mimo-v2-tts`（V2 预置），默认音色池 `Mia` / `Dean`
-- 默认 Vision 配置（见 `AppConfigManager.DEFAULTS`）：Xiaomi `mimo-v2.5`
+- 默认 LLM：DeepSeek `deepseek-v4-pro`
+- 默认 TTS：Xiaomi MiMo（4 种模型，详见下方「LLM / TTS / Vision 架构」）
+- 默认 Vision：Xiaomi `mimo-v2.5`
 
 ## 技术栈
 
@@ -37,38 +43,41 @@ SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
 | 前端框架 | React 19 + TypeScript 5.7 + Tailwind CSS v4 |
 | 前端构建 | Vite 6（react + tailwind 插件） |
 | 数据模型 | Pydantic v2 |
-| 数据持久化 | 文件系统 JSON（FileStore）+ SQLite（排期） |
+| 数据持久化 | 文件系统 JSON（FileStore）+ SQLite（排期 + 素材管理） |
 | 依赖管理 | uv（`pyproject.toml` + `uv.lock`） |
-| 媒体引擎 | FFmpeg / ffprobe / whisper-cli |
+| 媒体引擎 | FFmpeg / ffprobe / whisper-cli（whisper 仅旧核心使用） |
 | 排期汇聚 | openpyxl → `排期池.xlsx` |
-| 测试 | pytest + pytest-asyncio |
+| 测试 | pytest（pytest-asyncio 已安装但当前测试均为同步函数） |
 
 **跨平台**：借鉴 Pixelle-Video 兼容方式，业务链路一致，平台差异通过 `runtime_adapters` 收口。mac 开发和联调、Windows 生产执行，同一条流水线。
 
-## 核心环境变量
+## 配置
 
-| 变量 | 说明 |
-|------|------|
-| `LLM_API_KEY` | 当前 LLM provider 的通用回退 key |
-| `TTS_API_KEY` | 当前 TTS provider 的通用回退 key |
-| `VISION_API_KEY` | 当前 Vision provider 的通用回退 key |
-| `DEEPSEEK_API_KEY` / `KIMI_API_KEY` | provider 专用 LLM key |
-| `MIMO_API_KEY` / `MINIMAX_API_KEY` | provider 专用 TTS key |
-| `MINIMAX_GROUP_ID` | MiniMax TTS 额外租户标识（legacy 代码仍直接读取） |
-| `XIAOMI_VISION_API_KEY` | Xiaomi Vision 专用 key |
-| `LLM_API_URL` / `TTS_API_URL` / `VISION_API_URL` | 通用 endpoint override |
-| `DEEPSEEK_API_URL` / `KIMI_API_URL` / `MIMO_API_BASE_URL` / `MINIMAX_TTS_URL` / `XIAOMI_VISION_API_URL` | provider 专用 endpoint override |
-| `VISION_MODEL` / `XIAOMI_VISION_MODEL` | Vision model override |
+- 运行时统一通过 `AppConfigManager`（`packages/provider_config/app_config.py`）读取配置
+- `get_llm_config()` / `get_tts_config()` / `get_vision_config()` 读取业务配置
+- `get_llm_api_key()` / `get_api_key(provider)` / `get_vision_api_key()` 读取 secret
+- `get_llm_endpoint()` / `get_api_base_url(provider)` / `get_vision_endpoint()` 读取 endpoint override
 
-## 配置系统架构
+**环境变量（`.env`）— API Key 优先级：** provider 专用 → 通用回退 → `config/app_config.json` / `DEFAULTS`
 
-- 运行时统一通过 `packages/provider_config/app_config.py` 中的 `AppConfigManager` 读取配置。
-- `get_llm_config()`、`get_tts_config()`、`get_vision_config()` 读取业务配置；`get_llm_api_key()`、`get_api_key(provider)`、`get_vision_api_key()` 读取 secret。
-- `config/app_config.json` 保存 provider、model、voice、thinking 等非 secret 业务配置，并与 `AppConfigManager.DEFAULTS` 深度合并。
-- `.env` 保存 API Key 与可选环境变量覆盖；优先级为 provider 专用环境变量 → 通用环境变量 → `config/app_config.json` / `DEFAULTS`。
-- 前端 `/api/config` 仍经 `apps/control_plane/routes/config.py` 调用 `packages/provider_config/store.py` 兼容 `providers.yaml`。
-- `load_provider_config()` 已 deprecated；`save_provider_config()` 保存时会把 secret 同步到 `.env`，把业务配置同步到 `config/app_config.json`。
-- 新代码读取配置时优先使用 `AppConfigManager`，不要把 `providers.yaml`、`tts_config.json` 或零散 `os.getenv(...)` 当作主入口。
+| provider | 专用 Key | 通用回退 | 专用 Endpoint | 通用回退 |
+|----------|----------|----------|---------------|----------|
+| deepseek | `DEEPSEEK_API_KEY` | `LLM_API_KEY` | `DEEPSEEK_API_URL` | `LLM_API_URL` |
+| kimi | `KIMI_API_KEY` | `LLM_API_KEY` | `KIMI_API_URL` | `LLM_API_URL` |
+| mimo | `MIMO_API_KEY` | `TTS_API_KEY` | `MIMO_API_BASE_URL` | `TTS_API_URL` |
+| minimax | `MINIMAX_API_KEY` | `TTS_API_KEY` | `MINIMAX_TTS_URL` | `TTS_API_URL` |
+| xiaomi | `XIAOMI_VISION_API_KEY` | `VISION_API_KEY` | `XIAOMI_VISION_API_URL` | `VISION_API_URL` |
+
+**额外环境变量：** `VISION_MODEL` / `XIAOMI_VISION_MODEL`（Vision model override）、`MINIMAX_GROUP_ID`（MiniMax 租户标识）
+
+**Legacy 变量（未被 AppConfigManager 管理，仅在旧代码中直接 `os.getenv`）：**
+- `OPENAI_API_KEY` / `OPENAI_API_URL`（`main_controller.py` L773-774）
+- `VISION_PROVIDER`（`vision_client.py` L26）
+- `EMBEDDING_API_URL` / `EMBEDDING_API_KEY` / `EMBEDDING_MODEL`（`retrieval_embedding.py` L48-50）
+
+**`load_provider_config()` 已 deprecated**，但前端配置路由（`routes/config.py`）和 `save_provider_config()` 仍在调用，属于半迁移状态。新代码必须用 `AppConfigManager`。
+
+**`config/app_config.json`** 保存非 secret 业务配置（provider / model / voice / thinking），与 `DEFAULTS` 深度合并。`providers.yaml` 是前端系统配置页兼容存储，保存时同步到 `app_config.json` 和 `.env`。
 
 ## 关键命令
 
@@ -102,6 +111,17 @@ uv run pytest tests/ -q --tb=short
 uv run --project . kimi_two_stage_script.py 见手青 --mock
 uv run --project . kimi_two_stage_script.py 羊肚菌 --interval-seconds 10
 ```
+
+## API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/projects/{id}/jobs` | POST | 创建单个 Job |
+| `/api/projects/{id}/jobs/batch` | POST | 批量创建 Job（`BatchCreateRequest`：product、platforms、auto_approve、jobs 列表） |
+| `/api/tts/voice-clone-sample` | POST | 上传音色克隆音频样本（mp3/wav，上限 10MB），自动更新 TTSConfig |
+| `/api/tts/preview` | POST | TTS 预览（支持 voicedesign + optimize_text_preview + voiceclone） |
+| `/workers/poll` | POST | Worker 轮询取任务 |
+| `/workers/tasks/{id}/report` | POST | Worker 上报执行结果 |
 
 ## 目录结构
 
@@ -155,16 +175,20 @@ uv run --project . kimi_two_stage_script.py 羊肚菌 --interval-seconds 10
 
 **Job 主状态 `phase`：**
 ```
-queued → script_generating → script_review → tts_generating → subtitle_generating
+queued → script_generating → script_review → tts_generating → tts_review → subtitle_generating
 → asset_retrieving → asset_review → video_rendering → final_review
-→ schedule_writing → completed
+→ completed
 ```
 
 异常出口：`failed` / `cancelled` / `paused`
 
 **审核状态 `review_status`：** `none` → `pending` → `approved` / `rejected` / `overridden`
 
-**第一阶段固定 3 个审核门：** `script_review` / `asset_review` / `final_review`
+**第一阶段固定 4 个审核门：** `script_review` / `tts_review` / `asset_review` / `final_review`
+
+**JobRecord 关键字段：**
+- `skip_subtitle: bool = False` — 设为 True 时，`auto_tick` 跳过 `subtitle_generating` 阶段，最终视频不烧录字幕
+- `auto_approve: bool = False` — 设为 True 时，`auto_tick` 自动审核通过所有 review gate，无需人工确认
 
 ### 控制面与 Worker 协议
 
@@ -174,10 +198,30 @@ queued → script_generating → script_review → tts_generating → subtitle_g
 - **Stale 保护**：`choose_report_outcome()` 拒绝过期 attempt/lease 的 report
 - **状态真相**：control-plane 是唯一状态写入者，worker 只做副作用
 
+### auto_tick 自动推进
+
+- 控制面通过 `_auto_tick` 后台循环（默认 `DEV_AUTO_TICK=1`，间隔 3 秒）自动推进 job phase
+- `skip_subtitle=True` 时，字幕阶段直接跳到下一阶段
+- `auto_approve=True` 时，所有 review gate 自动设 `review_status=approved` 并推进
+- `list_jobs` 按文件 mtime 排序，返回 `display_index`（格式如 `001`、`002`）
+- 可通过环境变量 `DEV_AUTO_TICK=0` 关闭
+
 ### 旧 TaskState（main_controller.py，legacy bridge 仍引用）
 ```
 init → api_assets_done → video_base_done → srt_corrected → burn_completed
 ```
+
+## 前端智能素材库筛选
+
+智能素材库（`SmartAssetLibrary.tsx`）支持多维度前端内存筛选：
+
+- **分类**（dropdown）、**状态**（dropdown：可用/已禁用/待审核）
+- **时长**（双端滑块，动态范围从数据计算）
+- **关键词**（file_path / tags 子串匹配）
+- **置信度**（min/max 数字输入，0-1，步长 0.1，折叠面板）
+- **使用次数**（min/max 整数输入，折叠面板）
+
+筛选类型定义在 `frontend/src/types/index.ts` 的 `AssetFilters` 接口。所有筛选为纯前端过滤，AND 逻辑组合。
 
 ## 项目命名规则
 - Phase 1 新系统不再沿用旧的 `001xxx` 目录结构，项目数据统一落在 `workspace/projects/{project_id}/`
@@ -186,6 +230,9 @@ init → api_assets_done → video_base_done → srt_corrected → burn_complete
 ## LLM / TTS / Vision 架构
 - 文本能力支持 `deepseek`、`kimi`、`openai`，默认值见 `AppConfigManager.DEFAULTS["llm"]`
 - TTS 能力支持 `mimo`、`minimax`，默认值见 `AppConfigManager.DEFAULTS["tts"]`
+- TTS 模型支持 4 种模式：`mimo-v2.5-tts`（预置音色）、`mimo-v2.5-tts-voicedesign`（音色设计）、`mimo-v2.5-tts-voiceclone`（音色克隆）、`mimo-v2-tts`（V2 预置），默认音色池 `Mia` / `Dean`
+- TTS 配置新增字段：`voice_clone_sample_path`（克隆样本路径）、`voice_clone_mime_type`（样本 MIME）、`optimize_text_preview`（voicedesign 文本优化预览，默认 `False`）
+- TTS 音频格式默认值为 `wav`
 - Vision 能力支持 `xiaomi`、`openai`、`claude` 兼容接口，默认值见 `AppConfigManager.DEFAULTS["vision"]`
 - 运行时优先通过 `get_llm_config()`、`get_tts_config()`、`get_vision_config()` 读取业务配置，通过 `get_llm_api_key()`、`get_api_key(provider)`、`get_vision_api_key()` 读取 secret
 - 旧的 `SCRIPT_LLM_PROVIDER`、`PACKAGING_LLM_PROVIDER`、`CORRECTION_LLM_PROVIDER` 仅属于 legacy fallback，不应作为新配置入口
@@ -206,43 +253,14 @@ init → api_assets_done → video_base_done → srt_corrected → burn_complete
 - **Python 版本**：需要 Python 3.11+（通过 `uv run` / `uv sync` 管理）
 - **平台**：Phase 1 架构已支持跨平台（mac 开发 + Windows 生产），平台差异收口在 `runtime_adapters` 层
 
-## 关键常量（main_controller.py）
-
-| 常量 | 值 | 含义 |
-|------|---|------|
-| `DEFAULT_BATCH_SIZE` | 10 | 默认批次大小 |
-| `TARGET_FINAL_VIDEO_MIN_SECONDS` | 35 | 目标视频最短时长 |
-| `TARGET_FINAL_VIDEO_MAX_SECONDS` | 45 | 目标视频最长时长 |
-| `MIN_VIDEO_SCRIPT_CHARS` | 150 | 脚本最短字数 |
-| `MAX_VIDEO_SCRIPT_CHARS` | 200 | 脚本最长字数 |
-| `MIN_REQUIRED_SOURCE_SECONDS` | 300 | 原素材累计最小时长 |
-| `CLIP_DURATION_SECONDS` | 5 | 单切片时长 |
-| `CLIPS_PER_GROUP` | 5 | 每组切片数 |
-| `SLICE_GROUP_COUNT` | 9 | 切片组数 |
-| `MAX_CLIP_REUSE` | 2 | 单一切片最大复用次数 |
-| `SCRIPT_GENERATION_MAX_ATTEMPTS` | 3 | 脚本最大重试次数 |
-| `MEDIA_MAX_RETRY` | 3 | 媒体操作最大重试 |
-
 ## 模块化计划
 
-~~当前单体文件 `main_controller.py` 约 199KB，计划拆分为：~~  **已完成（Phase 1）。**
+**Phase 1 架构拆分已完成，但旧核心文件仍被 LegacyBridge 引用，尚未替换完毕。**
 
-Phase 1 已将架构拆分为 `control-plane + runtime-worker + shared-core`：
-
-```
-apps/                              # 双应用
-├── control_plane/                 # FastAPI + Web + 任务调度 + 人工审核
-└── runtime_worker/                # 拉模式 worker（poll → execute → report）
-
-packages/                          # 共享核心
-├── domain_core/                   # 领域模型 + 状态机 + worker 协议
-├── file_store/                    # 文件系统轻持久化
-├── pipeline_services/             # 业务能力 + legacy bridge
-├── provider_config/               # LLM/TTS provider 配置与路由
-└── runtime_adapters/              # 平台适配（mac / Windows）
-```
-
-旧核心文件 (`main_controller.py` + `kimi_two_stage_script.py`) 通过 `Legacy*Bridge` 过渡桥接，后续 Phase 将逐步替换为独立 service。
+当前状态：
+- `main_controller.py`（TTS/字幕/视频）仍被 `LegacyMediaBridge` 调用
+- `kimi_two_stage_script.py`（脚本生成）仍被 `LegacyScriptBridge` 调用
+- 下一阶段目标：将 LegacyBridge 调用逐步替换为独立 service，彻底移除旧核心文件
 
 <!-- superpowers-zh:begin (do not edit between these markers) -->
 # Superpowers-ZH 中文增强版

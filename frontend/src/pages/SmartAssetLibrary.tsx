@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { AssetCategory, AssetRecord, AssetStats, IndexStatus } from "../types";
+import type { AssetCategory, AssetFilters, AssetRecord, AssetStats, IndexStatus } from "../types";
 import AssetGrid from "../components/AssetGrid";
 import AssetPreviewPanel from "../components/AssetPreviewPanel";
 import AssetUploadZone from "../components/AssetUploadZone";
@@ -20,6 +20,26 @@ const CATEGORIES = [
   "产品特写",
 ] as const;
 
+const STATUS_OPTIONS = ["available", "disabled", "pending_review"] as const;
+
+const STATUS_LABELS: Record<string, string> = {
+  available: "可用",
+  disabled: "已禁用",
+  pending_review: "待审核",
+};
+
+const DEFAULT_FILTERS: AssetFilters = {
+  category: "",
+  status: "",
+  keyword: "",
+  durationMin: 0,
+  durationMax: 0,
+  confidenceMin: 0,
+  confidenceMax: 1,
+  usageMin: 0,
+  usageMax: 0,
+};
+
 interface Props {
   projectId: string;
 }
@@ -34,8 +54,8 @@ const DEFAULT_STATS: AssetStats = {
 export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [stats, setStats] = useState<AssetStats>(DEFAULT_STATS);
-  const [category, setCategory] = useState("");
-  const [keyword, setKeyword] = useState("");
+  const [filters, setFilters] = useState<AssetFilters>(DEFAULT_FILTERS);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewAsset, setPreviewAsset] = useState<AssetRecord | null>(null);
 
@@ -69,24 +89,69 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
     return counts;
   }, [assets]);
 
+  const durationRange = useMemo(() => {
+    if (assets.length === 0) return { min: 0, max: 0 };
+    const durations = assets.map((a) => a.duration_seconds);
+    return {
+      min: Math.floor(Math.min(...durations) * 10) / 10,
+      max: Math.ceil(Math.max(...durations) * 10) / 10,
+    };
+  }, [assets]);
+
+  const usageRange = useMemo(() => {
+    if (assets.length === 0) return { min: 0, max: 0 };
+    const counts = assets.map((a) => a.usage_count);
+    return { min: Math.min(...counts), max: Math.max(...counts) };
+  }, [assets]);
+
   const filteredAssets = useMemo(() => {
-    const keywordLower = keyword.trim().toLowerCase();
+    const keywordLower = filters.keyword.trim().toLowerCase();
 
     return assets.filter((asset) => {
-      if (category && asset.category !== category) {
+      if (filters.category && asset.category !== filters.category) {
         return false;
       }
 
-      if (!keywordLower) {
-        return true;
+      if (filters.status && asset.status !== filters.status) {
+        return false;
       }
 
-      return [asset.file_path, asset.tags]
-        .join(" ")
-        .toLowerCase()
-        .includes(keywordLower);
+      if (keywordLower) {
+        const haystack = [asset.file_path, asset.tags]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(keywordLower)) {
+          return false;
+        }
+      }
+
+      if (filters.durationMax > 0 && asset.duration_seconds > filters.durationMax) {
+        return false;
+      }
+
+      if (asset.duration_seconds < filters.durationMin) {
+        return false;
+      }
+
+      if (asset.confidence < filters.confidenceMin) {
+        return false;
+      }
+
+      if (asset.confidence > filters.confidenceMax) {
+        return false;
+      }
+
+      if (filters.usageMax > 0 && asset.usage_count > filters.usageMax) {
+        return false;
+      }
+
+      if (asset.usage_count < filters.usageMin) {
+        return false;
+      }
+
+      return true;
     });
-  }, [assets, category, keyword]);
+  }, [assets, filters]);
 
   const toggleSelect = useCallback((assetId: string) => {
     setSelectedIds((prev) => {
@@ -352,26 +417,172 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
         />
       )}
 
-      <div className="flex gap-2 items-center">
-        <select
-          className="border rounded-md px-3 py-2 text-sm bg-white"
-          value={category}
-          onChange={(event) => setCategory(event.target.value)}
-        >
-          <option value="">全部分类 ({stats.total})</option>
-          {CATEGORIES.map((item) => (
-            <option key={item} value={item}>
-              {item} ({categoryCounts.get(item) || 0})
-            </option>
-          ))}
-        </select>
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <select
+            className="border rounded-md px-3 py-2 text-sm bg-white"
+            value={filters.category}
+            onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
+          >
+            <option value="">全部分类 ({stats.total})</option>
+            {CATEGORIES.map((item) => (
+              <option key={item} value={item}>
+                {item} ({categoryCounts.get(item) || 0})
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="border rounded-md px-3 py-2 text-sm bg-white"
+            value={filters.status}
+            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+          >
+            <option value="">全部状态</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
+
+          {durationRange.max > 0 && (
+            <div className="flex items-center gap-1.5 text-sm text-[#57606a]">
+              <span>时长</span>
+              <input
+                type="range"
+                className="w-20 accent-blue-600"
+                min={durationRange.min}
+                max={durationRange.max}
+                step={0.1}
+                value={filters.durationMin}
+                onChange={(e) =>
+                  setFilters((f) => ({
+                    ...f,
+                    durationMin: Math.min(Number(e.target.value), f.durationMax === 0 ? durationRange.max : f.durationMax),
+                  }))
+                }
+              />
+              <span>{filters.durationMin.toFixed(1)}s</span>
+              <span>~</span>
+              <input
+                type="range"
+                className="w-20 accent-blue-600"
+                min={durationRange.min}
+                max={durationRange.max}
+                step={0.1}
+                value={filters.durationMax === 0 ? durationRange.max : filters.durationMax}
+                onChange={(e) =>
+                  setFilters((f) => ({
+                    ...f,
+                    durationMax: Math.max(Number(e.target.value), f.durationMin),
+                  }))
+                }
+              />
+              <span>{(filters.durationMax === 0 ? durationRange.max : filters.durationMax).toFixed(1)}s</span>
+            </div>
+          )}
+
+          <button
+            className="text-sm text-blue-600 hover:text-blue-800 px-2 py-1"
+            onClick={() => setShowAdvanced((v) => !v)}
+          >
+            {showAdvanced ? "收起筛选 ▲" : "更多筛选 ▼"}
+          </button>
+
+          <button
+            className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1 border rounded"
+            onClick={() => setFilters(DEFAULT_FILTERS)}
+          >
+            清除筛选
+          </button>
+
+          {filteredAssets.length !== assets.length && (
+            <span className="text-xs text-[#57606a] ml-auto">
+              共 {filteredAssets.length} / {assets.length} 条素材
+            </span>
+          )}
+        </div>
 
         <input
-          className="flex-1 border rounded-md px-3 py-2 text-sm"
-          value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
+          className="w-full border rounded-md px-3 py-2 text-sm"
+          value={filters.keyword}
+          onChange={(e) => setFilters((f) => ({ ...f, keyword: e.target.value }))}
           placeholder="搜索 file_path / 标签"
         />
+
+        {showAdvanced && (
+          <div className="flex flex-wrap gap-4 items-center text-sm text-[#57606a]">
+            <div className="flex items-center gap-1.5">
+              <span>置信度</span>
+              <input
+                type="number"
+                className="w-16 border rounded px-2 py-1 text-sm"
+                min={0}
+                max={1}
+                step={0.1}
+                value={filters.confidenceMin}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, confidenceMin: Number(e.target.value) }))
+                }
+                onBlur={(e) => {
+                  const raw = Number(e.target.value);
+                  const v = Number.isNaN(raw) ? 0 : Math.max(0, Math.min(1, raw));
+                  setFilters((f) => ({
+                    ...f,
+                    confidenceMin: v,
+                    confidenceMax: Math.max(v, f.confidenceMax),
+                  }));
+                }}
+              />
+              <span>~</span>
+              <input
+                type="number"
+                className="w-16 border rounded px-2 py-1 text-sm"
+                min={0}
+                max={1}
+                step={0.1}
+                value={filters.confidenceMax}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, confidenceMax: Number(e.target.value) }))
+                }
+                onBlur={(e) => {
+                  const raw = Number(e.target.value);
+                  const v = Number.isNaN(raw) ? 1 : Math.max(0, Math.min(1, raw));
+                  setFilters((f) => ({
+                    ...f,
+                    confidenceMax: v,
+                    confidenceMin: Math.min(v, f.confidenceMin),
+                  }));
+                }}
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span>使用次数</span>
+              <input
+                type="number"
+                className="w-16 border rounded px-2 py-1 text-sm"
+                min={0}
+                step={1}
+                value={filters.usageMin}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, usageMin: Math.max(0, Number(e.target.value)) }))
+                }
+              />
+              <span>~</span>
+              <input
+                type="number"
+                className="w-16 border rounded px-2 py-1 text-sm"
+                min={0}
+                step={1}
+                value={filters.usageMax === 0 ? usageRange.max : filters.usageMax}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, usageMax: Math.max(0, Number(e.target.value)) }))
+                }
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {selectedIds.size > 0 && (
@@ -386,13 +597,26 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4 items-start">
-        <AssetGrid
-          assets={filteredAssets}
-          selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
-          onPreview={setPreviewAsset}
-          onDelete={handleDelete}
-        />
+        {filteredAssets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-[#57606a]">
+            <p className="text-lg mb-2">没有符合筛选条件的素材</p>
+            <p className="text-sm mb-4">试试调整筛选条件或清除所有筛选</p>
+            <button
+              className="px-4 py-2 text-sm border rounded-md hover:bg-gray-50"
+              onClick={() => setFilters(DEFAULT_FILTERS)}
+            >
+              清除筛选
+            </button>
+          </div>
+        ) : (
+          <AssetGrid
+            assets={filteredAssets}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onPreview={setPreviewAsset}
+            onDelete={handleDelete}
+          />
+        )}
 
         <div className="xl:sticky xl:top-4">
           <AssetPreviewPanel

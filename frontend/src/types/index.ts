@@ -66,6 +66,18 @@ export interface AssetRecord {
   last_used_at: string;
 }
 
+export interface AssetFilters {
+  category: string;
+  status: string;
+  keyword: string;
+  durationMin: number;
+  durationMax: number;
+  confidenceMin: number;
+  confidenceMax: number;
+  usageMin: number;
+  usageMax: number;
+}
+
 export type IndexStatus = "idle" | "processing" | "done";
 
 export interface IndexResult {
