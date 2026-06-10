@@ -525,8 +525,13 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
                   setFilters((f) => ({ ...f, confidenceMin: Number(e.target.value) }))
                 }
                 onBlur={(e) => {
-                  const v = Math.max(0, Math.min(1, Number(e.target.value)));
-                  setFilters((f) => ({ ...f, confidenceMin: v }));
+                  const raw = Number(e.target.value);
+                  const v = Number.isNaN(raw) ? 0 : Math.max(0, Math.min(1, raw));
+                  setFilters((f) => ({
+                    ...f,
+                    confidenceMin: v,
+                    confidenceMax: Math.max(v, f.confidenceMax),
+                  }));
                 }}
               />
               <span>~</span>
@@ -541,8 +546,13 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
                   setFilters((f) => ({ ...f, confidenceMax: Number(e.target.value) }))
                 }
                 onBlur={(e) => {
-                  const v = Math.max(0, Math.min(1, Number(e.target.value)));
-                  setFilters((f) => ({ ...f, confidenceMax: v }));
+                  const raw = Number(e.target.value);
+                  const v = Number.isNaN(raw) ? 1 : Math.max(0, Math.min(1, raw));
+                  setFilters((f) => ({
+                    ...f,
+                    confidenceMax: v,
+                    confidenceMin: Math.min(v, f.confidenceMin),
+                  }));
                 }}
               />
             </div>
