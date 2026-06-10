@@ -54,7 +54,7 @@ cd frontend && npm run dev
 | 依赖管理 | uv |
 | 媒体引擎 | FFmpeg（ffmpeg-full） / ffprobe / whisper-cli |
 | LLM | DeepSeek / Kimi / OpenAI（默认实现见 `AppConfigManager.DEFAULTS`） |
-| TTS | Xiaomi MiMo / MiniMax（默认实现见 `AppConfigManager.DEFAULTS`） |
+| TTS | Xiaomi MiMo / MiniMax（支持 preset / voicedesign / voiceclone 三种模式，见 `AppConfigManager.DEFAULTS`） |
 | Vision | Xiaomi / OpenAI / Claude 兼容接口（默认实现见 `AppConfigManager.DEFAULTS`） |
 | 排期存储 | SQLite |
 | 目标平台 | 抖音、小红书、视频号、快手 |
@@ -76,7 +76,13 @@ cp .env.example .env
 常见配置项：
 - `LLM_API_KEY` / `TTS_API_KEY` / `VISION_API_KEY` — 通用 key，适合单 provider 场景
 - `DEEPSEEK_API_KEY` / `MIMO_API_KEY` / `XIAOMI_VISION_API_KEY` — provider 专用 key，优先级高于通用 key
-- provider、model、voice、thinking 等业务参数 — 通常通过前端“系统配置”页面写入 `config/app_config.json`
+- provider、model、voice、thinking 等业务参数 — 通常通过前端”系统配置”页面写入 `config/app_config.json`
+
+TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
+- `voice_clone_sample_path` — 音色克隆样本路径（由上传接口自动写入）
+- `voice_clone_mime_type` — 样本 MIME 类型（`audio/mpeg` 或 `audio/wav`）
+- `optimize_text_preview` — voicedesign 模式下是否启用文本优化预览（默认 `false`）
+- `audio_format` — 音频格式（默认 `wav`）
 
 配置优先级：
 1. provider 专用环境变量
@@ -104,6 +110,11 @@ cp .env.example .env
 ```
 
 `[]` 标记的是人工审核门，需要工作人员在前端确认才能继续。四个审核门：脚本审核、TTS 审核、素材审核、终审·烧录。
+
+**高级选项：**
+- **skip_subtitle**：Job 可跳过字幕生成阶段，最终视频不烧录字幕（适用于无字幕输出场景）
+- **auto_approve**：Job 可自动跳过所有审核门，实现全自动流水线
+- **批量模式**：支持一次性创建多个 Job（`POST /api/projects/{id}/jobs/batch`），每个 Job 可独立配置脚本模式和字幕选项
 
 ## 目录结构
 
@@ -155,38 +166,6 @@ cd frontend && npm run build
 # 旧工具（仍可用）
 uv run --project . kimi_two_stage_script.py 羊肚菌 --mock
 ```
-
-## Release 版本
-
-当前最新版本：**v0.1.0-alpha**
-
-### 新功能
-- TTS 审核功能
-- 素材审核增强（匹配文案显示、单独打回）
-- 素材预览优化
-
-### 修复
-- 字幕生成稳定性
-- 状态机优化
-
-### 安装
-```bash
-git clone https://github.com/toRolex/ai-video-pipeline.git
-cd ai-video-pipeline
-uv sync
-```
-
-## 项目状态
-
-| 阶段 | 状态 |
-|------|------|
-| Phase 1（架构骨架） | 已完成 |
-| Phase 2（Provider 配置 + 前端改造） | 已完成 |
-| Phase 2.5（前端视觉适配 mockup 方案 A） | 已完成 |
-| Phase 3（智能素材库 + AI 标注） | 已完成 |
-| Phase 4（TTS 审核 + 素材审核增强） | 已完成 |
-
-当前 `main` 分支包含完整的前端 React 改造 + 视觉适配 + 智能素材库 + TTS 审核 + 素材审核增强。
 
 ## 前端视觉设计
 
