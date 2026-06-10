@@ -211,6 +211,18 @@ queued → script_generating → script_review → tts_generating → tts_review
 init → api_assets_done → video_base_done → srt_corrected → burn_completed
 ```
 
+## 前端智能素材库筛选
+
+智能素材库（`SmartAssetLibrary.tsx`）支持多维度前端内存筛选：
+
+- **分类**（dropdown）、**状态**（dropdown：可用/已禁用/待审核）
+- **时长**（双端滑块，动态范围从数据计算）
+- **关键词**（file_path / tags 子串匹配）
+- **置信度**（min/max 数字输入，0-1，步长 0.1，折叠面板）
+- **使用次数**（min/max 整数输入，折叠面板）
+
+筛选类型定义在 `frontend/src/types/index.ts` 的 `AssetFilters` 接口。所有筛选为纯前端过滤，AND 逻辑组合。
+
 ## 项目命名规则
 - Phase 1 新系统不再沿用旧的 `001xxx` 目录结构，项目数据统一落在 `workspace/projects/{project_id}/`
 - 旧规则（`001见手青` 等旧项目已在清理中移除）
