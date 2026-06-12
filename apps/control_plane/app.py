@@ -28,7 +28,7 @@ from packages.pipeline_services.tts_provider import MiMoTTSProvider
 from packages.provider_config.app_config import AppConfigManager
 from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-from main_controller import load_environment
+
 
 REVIEW_PHASES = {"script_review", "tts_review", "asset_review", "final_review"}
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
@@ -42,7 +42,6 @@ def _to_url_path(path: Path, workspace_dir: Path) -> str:
 def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Path, product: str, manual_script: str = "", uploaded_audio_path: str = "") -> list[dict]:
     """Execute the real pipeline for the target phase and return artifact pointers."""
     print(f"[PHASE] target={phase}, job={job_id}", flush=True)
-    load_environment(root_dir)
     workspace_dir = root_dir / "workspace"
     job_dir = project_dir / "runtime" / "jobs" / job_id
     job_dir.mkdir(parents=True, exist_ok=True)

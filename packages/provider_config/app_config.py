@@ -5,6 +5,11 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
 
 DEFAULTS: dict[str, Any] = {
     "llm": {
@@ -122,6 +127,10 @@ class AppConfigManager:
     }
 
     def __init__(self, config_dir: str | Path = "config") -> None:
+        if load_dotenv is not None:
+            env_path = Path.cwd() / ".env"
+            if env_path.exists():
+                load_dotenv(env_path, override=False)
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.config_path = self.config_dir / "app_config.json"

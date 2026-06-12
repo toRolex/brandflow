@@ -47,7 +47,7 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(monkeypatch, tmp_
         def __init__(self, _path: Path) -> None:
             pass
 
-    monkeypatch.setattr("apps.control_plane.app.load_environment", lambda _root_dir: None)
+    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
     monkeypatch.setattr("apps.control_plane.app.VideoService", StubVideoService)
     monkeypatch.setattr("apps.control_plane.app.LegacyScheduleBridge", StubScheduleBridge)
 
@@ -114,7 +114,7 @@ def test_final_review_allows_missing_srt_when_skip_subtitle_is_enabled(monkeypat
         def append(self, project_name: str, payload: dict, final_video_path: Path) -> None:
             self.calls.append((project_name, payload, final_video_path))
 
-    monkeypatch.setattr("apps.control_plane.app.load_environment", lambda _root_dir: None)
+    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
     monkeypatch.setattr("apps.control_plane.app.VideoService", StubVideoService)
     monkeypatch.setattr("apps.control_plane.app.LegacyScheduleBridge", StubScheduleBridge)
 
