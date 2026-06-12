@@ -59,3 +59,37 @@ class TestValidateScript:
         result = validate_script(text, "羊肚菌", "滋元堂")
         assert result["ok"] is False
         assert any("品牌" in e and "次" in e for e in result["errors"])
+
+
+from packages.pipeline_services.script_service.prompts import (
+    build_first_half_messages,
+    build_second_half_messages,
+)
+
+
+class TestPromptConstruction:
+    def test_first_half_contains_product_and_brand(self):
+        messages = build_first_half_messages(
+            product="羊肚菌",
+            brand="滋元堂",
+            scene="云南山野",
+            material="菌子近景",
+        )
+        assert len(messages) >= 2
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        user_content = messages[1]["content"]
+        assert "羊肚菌" in user_content
+        assert "滋元堂" in user_content
+
+    def test_second_half_contains_first_half(self):
+        messages = build_second_half_messages(
+            product="羊肚菌",
+            brand="滋元堂",
+            scene="云南山野",
+            material="菌子近景",
+            first_half="前半段测试文本内容。",
+            first_length=8,
+        )
+        user_content = messages[-1]["content"]
+        assert "前半段测试文本内容" in user_content
