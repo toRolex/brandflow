@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from packages.pipeline_services.llm_client import LLMClient, LLMError
 
@@ -38,11 +39,24 @@ class TestLLMClient:
         assert body["messages"] == [{"role": "user", "content": "hi"}]
         assert body["stream"] is False
 
+        # Verify headers
+        headers = call_kwargs.kwargs.get("headers") or call_kwargs[1].get("headers")
+        assert headers["api-key"] == "test-key"
+        assert headers["Authorization"] == "Bearer test-key"
+        assert headers["Content-Type"] == "application/json"
+
+        # Verify timeout
+        timeout = call_kwargs.kwargs.get("timeout") or call_kwargs[1].get("timeout")
+        assert timeout == 60
+
     @patch("packages.pipeline_services.llm_client.requests")
     def test_chat_raises_on_http_error(self, mock_requests):
         mock_resp = MagicMock()
         mock_resp.status_code = 429
-        mock_resp.raise_for_status.side_effect = Exception("Rate limited")
+        http_error = requests.exceptions.HTTPError(
+            "429 Client Error: Rate limited", response=mock_resp
+        )
+        mock_resp.raise_for_status.side_effect = http_error
         mock_requests.post.return_value = mock_resp
 
         client = self._make_client()
@@ -59,6 +73,20 @@ class TestLLMClient:
 
         client = self._make_client()
         with pytest.raises(LLMError, match="empty|no choices"):
+            client.chat([{"role": "user", "content": "hi"}])
+
+    @patch("packages.pipeline_services.llm_client.requests")
+    def test_chat_raises_on_empty_content(self, mock_requests):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"content": ""}}]
+        }
+        mock_resp.raise_for_status = MagicMock()
+        mock_requests.post.return_value = mock_resp
+
+        client = self._make_client()
+        with pytest.raises(LLMError, match="empty content"):
             client.chat([{"role": "user", "content": "hi"}])
 
     @patch("packages.pipeline_services.llm_client.requests")

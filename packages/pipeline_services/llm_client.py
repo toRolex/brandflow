@@ -69,19 +69,18 @@ class LLMClient:
         try:
             resp = requests.post(url, headers=headers, json=body, timeout=self.timeout)
             resp.raise_for_status()
+            data = resp.json()
+            choices = data.get("choices", [])
+            if not choices:
+                raise LLMError("empty choices in LLM response")
+            content = choices[0].get("message", {}).get("content", "")
+            if not content:
+                raise LLMError("empty content in LLM response")
+            return content
         except HTTPError as exc:
             status = exc.response.status_code if exc.response is not None else 0
             raise LLMError(f"[{status}] {exc}") from exc
+        except LLMError:
+            raise
         except Exception as exc:
             raise LLMError(str(exc)) from exc
-
-        data = resp.json()
-
-        choices = data.get("choices", [])
-        if not choices:
-            raise LLMError("empty choices in LLM response")
-
-        content = choices[0].get("message", {}).get("content", "")
-        if not content:
-            raise LLMError("empty content in LLM response")
-        return content
