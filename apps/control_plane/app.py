@@ -26,7 +26,7 @@ from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
 from packages.pipeline_services.tts_provider import MiMoTTSProvider
 from packages.provider_config.app_config import AppConfigManager
-from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
+from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 
 
@@ -49,7 +49,7 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
     script_bridge = LegacyScriptBridge(root_dir)
     subtitle_svc = SubtitleService()
     video_svc = VideoService(dry_run=False)
-    schedule_bridge = LegacyScheduleBridge(root_dir / "排期池.xlsx")
+    schedule_store = ScheduleStore(root_dir)
 
     if phase == "script_generating":
         if manual_script:
@@ -260,11 +260,12 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
             rel = _to_url_path(final_path, workspace_dir)
             result.append({"kind": "final_video", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": final_path.stat().st_size})
             # Also write to schedule
-            schedule_bridge.append(
-                project_dir.name,
-                {"job_id": job_id, "asset_bundle": {"post_title": "", "post_desc": "", "cover_title": ""}},
-                final_path,
-            )
+            job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
+            platform = ""
+            if job_json_path.exists():
+                job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
+                platform = job_data.get("platform", "")
+            schedule_store.add(job_id=job_id, platform=platform, title=product, description="")
 
     return result
 

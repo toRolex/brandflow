@@ -144,8 +144,8 @@ class StubApiWithManualInputs:
 
 
 class StubScheduleBridge:
-    def append(self, project_name: str, job_payload: dict[str, Any], final_video_path: Path) -> None:
-        pass
+    def add(self, job_id: str, platform: str, title: str = "", description: str = "") -> int:
+        return 1
 
 
 def test_http_client_absolute_url_handles_absolute_and_relative_paths() -> None:

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from apps.runtime_worker.http_client import WorkerHttpClient
-from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
+from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.tts_provider import MiMoTTSProvider
@@ -88,7 +88,7 @@ class WorkerLoop:
         self.adapter = MacLocalRuntimeAdapter()
         self.script_bridge = script_bridge or LegacyScriptBridge(Path.cwd())
         self.media_bridge = media_bridge or _DefaultMediaBridge()
-        self.schedule_bridge = schedule_bridge or LegacyScheduleBridge(Path.cwd() / "排期池.xlsx")
+        self.schedule_bridge = schedule_bridge or ScheduleStore(Path.cwd())
 
     def run_once(self) -> None:
         command = self.api.poll()
@@ -161,10 +161,11 @@ class WorkerLoop:
             self.media_bridge.build_base_video(project_dir, {"job_id": command["job_id"], "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1}, base_video_path)
             self.media_bridge.burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path=None)
 
-        self.schedule_bridge.append(
-            command["project_id"],
-            {"job_id": command["job_id"], "asset_bundle": {"post_title": "", "post_desc": "", "cover_title": ""}},
-            final_video_path,
+        self.schedule_bridge.add(
+            job_id=command["job_id"],
+            platform=command.get("platform", ""),
+            title=command.get("product", ""),
+            description="",
         )
 
         outputs = [Path(script_result["txt_path"]).resolve(), Path(script_result["json_path"]).resolve(), audio_path.resolve(), srt_path.resolve(), final_video_path.resolve()]
@@ -213,5 +214,5 @@ def main() -> None:
         workspace_root=workspace_root,
         script_bridge=LegacyScriptBridge(root_dir),
         media_bridge=_DefaultMediaBridge(),
-        schedule_bridge=LegacyScheduleBridge(root_dir / "排期池.xlsx"),
+        schedule_bridge=ScheduleStore(root_dir),
     ).run_once()
