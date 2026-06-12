@@ -3,6 +3,8 @@ from __future__ import annotations
 import random
 from typing import Any
 
+import requests
+
 
 class TTSError(Exception):
     pass
@@ -154,3 +156,73 @@ class MiMoTTSProvider:
         }
 
         return payload
+
+    def synthesize(self, text: str, config: Any) -> bytes:
+        """完整 TTS 调用：构建请求 → HTTP → 解析响应 → 返回音频字节。"""
+        payload = self._build_request(text, config)
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "api-key": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        resp = requests.post(url, headers=headers, json=payload, timeout=180)
+
+        if resp.status_code == 429:
+            raise TTSQuotaExceededError("TTS 配额超限")
+        if resp.status_code in (401, 403):
+            raise TTSBlockedError(f"TTS 鉴权失败: {resp.status_code}")
+        resp.raise_for_status()
+
+        body = resp.json()
+        if "error" in body:
+            msg = str(body["error"])
+            if "quota" in msg.lower():
+                raise TTSQuotaExceededError(msg)
+            raise TTSBlockedError(msg)
+
+        audio = self._extract_audio(body)
+        if not audio:
+            raise TTSBlockedError("TTS 响应中未找到音频数据")
+        return audio
+
+    @staticmethod
+    def _extract_audio(body: dict) -> bytes | None:
+        """递归搜索响应中的音频数据（base64 / hex / data URI）。"""
+        import base64
+
+        def _search(obj):
+            if isinstance(obj, dict):
+                for key in ("audio", "data", "b64_json", "base64"):
+                    if key in obj:
+                        result = _try_decode(str(obj[key]))
+                        if result:
+                            return result
+                for val in obj.values():
+                    result = _search(val)
+                    if result:
+                        return result
+            elif isinstance(obj, list):
+                for item in obj:
+                    result = _search(item)
+                    if result:
+                        return result
+            return None
+
+        def _try_decode(s: str) -> bytes | None:
+            if not s or len(s) < 10:
+                return None
+            if s.startswith("data:"):
+                _, encoded = s.split(",", 1)
+                return base64.b64decode(encoded)
+            try:
+                return base64.b64decode(s)
+            except Exception:
+                pass
+            try:
+                return bytes.fromhex(s)
+            except (ValueError, AttributeError):
+                pass
+            return None
+
+        return _search(body)
