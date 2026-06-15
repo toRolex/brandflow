@@ -176,10 +176,10 @@ class TestV25VoiceClone:
 # ---------------------------------------------------------------------------
 
 class TestV2Preset:
-    """mimo-v2-tts 预置音色完整流程"""
+    """mimo-v2-tts 预置音色完整流程（已迁移至 qwen）"""
 
     def test_api_save_and_read_config(self, client):
-        """1. 通过 API 保存 v2 配置"""
+        """1. mimo-v2-tts 保存后自动迁移为 qwen3-tts-flash"""
         resp = client.put("/api/tts/config", json={
             "model": "mimo-v2-tts",
             "voice": "default_zh",
@@ -190,25 +190,25 @@ class TestV2Preset:
 
         resp = client.get("/api/tts/config")
         data = resp.json()
-        assert data["model"] == "mimo-v2-tts"
-        assert data["voice"] == "default_zh"
+        assert data["model"] == "qwen3-tts-flash"
+        assert data["voice"] == "Rocky"
 
     def test_build_request_payload(self, provider):
-        """2. Provider 构建 v2 请求"""
+        """2. Provider 构建 v2.5 请求"""
         config = TTSConfig(
-            model="mimo-v2-tts",
+            model="mimo-v2.5-tts",
             voice="default_zh",
             audio_format="wav",
             randomize_voice=False,
             style_prompt="清晰自然",
         )
-        req = provider._build_request("v2 测试文本", config)
+        req = provider._build_request("v2.5 测试文本", config)
 
-        assert req["model"] == "mimo-v2-tts"
+        assert req["model"] == "mimo-v2.5-tts"
         assert req["audio"]["voice"] == "default_zh"
         assert req["audio"]["format"] == "wav"
         assert req["stream"] is False
-        assert req["messages"][1]["content"] == "v2 测试文本"
+        assert req["messages"][1]["content"] == "v2.5 测试文本"
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +220,7 @@ class TestCrossModel:
 
     def test_style_prompt_in_user_message(self, provider):
         """所有预置模型都将 style_prompt 放在 user message"""
-        for model in ["mimo-v2.5-tts", "mimo-v2-tts"]:
+        for model in ["mimo-v2.5-tts"]:
             config = TTSConfig(
                 model=model,
                 voice="test",

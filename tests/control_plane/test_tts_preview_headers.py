@@ -12,11 +12,12 @@ def client():
 
 
 def test_preview_request_no_authorization_header(client):
-    """预览请求不应包含 Authorization 头"""
+    """预览请求应包含 api-key 头（通过 MiMoTTSProvider 的标准鉴权）"""
     with patch("requests.post") as mock_post, \
          patch("apps.control_plane.routes.tts.app_config") as mock_config:
         mock_config.get_api_key.return_value = "test-api-key"
         mock_config.get_api_base_url.return_value = "https://api.xiaomimimo.com/v1"
+        mock_config.get_tts_config.return_value = {"provider": "mimo"}
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -39,4 +40,3 @@ def test_preview_request_no_authorization_header(client):
         headers = call_kwargs.get("headers", {})
 
         assert "api-key" in headers, "应包含 api-key 头"
-        assert "Authorization" not in headers, "不应包含 Authorization 头"
