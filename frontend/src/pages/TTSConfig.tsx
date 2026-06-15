@@ -542,7 +542,7 @@ export default function TTSConfigPage() {
           {config.model?.startsWith("qwen3-tts") && (
             <section className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-lg font-semibold mb-4">Qwen TTS 配置</h2>
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">语言类型</label>
                   <select
@@ -563,28 +563,30 @@ export default function TTSConfigPage() {
                     <option value="Italian">Italian（意大利语）</option>
                   </select>
                 </div>
-                <div className="flex items-center gap-3 pt-6">
-                  <input
-                    type="checkbox"
-                    id="optimize_instructions"
-                    checked={config.optimize_instructions || false}
-                    onChange={(e) => setConfig({ ...config, optimize_instructions: e.target.checked })}
-                    className="rounded"
-                  />
-                  <label htmlFor="optimize_instructions" className="text-sm">自动优化指令</label>
-                </div>
               </div>
               {config.model === "qwen3-tts-instruct-flash" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">指令控制（Instructions）</label>
-                  <textarea
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none"
-                    rows={2}
-                    placeholder="用自然语言描述语音风格，如：语速较快，热情洋溢"
-                    value={config.instructions || ""}
-                    onChange={(e) => setConfig({ ...config, instructions: e.target.value })}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">仅 qwen3-tts-instruct-flash 支持指令控制</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">指令控制（Instructions）</label>
+                    <textarea
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none"
+                      rows={2}
+                      placeholder="用自然语言描述语音风格，如：语速较快，热情洋溢"
+                      value={config.instructions || ""}
+                      onChange={(e) => setConfig({ ...config, instructions: e.target.value })}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">仅 qwen3-tts-instruct-flash 支持指令控制</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="optimize_instructions"
+                      checked={config.optimize_instructions || false}
+                      onChange={(e) => setConfig({ ...config, optimize_instructions: e.target.checked })}
+                      className="rounded"
+                    />
+                    <label htmlFor="optimize_instructions" className="text-sm">自动优化指令</label>
+                  </div>
                 </div>
               )}
             </section>
