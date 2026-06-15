@@ -115,6 +115,7 @@ def test_set_tts_audio_tags_nested() -> None:
 
 def test_get_api_key_from_env(monkeypatch) -> None:
     """API Key 应从环境变量读取"""
+    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
     monkeypatch.setenv("MIMO_API_KEY", "test-key-123")
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = AppConfigManager(config_dir=tmpdir)
@@ -123,6 +124,7 @@ def test_get_api_key_from_env(monkeypatch) -> None:
 
 def test_get_api_key_missing(monkeypatch) -> None:
     """API Key 不存在时应返回空字符串"""
+    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
     monkeypatch.delenv("MIMO_API_KEY", raising=False)
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = AppConfigManager(config_dir=tmpdir)
@@ -177,6 +179,7 @@ def test_set_vision_model() -> None:
 
 
 def test_vision_api_key_empty_when_not_set(monkeypatch) -> None:
+    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
     monkeypatch.delenv("XIAOMI_VISION_API_KEY", raising=False)
     monkeypatch.delenv("VISION_API_KEY", raising=False)
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -201,6 +204,7 @@ def test_get_llm_endpoint_from_env(monkeypatch) -> None:
 
 
 def test_get_llm_api_key_empty_when_not_set(monkeypatch) -> None:
+    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     with tempfile.TemporaryDirectory() as tmpdir:

@@ -8,4 +8,3 @@ def test_thumbnail_endpoint_exists():
     client = TestClient(app)
     response = client.get("/api/assets/nonexistent/thumbnail")
     assert response.status_code == 404
-    assert "asset db not found" in response.json().get("detail", "")

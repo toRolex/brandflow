@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from packages.provider_config.app_config import AppConfigManager
+
 
 TARGET_VIDEO_WIDTH = 1080
 TARGET_VIDEO_HEIGHT = 1920
@@ -132,3 +134,43 @@ def assemble_vertical_base_video(
         )
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def get_ffmpeg_path() -> str:
+    """解析 ffmpeg 可执行文件路径。"""
+    config = AppConfigManager()
+    media = config.get_media_config() if hasattr(config, "get_media_config") else {}
+    path = media.get("ffmpeg_path") or "ffmpeg"
+    return path
+
+
+def get_ffprobe_path() -> str:
+    """解析 ffprobe 可执行文件路径。"""
+    config = AppConfigManager()
+    media = config.get_media_config() if hasattr(config, "get_media_config") else {}
+    path = media.get("ffprobe_path") or "ffprobe"
+    return path
+
+
+def get_video_size(video_path: Path) -> tuple[int, int]:
+    """获取视频分辨率 (width, height)。"""
+    ffprobe = get_ffprobe_path()
+    result = subprocess.run(
+        [ffprobe, "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=width,height",
+         "-of", "csv=p=0:s=x", str(video_path)],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe 失败: {result.stderr}")
+    parts = result.stdout.strip().split("x")
+    return int(parts[0]), int(parts[1])
+
+
+def run_ffmpeg(args: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
+    """运行 ffmpeg 命令。"""
+    ffmpeg = get_ffmpeg_path()
+    return subprocess.run(
+        [ffmpeg] + args,
+        capture_output=True, text=True, timeout=timeout,
+    )

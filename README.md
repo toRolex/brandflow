@@ -99,7 +99,7 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
                 │
            Runtime Worker（拉模式，拉取任务 → 执行 → 上报）
                 │
-           旧核心能力（脚本生成 / TTS / 字幕 / FFmpeg）
+           独立 Service（脚本生成 / TTS / 字幕 / 视频 / FFmpeg）
 ```
 
 ### Job 生命周期（10 步流水线）
@@ -137,7 +137,7 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 ├── packages/
 │   ├── domain_core/          # 领域模型 + 状态机 + worker 协议
 │   ├── file_store/           # 文件系统轻持久化
-│   ├── pipeline_services/    # 业务能力（legacy bridge）
+│   ├── pipeline_services/    # 业务能力（独立 service：脚本/TTS/字幕/视频）
 │   ├── provider_config/      # 统一配置入口与 provider 配置桥接
 │   └── runtime_adapters/     # 平台适配（Mac / Windows）
 │
@@ -149,8 +149,6 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 │
 ├── tests/                    # pytest 测试
 │
-├── main_controller.py        # 旧核心（通过 LegacyBridge 过渡引用）
-├── kimi_two_stage_script.py  # 旧脚本生成器
 └── llm_libraries/            # LLM 能力库（script/packaging/correction）
 ```
 
@@ -162,9 +160,6 @@ uv run pytest tests/ -q                # 全量测试
 
 # 构建前端（生产）
 cd frontend && npm run build
-
-# 旧工具（仍可用）
-uv run --project . kimi_two_stage_script.py 羊肚菌 --mock
 ```
 
 ## 前端视觉设计

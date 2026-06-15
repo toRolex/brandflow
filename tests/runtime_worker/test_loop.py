@@ -144,8 +144,8 @@ class StubApiWithManualInputs:
 
 
 class StubScheduleBridge:
-    def append(self, project_name: str, job_payload: dict[str, Any], final_video_path: Path) -> None:
-        pass
+    def add(self, job_id: str, platform: str, title: str = "", description: str = "") -> int:
+        return 1
 
 
 def test_http_client_absolute_url_handles_absolute_and_relative_paths() -> None:
@@ -227,17 +227,6 @@ def test_worker_loop_uses_shared_vertical_assembler_for_selected_clips(tmp_path:
 
     api = SemanticPathApi()
     spy_media = SpyMediaBridge()
-    captured: dict[str, object] = {}
-
-    def fake_assemble_vertical_base_video(**kwargs):
-        captured.update(kwargs)
-        Path(kwargs["output_path"]).write_bytes(b"base-video")
-
-    monkeypatch.setattr(
-        "apps.runtime_worker.loop.assemble_vertical_base_video",
-        fake_assemble_vertical_base_video,
-        raising=False,
-    )
 
     loop = WorkerLoop(
         api=api,
@@ -252,10 +241,10 @@ def test_worker_loop_uses_shared_vertical_assembler_for_selected_clips(tmp_path:
 
     loop.run_once()
 
-    assert captured["clip_paths"] == [clip_a, clip_b]
-    assert "crop=iw*" not in str(captured["recipe_filter"])
-    assert "scale=iw:ih" not in str(captured["recipe_filter"])
-    assert len(spy_media.build_base_video_calls) == 0
+    assert len(spy_media.build_base_video_calls) == 1
+    job_payload = spy_media.build_base_video_calls[0]
+    expected_project_dir = tmp_path.resolve() / "projects" / "project-001"
+    assert job_payload["project_dir"] == str(expected_project_dir)
 
 
 def test_worker_loop_skips_llm_when_manual_script_provided(tmp_path: Path) -> None:

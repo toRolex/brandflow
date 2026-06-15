@@ -27,8 +27,7 @@ SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
 **滋元堂矩阵流水线 3.0** — `control-plane + runtime-worker` 短视频自动化生产系统。
 
 - 控制面：`apps/control_plane/`（FastAPI + Web 看板，任务调度、审核）
-- 执行器：`apps/runtime_worker/`（拉模式 worker，通过 legacy bridge 调用旧核心）
-- 旧核心（仍在调用）：`main_controller.py`（TTS/字幕/视频） + `kimi_two_stage_script.py`（脚本生成）
+- 执行器：`apps/runtime_worker/`（拉模式 worker，直接调用 `packages/pipeline_services/` 下的独立 service）
 - 目标平台：抖音、小红书、视频号、快手
 - 默认 LLM：DeepSeek `deepseek-v4-pro`
 - 默认 TTS：Xiaomi MiMo（4 种模型，详见下方「LLM / TTS / Vision 架构」）
@@ -45,7 +44,7 @@ SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
 | 数据模型 | Pydantic v2 |
 | 数据持久化 | 文件系统 JSON（FileStore）+ SQLite（排期 + 素材管理） |
 | 依赖管理 | uv（`pyproject.toml` + `uv.lock`） |
-| 媒体引擎 | FFmpeg / ffprobe / whisper-cli（whisper 仅旧核心使用） |
+| 媒体引擎 | FFmpeg / ffprobe / whisper-cli |
 | 排期汇聚 | openpyxl → `排期池.xlsx` |
 | 测试 | pytest（pytest-asyncio 已安装但当前测试均为同步函数） |
 
@@ -71,7 +70,6 @@ SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
 **额外环境变量：** `VISION_MODEL` / `XIAOMI_VISION_MODEL`（Vision model override）、`MINIMAX_GROUP_ID`（MiniMax 租户标识）
 
 **Legacy 变量（未被 AppConfigManager 管理，仅在旧代码中直接 `os.getenv`）：**
-- `OPENAI_API_KEY` / `OPENAI_API_URL`（`main_controller.py` L773-774）
 - `VISION_PROVIDER`（`vision_client.py` L26）
 - `EMBEDDING_API_URL` / `EMBEDDING_API_KEY` / `EMBEDDING_MODEL`（`retrieval_embedding.py` L48-50）
 
@@ -105,13 +103,6 @@ uv run pytest tests/ -q          # 全量测试
 uv run pytest tests/ -q --tb=short
 ```
 
-### 旧工具（仍可用，legacy bridge 链路）
-```bash
-# 文案生成（独立工具）
-uv run --project . kimi_two_stage_script.py 见手青 --mock
-uv run --project . kimi_two_stage_script.py 羊肚菌 --interval-seconds 10
-```
-
 ## API 端点
 
 | 端点 | 方法 | 说明 |
@@ -140,7 +131,23 @@ uv run --project . kimi_two_stage_script.py 羊肚菌 --interval-seconds 10
 ├── packages/
 │   ├── domain_core/                  # 领域模型、状态机、worker 协议
 │   ├── file_store/                   # 文件系统轻持久化
-│   ├── pipeline_services/            # 业务能力（bridge、检索、phase runner）
+│   ├── pipeline_services/            # 业务能力（独立 service + phase runner）
+│   │   ├── llm_client.py             # 通用 LLM HTTP 客户端
+│   │   ├── script_service/           # 脚本生成
+│   │   │   ├── generator.py          # ScriptGenerator 核心类
+│   │   │   ├── prompts.py            # Prompt 模板构造
+│   │   │   └── quality.py            # 脚本质检
+│   │   ├── tts_provider.py           # TTS 语音合成（含 synthesize()）
+│   │   ├── subtitle_service.py       # SRT 字幕生成
+│   │   ├── video_service.py          # 视频组装与烧录
+│   │   ├── media_utils.py            # 媒体工具（FFmpeg 路径解析等）
+│   │   ├── legacy_script_bridge.py   # LegacyScriptBridge（已改写为使用 ScriptGenerator）
+│   │   ├── asset_library/            # 素材库能力
+│   │   ├── tts_monitor.py            # TTS 用量监控
+│   │   ├── retrieval_contract.py     # 检索契约
+│   │   ├── retrieval_embedding.py    # 向量检索
+│   │   ├── retrieval_keyword.py      # 关键词检索
+│   │   └── phase_runner.py           # Phase 执行器
 │   ├── provider_config/              # AppConfigManager + provider 配置桥接
 │   └── runtime_adapters/             # 平台适配（MacLocal / WindowsProd）
 │
@@ -154,8 +161,6 @@ uv run --project . kimi_two_stage_script.py 羊肚菌 --interval-seconds 10
 │
 ├── tests/                            # pytest 测试
 │
-├── main_controller.py                # 旧核心（LegacyMediaBridge 仍在引用）
-├── kimi_two_stage_script.py          # 旧脚本生成器（LegacyScriptBridge 仍在引用）
 ├── llm_libraries/                    # LLM 阶段化能力库（script/packaging/correction）
 │
 ├── pyproject.toml                    # uv 项目配置
@@ -206,11 +211,6 @@ queued → script_generating → script_review → tts_generating → tts_review
 - `list_jobs` 按文件 mtime 排序，返回 `display_index`（格式如 `001`、`002`）
 - 可通过环境变量 `DEV_AUTO_TICK=0` 关闭
 
-### 旧 TaskState（main_controller.py，legacy bridge 仍引用）
-```
-init → api_assets_done → video_base_done → srt_corrected → burn_completed
-```
-
 ## 前端智能素材库筛选
 
 智能素材库（`SmartAssetLibrary.tsx`）支持多维度前端内存筛选：
@@ -255,12 +255,30 @@ init → api_assets_done → video_base_done → srt_corrected → burn_complete
 
 ## 模块化计划
 
-**Phase 1 架构拆分已完成，但旧核心文件仍被 LegacyBridge 引用，尚未替换完毕。**
+**Phase 1 架构拆分已完成。旧核心文件（`main_controller.py`、`kimi_two_stage_script.py`）及 LegacyBridge（`legacy_media_bridge.py`、`legacy_schedule_bridge.py`）已全部移除。**
 
 当前状态：
-- `main_controller.py`（TTS/字幕/视频）仍被 `LegacyMediaBridge` 调用
-- `kimi_two_stage_script.py`（脚本生成）仍被 `LegacyScriptBridge` 调用
-- 下一阶段目标：将 LegacyBridge 调用逐步替换为独立 service，彻底移除旧核心文件
+- 所有能力已迁移至 `packages/pipeline_services/` 下的独立 service：
+  - `script_service/`（脚本生成：generator.py + prompts.py + quality.py）
+  - `tts_provider.py`（TTS 语音合成，含 `synthesize()`）
+  - `subtitle_service.py`（SRT 字幕生成）
+  - `video_service.py`（视频组装与烧录）
+  - `llm_client.py`（通用 LLM HTTP 客户端）
+- `legacy_script_bridge.py` 保留，已改写为使用 `ScriptGenerator`
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues（`gh` CLI）。See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+五个标准角色：`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`。See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context：`CONTEXT.md`（根目录）+ `docs/adr/`。See `docs/agents/domain.md`.
 
 <!-- superpowers-zh:begin (do not edit between these markers) -->
 # Superpowers-ZH 中文增强版

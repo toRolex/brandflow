@@ -6,10 +6,70 @@ from pathlib import Path
 from typing import Any
 
 from apps.runtime_worker.http_client import WorkerHttpClient
-from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
-from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
+from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+from packages.pipeline_services.subtitle_service import SubtitleService
+from packages.pipeline_services.tts_provider import MiMoTTSProvider
+from packages.pipeline_services.video_service import VideoService
+from packages.provider_config.app_config import AppConfigManager
 from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
+
+
+class _DefaultMediaBridge:
+    """使用独立 service 替代旧 LegacyMediaBridge。"""
+
+    def __init__(self) -> None:
+        self._subtitle_svc = SubtitleService()
+        self._video_svc = VideoService(dry_run=False)
+
+    def synthesize_tts(self, script_text: str, output_path: Path) -> Path:
+        config = AppConfigManager()
+        tts_config = config.get_tts_config()
+        api_key = config.get_api_key(tts_config.get("provider", "mimo"))
+        base_url = config.get_api_base_url(tts_config.get("provider", "mimo"))
+        provider = MiMoTTSProvider(api_key=api_key, base_url=base_url)
+
+        class _TTSConfig:
+            model = tts_config.get("model", "mimo-v2.5-tts")
+            voice = tts_config.get("voice", "Mia")
+            fallback_voice = tts_config.get("fallback_voice", "Dean")
+            randomize_voice = tts_config.get("randomize_voice", False)
+            random_voices = tts_config.get("random_voices", ["Mia", "Dean"])
+            style_control_mode = tts_config.get("style_control_mode", "simple")
+            style_prompt = tts_config.get("style_prompt", "自然 清晰")
+            voice_design_prompt = tts_config.get("voice_design_prompt", "")
+            audio_format = tts_config.get("audio_format", "wav")
+            audio_tags_enabled = tts_config.get("audio_tags_enabled", False)
+            audio_tags = tts_config.get("audio_tags", "")
+            voice_clone_sample_path = tts_config.get("voice_clone_sample_path", "")
+            voice_clone_mime_type = tts_config.get("voice_clone_mime_type", "")
+            optimize_text_preview = tts_config.get("optimize_text_preview", False)
+            director_character = tts_config.get("director_character", "")
+            director_scene = tts_config.get("director_scene", "")
+            director_guidance = tts_config.get("director_guidance", "")
+
+        audio_bytes = provider.synthesize(script_text, _TTSConfig())
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(audio_bytes)
+        return output_path
+
+    def build_script_timed_srt(self, audio_path: Path, srt_path: Path, script_text: str) -> None:
+        self._subtitle_svc.build_srt(audio_path, srt_path, script_text)
+
+    def build_base_video(self, project_dir: Path, job_payload: dict[str, Any], output_path: Path) -> None:
+        self._video_svc.build_base_video(project_dir, job_payload, output_path)
+
+    def burn_final_video(
+        self,
+        base_video_path: Path,
+        audio_path: Path,
+        srt_path: Path | None = None,
+        final_video_path: Path | None = None,
+        cover_clip_path: Path | None = None,
+    ) -> None:
+        if final_video_path is None:
+            raise TypeError("final_video_path is required")
+        self._video_svc.burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path)
 
 
 class WorkerLoop:
@@ -27,8 +87,8 @@ class WorkerLoop:
         self.workspace_root = workspace_root
         self.adapter = MacLocalRuntimeAdapter()
         self.script_bridge = script_bridge or LegacyScriptBridge(Path.cwd())
-        self.media_bridge = media_bridge or LegacyMediaBridge(Path.cwd())
-        self.schedule_bridge = schedule_bridge or LegacyScheduleBridge(Path.cwd() / "排期池.xlsx")
+        self.media_bridge = media_bridge or _DefaultMediaBridge()
+        self.schedule_bridge = schedule_bridge or ScheduleStore(Path.cwd())
 
     def run_once(self) -> None:
         command = self.api.poll()
@@ -101,10 +161,11 @@ class WorkerLoop:
             self.media_bridge.build_base_video(project_dir, {"job_id": command["job_id"], "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1}, base_video_path)
             self.media_bridge.burn_final_video(base_video_path, audio_path, srt_path, final_video_path, cover_clip_path=None)
 
-        self.schedule_bridge.append(
-            command["project_id"],
-            {"job_id": command["job_id"], "asset_bundle": {"post_title": "", "post_desc": "", "cover_title": ""}},
-            final_video_path,
+        self.schedule_bridge.add(
+            job_id=command["job_id"],
+            platform=command.get("platform", ""),
+            title=command.get("product", ""),
+            description="",
         )
 
         outputs = [Path(script_result["txt_path"]).resolve(), Path(script_result["json_path"]).resolve(), audio_path.resolve(), srt_path.resolve(), final_video_path.resolve()]
@@ -152,6 +213,6 @@ def main() -> None:
         worker_id=worker_id,
         workspace_root=workspace_root,
         script_bridge=LegacyScriptBridge(root_dir),
-        media_bridge=LegacyMediaBridge(root_dir),
-        schedule_bridge=LegacyScheduleBridge(root_dir / "排期池.xlsx"),
+        media_bridge=_DefaultMediaBridge(),
+        schedule_bridge=ScheduleStore(root_dir),
     ).run_once()

@@ -22,10 +22,13 @@ from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.domain_core.state import next_phase
 from packages.file_store.paths import shared_asset_db_path
-from packages.pipeline_services.legacy_media_bridge import LegacyMediaBridge
-from packages.pipeline_services.legacy_schedule_bridge import LegacyScheduleBridge
+from packages.pipeline_services.subtitle_service import SubtitleService
+from packages.pipeline_services.video_service import VideoService
+from packages.pipeline_services.tts_provider import MiMoTTSProvider
+from packages.provider_config.app_config import AppConfigManager
+from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-from main_controller import load_environment
+
 
 REVIEW_PHASES = {"script_review", "tts_review", "asset_review", "final_review"}
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
@@ -39,14 +42,14 @@ def _to_url_path(path: Path, workspace_dir: Path) -> str:
 def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Path, product: str, manual_script: str = "", uploaded_audio_path: str = "") -> list[dict]:
     """Execute the real pipeline for the target phase and return artifact pointers."""
     print(f"[PHASE] target={phase}, job={job_id}", flush=True)
-    load_environment(root_dir)
     workspace_dir = root_dir / "workspace"
     job_dir = project_dir / "runtime" / "jobs" / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
     result: list[dict] = []
     script_bridge = LegacyScriptBridge(root_dir)
-    media_bridge = LegacyMediaBridge(root_dir)
-    schedule_bridge = LegacyScheduleBridge(root_dir / "排期池.xlsx")
+    subtitle_svc = SubtitleService()
+    video_svc = VideoService(dry_run=False)
+    schedule_store = ScheduleStore(root_dir)
 
     if phase == "script_generating":
         if manual_script:
@@ -87,7 +90,33 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
             print(f"[TTS DEBUG] phase=tts_generating, script_found={existing_script is not None}, len={len(existing_script) if existing_script else 0}", flush=True)
             if existing_script:
                 try:
-                    media_bridge.synthesize_tts(existing_script, audio_path)
+                    app_config = AppConfigManager()
+                    tts_cfg = app_config.get_tts_config()
+                    tts_api_key = app_config.get_api_key(tts_cfg.get("provider", "mimo"))
+                    tts_base_url = app_config.get_api_base_url(tts_cfg.get("provider", "mimo"))
+                    tts_provider = MiMoTTSProvider(api_key=tts_api_key, base_url=tts_base_url)
+
+                    class _TTSConfig:
+                        model = tts_cfg.get("model", "mimo-v2.5-tts")
+                        voice = tts_cfg.get("voice", "Mia")
+                        fallback_voice = tts_cfg.get("fallback_voice", "Dean")
+                        randomize_voice = tts_cfg.get("randomize_voice", False)
+                        random_voices = tts_cfg.get("random_voices", ["Mia", "Dean"])
+                        style_control_mode = tts_cfg.get("style_control_mode", "simple")
+                        style_prompt = tts_cfg.get("style_prompt", "自然 清晰")
+                        voice_design_prompt = tts_cfg.get("voice_design_prompt", "")
+                        audio_format = tts_cfg.get("audio_format", "wav")
+                        audio_tags_enabled = tts_cfg.get("audio_tags_enabled", False)
+                        audio_tags = tts_cfg.get("audio_tags", "")
+                        voice_clone_sample_path = tts_cfg.get("voice_clone_sample_path", "")
+                        voice_clone_mime_type = tts_cfg.get("voice_clone_mime_type", "")
+                        optimize_text_preview = tts_cfg.get("optimize_text_preview", False)
+                        director_character = tts_cfg.get("director_character", "")
+                        director_scene = tts_cfg.get("director_scene", "")
+                        director_guidance = tts_cfg.get("director_guidance", "")
+
+                    audio_bytes = tts_provider.synthesize(existing_script, _TTSConfig())
+                    audio_path.write_bytes(audio_bytes)
                     print(f"[TTS] Synthesized: {audio_path.exists()}, size={audio_path.stat().st_size if audio_path.exists() else 0}", flush=True)
                 except Exception as e:
                     print(f"[TTS ERROR] {type(e).__name__}: {e}", flush=True)
@@ -120,7 +149,7 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
             print(f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}", flush=True)
             if script_text:
                 try:
-                    media_bridge.build_script_timed_srt(audio_path, srt_path, script_text)
+                    subtitle_svc.build_srt(audio_path, srt_path, script_text)
                     print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
                 except Exception as e:
                     print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
@@ -194,7 +223,7 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
 
             if selected:
                 base_path = job_dir / "base.mp4"
-                media_bridge.build_base_video(
+                video_svc.build_base_video(
                     project_dir,
                     {
                         "job_id": job_id,
@@ -220,7 +249,7 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
             skip_subtitle = job_data.get("skip_subtitle", False)
         actual_srt_path = None if skip_subtitle else srt_path
         if base_path.exists() and audio_path.exists() and (skip_subtitle or srt_path.exists()):
-            media_bridge.burn_final_video(
+            video_svc.burn_final_video(
                 base_path,
                 audio_path,
                 actual_srt_path,
@@ -231,11 +260,12 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
             rel = _to_url_path(final_path, workspace_dir)
             result.append({"kind": "final_video", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": final_path.stat().st_size})
             # Also write to schedule
-            schedule_bridge.append(
-                project_dir.name,
-                {"job_id": job_id, "asset_bundle": {"post_title": "", "post_desc": "", "cover_title": ""}},
-                final_path,
-            )
+            job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
+            platform = ""
+            if job_json_path.exists():
+                job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
+                platform = job_data.get("platform", "")
+            schedule_store.add(job_id=job_id, platform=platform, title=product, description="")
 
     return result
 
