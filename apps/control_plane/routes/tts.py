@@ -7,8 +7,8 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from packages.provider_config.app_config import AppConfigManager
-from packages.provider_config.tts_config import TTSConfig, TTSConfigManager
-from packages.pipeline_services.tts_monitor import TTSMonitor, TTSMetrics
+from packages.provider_config.tts_config import TTSConfigManager
+from packages.pipeline_services.tts_monitor import TTSMonitor
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 
@@ -196,7 +196,6 @@ async def get_error_distribution(
 @router.post("/preview")
 async def preview_tts(request: TTSPreviewRequest):
     try:
-        import requests
         from packages.pipeline_services.tts_provider import MiMoTTSProvider, QwenTTSProvider
         from fastapi.responses import Response
 
