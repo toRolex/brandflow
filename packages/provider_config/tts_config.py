@@ -185,17 +185,8 @@ class TTSConfigManager:
         global_config = self._load_config(None)
         if project_id:
             project_config = self._load_config(project_id)
-            result = self._merge_configs(global_config, project_config).with_defaults()
-        else:
-            result = global_config.with_defaults()
-        # 自动迁移: mimo-v2-tts → qwen3-tts-flash
-        if result.model == "mimo-v2-tts":
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning("Auto-migrating mimo-v2-tts → qwen3-tts-flash")
-            result.model = "qwen3-tts-flash"
-            result.voice = "Rocky"
-        return result
+            return self._merge_configs(global_config, project_config).with_defaults()
+        return global_config.with_defaults()
 
     def _load_config(self, project_id: str | None = None) -> TTSConfig:
         if project_id is None:
@@ -222,6 +213,13 @@ class TTSConfigManager:
         return TTSConfig()
 
     def save_config(self, config: TTSConfig, project_id: str | None = None) -> None:
+        # 自动迁移: mimo-v2-tts → qwen3-tts-flash
+        if config.model == "mimo-v2-tts":
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("Auto-migrating mimo-v2-tts → qwen3-tts-flash")
+            config.model = "qwen3-tts-flash"
+            config.voice = "Rocky"
         if project_id is None:
             self._save_global_config(config)
         else:
