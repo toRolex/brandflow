@@ -177,7 +177,7 @@ class AppConfigManager:
         value = os.getenv(env_key, "").strip().strip('"').strip("'")
         if not value:
             # 根据 provider 类型回退到通用 key
-            if provider in ("mimo", "minimax"):
+            if provider in ("mimo", "minimax", "qwen"):
                 value = os.getenv("TTS_API_KEY", "").strip().strip('"').strip("'")
             else:
                 value = os.getenv("LLM_API_KEY", "").strip().strip('"').strip("'")
@@ -189,7 +189,7 @@ class AppConfigManager:
         env_key = self.API_BASE_URL_ENV_MAP.get(provider, "")
         value = os.getenv(env_key, "").strip().rstrip("/")
         if not value:
-            if provider in ("mimo", "minimax"):
+            if provider in ("mimo", "minimax", "qwen"):
                 value = os.getenv("TTS_API_URL", "").strip().rstrip("/")
             else:
                 value = os.getenv("LLM_API_URL", "").strip().rstrip("/")

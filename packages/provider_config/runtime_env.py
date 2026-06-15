@@ -57,6 +57,7 @@ TTS_ENV_MAPPINGS = {
             "QWEN_TTS_VOICE": "voice",
             "QWEN_TTS_INSTRUCTIONS": "instructions",
             "QWEN_TTS_LANGUAGE_TYPE": "language_type",
+            "QWEN_TTS_AUDIO_FORMAT": "audio_format",
         },
     },
     "mimo": {
