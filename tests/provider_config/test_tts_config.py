@@ -105,7 +105,7 @@ def test_custom_channel() -> None:
 def test_to_dict_returns_all_fields() -> None:
     config = TTSConfig()
     data = config.to_dict()
-    assert len(data) == 23
+    assert len(data) == 26
 
 
 def test_to_dict_values_match_defaults() -> None:

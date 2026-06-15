@@ -35,6 +35,11 @@ class TTSConfig:
     # 文本优化预览（仅适用于 voicedesign 模型）
     optimize_text_preview: bool = False
 
+    # Qwen-TTS 专属字段
+    instructions: str | None = None  # 指令控制文本
+    optimize_instructions: bool | None = None  # 是否优化指令
+    language_type: str | None = None  # 语种 (Auto/Chinese/English/...)
+
     audio_format: str | None = None
     sample_rate: int | None = None
     bitrate: int | None = None
@@ -61,6 +66,9 @@ class TTSConfig:
             "voice_clone_sample_path": self.voice_clone_sample_path,
             "voice_clone_mime_type": self.voice_clone_mime_type,
             "optimize_text_preview": self.optimize_text_preview,
+            "instructions": self.instructions,
+            "optimize_instructions": self.optimize_instructions,
+            "language_type": self.language_type,
             "audio_format": self.audio_format,
             "sample_rate": self.sample_rate,
             "bitrate": self.bitrate,
@@ -89,6 +97,9 @@ class TTSConfig:
             voice_clone_sample_path=data.get("voice_clone_sample_path"),
             voice_clone_mime_type=data.get("voice_clone_mime_type"),
             optimize_text_preview=data.get("optimize_text_preview", False),
+            instructions=data.get("instructions"),
+            optimize_instructions=data.get("optimize_instructions"),
+            language_type=data.get("language_type"),
             audio_format=data.get("audio_format"),
             sample_rate=data.get("sample_rate"),
             bitrate=data.get("bitrate"),
@@ -116,6 +127,10 @@ class TTSConfig:
             audio_tags=self.audio_tags if self.audio_tags is not None else defaults["audio_tags"],
             voice_clone_sample_path=self.voice_clone_sample_path,
             voice_clone_mime_type=self.voice_clone_mime_type,
+            optimize_text_preview=self.optimize_text_preview if self.optimize_text_preview is not None else defaults["optimize_text_preview"],
+            instructions=self.instructions if self.instructions is not None else defaults["instructions"],
+            optimize_instructions=self.optimize_instructions if self.optimize_instructions is not None else defaults["optimize_instructions"],
+            language_type=self.language_type if self.language_type is not None else defaults["language_type"],
             audio_format=self.audio_format if self.audio_format is not None else defaults["audio_format"],
             sample_rate=self.sample_rate if self.sample_rate is not None else defaults["sample_rate"],
             bitrate=self.bitrate if self.bitrate is not None else defaults["bitrate"],
@@ -141,6 +156,10 @@ class TTSConfigManager:
         "director_guidance": "",
         "audio_tags_enabled": False,
         "audio_tags": "",
+        "optimize_text_preview": False,
+        "instructions": "",
+        "optimize_instructions": False,
+        "language_type": "Chinese",
         "audio_format": "wav",
         "sample_rate": None,
         "bitrate": None,
