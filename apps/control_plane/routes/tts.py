@@ -206,23 +206,6 @@ async def preview_tts(request: TTSPreviewRequest):
     try:
         from packages.pipeline_services.tts_provider import MiMoTTSProvider, QwenTTSProvider
 
-        tts_config_data = app_config.get_tts_config()
-        provider_name = tts_config_data.get("provider", "mimo")
-
-        if provider_name == "qwen":
-            api_key = app_config.get_api_key("qwen")
-            if not api_key:
-                raise HTTPException(status_code=500, detail="未配置 DASHSCOPE_API_KEY")
-            base_url = app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1"
-            provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
-        elif provider_name == "mimo":
-            api_key = app_config.get_api_key("mimo")
-            if not api_key:
-                raise HTTPException(status_code=500, detail="未配置 MIMO_API_KEY")
-            provider = MiMoTTSProvider(api_key=api_key)
-        else:
-            raise HTTPException(status_code=400, detail=f"不支持的 TTS provider: {provider_name}")
-
         config = config_manager.get_config().with_defaults()
 
         if request.model:
@@ -233,6 +216,21 @@ async def preview_tts(request: TTSPreviewRequest):
             config.style_prompt = request.style_prompt
         if request.voice_design_prompt:
             config.voice_design_prompt = request.voice_design_prompt
+
+        model = config.model or ""
+        if model.startswith("qwen"):
+            api_key = app_config.get_api_key("qwen")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="未配置 DASHSCOPE_API_KEY")
+            base_url = app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1"
+            provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
+        elif model.startswith("mimo"):
+            api_key = app_config.get_api_key("mimo")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="未配置 MIMO_API_KEY")
+            provider = MiMoTTSProvider(api_key=api_key)
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的 TTS model: {model}")
 
         audio_bytes = provider.synthesize(request.text, config)
 

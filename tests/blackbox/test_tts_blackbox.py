@@ -108,4 +108,4 @@ class TestTTSPreviewBlackBox:
             "text": "测试文本",
             "model": ""
         })
-        assert response.status_code in [422, 500]
+        assert response.status_code in [400, 422, 500]
