@@ -118,6 +118,8 @@ QWEN_VOICES = [
     {"id": "Eric", "label": "程川（四川话）", "note": "成都男声"},
 ]
 
+INSTRUCT_UNSUPPORTED_VOICES = {"Jennifer", "Ryan", "Katerina"}
+
 
 @router.get("/config", response_model=TTSConfigResponse)
 async def get_tts_config(project_id: str | None = None):
@@ -138,11 +140,14 @@ async def save_tts_config(request: TTSConfigRequest, project_id: str | None = No
 
 
 @router.get("/voices")
-async def get_voices(provider: str = "mimo"):
+async def get_voices(provider: str = "mimo", model: str | None = None):
     if provider not in ("mimo", "qwen"):
         raise HTTPException(status_code=400, detail=f"Unsupported TTS provider: {provider}")
     if provider == "qwen":
-        return {"preset_voices": QWEN_VOICES}
+        voices = QWEN_VOICES
+        if model == "qwen3-tts-instruct-flash":
+            voices = [v for v in voices if v["id"] not in INSTRUCT_UNSUPPORTED_VOICES]
+        return {"preset_voices": voices}
     return {"preset_voices": PRESET_VOICES}
 
 
