@@ -229,7 +229,6 @@ class MiMoTTSProvider:
         url = f"{self.base_url}/chat/completions"
         headers = {
             "api-key": self.api_key,
-            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
         resp = requests.post(url, headers=headers, json=payload, timeout=180)
