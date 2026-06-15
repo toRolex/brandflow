@@ -77,6 +77,46 @@ PRESET_VOICES = [
     {"id": "Dean", "label": "Dean", "note": "英文男声"},
 ]
 
+QWEN_VOICES = [
+    {"id": "Rocky", "label": "阿强（粤语）", "note": "幽默风趣的粤语男声"},
+    {"id": "Kiki", "label": "阿清（粤语）", "note": "甜美的港妹闺蜜女声"},
+    {"id": "Cherry", "label": "芊悦", "note": "阳光积极、亲切自然女声"},
+    {"id": "Serena", "label": "苏瑶", "note": "温柔女声"},
+    {"id": "Ethan", "label": "晨煦", "note": "阳光温暖男声"},
+    {"id": "Chelsie", "label": "千雪", "note": "二次元虚拟女友声"},
+    {"id": "Momo", "label": "茉兔", "note": "撒娇搞怪女声"},
+    {"id": "Vivian", "label": "十三", "note": "拽拽可爱的女声"},
+    {"id": "Moon", "label": "月白", "note": "率性帅气男声"},
+    {"id": "Maia", "label": "四月", "note": "知性温柔女声"},
+    {"id": "Kai", "label": "凯", "note": "磁性男声"},
+    {"id": "Nofish", "label": "不吃鱼", "note": "设计师男声"},
+    {"id": "Bella", "label": "萌宝", "note": "小萝莉女声"},
+    {"id": "Jennifer", "label": "詹妮弗", "note": "电影质感美语女声"},
+    {"id": "Ryan", "label": "甜茶", "note": "节奏感强男声"},
+    {"id": "Katerina", "label": "卡捷琳娜", "note": "御姐女声"},
+    {"id": "Eldric Sage", "label": "沧明子", "note": "沉稳睿智老者和声"},
+    {"id": "Mia", "label": "乖小妹", "note": "温顺乖巧女声"},
+    {"id": "Mochi", "label": "沙小弥", "note": "聪明伶俐童声"},
+    {"id": "Bellona", "label": "燕铮莺", "note": "洪亮吐字清晰女声"},
+    {"id": "Vincent", "label": "田叔", "note": "沙哑烟嗓男声"},
+    {"id": "Bunny", "label": "萌小姬", "note": "萌属性小萝莉"},
+    {"id": "Neil", "label": "阿闻", "note": "专业新闻主持人男声"},
+    {"id": "Elias", "label": "墨讲师", "note": "知识讲解女声"},
+    {"id": "Arthur", "label": "徐大爷", "note": "质朴方言男声"},
+    {"id": "Nini", "label": "邻家妹妹", "note": "软糯甜美少女声"},
+    {"id": "Seren", "label": "小婉", "note": "温和舒缓女声"},
+    {"id": "Pip", "label": "顽屁小孩", "note": "调皮童真男童声"},
+    {"id": "Stella", "label": "少女阿月", "note": "甜美少女声"},
+    {"id": "Jada", "label": "阿珍（上海话）", "note": "风风火火沪上阿姐"},
+    {"id": "Dylan", "label": "晓东（北京话）", "note": "北京胡同少年"},
+    {"id": "Li", "label": "老李（南京话）", "note": "耐心瑜伽老师"},
+    {"id": "Marcus", "label": "秦川（陕西话）", "note": "面宽话短老陕"},
+    {"id": "Roy", "label": "阿杰（闽南语）", "note": "台湾哥仔"},
+    {"id": "Peter", "label": "李彼得（天津话）", "note": "天津相声捧哏"},
+    {"id": "Sunny", "label": "晴儿（四川话）", "note": "甜心川妹子"},
+    {"id": "Eric", "label": "程川（四川话）", "note": "成都男声"},
+]
+
 
 @router.get("/config", response_model=TTSConfigResponse)
 async def get_tts_config(project_id: str | None = None):
@@ -97,7 +137,9 @@ async def save_tts_config(request: TTSConfigRequest, project_id: str | None = No
 
 
 @router.get("/voices")
-async def get_voices():
+async def get_voices(provider: str = "mimo"):
+    if provider == "qwen":
+        return {"preset_voices": QWEN_VOICES}
     return {"preset_voices": PRESET_VOICES}
 
 
@@ -155,67 +197,50 @@ async def get_error_distribution(
 async def preview_tts(request: TTSPreviewRequest):
     try:
         import requests
-        from packages.pipeline_services.tts_provider import MiMoTTSProvider
+        from packages.pipeline_services.tts_provider import MiMoTTSProvider, QwenTTSProvider
+        from fastapi.responses import Response
 
-        api_key = app_config.get_api_key("mimo")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="未配置 MIMO_API_KEY")
+        tts_config_data = app_config.get_tts_config()
+        provider_name = tts_config_data.get("provider", "mimo")
 
-        provider = MiMoTTSProvider(api_key=api_key)
+        if provider_name == "qwen":
+            api_key = app_config.get_api_key("qwen")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="未配置 DASHSCOPE_API_KEY")
+            base_url = app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1"
+            provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
+        else:
+            api_key = app_config.get_api_key("mimo")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="未配置 MIMO_API_KEY")
+            provider = MiMoTTSProvider(api_key=api_key)
+
         config = config_manager.get_config().with_defaults()
 
         if request.model:
             config.model = request.model
         if request.voice:
             config.voice = request.voice
-        if request.style_prompt:
+        if request.style_prompt and hasattr(config, 'style_prompt'):
             config.style_prompt = request.style_prompt
-        if request.voice_design_prompt:
+        if request.voice_design_prompt and hasattr(config, 'voice_design_prompt'):
             config.voice_design_prompt = request.voice_design_prompt
 
-        request_payload = provider._build_request(request.text, config)
+        audio_bytes = provider.synthesize(request.text, config)
 
-        base_url = app_config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1"
-        url = f"{base_url}/chat/completions"
-        headers = {
-            "api-key": api_key,
-            "Content-Type": "application/json"
-        }
+        audio_format = config.audio_format or "wav"
+        if audio_format == "wav":
+            media_type = "audio/wav"
+        elif audio_format == "pcm16":
+            media_type = "audio/L16;rate=24000;channels=1"
+        else:
+            media_type = "audio/wav"
 
-        response = requests.post(url, json=request_payload, headers=headers, timeout=180)
-
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail=response.text)
-
-        data = response.json()
-
-        if "choices" in data and len(data["choices"]) > 0:
-            message = data["choices"][0].get("message", {})
-            audio_data = message.get("audio", {}).get("data")
-            if audio_data:
-                import base64
-                audio_bytes = base64.b64decode(audio_data)
-                from fastapi.responses import Response
-
-                # 根据 audio_format 设置正确的 media_type
-                audio_format = config.audio_format or "wav"
-                if audio_format == "wav":
-                    media_type = "audio/wav"
-                    filename = "preview.wav"
-                elif audio_format == "pcm16":
-                    media_type = "audio/L16;rate=24000;channels=1"
-                    filename = "preview.pcm"
-                else:
-                    media_type = "audio/wav"
-                    filename = "preview.wav"
-
-                return Response(
-                    content=audio_bytes,
-                    media_type=media_type,
-                    headers={"Content-Disposition": f"attachment; filename={filename}"}
-                )
-
-        raise HTTPException(status_code=500, detail="TTS API未返回音频数据")
+        return Response(
+            content=audio_bytes,
+            media_type=media_type,
+            headers={"Content-Disposition": "attachment; filename=preview.wav"}
+        )
 
     except HTTPException:
         raise
