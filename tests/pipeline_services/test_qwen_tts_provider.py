@@ -1,4 +1,3 @@
-import json
 from unittest.mock import patch, Mock
 import pytest
 from packages.pipeline_services.tts_provider import QwenTTSProvider, TTSBlockedError
@@ -79,11 +78,8 @@ class TestQwenTTSProvider:
                 assert result == FAKE_AUDIO
 
                 call_args = mock_post.call_args
-                # patch.object 后调用变成 kwargs 形式，payload 在 kwargs 中
-                payload = call_args.kwargs.get("payload")
-                if payload is None:
-                    # 可能是位置参数，但 self 被 patch 吞掉了
-                    payload = call_args[0][0] if call_args[0] else None
+                assert call_args is not None
+                payload = call_args.args[0]
                 assert payload["input"]["instructions"] == "语速较快，热情洋溢"
                 assert payload["input"]["optimize_instructions"] is True
 
