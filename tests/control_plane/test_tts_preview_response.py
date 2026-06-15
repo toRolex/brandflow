@@ -17,6 +17,7 @@ def test_preview_response_wav_content_type(client):
          patch("apps.control_plane.routes.tts.app_config") as mock_config:
         mock_config.get_api_key.return_value = "test-api-key"
         mock_config.get_api_base_url.return_value = "https://api.xiaomimimo.com/v1"
+        mock_config.get_tts_config.return_value = {"provider": "mimo"}
 
         mock_response = MagicMock()
         mock_response.status_code = 200

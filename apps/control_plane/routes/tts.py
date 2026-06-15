@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from pathlib import Path
 from pydantic import BaseModel
 
@@ -138,6 +139,8 @@ async def save_tts_config(request: TTSConfigRequest, project_id: str | None = No
 
 @router.get("/voices")
 async def get_voices(provider: str = "mimo"):
+    if provider not in ("mimo", "qwen"):
+        raise HTTPException(status_code=400, detail=f"Unsupported TTS provider: {provider}")
     if provider == "qwen":
         return {"preset_voices": QWEN_VOICES}
     return {"preset_voices": PRESET_VOICES}
@@ -197,7 +200,6 @@ async def get_error_distribution(
 async def preview_tts(request: TTSPreviewRequest):
     try:
         from packages.pipeline_services.tts_provider import MiMoTTSProvider, QwenTTSProvider
-        from fastapi.responses import Response
 
         tts_config_data = app_config.get_tts_config()
         provider_name = tts_config_data.get("provider", "mimo")
@@ -208,11 +210,13 @@ async def preview_tts(request: TTSPreviewRequest):
                 raise HTTPException(status_code=500, detail="未配置 DASHSCOPE_API_KEY")
             base_url = app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1"
             provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
-        else:
+        elif provider_name == "mimo":
             api_key = app_config.get_api_key("mimo")
             if not api_key:
                 raise HTTPException(status_code=500, detail="未配置 MIMO_API_KEY")
             provider = MiMoTTSProvider(api_key=api_key)
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的 TTS provider: {provider_name}")
 
         config = config_manager.get_config().with_defaults()
 
@@ -220,9 +224,9 @@ async def preview_tts(request: TTSPreviewRequest):
             config.model = request.model
         if request.voice:
             config.voice = request.voice
-        if request.style_prompt and hasattr(config, 'style_prompt'):
+        if request.style_prompt:
             config.style_prompt = request.style_prompt
-        if request.voice_design_prompt and hasattr(config, 'voice_design_prompt'):
+        if request.voice_design_prompt:
             config.voice_design_prompt = request.voice_design_prompt
 
         audio_bytes = provider.synthesize(request.text, config)
@@ -230,15 +234,18 @@ async def preview_tts(request: TTSPreviewRequest):
         audio_format = config.audio_format or "wav"
         if audio_format == "wav":
             media_type = "audio/wav"
+            filename = "preview.wav"
         elif audio_format == "pcm16":
             media_type = "audio/L16;rate=24000;channels=1"
+            filename = "preview.pcm"
         else:
             media_type = "audio/wav"
+            filename = "preview.wav"
 
         return Response(
             content=audio_bytes,
             media_type=media_type,
-            headers={"Content-Disposition": "attachment; filename=preview.wav"}
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
 
     except HTTPException:
