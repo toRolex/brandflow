@@ -1,7 +1,6 @@
 """测试 voiceclone 请求构建"""
 import pytest
 import base64
-from pathlib import Path
 from packages.pipeline_services.tts_provider import MiMoTTSProvider
 from packages.provider_config.tts_config import TTSConfig
 

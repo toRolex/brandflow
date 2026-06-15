@@ -1,7 +1,13 @@
 from __future__ import annotations
 
-import pytest
+import json
+from unittest.mock import MagicMock, patch
 
+from packages.pipeline_services.script_service.generator import ScriptGenerator, ScriptResult
+from packages.pipeline_services.script_service.prompts import (
+    build_first_half_messages,
+    build_second_half_messages,
+)
 from packages.pipeline_services.script_service.quality import validate_script
 
 
@@ -61,12 +67,6 @@ class TestValidateScript:
         assert any("品牌" in e and "次" in e for e in result["errors"])
 
 
-from packages.pipeline_services.script_service.prompts import (
-    build_first_half_messages,
-    build_second_half_messages,
-)
-
-
 class TestPromptConstruction:
     def test_first_half_contains_product_and_brand(self):
         messages = build_first_half_messages(
@@ -93,12 +93,6 @@ class TestPromptConstruction:
         )
         user_content = messages[-1]["content"]
         assert "前半段测试文本内容" in user_content
-
-
-import json
-from unittest.mock import MagicMock, patch
-
-from packages.pipeline_services.script_service.generator import ScriptGenerator, ScriptResult
 
 
 class TestScriptGenerator:

@@ -38,6 +38,7 @@ class ScheduleStore:
             (job_id, platform, title, description),
         )
         self._conn.commit()
+        assert cur.lastrowid is not None
         return cur.lastrowid
 
     def list(self, project_id: str | None = None, platform: str | None = None) -> list[dict]:

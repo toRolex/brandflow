@@ -120,7 +120,8 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                     print(f"[TTS] Synthesized: {audio_path.exists()}, size={audio_path.stat().st_size if audio_path.exists() else 0}", flush=True)
                 except Exception as e:
                     print(f"[TTS ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback; traceback.print_exc()
+                    import traceback
+                    traceback.print_exc()
             else:
                 print(f"[TTS WARN] No script text found in {job_dir}", flush=True)
         if audio_path.exists():
@@ -153,7 +154,8 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                     print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
                 except Exception as e:
                     print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback; traceback.print_exc()
+                    import traceback
+                    traceback.print_exc()
         else:
             print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
         if srt_path.exists():
@@ -172,7 +174,6 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
 
             from packages.pipeline_services.asset_library import AssetRepository, AssetRetriever
             from packages.pipeline_services.asset_library.classify import create_classify_fn
-            from packages.provider_config.app_config import AppConfigManager
 
             app_config = AppConfigManager()
             llm_config = app_config.get_llm_config()
@@ -373,10 +374,12 @@ async def _auto_tick(root_dir: Path):
                             }, ensure_ascii=False) + "\n")
                     except Exception as e:
                         print(f"[AUTO-TICK ERROR] {f.name}: {e}")
-                        import traceback; traceback.print_exc()
+                        import traceback
+                        traceback.print_exc()
         except Exception as e:
             print(f"[AUTO-TICK LOOP ERROR] {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
 
 
 @asynccontextmanager

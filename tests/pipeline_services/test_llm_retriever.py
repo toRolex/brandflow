@@ -1,7 +1,6 @@
 """Tests for LLM-based asset classification and retrieval."""
 
 import pytest
-from unittest.mock import Mock
 from packages.pipeline_services.asset_library.models import AssetRecord, Category
 from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_library.retriever import AssetRetriever

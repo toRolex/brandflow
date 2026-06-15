@@ -7,7 +7,6 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from packages.domain_core.models import JobRecord
-from packages.domain_core.state import next_phase
 from packages.file_store.repository import FileStoreRepository
 
 router = APIRouter(tags=["api-jobs"])

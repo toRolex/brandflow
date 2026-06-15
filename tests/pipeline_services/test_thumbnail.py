@@ -1,8 +1,6 @@
 import shutil
 import subprocess
 
-import pytest
-from pathlib import Path
 from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerator
 
 

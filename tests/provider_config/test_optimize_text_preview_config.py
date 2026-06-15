@@ -1,5 +1,4 @@
 """测试 optimize_text_preview 配置字段"""
-import pytest
 from packages.provider_config.tts_config import TTSConfig
 
 

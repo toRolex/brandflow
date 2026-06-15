@@ -1,5 +1,4 @@
 """测试 TTS provider 不发送 API 不支持的参数"""
-import pytest
 from packages.pipeline_services.tts_provider import MiMoTTSProvider
 from packages.provider_config.tts_config import TTSConfig
 

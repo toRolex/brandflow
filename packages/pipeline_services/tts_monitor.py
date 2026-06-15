@@ -85,12 +85,12 @@ class TTSMonitor:
         filtered = self._logs.copy()
 
         if project_id:
-            filtered = [l for l in filtered if l.project_id == project_id]
+            filtered = [entry for entry in filtered if entry.project_id == project_id]
 
         if status == "failed":
-            filtered = [l for l in filtered if not l.success]
+            filtered = [entry for entry in filtered if not entry.success]
         elif status == "success":
-            filtered = [l for l in filtered if l.success]
+            filtered = [entry for entry in filtered if entry.success]
 
         return filtered[offset:offset + limit]
 
@@ -101,16 +101,16 @@ class TTSMonitor:
     ) -> TTSMetrics:
         logs = self._logs
         if project_id:
-            logs = [l for l in logs if l.project_id == project_id]
+            logs = [entry for entry in logs if entry.project_id == project_id]
 
         total = len(logs)
-        success = sum(1 for l in logs if l.success)
+        success = sum(1 for entry in logs if entry.success)
         failure = total - success
 
-        latencies = [l.latency_ms for l in logs]
+        latencies = [entry.latency_ms for entry in logs]
         avg_latency = sum(latencies) // len(latencies) if latencies else 0
 
-        durations = [l.audio_duration_ms for l in logs if l.audio_duration_ms]
+        durations = [entry.audio_duration_ms for entry in logs if entry.audio_duration_ms]
         avg_duration = sum(durations) // len(durations) if durations else 0
         total_duration = sum(durations)
 

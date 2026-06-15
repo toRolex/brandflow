@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from packages.pipeline_services.subtitle_service import SubtitleService
 

@@ -1,4 +1,3 @@
-import pytest
 from datetime import datetime
 from packages.pipeline_services.tts_monitor import (
     TTSRequestLog,

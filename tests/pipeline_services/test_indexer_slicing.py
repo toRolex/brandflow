@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from packages.pipeline_services.asset_library.indexer import AssetIndexer, MAX_CLIP_SECONDS
+from packages.pipeline_services.asset_library.indexer import AssetIndexer
 from packages.pipeline_services.asset_library.repository import AssetRepository
 
 

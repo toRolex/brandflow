@@ -1,6 +1,5 @@
 """测试 voiceclone 样本上传接口"""
 import pytest
-from pathlib import Path
 from fastapi.testclient import TestClient
 from apps.control_plane.app import create_app
 

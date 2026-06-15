@@ -1,8 +1,6 @@
 """Tests for job rename functionality."""
 
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 

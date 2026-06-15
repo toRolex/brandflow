@@ -10,7 +10,6 @@ from packages.provider_config import (
     mask_provider_config,
     provider_options_payload,
     save_provider_config,
-    validate_provider_payload,
 )
 from packages.provider_config.store import CLEAR_SECRET_SENTINEL
 

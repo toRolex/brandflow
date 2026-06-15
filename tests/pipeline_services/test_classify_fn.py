@@ -2,7 +2,7 @@
 
 import json
 from unittest.mock import patch, Mock
-from packages.pipeline_services.asset_library.classify import create_classify_fn, CLASSIFY_PROMPT
+from packages.pipeline_services.asset_library.classify import create_classify_fn
 
 
 def _mock_llm_response(content: str):

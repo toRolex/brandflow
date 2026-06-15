@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 from packages.pipeline_services.asset_library.models import AssetRecord, Category
 from packages.pipeline_services.asset_library.repository import AssetRepository
 

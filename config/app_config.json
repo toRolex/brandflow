@@ -7,7 +7,7 @@
   "tts": {
     "provider": "mimo",
     "model": "mimo-v2.5-tts",
-    "voice": "default_zh",
+    "voice": "Rocky",
     "fallback_voice": "BackupVoice",
     "randomize_voice": false,
     "random_voices": [
@@ -33,7 +33,10 @@
     "enable_request_logging": false,
     "enable_performance_metrics": true,
     "log_audio_duration": true,
-    "optimize_text_preview": false
+    "optimize_text_preview": false,
+    "instructions": "",
+    "optimize_instructions": false,
+    "language_type": "Chinese"
   },
   "vision": {
     "provider": "openai",

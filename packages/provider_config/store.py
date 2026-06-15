@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -238,8 +237,7 @@ def _sync_secrets_to_env(root_dir: Path, payload: dict) -> dict:
 
 def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
     """Sync business config from providers.yaml to app_config.json for AppConfigManager."""
-    import json
-    from packages.provider_config.app_config import AppConfigManager, DEFAULTS, _deep_merge
+    from packages.provider_config.app_config import AppConfigManager
 
     manager = AppConfigManager(config_dir=root_dir / "config")
     app_config = manager._load()

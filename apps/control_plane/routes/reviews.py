@@ -257,7 +257,7 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
 
         db_path = shared_asset_db_path(root_dir)
         repo = AssetRepository(db_path)
-        retriever = AssetRetriever(repo)
+        _ = AssetRetriever(repo)
 
         from packages.pipeline_services.asset_library.models import Category
         category_enum = None

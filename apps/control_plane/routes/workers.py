@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 
 from apps.control_plane.services.reconcile import choose_report_outcome
-from packages.domain_core.models import JobRecord, ArtifactPointer
+from packages.domain_core.models import ArtifactPointer
 from packages.domain_core.state import next_phase
 from packages.domain_core.worker_protocol import PollRequest, WorkerReport
 from packages.file_store.repository import FileStoreRepository

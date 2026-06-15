@@ -1,6 +1,5 @@
 """Tests for retrieval_contract — SegmentRecord, RetrievalRequest, RetrievalTrace."""
 
-import pytest
 
 from packages.pipeline_services.retrieval_contract import (
     RetrievalRequest,

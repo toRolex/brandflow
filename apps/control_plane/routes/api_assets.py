@@ -6,13 +6,11 @@ import json
 import os
 import shutil
 import sqlite3
-import uuid
 
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
 
 from apps.control_plane.index_tasks import index_task_manager, TaskStatus
 
@@ -22,7 +20,6 @@ from packages.file_store.paths import (
     shared_indexed_dir,
     shared_source_dir,
 )
-from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
 from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerator, _resolve_tool_path, _get_default
 

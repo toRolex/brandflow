@@ -1,4 +1,3 @@
-import pytest
 from fastapi.testclient import TestClient
 from apps.control_plane.app import create_app
 

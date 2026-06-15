@@ -1,7 +1,6 @@
 import pytest
 from packages.pipeline_services.asset_library.models import (
     AssetRecord,
-    AssetStatus,
     Category,
     load_keyword_map,
 )

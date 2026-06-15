@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from unittest.mock import patch
 
 from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
