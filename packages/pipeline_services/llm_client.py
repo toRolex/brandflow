@@ -49,7 +49,7 @@ class LLMClient:
         Raises:
             LLMError: HTTP 错误、空 choices 或空 content。
         """
-        url = self.base_url if self.base_url.endswith("/chat/completions") else f"{self.base_url}/chat/completions"
+        url = f"{self.base_url}/chat/completions"
         headers = {
             "api-key": self.api_key,
             "Authorization": f"Bearer {self.api_key}",
