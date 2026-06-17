@@ -136,34 +136,39 @@ def assemble_vertical_base_video(
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def get_ffmpeg_path() -> str:
-    """解析 ffmpeg 可执行文件路径。
+def _resolve_tool_path(env_var: str, config_key: str, fallback: str) -> str:
+    """解析可执行文件路径。
 
-    优先级：环境变量 FFMPEG_PATH > app_config.json media.ffmpeg_path > "ffmpeg"
+    优先级：
+    1. 环境变量（相对路径则基于 CWD 解析）
+    2. app_config.json media 配置
+    3. 系统 PATH（fallback）
     """
     import os
-    env_path = os.getenv("FFMPEG_PATH", "").strip()
-    if env_path:
-        return env_path
-    config = AppConfigManager()
-    media = config.get_media_config() if hasattr(config, "get_media_config") else {}
-    path = media.get("ffmpeg_path") or "ffmpeg"
+
+    env_val = os.getenv(env_var, "").strip()
+    if env_val:
+        p = Path(env_val)
+        if not p.is_absolute():
+            p = Path.cwd() / p
+        if p.is_file():
+            return str(p)
+
+    try:
+        config = AppConfigManager()
+        media = config.get_media_config() if hasattr(config, "get_media_config") else {}
+    except Exception:
+        media = {}
+    path = media.get(config_key) or fallback
     return path
+
+
+def get_ffmpeg_path() -> str:
+    return _resolve_tool_path("FFMPEG_PATH", "ffmpeg_path", "ffmpeg")
 
 
 def get_ffprobe_path() -> str:
-    """解析 ffprobe 可执行文件路径。
-
-    优先级：环境变量 FFPROBE_PATH > app_config.json media.ffprobe_path > "ffprobe"
-    """
-    import os
-    env_path = os.getenv("FFPROBE_PATH", "").strip()
-    if env_path:
-        return env_path
-    config = AppConfigManager()
-    media = config.get_media_config() if hasattr(config, "get_media_config") else {}
-    path = media.get("ffprobe_path") or "ffprobe"
-    return path
+    return _resolve_tool_path("FFPROBE_PATH", "ffprobe_path", "ffprobe")
 
 
 def get_video_size(video_path: Path) -> tuple[int, int]:
