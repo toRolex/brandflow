@@ -49,8 +49,8 @@ DEFAULTS: dict[str, Any] = {
         "model": "mimo-v2.5",
     },
     "media": {
-        "ffmpeg_path": "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg",
-        "ffprobe_path": "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe",
+        "ffmpeg_path": "ffmpeg",
+        "ffprobe_path": "ffprobe",
         "subtitle_mode": "script_timed",
         "max_retry": 3,
         "retry_delay_seconds": 60,
