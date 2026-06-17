@@ -30,6 +30,8 @@ def get_media_duration(file_path: Path) -> float:
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     return float(result.stdout.strip())
 
@@ -69,6 +71,8 @@ def normalize_clip_to_vertical(ffmpeg_path: str, input_path: Path, output_path: 
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     return output_path
 
@@ -131,6 +135,8 @@ def assemble_vertical_base_video(
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
@@ -174,6 +180,7 @@ def get_video_size(video_path: Path) -> tuple[int, int]:
          "-show_entries", "stream=width,height",
          "-of", "csv=p=0:s=x", str(video_path)],
         capture_output=True, text=True, timeout=30,
+        encoding="utf-8", errors="replace",
     )
     if result.returncode != 0:
         raise RuntimeError(f"ffprobe 失败: {result.stderr}")
@@ -187,4 +194,5 @@ def run_ffmpeg(args: list[str], timeout: int = 300) -> subprocess.CompletedProce
     return subprocess.run(
         [ffmpeg] + args,
         capture_output=True, text=True, timeout=timeout,
+        encoding="utf-8", errors="replace",
     )
