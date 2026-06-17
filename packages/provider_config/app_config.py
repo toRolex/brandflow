@@ -189,9 +189,9 @@ class AppConfigManager:
         env_key = self.API_BASE_URL_ENV_MAP.get(provider, "")
         value = os.getenv(env_key, "").strip().rstrip("/")
         if not value:
-            if provider in ("mimo", "minimax", "qwen"):
+            if provider in ("mimo", "minimax"):
                 value = os.getenv("TTS_API_URL", "").strip().rstrip("/")
-            else:
+            elif provider != "qwen":
                 value = os.getenv("LLM_API_URL", "").strip().rstrip("/")
         return value
 
