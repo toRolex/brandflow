@@ -137,7 +137,14 @@ def assemble_vertical_base_video(
 
 
 def get_ffmpeg_path() -> str:
-    """解析 ffmpeg 可执行文件路径。"""
+    """解析 ffmpeg 可执行文件路径。
+
+    优先级：环境变量 FFMPEG_PATH > app_config.json media.ffmpeg_path > "ffmpeg"
+    """
+    import os
+    env_path = os.getenv("FFMPEG_PATH", "").strip()
+    if env_path:
+        return env_path
     config = AppConfigManager()
     media = config.get_media_config() if hasattr(config, "get_media_config") else {}
     path = media.get("ffmpeg_path") or "ffmpeg"
@@ -145,7 +152,14 @@ def get_ffmpeg_path() -> str:
 
 
 def get_ffprobe_path() -> str:
-    """解析 ffprobe 可执行文件路径。"""
+    """解析 ffprobe 可执行文件路径。
+
+    优先级：环境变量 FFPROBE_PATH > app_config.json media.ffprobe_path > "ffprobe"
+    """
+    import os
+    env_path = os.getenv("FFPROBE_PATH", "").strip()
+    if env_path:
+        return env_path
     config = AppConfigManager()
     media = config.get_media_config() if hasattr(config, "get_media_config") else {}
     path = media.get("ffprobe_path") or "ffprobe"
