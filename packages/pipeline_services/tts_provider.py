@@ -56,7 +56,7 @@ class QwenTTSProvider:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        return requests.post(url, headers=headers, json=payload, timeout=180)
+        return requests.post(url, headers=headers, json=payload, timeout=180, proxies={"http": None, "https": None})
 
     def synthesize(self, text: str, config: Any) -> bytes:
         payload = self._build_payload(text, config)
@@ -231,7 +231,7 @@ class MiMoTTSProvider:
             "api-key": self.api_key,
             "Content-Type": "application/json",
         }
-        resp = requests.post(url, headers=headers, json=payload, timeout=180)
+        resp = requests.post(url, headers=headers, json=payload, timeout=180, proxies={"http": None, "https": None})
 
         if resp.status_code == 429:
             raise TTSQuotaExceededError("TTS 配额超限")
