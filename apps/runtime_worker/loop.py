@@ -9,7 +9,7 @@ from apps.runtime_worker.http_client import WorkerHttpClient
 from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 from packages.pipeline_services.subtitle_service import SubtitleService
-from packages.pipeline_services.tts_provider import MiMoTTSProvider
+from packages.pipeline_services.tts_provider import MiMoTTSProvider, QwenTTSProvider
 from packages.pipeline_services.video_service import VideoService
 from packages.provider_config.app_config import AppConfigManager
 from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
@@ -25,9 +25,6 @@ class _DefaultMediaBridge:
     def synthesize_tts(self, script_text: str, output_path: Path) -> Path:
         config = AppConfigManager()
         tts_config = config.get_tts_config()
-        api_key = config.get_api_key(tts_config.get("provider", "mimo"))
-        base_url = config.get_api_base_url(tts_config.get("provider", "mimo"))
-        provider = MiMoTTSProvider(api_key=api_key, base_url=base_url)
 
         class _TTSConfig:
             model = tts_config.get("model", "mimo-v2.5-tts")
@@ -47,6 +44,15 @@ class _DefaultMediaBridge:
             director_character = tts_config.get("director_character", "")
             director_scene = tts_config.get("director_scene", "")
             director_guidance = tts_config.get("director_guidance", "")
+
+        model = _TTSConfig.model or ""
+        if model.startswith("qwen"):
+            api_key = config.get_api_key("qwen")
+            base_url = config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1"
+            provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
+        else:
+            api_key = config.get_api_key("mimo")
+            provider = MiMoTTSProvider(api_key=api_key)
 
         audio_bytes = provider.synthesize(script_text, _TTSConfig())
         output_path.parent.mkdir(parents=True, exist_ok=True)
