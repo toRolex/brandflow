@@ -96,6 +96,9 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                     class _TTSConfig:
                         model = tts_cfg.get("model", "mimo-v2.5-tts")
                         voice = tts_cfg.get("voice", "Mia")
+                        instructions = tts_cfg.get("instructions", "")
+                        language_type = tts_cfg.get("language_type", "")
+                        optimize_instructions = tts_cfg.get("optimize_instructions", False)
                         fallback_voice = tts_cfg.get("fallback_voice", "Dean")
                         randomize_voice = tts_cfg.get("randomize_voice", False)
                         random_voices = tts_cfg.get("random_voices", ["Mia", "Dean"])
@@ -119,7 +122,8 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                         tts_provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
                     else:
                         api_key = app_config.get_api_key("mimo")
-                        tts_provider = MiMoTTSProvider(api_key=api_key)
+                        base_url = app_config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1"
+                        tts_provider = MiMoTTSProvider(api_key=api_key, base_url=base_url)
 
                     audio_bytes = tts_provider.synthesize(existing_script, _TTSConfig())
                     audio_path.write_bytes(audio_bytes)

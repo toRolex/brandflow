@@ -29,6 +29,9 @@ class _DefaultMediaBridge:
         class _TTSConfig:
             model = tts_config.get("model", "mimo-v2.5-tts")
             voice = tts_config.get("voice", "Mia")
+            instructions = tts_config.get("instructions", "")
+            language_type = tts_config.get("language_type", "")
+            optimize_instructions = tts_config.get("optimize_instructions", False)
             fallback_voice = tts_config.get("fallback_voice", "Dean")
             randomize_voice = tts_config.get("randomize_voice", False)
             random_voices = tts_config.get("random_voices", ["Mia", "Dean"])
@@ -52,7 +55,8 @@ class _DefaultMediaBridge:
             provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
         else:
             api_key = config.get_api_key("mimo")
-            provider = MiMoTTSProvider(api_key=api_key)
+            base_url = config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1"
+            provider = MiMoTTSProvider(api_key=api_key, base_url=base_url)
 
         audio_bytes = provider.synthesize(script_text, _TTSConfig())
         output_path.parent.mkdir(parents=True, exist_ok=True)
