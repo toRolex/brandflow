@@ -24,7 +24,7 @@ from packages.domain_core.state import next_phase
 from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
-from packages.pipeline_services.tts_provider import MiMoTTSProvider
+from packages.pipeline_services.tts_provider import MiMoTTSProvider, QwenTTSProvider
 from packages.provider_config.app_config import AppConfigManager
 from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
@@ -92,9 +92,6 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                 try:
                     app_config = AppConfigManager()
                     tts_cfg = app_config.get_tts_config()
-                    tts_api_key = app_config.get_api_key(tts_cfg.get("provider", "mimo"))
-                    tts_base_url = app_config.get_api_base_url(tts_cfg.get("provider", "mimo"))
-                    tts_provider = MiMoTTSProvider(api_key=tts_api_key, base_url=tts_base_url)
 
                     class _TTSConfig:
                         model = tts_cfg.get("model", "mimo-v2.5-tts")
@@ -114,6 +111,15 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                         director_character = tts_cfg.get("director_character", "")
                         director_scene = tts_cfg.get("director_scene", "")
                         director_guidance = tts_cfg.get("director_guidance", "")
+
+                    model = _TTSConfig.model or ""
+                    if model.startswith("qwen"):
+                        api_key = app_config.get_api_key("qwen")
+                        base_url = app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1"
+                        tts_provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
+                    else:
+                        api_key = app_config.get_api_key("mimo")
+                        tts_provider = MiMoTTSProvider(api_key=api_key)
 
                     audio_bytes = tts_provider.synthesize(existing_script, _TTSConfig())
                     audio_path.write_bytes(audio_bytes)
