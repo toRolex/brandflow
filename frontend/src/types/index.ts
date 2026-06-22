@@ -25,6 +25,7 @@ export interface JobSummary {
   last_error?: string;
   manual_script?: string;
   uploaded_audio_path?: string;
+  audio_source?: string;
   display_index?: string;
   skip_subtitle?: boolean;
   auto_approve?: boolean;
@@ -112,12 +113,14 @@ export interface JobDetail {
   logs?: string;
   manual_script?: string;
   uploaded_audio_path?: string;
+  audio_source?: string;
 }
 
 export interface BatchJobItem {
   name: string;
   manual_script: string;
   skip_subtitle: boolean;
+  audio_source?: string;
 }
 
 export interface BatchCreateRequest {
@@ -226,3 +229,10 @@ export const PIPELINE_STEPS: PipelineStep[] = [
   { key: "cancelled", phase: "cancelled", label: "已取消", isReview: false },
   { key: "paused", phase: "paused", label: "已暂停", isReview: false },
 ];
+
+export interface MusicTrack {
+  filename: string;
+  relative_path: string;
+  duration_seconds: number | null;
+  size_bytes: number;
+}

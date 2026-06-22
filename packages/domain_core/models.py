@@ -24,6 +24,9 @@ Phase = Literal[
 ReviewStatus = Literal["none", "pending", "approved", "rejected", "overridden"]
 
 
+AudioSource = Literal["tts", "upload", "library"]
+
+
 class ArtifactPointer(BaseModel):
     kind: str
     relative_path: str
@@ -46,6 +49,7 @@ class JobRecord(BaseModel):
     artifacts: list[ArtifactPointer] = []
     manual_script: str = ""  # 手动输入的文案，如果非空则跳过LLM生成
     uploaded_audio_path: str = ""  # 上传的音频文件路径，如果非空则跳过TTS生成
+    audio_source: AudioSource = "tts"  # tts / upload / library
     skip_subtitle: bool = False
     auto_approve: bool = False
 

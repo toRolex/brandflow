@@ -177,6 +177,117 @@ def test_batch_create_jobs_empty_list(tmp_path: Path) -> None:
     assert data["results"] == []
 
 
+# ── audio_source 字段 ────────────────────────────────────────────
+
+def test_create_job_audio_source_tts(tmp_path: Path) -> None:
+    """单次 create_job 默认 audio_source='tts' 写入 JobRecord。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs", json={
+        "product": "test", "platforms": ["douyin"],
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["audio_source"] == "tts"
+
+    job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{data['job_id']}.json"
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["audio_source"] == "tts"
+
+
+def test_create_job_audio_source_upload(tmp_path: Path) -> None:
+    """单次 create_job 传入 audio_source='upload' 持久化到磁盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs", json={
+        "product": "test", "platforms": ["douyin"],
+        "audio_source": "upload",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["audio_source"] == "upload"
+
+    job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{data['job_id']}.json"
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["audio_source"] == "upload"
+
+
+def test_create_job_audio_source_library(tmp_path: Path) -> None:
+    """单次 create_job 传入 audio_source='library' 持久化到磁盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs", json={
+        "product": "test", "platforms": ["douyin"],
+        "audio_source": "library",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["audio_source"] == "library"
+
+    job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{data['job_id']}.json"
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["audio_source"] == "library"
+
+
+def test_batch_create_jobs_audio_source(tmp_path: Path) -> None:
+    """批量创建时 per-job 的 audio_source 持久化到磁盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs/batch", json={
+        "product": "荔枝菌",
+        "platforms": ["douyin"],
+        "jobs": [
+            {"name": "TTS配音", "audio_source": "tts"},
+            {"name": "上传音频", "audio_source": "upload"},
+            {"name": "音乐库", "audio_source": "library"},
+        ],
+    })
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert results[0]["audio_source"] == "tts"
+    assert results[1]["audio_source"] == "upload"
+    assert results[2]["audio_source"] == "library"
+
+    for r, expected in zip(results, ["tts", "upload", "library"]):
+        job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{r['job_id']}.json"
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["audio_source"] == expected
+
+
+# ── 音乐库 API ───────────────────────────────────────────────────
+
+def test_get_music_empty_library(tmp_path: Path) -> None:
+    """音乐库为空时返回空列表。"""
+    # 确保 music_library 目录存在但为空
+    music_dir = tmp_path / "workspace" / "music_library"
+    music_dir.mkdir(parents=True, exist_ok=True)
+    client = _make_client(tmp_path)
+    resp = client.get("/api/music")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tracks"] == []
+
+
+def test_get_music_scans_audio_files(tmp_path: Path) -> None:
+    """音乐库扫描返回音频文件元信息。"""
+    music_dir = tmp_path / "workspace" / "music_library"
+    music_dir.mkdir(parents=True, exist_ok=True)
+    # 创建一个占位音频文件（无法获取真实时长，但路径信息应正确）
+    (music_dir / "bgm_test.mp3").write_bytes(b"fake mp3 content")
+    (music_dir / "intro.wav").write_bytes(b"fake wav content")
+
+    client = _make_client(tmp_path)
+    resp = client.get("/api/music")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["tracks"]) == 2
+
+    names = {t["filename"] for t in data["tracks"]}
+    assert names == {"bgm_test.mp3", "intro.wav"}
+
+    for t in data["tracks"]:
+        assert "filename" in t
+        assert "relative_path" in t
+        assert t["relative_path"].startswith("workspace/music_library/")
+        assert t["relative_path"].endswith(t["filename"])
+
+
 # ── 原有 delete job 测试 ─────────────────────────────────────────
 
 def test_delete_job_success(tmp_path: Path) -> None:
