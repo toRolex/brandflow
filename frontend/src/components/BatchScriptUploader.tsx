@@ -20,7 +20,6 @@ export default function BatchScriptUploader({ onScripts }: Props) {
     };
     reader.readAsText(file);
 
-    // 允许重复上传同一文件
     if (inputRef.current) {
       inputRef.current.value = "";
     }

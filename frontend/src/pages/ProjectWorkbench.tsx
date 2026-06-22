@@ -6,7 +6,7 @@ import JobTable from "../components/JobTable";
 import ScheduleTable from "../components/ScheduleTable";
 import SmartAssetLibrary from "./SmartAssetLibrary";
 import BatchScriptUploader from "../components/BatchScriptUploader";
-import { applyScriptSplit } from "../utils/batchScriptSplit";
+import { applyScriptSplit, type BatchConfig, defaultBatchConfig } from "../utils/batchScriptSplit";
 
 const PRODUCTS = ["荔枝菌", "羊肚菌", "松茸"];
 const PLATFORMS = [
@@ -15,26 +15,6 @@ const PLATFORMS = [
   { key: "shipinhao", label: "视频号" },
   { key: "kuaishou", label: "快手" },
 ];
-
-interface BatchConfig {
-  name: string;
-  scriptMode: "auto" | "manual";
-  manualScript: string;
-  skipSubtitle: boolean;
-  audioMode: "tts" | "upload";
-  audioFile: File | null;
-}
-
-function defaultBatchConfig(): BatchConfig {
-  return {
-    name: "",
-    scriptMode: "auto",
-    manualScript: "",
-    skipSubtitle: false,
-    audioMode: "tts",
-    audioFile: null,
-  };
-}
 
 export default function ProjectWorkbench() {
   const { id } = useParams<{ id: string }>();
