@@ -5,6 +5,8 @@ import type { JobSummary, ScheduleEntry } from "../types";
 import JobTable from "../components/JobTable";
 import ScheduleTable from "../components/ScheduleTable";
 import SmartAssetLibrary from "./SmartAssetLibrary";
+import BatchScriptUploader from "../components/BatchScriptUploader";
+import { applyScriptSplit } from "../utils/batchScriptSplit";
 
 const PRODUCTS = ["荔枝菌", "羊肚菌", "松茸"];
 const PLATFORMS = [
@@ -139,6 +141,14 @@ export default function ProjectWorkbench() {
     setBatchConfigs((prev) =>
       prev.map((c, i) => (i === index ? { ...c, ...partial } : c)),
     );
+  }
+
+  function handleScriptsUpload(scripts: string[]) {
+    setBatchConfigs((prev) => {
+      const merged = applyScriptSplit(scripts, prev);
+      setBatchCount(merged.length);
+      return merged;
+    });
   }
 
   const handleRetry = async (jobId: string) => {
@@ -283,6 +293,9 @@ export default function ProjectWorkbench() {
                   className="border rounded-lg px-3 py-2 text-sm"
                 />
               </label>
+              <div className="flex items-end pb-1">
+                <BatchScriptUploader onScripts={handleScriptsUpload} />
+              </div>
             </div>
 
             {/* 每个 Job 的独立配置卡片 */}
