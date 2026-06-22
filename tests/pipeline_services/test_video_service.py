@@ -120,7 +120,7 @@ class TestVideoService:
 
         assert mock_run.called
         call_args = mock_run.call_args[0][0]
-        assert "-vf" in call_args
+        assert "-filter_complex" in call_args
         assert "subtitles" in " ".join(call_args)
 
     @patch("packages.pipeline_services.video_service.get_ffmpeg_path", return_value="ffmpeg")

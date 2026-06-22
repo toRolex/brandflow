@@ -257,11 +257,13 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
         skip_subtitle = False
         music_path: Path | None = None
         music_volume = 80
+        platform = ""
         if job_json_path.exists():
             job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
             skip_subtitle = job_data.get("skip_subtitle", False)
             music_track = job_data.get("music_track_path", "")
             music_volume = job_data.get("music_volume", 80)
+            platform = job_data.get("platform", "")
             if music_track:
                 music_path = root_dir / music_track
                 if not music_path.exists():
@@ -280,12 +282,6 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
         if final_path.exists():
             rel = _to_url_path(final_path, workspace_dir)
             result.append({"kind": "final_video", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": final_path.stat().st_size})
-            # Also write to schedule
-            job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
-            platform = ""
-            if job_json_path.exists():
-                job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
-                platform = job_data.get("platform", "")
             schedule_store.add(job_id=job_id, platform=platform, title=product, description="")
 
     return result

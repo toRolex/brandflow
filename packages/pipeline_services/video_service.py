@@ -128,15 +128,69 @@ def _make_music_mix_filter(
     fade_start: float,
     fade_duration: float = 1.5,
 ) -> str:
-    """Generate FFmpeg filter_complex fragment for background music mixing.
-
-    Mixes voice audio with looped background music that fades out near the end.
-    """
     return (
         f"[{voice_input_idx}:a]volume=1.0[va];"
         f"[{music_input_idx}:a]volume={music_vol:.2f},afade=t=out:st={fade_start:.3f}:d={fade_duration}[ma];"
         f"[va][ma]amix=inputs=2:duration=first:dropout_transition=0[amix]"
     )
+
+
+def _build_cover_video_filter(
+    cover_idx: int,
+    base_idx: int,
+    width: int,
+    height: int,
+    cover_escaped: str | None,
+    has_subtitles: bool,
+    srt_sub_escaped: str,
+    subtitle_style: str,
+) -> tuple[str, str]:
+    """Build video filter chain with cover clip concatenation.
+
+    Returns (filter_complex, video_output_label).
+    Cover title takes priority over subtitles when both are present.
+    """
+    fc = (
+        f"[{cover_idx}:v]scale={width}:{height},setsar=1[v0];"
+        f"[{base_idx}:v]scale={width}:{height},setsar=1[v1];"
+        f"[v0][v1]concat=n=2:v=1:a=0[cv]"
+    )
+    if cover_escaped is not None:
+        fc += f";[cv]subtitles='{cover_escaped}':force_style='Fontname=sans-serif'[v]"
+    elif has_subtitles:
+        fc += f";[cv]subtitles='{srt_sub_escaped}':force_style='{subtitle_style}'[v]"
+    else:
+        fc += ";[cv]null[v]"
+    return fc, "[v]"
+
+
+def _build_simple_video_filter(
+    base_idx: int,
+    cover_escaped: str | None,
+    has_subtitles: bool,
+    srt_sub_escaped: str,
+    subtitle_style: str,
+) -> tuple[str, str]:
+    """Build video filter chain for the no-cover-clip path.
+
+    Returns (filter_complex, video_output_label).
+    When filter_complex is empty, label is a stream spec like "0:v:0".
+    Cover title and subtitles can coexist (chained) in this path.
+    """
+    if cover_escaped is not None:
+        ct = f"subtitles='{cover_escaped}':force_style='Fontname=sans-serif'"
+        if has_subtitles:
+            return (
+                f"[{base_idx}:v]{ct}[v];[v]subtitles='{srt_sub_escaped}':force_style='{subtitle_style}'[out]",
+                "[out]",
+            )
+        return f"[{base_idx}:v]{ct}[v]", "[v]"
+    if has_subtitles:
+        return (
+            f"[{base_idx}:v]subtitles='{srt_sub_escaped}':force_style='{subtitle_style}'[v]",
+            "[v]",
+        )
+    return "", f"{base_idx}:v:0"
 
 
 class VideoService:
@@ -252,6 +306,7 @@ class VideoService:
 
         cover_title_text = (cover_title or {}).get("text", "")
         cover_title_ass: Path | None = None
+        cover_escaped: str | None = None
         if cover_title_text:
             base_duration = get_media_duration(base_video_path)
             if base_duration >= 3.0:
@@ -266,133 +321,64 @@ class VideoService:
                     duration=3.0,
                     output_path=cover_title_ass,
                 )
+                cover_escaped = _format_ass_path_for_ffmpeg(cover_title_ass)
 
         encoder_args = [
             "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p",
         ]
 
-        if music_path is not None:
+        has_music = music_path is not None
+        music_vol = 0.0
+        fade_start = 0.0
+        if has_music:
             voice_duration = get_media_duration(audio_path)
             fade_start = max(0, voice_duration - 1.5)
             music_vol = music_volume / 100.0
 
-        if cover_clip_path and cover_clip_path.exists():
-            width, height = get_video_size(base_video_path)
-            filter_complex = (
-                f"[0:v]scale={width}:{height},setsar=1[v0];"
-                f"[1:v]scale={width}:{height},setsar=1[v1];"
-                f"[v0][v1]concat=n=2:v=1:a=0[cv]"
-            )
-            if cover_title_ass is not None:
-                ass_ffmpeg = _format_ass_path_for_ffmpeg(cover_title_ass)
-                filter_complex += f";[cv]subtitles='{ass_ffmpeg}':force_style='Fontname=sans-serif'[v]"
-            elif has_subtitles:
-                filter_complex += (
-                    f";[cv]subtitles='{srt_ffmpeg}':force_style='{subtitle_style}'[v]"
-                )
-            else:
-                filter_complex += ";[cv]null[v]"
+        has_cover = cover_clip_path is not None and cover_clip_path.exists()
 
-            if music_path is not None:
-                filter_complex += f";{_make_music_mix_filter(2, 3, music_vol, fade_start)}"
-                cmd = [
-                    ffmpeg,
-                    "-i", str(cover_clip_path),
-                    "-i", str(base_video_path),
-                    "-i", str(audio_path),
-                    "-stream_loop", "-1",
-                    "-i", str(music_path),
-                    "-filter_complex", filter_complex,
-                    "-map", "[v]",
-                    "-map", "[amix]",
-                    *encoder_args,
-                    "-c:a", "aac",
-                    "-b:a", "192k",
-                    "-shortest",
-                    "-movflags", "+faststart",
-                    "-y",
-                    str(final_video_path),
-                ]
-            else:
-                cmd = [
-                    ffmpeg,
-                    "-i", str(cover_clip_path),
-                    "-i", str(base_video_path),
-                    "-i", str(audio_path),
-                    "-filter_complex", filter_complex,
-                    "-map", "[v]",
-                    "-map", "2:a:0",
-                    *encoder_args,
-                    "-c:a", "aac",
-                    "-b:a", "192k",
-                    "-shortest",
-                    "-movflags", "+faststart",
-                    "-y",
-                    str(final_video_path),
-                ]
+        # ── Build video filter ──
+        if has_cover:
+            width, height = get_video_size(base_video_path)
+            vf, v_label = _build_cover_video_filter(
+                cover_idx=0, base_idx=1,
+                width=width, height=height,
+                cover_escaped=cover_escaped,
+                has_subtitles=has_subtitles,
+                srt_sub_escaped=srt_ffmpeg,
+                subtitle_style=subtitle_style,
+            )
+            audio_idx, music_idx = 2, 3
+            inputs = ["-i", str(cover_clip_path), "-i", str(base_video_path), "-i", str(audio_path)]
         else:
-            cmd = [
-                ffmpeg,
-                "-i", str(base_video_path),
-                "-i", str(audio_path),
-            ]
-            if music_path is not None:
-                cmd.extend(["-stream_loop", "-1", "-i", str(music_path)])
-                music_input_idx = 2  # 0=base, 1=audio, 2=music
-            if cover_title_ass is not None:
-                ass_ffmpeg = _format_ass_path_for_ffmpeg(cover_title_ass)
-                if has_subtitles:
-                    filter_complex = (
-                        f"[0:v]subtitles='{ass_ffmpeg}':force_style='Fontname=sans-serif'[v];"
-                        f"[v]subtitles='{srt_ffmpeg}':force_style='{subtitle_style}'[out]"
-                    )
-                else:
-                    filter_complex = (
-                        f"[0:v]subtitles='{ass_ffmpeg}':force_style='Fontname=sans-serif'[v]"
-                    )
-                if music_path is not None:
-                    filter_complex += f";{_make_music_mix_filter(1, music_input_idx, music_vol, fade_start)}"
-                    cmd.extend(["-filter_complex", filter_complex])
-                    video_label = "[out]" if has_subtitles else "[v]"
-                    cmd.extend(["-map", video_label, "-map", "[amix]"])
-                else:
-                    if has_subtitles:
-                        cmd.extend(["-filter_complex", filter_complex, "-map", "[out]", "-map", "1:a:0"])
-                    else:
-                        cmd.extend([
-                            "-vf",
-                            f"subtitles='{ass_ffmpeg}':force_style='Fontname=sans-serif'",
-                            "-map", "0:v:0",
-                            "-map", "1:a:0",
-                        ])
-            elif has_subtitles:
-                if music_path is not None:
-                    filter_complex = (
-                        f"[0:v]subtitles='{srt_ffmpeg}':force_style='{subtitle_style}'[v];"
-                        f"{_make_music_mix_filter(1, music_input_idx, music_vol, fade_start)}"
-                    )
-                    cmd.extend(["-filter_complex", filter_complex, "-map", "[v]", "-map", "[amix]"])
-                else:
-                    cmd.extend([
-                        "-vf",
-                        f"subtitles='{srt_ffmpeg}':force_style='{subtitle_style}'",
-                        "-map", "0:v:0",
-                        "-map", "1:a:0",
-                    ])
-            else:
-                if music_path is not None:
-                    filter_complex = _make_music_mix_filter(1, music_input_idx, music_vol, fade_start)
-                    cmd.extend(["-filter_complex", filter_complex, "-map", "0:v:0", "-map", "[amix]"])
-                else:
-                    cmd.extend(["-map", "0:v:0", "-map", "1:a:0"])
-            cmd.extend([
-                *encoder_args,
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-shortest",
-                "-movflags", "+faststart",
-                "-y",
-                str(final_video_path),
-            ])
+            vf, v_label = _build_simple_video_filter(
+                base_idx=0,
+                cover_escaped=cover_escaped,
+                has_subtitles=has_subtitles,
+                srt_sub_escaped=srt_ffmpeg,
+                subtitle_style=subtitle_style,
+            )
+            audio_idx, music_idx = 1, 2
+            inputs = ["-i", str(base_video_path), "-i", str(audio_path)]
+
+        # ── Build audio filter (if music) ──
+        af, a_label = "", f"{audio_idx}:a:0"
+        if has_music:
+            af = _make_music_mix_filter(audio_idx, music_idx, music_vol, fade_start)
+            a_label = "[amix]"
+            inputs += ["-stream_loop", "-1", "-i", str(music_path)]
+
+        # ── Combine filters and assemble command ──
+        filter_complex = f"{vf};{af}" if vf and af else vf or af
+
+        cmd = [ffmpeg] + inputs
+        if filter_complex:
+            cmd += ["-filter_complex", filter_complex, "-map", v_label, "-map", a_label]
+        else:
+            cmd += ["-map", v_label, "-map", a_label]
+        cmd += encoder_args + [
+            "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart",
+            "-y", str(final_video_path),
+        ]
 
         subprocess.run(cmd, capture_output=True, text=True, timeout=600, check=True)
