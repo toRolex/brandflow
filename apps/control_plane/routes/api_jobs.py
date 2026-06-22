@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
-from packages.domain_core.models import JobRecord
+from packages.domain_core.models import AudioSource, JobRecord
 from packages.file_store.repository import FileStoreRepository
 from apps.control_plane.services.music_library import MusicLibrary
 
@@ -22,14 +22,14 @@ class CreateJobRequest(BaseModel):
     name: str = ""
     skip_subtitle: bool = False
     auto_approve: bool = False
-    audio_source: str = "tts"  # tts / upload / library
+    audio_source: AudioSource = "tts"
 
 
 class BatchJobItem(BaseModel):
     name: str = ""
     manual_script: str = ""
     skip_subtitle: bool = False
-    audio_source: str = "tts"  # tts / upload / library
+    audio_source: AudioSource = "tts"
 
 
 class BatchCreateRequest(BaseModel):
@@ -71,6 +71,7 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         job_id,
         manual_script=payload.manual_script,
         uploaded_audio_path=payload.uploaded_audio_path,
+        audio_source=payload.audio_source,
     )
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
@@ -109,6 +110,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             job_id,
             manual_script=item.manual_script,
             uploaded_audio_path="",
+            audio_source=item.audio_source,
         )
         record = JobRecord(
             job_id=job_id,
