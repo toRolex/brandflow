@@ -163,7 +163,7 @@ export const api = {
     ),
 
   // Jobs
-  createJob: (projectId: string, body: { product: string; platforms: string[]; name?: string; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean }) =>
+  createJob: (projectId: string, body: { product: string; platforms: string[]; name?: string; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {
       method: "POST",
       body: JSON.stringify(body),
@@ -317,4 +317,8 @@ export const api = {
     if (params?.status) qs.set("status", params.status);
     return request<Array<Record<string, unknown>>>(`/api/tts/logs?${qs.toString()}`);
   },
+
+  // Music Library
+  listMusic: () =>
+    request<{ tracks: import("../types").MusicTrack[] }>("/api/music"),
 };

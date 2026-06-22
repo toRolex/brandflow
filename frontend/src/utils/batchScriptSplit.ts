@@ -3,8 +3,10 @@ export interface BatchConfig {
   scriptMode: "auto" | "manual";
   manualScript: string;
   skipSubtitle: boolean;
-  audioMode: "tts" | "upload";
+  audioMode: "tts" | "upload" | "library";
   audioFile: File | null;
+  musicPath: string;
+  musicVolume: number;
 }
 
 export function defaultBatchConfig(): BatchConfig {
@@ -15,6 +17,8 @@ export function defaultBatchConfig(): BatchConfig {
     skipSubtitle: false,
     audioMode: "tts",
     audioFile: null,
+    musicPath: "",
+    musicVolume: 80,
   };
 }
 
