@@ -115,6 +115,7 @@ class WorkerLoop:
 
         manual_script = command.get("manual_script", "")
         uploaded_audio_path = command.get("uploaded_audio_path", "")
+        language = command.get("language", "mandarin")
 
         if manual_script:
             final_script = manual_script
@@ -124,7 +125,7 @@ class WorkerLoop:
             script_json_path.write_text(f'{{"final_script": "{final_script}", "source": "manual"}}', encoding="utf-8")
             script_result = {"final_script": final_script, "source": "manual", "txt_path": str(script_path), "json_path": str(script_json_path)}
         else:
-            script_result = self.script_bridge.generate(product=os.environ.get("PRODUCT", "荔枝菌"), output_dir=job_dir, mock=False)
+            script_result = self.script_bridge.generate(product=os.environ.get("PRODUCT", "荔枝菌"), output_dir=job_dir, mock=False, language=language)
             final_script = script_result["final_script"]
 
         audio_path = job_dir / "audio.mp3"

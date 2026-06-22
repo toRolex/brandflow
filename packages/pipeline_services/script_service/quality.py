@@ -5,7 +5,8 @@ from typing import Any
 
 TARGET_MIN_CHARS = 150
 TARGET_MAX_CHARS = 200
-FORBIDDEN_TERMS = ["治疗", "治愈", "疗效", "降血糖", "降血压", "抗癌", "药到病除"]
+FORBIDDEN_TERMS = ["治疗", "治愈", "疗效", "降血糖", "降血压", "抗癌", "药到病除",
+                    "治療", "治癒", "療效", "藥到病除"]
 EMOJI_RE = re.compile(
     "["
     "\U0001F300-\U0001F5FF"
@@ -54,6 +55,38 @@ def validate_script(text: str, product: str, brand: str) -> dict[str, Any]:
 
     if "充分烹熟" not in text:
         errors.append("缺少「充分烹熟」")
+
+    if EMOJI_RE.search(text):
+        errors.append("包含 emoji 表情")
+
+    for term in FORBIDDEN_TERMS:
+        if term in text:
+            errors.append(f"包含医疗禁词「{term}」")
+
+    return {"ok": len(errors) == 0, "errors": errors}
+
+
+_CANTONESE_COOK_TERMS = ["充分烹熟", "徹底煮熟", "煮到熟透", "彻底煮熟"]
+
+
+def validate_cantonese_script(text: str, product: str, brand: str) -> dict[str, Any]:
+    """粤语版宽松质检：字数 150-200、品名/品牌出现、烹熟同义表达、无违禁词。"""
+    errors: list[str] = []
+    clen = compact_len(text)
+
+    if clen < TARGET_MIN_CHARS:
+        errors.append(f"字数不足：{clen} < {TARGET_MIN_CHARS}")
+    if clen > TARGET_MAX_CHARS:
+        errors.append(f"字数超标：{clen} > {TARGET_MAX_CHARS}")
+
+    if product not in text:
+        errors.append(f"品名「{product}」未出现")
+
+    if brand not in text:
+        errors.append(f"品牌「{brand}」未出现")
+
+    if not any(term in text for term in _CANTONESE_COOK_TERMS):
+        errors.append(f"缺少烹熟同义表达（{' / '.join(_CANTONESE_COOK_TERMS)}）")
 
     if EMOJI_RE.search(text):
         errors.append("包含 emoji 表情")

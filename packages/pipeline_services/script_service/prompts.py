@@ -78,3 +78,37 @@ def build_second_half_messages(
         {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
     ]
+
+
+_CANTONESE_SYSTEM_PROMPT = (
+    "你是一位粤语短视频文案专家，专门将普通话口播文案转换为地道的口语化粤语。\n"
+    "要求：\n"
+    "1. 使用地道粤语口语表达（如「嘅」「咗」「嚟」「緊」「喺」「冇」「啲」「㗎」等粤语常用字）\n"
+    "2. 保持原文案的信息完整性和结构\n"
+    "3. 将「充分烹熟」转换为粤语同义表达（如「徹底煮熟」或「煮到熟透」）\n"
+    "4. 不使用emoji\n"
+    "5. 不提及医疗功效\n"
+    "6. 直接返回转换后的粤语全文，不要加任何解释或前缀"
+)
+
+
+def build_cantonese_conversion_messages(
+    mandarin_text: str,
+    product: str,
+    brand: str,
+) -> list[dict[str, str]]:
+    """构建普通话→粤语转换的 LLM messages。"""
+    user_content = (
+        f"请将以下普通话短视频口播文案转换为口语化粤语：\n\n"
+        f"{mandarin_text}\n\n"
+        f"注意：\n"
+        f"- 品名「{product}」保持原样\n"
+        f"- 品牌「{brand}」保持原样\n"
+        f"- 食品安全提示需用粤语同义表达（如「徹底煮熟」）\n"
+        f"- 保持原文案的结构和节奏\n"
+        f"- 直接返回粤语全文，不要加任何解释"
+    )
+    return [
+        {"role": "system", "content": _CANTONESE_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]

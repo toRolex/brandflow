@@ -17,6 +17,7 @@ class LegacyScriptBridge:
         output_dir: Path,
         mock: bool = False,
         custom_prompt: str = "",
+        language: str = "mandarin",
     ) -> dict[str, Any]:
         from packages.provider_config.app_config import AppConfigManager
 
@@ -34,6 +35,7 @@ class LegacyScriptBridge:
             brand="滋元堂",
             mock=mock,
             custom_prompt=custom_prompt,
+            language=language,
         )
 
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -47,6 +49,7 @@ class LegacyScriptBridge:
                     "product": product,
                     "brand": "滋元堂",
                     "mode": "mock" if mock else "script_service",
+                    "language": language,
                     "final_script": result.full_text,
                     "first_half": result.first_half,
                     "second_half": result.second_half,
