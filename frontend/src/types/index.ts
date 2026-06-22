@@ -123,6 +123,7 @@ export interface BatchJobItem {
   audio_source?: string;
   music_track_path?: string;
   music_volume?: number;
+  language?: string;
 }
 
 export interface BatchCreateRequest {

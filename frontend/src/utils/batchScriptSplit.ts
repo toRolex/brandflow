@@ -3,6 +3,7 @@ export interface BatchConfig {
   scriptMode: "auto" | "manual";
   manualScript: string;
   skipSubtitle: boolean;
+  language: "mandarin" | "cantonese";
   audioMode: "tts" | "upload" | "library";
   audioFile: File | null;
   musicPath: string;
@@ -15,6 +16,7 @@ export function defaultBatchConfig(): BatchConfig {
     scriptMode: "auto",
     manualScript: "",
     skipSubtitle: false,
+    language: "mandarin",
     audioMode: "tts",
     audioFile: null,
     musicPath: "",

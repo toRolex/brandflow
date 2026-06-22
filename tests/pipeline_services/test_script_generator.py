@@ -7,8 +7,9 @@ from packages.pipeline_services.script_service.generator import ScriptGenerator,
 from packages.pipeline_services.script_service.prompts import (
     build_first_half_messages,
     build_second_half_messages,
+    build_cantonese_conversion_messages,
 )
-from packages.pipeline_services.script_service.quality import validate_script
+from packages.pipeline_services.script_service.quality import validate_script, validate_cantonese_script
 
 
 class TestValidateScript:
@@ -135,3 +136,163 @@ class TestScriptGenerator:
         assert isinstance(result, ScriptResult)
         assert result.mock is True
         assert "羊肚菌" in result.full_text
+
+
+class TestValidateCantoneseScript:
+    def test_valid_cantonese_passes(self):
+        text = "今日同大家介紹一種美味食材。" * 11 + "滋元堂嘅羊肚菌嚟自雲南深山，徹底煮熟之後口感好正，營養豐富。"
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is True
+        assert result["errors"] == []
+
+    def test_too_short_rejected(self):
+        text = "太短。"
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is False
+        assert any("字数" in e for e in result["errors"])
+
+    def test_too_long_rejected(self):
+        text = "呢個係一個好長嘅文本。" * 30
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is False
+        assert any("字数" in e for e in result["errors"])
+
+    def test_missing_product_rejected(self):
+        text = "今日介紹一種美味食材嘅做法。滋元堂嘅產品嚟自雲南深山，徹底煮熟之後口感好正，推薦大家嘗試。" * 3
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is False
+        assert any("品名" in e for e in result["errors"])
+
+    def test_missing_brand_rejected(self):
+        text = "今日介紹羊肚菌嘅做法。呢種食材嚟自雲南深山，徹底煮熟之後口感好正，推薦大家嘗試購買品嚐。" * 3
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is False
+        assert any("品牌" in e for e in result["errors"])
+
+    def test_missing_cook_term_rejected(self):
+        text = "今日介紹羊肚菌嘅做法。滋元堂嘅產品嚟自雲南深山，口感好正，推薦大家嘗試購買品嚐享用。" * 3
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is False
+        assert any("烹熟" in e for e in result["errors"])
+
+    def test_cantonese_cook_synonym_accepted(self):
+        text = "今日介紹羊肚菌嘅做法。" * 12 + "滋元堂嘅產品嚟自雲南深山，煮到熟透之後口感好正，推薦大家嘗試購買。"
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is True
+
+    def test_emoji_rejected(self):
+        text = "今日介紹羊肚菌嘅做法😊。滋元堂嘅產品嚟自雲南深山，徹底煮熟之後口感好正，推薦大家嘗試購買品嚐。" * 3
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is False
+        assert any("emoji" in e.lower() or "表情" in e for e in result["errors"])
+
+    def test_medical_terms_rejected(self):
+        # Medical terms should be caught even when length is valid
+        text = "今日介紹羊肚菌嘅做法。滋元堂嘅產品可以治療疾病，徹底煮熟之後口感好正。" * 4 + "推薦大家嘗試購買品嚐。"
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is False
+        assert any("医疗" in e or "禁词" in e for e in result["errors"])
+
+    def test_brand_multiple_occurrences_accepted(self):
+        """粤语版不要求品牌恰好出现1次，出现多次也接受。"""
+        text = "滋元堂今日介紹羊肚菌嘅做法。滋元堂嘅產品嚟自雲南深山，徹底煮熟之後口感好正。" * 5
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is True
+
+    def test_product_multiple_occurrences_accepted(self):
+        """粤语版不要求品名恰好出现1次，出现多次也接受。"""
+        text = "羊肚菌係一種美味食材。羊肚菌嚟自雲南深山，滋元堂嘅品質值得信賴，徹底煮熟之後先食得安心。" * 4
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is True
+
+
+class TestCantonesePromptConstruction:
+    def test_conversion_messages_contain_product_and_brand(self):
+        messages = build_cantonese_conversion_messages(
+            mandarin_text="今天介绍羊肚菌的做法。滋元堂的产品来自云南深山，充分烹熟后口感很好。",
+            product="羊肚菌",
+            brand="滋元堂",
+        )
+        assert len(messages) >= 2
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        user_content = messages[1]["content"]
+        assert "羊肚菌" in user_content
+        assert "滋元堂" in user_content
+        assert "充分烹熟" in user_content
+
+    def test_conversion_system_prompt_uses_cantonese_terms(self):
+        messages = build_cantonese_conversion_messages(
+            mandarin_text="测试文案内容。",
+            product="羊肚菌",
+            brand="滋元堂",
+        )
+        system = messages[0]["content"]
+        assert "粤语" in system
+        assert "徹底煮熟" in system or "煮到熟透" in system
+
+
+class TestScriptGeneratorCantonese:
+    def _make_generator(self):
+        config = MagicMock()
+        config.api_key = "test-key"
+        config.base_url = "https://api.deepseek.com/v1"
+        config.model = "deepseek-v4-pro"
+        return ScriptGenerator(config)
+
+    @patch.object(ScriptGenerator, "_call_llm")
+    def test_to_cantonese_calls_llm(self, mock_call_llm):
+        mock_call_llm.return_value = "今日同大家介紹羊肚菌嘅做法。滋元堂嘅產品嚟自雲南深山，徹底煮熟之後口感好正。"
+        gen = self._make_generator()
+        result = gen.to_cantonese(
+            "今天介绍羊肚菌的做法。滋元堂的产品来自云南深山，充分烹熟后口感很好。",
+            "羊肚菌",
+            "滋元堂",
+        )
+        assert mock_call_llm.called
+        assert "徹底煮熟" in result or "煮熟" in result
+
+    @patch.object(ScriptGenerator, "_call_llm")
+    def test_run_cantonese_returns_cantonese_text(self, mock_call_llm):
+        # Each sentence ~20+ chars to reach 150+ compact_len across 8 sentences
+        first_json = json.dumps({
+            "sentence_1": "云南深山里面藏着一种鲜嫩美味的羊肚菌宝贝。",
+            "sentence_2": "它生长在高海拔无污染的山林之中静静等待。",
+            "sentence_3": "采摘后立刻送到你手中保证绝对新鲜不流失。",
+            "sentence_4": "今天教大家怎么做既营养丰富又好吃的美味。",
+        }, ensure_ascii=False)
+        second_json = json.dumps({
+            "sentence_5": "锅里放油烧热下菌子翻炒香气四溢满屋子。",
+            "sentence_6": "充分烹熟才能安心享用这鲜美无比的好菌子。",
+            "sentence_7": "滋元堂的品质值得信赖放心大胆购买和品尝。",
+            "sentence_8": "赶紧下单品尝这云南深山里面的美味佳肴吧。",
+        }, ensure_ascii=False)
+        # Long enough to pass 150-char Cantonese QA
+        cantonese_text = (
+            "雲南深山裡邊藏住一種寶貝，就係鮮嫩嘅羊肚菌，採摘之後即刻送到你手中，今日教大家點樣煮先好食。"
+            "鑊度落油燒熱落菌子，徹底煮熟先至可以安心享用，滋元堂嘅品質值得信賴，快啲落單試下啦。"
+            "呢個產品真係好正，大家試過都話好味，唔好錯過呢個機會，快啲去買返去試下啦。"
+            "深山菌子營養豐富又好食，用嚟煲湯定係炒都好正，今日推介俾大家試下品嚐。"
+            "真係好好味㗎！"
+        )
+        # First two calls: first half + second half (Mandarin generation)
+        # Third call: to_cantonese conversion
+        mock_call_llm.side_effect = [first_json, second_json, cantonese_text]
+
+        gen = self._make_generator()
+        result = gen.run(product="羊肚菌", brand="滋元堂", language="cantonese")
+
+        assert isinstance(result, ScriptResult)
+        assert "徹底煮熟" in result.full_text
+        assert "羊肚菌" in result.full_text
+        assert "滋元堂" in result.full_text
+        assert result.quality["ok"] is True
+
+    def test_run_cantonese_mock_returns_cantonese_stub(self):
+        gen = self._make_generator()
+        result = gen.run(product="羊肚菌", brand="滋元堂", mock=True, language="cantonese")
+
+        assert isinstance(result, ScriptResult)
+        assert result.mock is True
+        assert "徹底煮熟" in result.full_text
+        assert "嘅" in result.full_text

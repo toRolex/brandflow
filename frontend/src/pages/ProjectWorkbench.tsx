@@ -35,6 +35,8 @@ export default function ProjectWorkbench() {
   const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
   const [selectedMusic, setSelectedMusic] = useState("");
   const [musicVolume, setMusicVolume] = useState(80);
+  const [language, setLanguage] = useState<"mandarin" | "cantonese">("mandarin");
+  const [batchLanguage, setBatchLanguage] = useState(false);
 
   /* ── 批量创建相关状态 ── */
   const [batchMode, setBatchMode] = useState(false);
@@ -98,6 +100,7 @@ export default function ProjectWorkbench() {
         audio_source: audioMode,
         music_track_path: audioMode === "library" ? selectedMusic : "",
         music_volume: audioMode === "library" ? musicVolume : 80,
+        language: language,
       });
       if (audioMode === "upload" && audioFile) {
         await api.uploadJobAudio(job.job_id, audioFile);
@@ -121,6 +124,7 @@ export default function ProjectWorkbench() {
         audio_source: c.audioMode,
         music_track_path: c.audioMode === "library" ? c.musicPath : "",
         music_volume: c.audioMode === "library" ? c.musicVolume : 80,
+        language: c.language,
       })) });
       load();
     } catch (e) {
@@ -214,14 +218,30 @@ export default function ProjectWorkbench() {
             批量创建
           </label>
           {batchMode && (
-            <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
-              <input
-                type="checkbox"
-                checked={autoApprove}
-                onChange={(e) => setAutoApprove(e.target.checked)}
-              />
-              全自动（跳过审核）
-            </label>
+            <>
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
+                <input
+                  type="checkbox"
+                  checked={autoApprove}
+                  onChange={(e) => setAutoApprove(e.target.checked)}
+                />
+                全自动（跳过审核）
+              </label>
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-2">
+                <input
+                  type="checkbox"
+                  checked={batchLanguage}
+                  onChange={(e) => {
+                    setBatchLanguage(e.target.checked);
+                    const lang = e.target.checked ? "cantonese" : "mandarin";
+                    setBatchConfigs((prev) =>
+                      prev.map((c) => ({ ...c, language: lang as "mandarin" | "cantonese" })),
+                    );
+                  }}
+                />
+                粤语版
+              </label>
+            </>
           )}
         </div>
 
@@ -313,6 +333,16 @@ export default function ProjectWorkbench() {
                       onChange={(e) => updateBatchConfig(i, { skipSubtitle: e.target.checked })}
                     />
                     跳过字幕
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-2">
+                    <input
+                      type="checkbox"
+                      checked={c.language === "cantonese"}
+                      onChange={(e) =>
+                        updateBatchConfig(i, { language: e.target.checked ? "cantonese" : "mandarin" })
+                      }
+                    />
+                    粤语
                   </label>
                 </div>
 
@@ -481,6 +511,14 @@ export default function ProjectWorkbench() {
                     onChange={() => setScriptMode("manual")}
                   />
                   手动输入
+                </label>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
+                  <input
+                    type="checkbox"
+                    checked={language === "cantonese"}
+                    onChange={(e) => setLanguage(e.target.checked ? "cantonese" : "mandarin")}
+                  />
+                  粤语版
                 </label>
               </div>
               {scriptMode === "manual" && (
