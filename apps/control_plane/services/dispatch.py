@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -14,6 +14,8 @@ class QueuedTask:
     manual_script: str = ""
     uploaded_audio_path: str = ""
     audio_source: str = "tts"
+    language: str = "mandarin"
+    cover_title: dict[str, object] = field(default_factory=dict)
 
 
 class Dispatcher:
@@ -21,7 +23,16 @@ class Dispatcher:
         self.queue: list[QueuedTask] = []
         self.current_attempts: dict[str, dict[str, str]] = {}
 
-    def enqueue_demo_job(self, project_id: str, job_id: str, manual_script: str = "", uploaded_audio_path: str = "", audio_source: str = "tts") -> None:
+    def enqueue_demo_job(
+        self,
+        project_id: str,
+        job_id: str,
+        manual_script: str = "",
+        uploaded_audio_path: str = "",
+        audio_source: str = "tts",
+        language: str = "mandarin",
+        cover_title: dict[str, object] | None = None,
+    ) -> None:
         self.queue.append(
             QueuedTask(
                 project_id=project_id,
@@ -30,6 +41,8 @@ class Dispatcher:
                 manual_script=manual_script,
                 uploaded_audio_path=uploaded_audio_path,
                 audio_source=audio_source,
+                language=language,
+                cover_title=cover_title or {},
             )
         )
 
@@ -67,6 +80,8 @@ class Dispatcher:
             "manual_script": task.manual_script,
             "uploaded_audio_path": task.uploaded_audio_path,
             "audio_source": task.audio_source,
+            "language": task.language,
+            "cover_title": task.cover_title,
         }
 
     def accept_report(self, task_id: str, attempt_id: str, lease_id: str) -> bool:

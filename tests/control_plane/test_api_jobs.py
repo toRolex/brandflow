@@ -31,6 +31,72 @@ def test_create_job_persists_skip_subtitle(tmp_path: Path) -> None:
     assert raw["skip_subtitle"] is True
 
 
+def test_create_job_persists_language_and_cover_title(tmp_path: Path) -> None:
+    """单次 create_job 将 language 与 cover_title 写入 JobRecord。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs", json={
+        "product": "test",
+        "platforms": ["douyin"],
+        "language": "cantonese",
+        "cover_title": {
+            "text": "鲜嫩荔枝菌",
+            "highlight_words": ["荔枝菌"],
+            "style": {
+                "primary_color": "#FFFF00",
+                "outline_color": "#000000",
+                "highlight_color": "#FF0000",
+                "outline_width": 3,
+                "position": "top",
+            },
+        },
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["language"] == "cantonese"
+    assert data["cover_title"]["text"] == "鲜嫩荔枝菌"
+    assert data["cover_title"]["highlight_words"] == ["荔枝菌"]
+    assert data["cover_title"]["style"]["position"] == "top"
+
+    job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{data['job_id']}.json"
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["language"] == "cantonese"
+    assert raw["cover_title"]["text"] == "鲜嫩荔枝菌"
+    assert raw["cover_title"]["style"]["outline_width"] == 3
+
+
+def test_batch_create_jobs_persists_cover_title_and_language(tmp_path: Path) -> None:
+    """批量创建时 per-job cover_title 与 language 落盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post("/api/projects/prj_001/jobs/batch", json={
+        "product": "荔枝菌",
+        "platforms": ["douyin"],
+        "jobs": [
+            {
+                "name": "粤语封面",
+                "language": "cantonese",
+                "cover_title": {"text": "鮮嫩荔枝菌", "highlight_words": ["鮮嫩"]},
+            },
+            {
+                "name": "普通话封面",
+                "cover_title": {"text": "鲜嫩荔枝菌", "highlight_words": ["荔枝菌"]},
+            },
+        ],
+    })
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert len(results) == 2
+    assert results[0]["language"] == "cantonese"
+    assert results[0]["cover_title"]["text"] == "鮮嫩荔枝菌"
+    assert results[1]["language"] == "mandarin"
+    assert results[1]["cover_title"]["text"] == "鲜嫩荔枝菌"
+
+    for r in results:
+        job_path = tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{r['job_id']}.json"
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["cover_title"]["text"] == r["cover_title"]["text"]
+        assert raw["language"] == r["language"]
+
+
 def test_create_job_persists_auto_approve(tmp_path: Path) -> None:
     """单次 create_job 将 auto_approve=True 写入 JobRecord。"""
     client = _make_client(tmp_path)

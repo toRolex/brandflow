@@ -139,6 +139,31 @@ def test_get_api_base_url_from_env(monkeypatch) -> None:
         assert manager.get_api_base_url("mimo") == "https://custom.api.com/v1"
 
 
+def test_get_video_config_default() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        config = manager.get_video_config()
+        assert config["cover_title_style"]["primary_color"] == "#FFD700"
+        assert config["cover_title_style"]["outline_width"] == 2.0
+        assert config["cover_title_style"]["position"] == "center"
+
+
+def test_set_video_cover_title_style() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.set_video("cover_title_style.primary_color", "#FFFFFF")
+        assert manager.get_video_value("cover_title_style.primary_color") == "#FFFFFF"
+
+
+def test_get_video_config_deep_merge_preserves_defaults() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.set_video("cover_title_style.position", "top")
+        config = manager.get_video_config()
+        assert config["cover_title_style"]["position"] == "top"
+        assert config["cover_title_style"]["primary_color"] == "#FFD700"
+
+
 # --- Vision tests ---
 
 def test_get_vision_config_default() -> None:

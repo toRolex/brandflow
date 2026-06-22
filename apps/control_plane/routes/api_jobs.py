@@ -6,11 +6,25 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
-from packages.domain_core.models import AudioSource, JobRecord
+from packages.domain_core.models import AudioSource, CoverTitle, CoverTitleStyle, JobRecord, Language
 from packages.file_store.repository import FileStoreRepository
 from apps.control_plane.services.music_library import MusicLibrary
 
 router = APIRouter(tags=["api-jobs"])
+
+
+class CoverTitleStyleRequest(BaseModel):
+    primary_color: str = "#FFD700"
+    outline_color: str = "#000000"
+    highlight_color: str = "#FF0000"
+    outline_width: float = 2.0
+    position: str = "center"
+
+
+class CoverTitleRequest(BaseModel):
+    text: str = ""
+    highlight_words: list[str] = []
+    style: CoverTitleStyleRequest | None = None
 
 
 class CreateJobRequest(BaseModel):
@@ -23,6 +37,8 @@ class CreateJobRequest(BaseModel):
     skip_subtitle: bool = False
     auto_approve: bool = False
     audio_source: AudioSource = "tts"
+    language: Language = "mandarin"
+    cover_title: CoverTitleRequest | None = None
 
 
 class BatchJobItem(BaseModel):
@@ -30,6 +46,8 @@ class BatchJobItem(BaseModel):
     manual_script: str = ""
     skip_subtitle: bool = False
     audio_source: AudioSource = "tts"
+    language: Language = "mandarin"
+    cover_title: CoverTitleRequest | None = None
 
 
 class BatchCreateRequest(BaseModel):
@@ -39,8 +57,23 @@ class BatchCreateRequest(BaseModel):
     jobs: list[BatchJobItem]
 
 
-class ReviewAction(BaseModel):
-    review_gate: str
+def _cover_title_from_request(req: CoverTitleRequest | None) -> CoverTitle:
+    if req is None:
+        return CoverTitle()
+    style = CoverTitleStyle()
+    if req.style is not None:
+        style = CoverTitleStyle(
+            primary_color=req.style.primary_color,
+            outline_color=req.style.outline_color,
+            highlight_color=req.style.highlight_color,
+            outline_width=req.style.outline_width,
+            position=req.style.position,  # type: ignore[arg-type]
+        )
+    return CoverTitle(
+        text=req.text,
+        highlight_words=req.highlight_words,
+        style=style,
+    )
 
 
 def _make_job_response(record: JobRecord, display_index: str, platforms: list[str]) -> dict:
@@ -58,6 +91,8 @@ def _make_job_response(record: JobRecord, display_index: str, platforms: list[st
         "audio_source": record.audio_source,
         "skip_subtitle": record.skip_subtitle,
         "auto_approve": record.auto_approve,
+        "language": record.language,
+        "cover_title": record.cover_title.model_dump(),
         "display_index": display_index,
     }
 
@@ -72,6 +107,8 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         manual_script=payload.manual_script,
         uploaded_audio_path=payload.uploaded_audio_path,
         audio_source=payload.audio_source,
+        language=payload.language,
+        cover_title=_cover_title_from_request(payload.cover_title).model_dump(),
     )
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
@@ -86,6 +123,8 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         audio_source=payload.audio_source,
         skip_subtitle=payload.skip_subtitle,
         auto_approve=payload.auto_approve,
+        language=payload.language,
+        cover_title=_cover_title_from_request(payload.cover_title),
     )
     repo.save_job(project_id, record)
 
@@ -105,12 +144,15 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
     results: list[dict] = []
     for i, item in enumerate(payload.jobs):
         job_id = f"job_{payload.product}_{uuid4().hex[:8]}"
+        cover_title = _cover_title_from_request(item.cover_title)
         dispatcher.enqueue_demo_job(
             project_id,
             job_id,
             manual_script=item.manual_script,
             uploaded_audio_path="",
             audio_source=item.audio_source,
+            language=item.language,
+            cover_title=cover_title.model_dump(),
         )
         record = JobRecord(
             job_id=job_id,
@@ -124,6 +166,8 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             audio_source=item.audio_source,
             skip_subtitle=item.skip_subtitle,
             auto_approve=payload.auto_approve,
+            language=item.language,
+            cover_title=cover_title,
         )
         repo.save_job(project_id, record)
         display_index = f"{existing_count + i + 1:03d}"

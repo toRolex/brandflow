@@ -55,6 +55,15 @@ DEFAULTS: dict[str, Any] = {
         "max_retry": 3,
         "retry_delay_seconds": 60,
     },
+    "video": {
+        "cover_title_style": {
+            "primary_color": "#FFD700",
+            "outline_color": "#000000",
+            "highlight_color": "#FF0000",
+            "outline_width": 2.0,
+            "position": "center",
+        }
+    },
 }
 
 
@@ -263,3 +272,20 @@ class AppConfigManager:
         media = config.get("media", {})
         defaults = DEFAULTS["media"]
         return _deep_merge(defaults, media)
+
+    def get_video_config(self) -> dict[str, Any]:
+        config = self._load()
+        video = config.get("video", {})
+        defaults = DEFAULTS["video"]
+        return _deep_merge(defaults, video)
+
+    def set_video(self, key: str, value: Any) -> None:
+        config = self._load()
+        if "video" not in config:
+            config["video"] = {}
+        _set_nested(config["video"], key, value)
+        self._save(config)
+
+    def get_video_value(self, key: str, default: Any = None) -> Any:
+        config = self.get_video_config()
+        return _get_nested(config, key, default)

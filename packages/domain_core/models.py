@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+Language = Literal["mandarin", "cantonese"]
+
 Phase = Literal[
     "queued",
     "script_generating",
@@ -36,6 +38,20 @@ class ArtifactPointer(BaseModel):
     active: bool = False
 
 
+class CoverTitleStyle(BaseModel):
+    primary_color: str = "#FFD700"
+    outline_color: str = "#000000"
+    highlight_color: str = "#FF0000"
+    outline_width: float = 2.0
+    position: Literal["top", "center", "bottom"] = "center"
+
+
+class CoverTitle(BaseModel):
+    text: str = ""
+    highlight_words: list[str] = Field(default_factory=list)
+    style: CoverTitleStyle = Field(default_factory=CoverTitleStyle)
+
+
 class JobRecord(BaseModel):
     job_id: str
     project_id: str = ""
@@ -52,6 +68,8 @@ class JobRecord(BaseModel):
     audio_source: AudioSource = "tts"  # tts / upload / library
     skip_subtitle: bool = False
     auto_approve: bool = False
+    language: Language = "mandarin"
+    cover_title: CoverTitle = Field(default_factory=CoverTitle)
 
 
 class WorkerLease(BaseModel):
