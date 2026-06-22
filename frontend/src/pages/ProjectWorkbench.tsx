@@ -96,6 +96,8 @@ export default function ProjectWorkbench() {
         name: jobName || undefined,
         manual_script: scriptMode === "manual" ? manualScript : "",
         audio_source: audioMode,
+        music_track_path: audioMode === "library" ? selectedMusic : "",
+        music_volume: audioMode === "library" ? musicVolume : 80,
       });
       if (audioMode === "upload" && audioFile) {
         await api.uploadJobAudio(job.job_id, audioFile);
@@ -117,6 +119,8 @@ export default function ProjectWorkbench() {
         manual_script: c.scriptMode === "manual" ? c.manualScript : "",
         skip_subtitle: c.skipSubtitle,
         audio_source: c.audioMode,
+        music_track_path: c.audioMode === "library" ? c.musicPath : "",
+        music_volume: c.audioMode === "library" ? c.musicVolume : 80,
       })) });
       load();
     } catch (e) {

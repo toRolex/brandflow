@@ -121,6 +121,8 @@ export interface BatchJobItem {
   manual_script: string;
   skip_subtitle: boolean;
   audio_source?: string;
+  music_track_path?: string;
+  music_volume?: number;
 }
 
 export interface BatchCreateRequest {
