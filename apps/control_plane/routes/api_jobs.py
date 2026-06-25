@@ -335,3 +335,23 @@ def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
 def list_music(request: Request):
     lib = MusicLibrary(request.app.state.root_dir)
     return {"tracks": lib.tracks}
+
+
+class GenerateCoverTitleRequest(BaseModel):
+    script_text: str
+    product: str = ""
+    brand: str = "滋元堂"
+
+
+@router.post("/api/cover-title/generate")
+def generate_cover_title(payload: GenerateCoverTitleRequest):
+    from packages.provider_config.app_config import AppConfigManager
+    from packages.pipeline_services.script_service.generator import ScriptGenerator
+
+    if not payload.script_text.strip():
+        raise HTTPException(status_code=400, detail="script_text is required")
+    app_config = AppConfigManager()
+    llm_cfg = app_config.get_llm_config()
+    gen = ScriptGenerator(llm_cfg)
+    result = gen.generate_cover_title(payload.script_text, payload.product, payload.brand)
+    return result

@@ -321,4 +321,11 @@ export const api = {
   // Music Library
   listMusic: () =>
     request<{ tracks: import("../types").MusicTrack[] }>("/api/music"),
+
+  // Cover Title
+  generateCoverTitle: (body: { script_text: string; product?: string; brand?: string }) =>
+    request<{ text: string; highlight_words: string[] }>("/api/cover-title/generate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };
