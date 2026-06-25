@@ -80,8 +80,14 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                         script_text = txt_path.read_text(encoding="utf-8").strip()
                     if script_text:
                         app_config = AppConfigManager()
-                        llm_cfg = app_config.get_llm_config()
-                        gen = ScriptGenerator(llm_cfg)
+                        llm_config = app_config.get_llm_config()
+
+                        class _CoverConfig:
+                            api_key = app_config.get_llm_api_key()
+                            base_url = app_config.get_llm_endpoint()
+                            model = llm_config.get("model", "deepseek-v4-pro")
+
+                        gen = ScriptGenerator(_CoverConfig())
                         cover_title = gen.generate_cover_title(script_text, product, "滋元堂")
                         job_data["cover_title"] = cover_title
                         job_json_path.write_text(json.dumps(job_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

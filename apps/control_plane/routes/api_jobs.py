@@ -351,7 +351,13 @@ def generate_cover_title(payload: GenerateCoverTitleRequest):
     if not payload.script_text.strip():
         raise HTTPException(status_code=400, detail="script_text is required")
     app_config = AppConfigManager()
-    llm_cfg = app_config.get_llm_config()
-    gen = ScriptGenerator(llm_cfg)
+    llm_config = app_config.get_llm_config()
+
+    class _Config:
+        api_key = app_config.get_llm_api_key()
+        base_url = app_config.get_llm_endpoint()
+        model = llm_config.get("model", "deepseek-v4-pro")
+
+    gen = ScriptGenerator(_Config())
     result = gen.generate_cover_title(payload.script_text, payload.product, payload.brand)
     return result
