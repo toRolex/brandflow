@@ -114,6 +114,19 @@ export interface JobDetail {
   manual_script?: string;
   uploaded_audio_path?: string;
   audio_source?: string;
+  cover_title?: CoverTitle | null;
+}
+
+export interface CoverTitle {
+  text: string;
+  highlight_words?: string[];
+  style?: {
+    primary_color?: string;
+    outline_color?: string;
+    highlight_color?: string;
+    outline_width?: number;
+    position?: string;
+  };
 }
 
 export interface BatchJobItem {
@@ -124,6 +137,7 @@ export interface BatchJobItem {
   music_track_path?: string;
   music_volume?: number;
   language?: string;
+  cover_title?: CoverTitle | null;
 }
 
 export interface BatchCreateRequest {

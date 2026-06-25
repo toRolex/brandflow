@@ -4,10 +4,12 @@ export interface BatchConfig {
   manualScript: string;
   skipSubtitle: boolean;
   language: "mandarin" | "cantonese";
-  audioMode: "tts" | "upload" | "library";
+  audioMode: "tts" | "upload";
   audioFile: File | null;
   musicPath: string;
   musicVolume: number;
+  coverTitleText: string;
+  coverHighlightWords: string;
 }
 
 export function defaultBatchConfig(): BatchConfig {
@@ -21,6 +23,8 @@ export function defaultBatchConfig(): BatchConfig {
     audioFile: null,
     musicPath: "",
     musicVolume: 80,
+    coverTitleText: "",
+    coverHighlightWords: "",
   };
 }
 
