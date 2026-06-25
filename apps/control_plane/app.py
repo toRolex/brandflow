@@ -28,7 +28,6 @@ from packages.provider_config.app_config import AppConfigManager
 from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 from packages.pipeline_services.phase_orchestrator import PhaseContext, PhaseOrchestrator
-from packages.pipeline_services.script_service.generator import ScriptGenerator
 
 
 REVIEW_PHASES = {"script_review", "tts_review", "asset_review", "final_review"}
@@ -41,135 +40,12 @@ def _to_url_path(path: Path, workspace_dir: Path) -> str:
 
 
 def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Path, product: str, manual_script: str = "", uploaded_audio_path: str = "") -> list[dict]:
-    """Execute the real pipeline for the target phase and return artifact pointers."""
-    print(f"[PHASE] target={phase}, job={job_id}", flush=True)
-    workspace_dir = root_dir / "workspace"
-    job_dir = project_dir / "runtime" / "jobs" / job_id
-    job_dir.mkdir(parents=True, exist_ok=True)
-    result: list[dict] = []
-    script_bridge = LegacyScriptBridge(root_dir)
-    subtitle_svc = SubtitleService()
-    video_svc = VideoService(dry_run=False)
-    schedule_store = ScheduleStore(root_dir)
+    """DEPRECATED — all branches migrated to PhaseOrchestrator.
 
-    if phase == "script_generating":
-        if manual_script:
-            txt_path = job_dir / "口播文案.txt"
-            txt_path.write_text(manual_script, encoding="utf-8")
-            json_path = job_dir / "口播文案.json"
-            json_path.write_text(json.dumps({"text": manual_script, "source": "manual"}, ensure_ascii=False), encoding="utf-8")
-            script_result = {"txt_path": str(txt_path), "json_path": str(json_path), "final_script": manual_script}
-        else:
-            script_result = script_bridge.generate(product=product, output_dir=job_dir, mock=False)
-        txt_path = Path(script_result["txt_path"])
-        json_path = Path(script_result["json_path"])
-        for p in [txt_path, json_path]:
-            if p.exists():
-                rel = _to_url_path(p, workspace_dir)
-                result.append({"kind": "script", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": p.stat().st_size})
-
-        # Auto-generate cover title if not already set
-        job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
-        if job_json_path.exists():
-            job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
-            existing_ct = job_data.get("cover_title", {})
-            if not existing_ct or not existing_ct.get("text"):
-                try:
-                    script_text = script_result.get("final_script", "")
-                    if not script_text and txt_path.exists():
-                        script_text = txt_path.read_text(encoding="utf-8").strip()
-                    if script_text:
-                        app_config = AppConfigManager()
-                        llm_config = app_config.get_llm_config()
-
-                        class _CoverConfig:
-                            api_key = app_config.get_llm_api_key()
-                            base_url = app_config.get_llm_endpoint()
-                            model = llm_config.get("model", "deepseek-v4-pro")
-
-                        gen = ScriptGenerator(_CoverConfig())
-                        cover_title = gen.generate_cover_title(script_text, product, "滋元堂")
-                        job_data["cover_title"] = cover_title
-                        job_json_path.write_text(json.dumps(job_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-                        print(f"[COVER_TITLE] Auto-generated: {cover_title['text']}", flush=True)
-                except Exception as e:
-                    print(f"[COVER_TITLE WARN] Failed to auto-generate: {e}", flush=True)
-
-    elif phase == "video_rendering":
-        base_path = job_dir / "base.mp4"
-        audio_path = job_dir / "audio.mp3"
-        clip_list_path = job_dir / "selected_clips.json"
-
-        if not audio_path.exists():
-            print(f"[VIDEO WARN] audio.mp3 not found, skipping video composition for {job_id}", flush=True)
-        elif not clip_list_path.exists():
-            print(f"[VIDEO WARN] selected_clips.json not found for {job_id}", flush=True)
-        else:
-            selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
-            selected = [item for item in selected if Path(item["file_path"]).exists()]
-
-            if not selected:
-                print(f"[VIDEO WARN] no valid clips found after filtering for {job_id}", flush=True)
-            else:
-                base_path = job_dir / "base.mp4"
-                video_svc.build_base_video(
-                    project_dir,
-                    {
-                        "job_id": job_id,
-                        "asset_bundle": {"audio_path": str(audio_path), "selected_clips": selected},
-                        "sequence": 1,
-                    },
-                    base_path,
-                )
-
-        if not base_path.exists():
-            print(f"[VIDEO WARN] base.mp4 not produced for {job_id}", flush=True)
-        else:
-            rel = _to_url_path(base_path, workspace_dir)
-            result.append({"kind": "video_base", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": base_path.stat().st_size})
-
-    elif phase == "final_review":
-        final_path = job_dir / "final.mp4"
-        base_path = job_dir / "base.mp4"
-        audio_path = job_dir / "audio.mp3"
-        srt_path = job_dir / "subtitles.srt"
-        job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
-        skip_subtitle = False
-        music_path: Path | None = None
-        music_volume = 80
-        platform = ""
-        cover_title_data: dict | None = None
-        if job_json_path.exists():
-            job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
-            skip_subtitle = job_data.get("skip_subtitle", False)
-            music_track = job_data.get("music_track_path", "")
-            music_volume = job_data.get("music_volume", 80)
-            platform = job_data.get("platform", "")
-            ct = job_data.get("cover_title")
-            if ct and ct.get("text"):
-                cover_title_data = ct
-            if music_track:
-                music_path = root_dir / music_track
-                if not music_path.exists():
-                    music_path = None
-        actual_srt_path = None if skip_subtitle else srt_path
-        if base_path.exists() and audio_path.exists() and (skip_subtitle or srt_path.exists()):
-            video_svc.burn_final_video(
-                base_path,
-                audio_path,
-                actual_srt_path,
-                final_path,
-                cover_clip_path=None,
-                cover_title=cover_title_data,
-                music_path=music_path,
-                music_volume=music_volume,
-            )
-        if final_path.exists():
-            rel = _to_url_path(final_path, workspace_dir)
-            result.append({"kind": "final_video", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": final_path.stat().st_size})
-            schedule_store.add(job_id=job_id, platform=platform, title=product, description="")
-
-    return result
+    Kept temporarily for reference.  All callers now use ``orchestrator.run_phase()``.
+    Will be removed in Task 8 (cleanup).
+    """
+    return []
 
 
 async def _auto_tick(root_dir: Path):
@@ -254,23 +130,20 @@ async def _auto_tick(root_dir: Path):
                         manual_script = data.get("manual_script", "")
                         uploaded_audio_path = data.get("uploaded_audio_path", "")
 
-                        if target in ("script_generating", "tts_generating", "tts_review", "subtitle_generating", "asset_retrieving"):
-                            ctx = PhaseContext(
-                                job_id=job_id,
-                                project_dir=project_dir,
-                                root_dir=root_dir,
-                                product=product,
-                                options={
-                                    "manual_script": manual_script,
-                                    "uploaded_audio_path": uploaded_audio_path,
-                                },
-                            )
-                            artifacts = [
-                                a.model_dump()
-                                for a in orchestrator.run_phase(target, ctx)
-                            ]
-                        else:
-                            artifacts = _phase_to_artifacts(target, job_id, project_dir, root_dir, product, manual_script, uploaded_audio_path)
+                        ctx = PhaseContext(
+                            job_id=job_id,
+                            project_dir=project_dir,
+                            root_dir=root_dir,
+                            product=product,
+                            options={
+                                "manual_script": manual_script,
+                                "uploaded_audio_path": uploaded_audio_path,
+                            },
+                        )
+                        artifacts = [
+                            a.model_dump()
+                            for a in orchestrator.run_phase(target, ctx)
+                        ]
 
                         # Merge artifacts (keep existing, add new ones)
                         existing = data.get("artifacts", [])

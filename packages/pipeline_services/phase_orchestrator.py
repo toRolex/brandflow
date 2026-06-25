@@ -111,6 +111,8 @@ class PhaseOrchestrator:
             "tts_review": self._run_tts_review,
             "subtitle_generating": self._run_subtitle,
             "asset_retrieving": self._run_asset,
+            "video_rendering": self._run_video,
+            "final_review": self._run_final,
         }
 
     # -- public interface ---------------------------------------------------
@@ -382,6 +384,101 @@ class PhaseOrchestrator:
 
         print(f"[ASSET] Retrieved {len(selected)} clips -> {clip_list_path}", flush=True)
         return [self._to_artifact("selected_clips", clip_list_path, workspace_dir)]
+
+    # -- video_rendering handler ---------------------------------------------
+
+    def _run_video(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """video_rendering: compose base video from audio + selected clips."""
+        job_dir = self._job_dir(ctx)
+        workspace_dir = ctx.root_dir / "workspace"
+        audio_path = job_dir / "audio.mp3"
+        clip_list_path = job_dir / "selected_clips.json"
+        base_path = job_dir / "base.mp4"
+
+        if not audio_path.exists():
+            print(f"[VIDEO WARN] audio.mp3 not found, skipping video composition for {ctx.job_id}", flush=True)
+        elif not clip_list_path.exists():
+            print(f"[VIDEO WARN] selected_clips.json not found for {ctx.job_id}", flush=True)
+        else:
+            selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
+            selected = [item for item in selected if Path(item["file_path"]).exists()]
+
+            if not selected:
+                print(f"[VIDEO WARN] no valid clips found after filtering for {ctx.job_id}", flush=True)
+            else:
+                self._video_svc.build_base_video(
+                    ctx.project_dir,
+                    {
+                        "job_id": ctx.job_id,
+                        "asset_bundle": {"audio_path": str(audio_path), "selected_clips": selected},
+                        "sequence": 1,
+                    },
+                    base_path,
+                )
+
+        if base_path.exists():
+            return [self._to_artifact("video_base", base_path, workspace_dir)]
+        print(f"[VIDEO WARN] base.mp4 not produced for {ctx.job_id}", flush=True)
+        return []
+
+    # -- final_review handler ------------------------------------------------
+
+    def _run_final(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """final_review: burn subtitles, music, cover title into final video.
+
+        Reads settings from the job JSON file (written by the UI) rather than
+        ``ctx.options``, since that is where the UI persists them.
+        """
+        job_dir = self._job_dir(ctx)
+        workspace_dir = ctx.root_dir / "workspace"
+        final_path = job_dir / "final.mp4"
+        base_path = job_dir / "base.mp4"
+        audio_path = job_dir / "audio.mp3"
+        srt_path = job_dir / "subtitles.srt"
+        job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
+
+        skip_subtitle = False
+        music_path: Path | None = None
+        music_volume = 80
+        platform = ""
+        cover_title_data: dict | None = None
+
+        if job_json_path.exists():
+            job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
+            skip_subtitle = job_data.get("skip_subtitle", False)
+            music_track = job_data.get("music_track_path", "")
+            music_volume = job_data.get("music_volume", 80)
+            platform = job_data.get("platform", "")
+            ct = job_data.get("cover_title")
+            if ct and ct.get("text"):
+                cover_title_data = ct
+            if music_track:
+                music_path = ctx.root_dir / music_track
+                if not music_path.exists():
+                    music_path = None
+
+        actual_srt_path = None if skip_subtitle else srt_path
+        if base_path.exists() and audio_path.exists() and (skip_subtitle or srt_path.exists()):
+            self._video_svc.burn_final_video(
+                base_path,
+                audio_path,
+                actual_srt_path,
+                final_path,
+                cover_clip_path=None,
+                cover_title=cover_title_data,
+                music_path=music_path,
+                music_volume=music_volume,
+            )
+
+        if final_path.exists():
+            self._schedule_store.add(
+                job_id=ctx.job_id,
+                platform=platform,
+                title=ctx.product,
+                description="",
+            )
+            return [self._to_artifact("final_video", final_path, workspace_dir)]
+        return []
 
     @staticmethod
     def _discover_script(job_dir: Path) -> str | None:
