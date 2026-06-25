@@ -199,7 +199,7 @@ class TestRunScriptLLM:
         artifacts = orchestrator.run_phase("script_generating", ctx)
 
         orchestrator._script_bridge.generate.assert_called_once_with(
-            product="羊肚菌", output_dir=job_dir, mock=False,
+            product="羊肚菌", output_dir=job_dir, mock=False, language="mandarin",
         )
         assert len(artifacts) == 2
         assert all(isinstance(a, ArtifactPointer) for a in artifacts)

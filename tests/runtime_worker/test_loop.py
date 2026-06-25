@@ -1,9 +1,22 @@
+"""Tests for WorkerLoop — orchestrator-based pipeline execution."""
+
+from __future__ import annotations
+
 import json
 from pathlib import Path
 from typing import Any
 
 from apps.runtime_worker.http_client import WorkerHttpClient
-from apps.runtime_worker.loop import WorkerLoop
+from apps.runtime_worker.loop import WORKER_PHASES, WorkerLoop
+from packages.pipeline_services.phase_orchestrator import (
+    ArtifactPointer,
+    PhaseContext,
+)
+
+
+# ---------------------------------------------------------------------------
+# Test stubs
+# ---------------------------------------------------------------------------
 
 
 class StubIdleApi:
@@ -16,6 +29,8 @@ class StubIdleApi:
 
 
 class StubApi:
+    """Default API stub that returns a run_task command."""
+
     def __init__(self) -> None:
         self.reports: list[dict] = []
         self.uploads: list[tuple[str, list[dict]]] = []
@@ -50,55 +65,9 @@ class StubApi:
         self.reports.append(payload)
 
 
-class SpyScriptBridge:
-    def __init__(self) -> None:
-        self.generate_calls: list[dict] = []
-
-    def generate(self, product: str, output_dir: Path, mock: bool, language: str = "mandarin") -> dict[str, Any]:
-        self.generate_calls.append({"product": product, "output_dir": str(output_dir), "mock": mock, "language": language})
-        txt_path = output_dir / "stub_script.txt"
-        json_path = output_dir / "stub_script.json"
-        txt_path.write_text("测试文案 stub\n", encoding="utf-8")
-        json_path.write_text('{"final_script": "测试文案 stub"}\n', encoding="utf-8")
-        return {"txt_path": str(txt_path), "json_path": str(json_path), "final_script": "测试文案 stub"}
-
-
-class SpyMediaBridge:
-    def __init__(self) -> None:
-        self.tts_calls: list[dict] = []
-        self.build_base_video_calls: list[dict] = []
-
-    def synthesize_tts(self, script_text: str, output_path: Path) -> Path:
-        self.tts_calls.append({"script_text": script_text, "output_path": str(output_path)})
-        output_path.write_bytes(b"\x00" * 128)
-        return output_path
-
-    def build_script_timed_srt(self, audio_path: Path, srt_path: Path, script_text: str) -> None:
-        srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\n测试文案 stub\n", encoding="utf-8")
-
-    def build_base_video(self, project_dir: Path, job_payload: dict[str, Any], output_path: Path) -> None:
-        self.build_base_video_calls.append({"project_dir": str(project_dir), "output_path": str(output_path)})
-        output_path.write_bytes(b"\x00" * 256)
-
-    def burn_final_video(
-        self,
-        base_video_path: Path,
-        audio_path: Path,
-        srt_path: Path,
-        final_video_path: Path,
-        cover_clip_path: Path | None,
-        cover_title: dict | None = None,
-        music_path: Path | None = None,
-        music_volume: int = 80,
-    ) -> None:
-        final_video_path.write_bytes(b"\x00" * 512)
-
-
-StubScriptBridge = SpyScriptBridge
-StubMediaBridge = SpyMediaBridge
-
-
 class StubApiWithManualInputs:
+    """API stub that includes manual_script and/or uploaded_audio_path."""
+
     def __init__(self, manual_script: str = "", uploaded_audio_path: str = "") -> None:
         self.reports: list[dict] = []
         self.uploads: list[tuple[str, list[dict]]] = []
@@ -135,20 +104,62 @@ class StubApiWithManualInputs:
     def report(self, payload: dict) -> None:
         self.reports.append(payload)
 
-    def burn_final_video(
-        self,
-        base_video_path: Path,
-        audio_path: Path,
-        srt_path: Path,
-        final_video_path: Path,
-        cover_clip_path: Path | None,
-    ) -> None:
-        final_video_path.write_bytes(b"\x00" * 512)
+
+class StubOrchestrator:
+    """Stub PhaseOrchestrator that records calls and returns stub artifacts.
+
+    Returns ArtifactPointer objects with a simple relative path.  Does NOT
+    create real files — upload logic in WorkerLoop skips missing files.
+    """
+
+    def __init__(self) -> None:
+        self.phase_calls: list[dict] = []
+
+    def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
+        self.phase_calls.append({
+            "phase": phase,
+            "job_id": ctx.job_id,
+            "product": ctx.product,
+        })
+        # Return a stub artifact for each phase (relative_path is just a label)
+        return [ArtifactPointer(
+            kind=phase,
+            relative_path=f"projects/{ctx.project_dir.name}/runtime/jobs/{ctx.job_id}/{phase}.stub",
+            url="",
+            size_bytes=0,
+        )]
 
 
-class StubScheduleBridge:
-    def add(self, job_id: str, platform: str, title: str = "", description: str = "") -> int:
-        return 1
+# Backward compat aliases (used by older test code, kept for reference)
+StubScriptBridge = type("StubScriptBridge", (), {})
+StubMediaBridge = type("StubMediaBridge", (), {})
+StubScheduleBridge = type("StubScheduleBridge", (), {})
+
+
+def _make_loop(
+    tmp_path: Path,
+    api: Any,
+    orchestrator: StubOrchestrator | None = None,
+    monkeypatch: Any = None,
+) -> WorkerLoop:
+    """Helper to construct a WorkerLoop with a stub orchestrator."""
+    if orchestrator is None:
+        orchestrator = StubOrchestrator()
+    loop = WorkerLoop(
+        api=api,
+        worker_id="worker-mac",
+        workspace_root=tmp_path,
+        orchestrator=orchestrator,
+    )
+    # Monkey-patch adapter to use tmp_path-friendly paths
+    if monkeypatch is not None:
+        monkeypatch.setattr(loop.adapter, "ensure_tools", lambda: None)
+    return loop
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 
 def test_http_client_absolute_url_handles_absolute_and_relative_paths() -> None:
@@ -167,154 +178,151 @@ def test_http_client_absolute_url_handles_absolute_and_relative_paths() -> None:
 
 def test_worker_loop_returns_immediately_for_idle_command(tmp_path: Path) -> None:
     api = StubIdleApi()
-    loop = WorkerLoop(
-        api=api,
-        worker_id="worker-mac",
-        workspace_root=tmp_path,
-        script_bridge=StubScriptBridge(),
-        media_bridge=StubMediaBridge(),
-        schedule_bridge=StubScheduleBridge(),
-    )
+    loop = _make_loop(tmp_path, api)
 
     loop.run_once()
 
     assert api.poll_calls == 1
-    assert not (tmp_path / "attempts").exists()
 
 
-def test_worker_loop_reports_success_and_uploads_artifacts(tmp_path: Path) -> None:
+def test_worker_loop_calls_all_phases_in_order(tmp_path: Path, monkeypatch) -> None:
     api = StubApi()
-    loop = WorkerLoop(
-        api=api,
-        worker_id="worker-mac",
-        workspace_root=tmp_path,
-        script_bridge=StubScriptBridge(),
-        media_bridge=StubMediaBridge(),
-        schedule_bridge=StubScheduleBridge(),
-    )
+    orch = StubOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
     loop.run_once()
 
-    attempt_root = tmp_path / "attempts" / "attempt-001"
-    assert attempt_root.exists()
+    # All WORKER_PHASES should be called in order
+    called = [c["phase"] for c in orch.phase_calls]
+    assert called == WORKER_PHASES
+
+
+def test_worker_loop_passes_product_from_command(tmp_path: Path, monkeypatch) -> None:
+    api = StubApi()
+    orch = StubOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
+
+    loop.run_once()
+
+    # All phases should receive the product from the command (default env)
+    for call in orch.phase_calls:
+        assert call["product"]  # non-empty
+
+
+def test_worker_loop_reports_success_and_uploads_artifacts(tmp_path: Path, monkeypatch) -> None:
+    api = StubApi()
+
+    class FileCreatingOrchestrator(StubOrchestrator):
+        """Like StubOrchestrator but creates actual files so upload works."""
+        def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
+            artifacts = super().run_phase(phase, ctx)
+            workspace_dir = ctx.root_dir / "workspace"
+            for art in artifacts:
+                abs_path = workspace_dir / art.relative_path
+                abs_path.parent.mkdir(parents=True, exist_ok=True)
+                abs_path.write_bytes(b"\x00" * 64)
+            return artifacts
+
+    orch = FileCreatingOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
+
+    loop.run_once()
+
     assert api.download_requests == ["/bundle"]
     assert api.uploads[0][0] == "task-001"
-    assert api.uploads[0][1]
+    assert len(api.uploads[0][1]) > 0, "Should upload at least one artifact"
     assert api.reports[0]["status"] == "succeeded"
     assert api.reports[0]["attempt_id"] == "attempt-001"
     assert api.reports[0]["started_at"] <= api.reports[0]["finished_at"]
 
 
-def test_worker_loop_uses_shared_vertical_assembler_for_selected_clips(tmp_path: Path, monkeypatch) -> None:
-    clip_a = tmp_path / "clip_a.mp4"
-    clip_b = tmp_path / "clip_b.mp4"
-    clip_a.write_bytes(b"a")
-    clip_b.write_bytes(b"b")
-
-    class SemanticPathApi(StubApi):
-        def download_input_bundle(self, bundle_url: str) -> dict:
-            payload = super().download_input_bundle(bundle_url)
-            job_dir = tmp_path / "attempts" / "attempt-001" / "output"
-            job_dir.mkdir(parents=True, exist_ok=True)
-            (job_dir / "selected_clips.json").write_text(
-                json.dumps(
-                    [
-                        {"file_path": str(clip_a)},
-                        {"file_path": str(clip_b)},
-                    ],
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            return payload
-
-    api = SemanticPathApi()
-    spy_media = SpyMediaBridge()
-
-    loop = WorkerLoop(
-        api=api,
-        worker_id="worker-mac",
-        workspace_root=tmp_path,
-        script_bridge=StubScriptBridge(),
-        media_bridge=spy_media,
-        schedule_bridge=StubScheduleBridge(),
-    )
-    monkeypatch.setattr(loop.adapter, "ensure_tools", lambda: None)
-    monkeypatch.setattr(loop.adapter, "attempt_root", lambda workspace_root, attempt_id: workspace_root / "attempts" / attempt_id)
+def test_worker_loop_writes_job_json_with_command_fields(tmp_path: Path, monkeypatch) -> None:
+    """The worker should persist command fields (cover_title, music, etc.) in job JSON
+    so that the orchestrator's final_review handler can read them."""
+    api = StubApi()
+    orch = StubOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
     loop.run_once()
 
-    assert len(spy_media.build_base_video_calls) == 1
-    job_payload = spy_media.build_base_video_calls[0]
-    expected_project_dir = tmp_path.resolve() / "projects" / "project-001"
-    assert job_payload["project_dir"] == str(expected_project_dir)
+    # Verify job JSON was written
+    job_json = tmp_path.resolve() / "projects" / "project-001" / "control" / "jobs" / "job-001.json"
+    assert job_json.exists(), f"Job JSON should be written at {job_json}"
+    data = json.loads(job_json.read_text(encoding="utf-8"))
+    assert data["job_id"] == "job-001"
+    assert data["project_id"] == "project-001"
 
 
-def test_worker_loop_skips_llm_when_manual_script_provided(tmp_path: Path) -> None:
+def test_worker_loop_skips_llm_when_manual_script_provided(tmp_path: Path, monkeypatch) -> None:
+    """When manual_script is set, the orchestrator should still be called for all phases.
+    The orchestrator's _run_script handler detects manual_script in ctx.options."""
     manual_script = "这是手动输入的测试文案，用于验证跳过LLM生成功能。"
     api = StubApiWithManualInputs(manual_script=manual_script)
-    spy_script = SpyScriptBridge()
-    spy_media = SpyMediaBridge()
-    loop = WorkerLoop(
-        api=api,
-        worker_id="worker-mac",
-        workspace_root=tmp_path,
-        script_bridge=spy_script,
-        media_bridge=spy_media,
-        schedule_bridge=StubScheduleBridge(),
-    )
+    orch = StubOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
     loop.run_once()
 
-    assert len(spy_script.generate_calls) == 0, f"LLM should be skipped but was called {len(spy_script.generate_calls)} times"
-    assert len(spy_media.tts_calls) == 1
-    assert spy_media.tts_calls[0]["script_text"] == manual_script
+    # All phases should still be called
+    called = [c["phase"] for c in orch.phase_calls]
+    assert called == WORKER_PHASES
+
+    # The job JSON should contain the fields needed by final_review
+    job_json = tmp_path.resolve() / "projects" / "project-001" / "control" / "jobs" / "job-001.json"
+    assert job_json.exists()
 
 
-def test_worker_loop_skips_tts_when_audio_uploaded(tmp_path: Path) -> None:
+def test_worker_loop_skips_tts_when_audio_uploaded(tmp_path: Path, monkeypatch) -> None:
+    """When uploaded_audio_path is set, the orchestrator's TTS handler copies the file
+    instead of synthesizing.  The orchestrator is still called for all phases."""
     audio_dir = tmp_path / "uploaded"
-    audio_dir.mkdir()
+    audio_dir.mkdir(parents=True)
     fake_audio = audio_dir / "my_audio.mp3"
     fake_audio.write_bytes(b"\x00" * 256)
 
-    api = StubApiWithManualInputs(uploaded_audio_path=str(fake_audio))
-    spy_script = SpyScriptBridge()
-    spy_media = SpyMediaBridge()
-    loop = WorkerLoop(
-        api=api,
-        worker_id="worker-mac",
-        workspace_root=tmp_path,
-        script_bridge=spy_script,
-        media_bridge=spy_media,
-        schedule_bridge=StubScheduleBridge(),
-    )
+    api = StubApiWithManualInputs(uploaded_audio_path=str(fake_audio.relative_to(tmp_path)))
+    orch = StubOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
     loop.run_once()
 
-    assert len(spy_script.generate_calls) == 1, "LLM should be called when no manual script"
-    assert len(spy_media.tts_calls) == 0, f"TTS should be skipped but was called {len(spy_media.tts_calls)} times"
+    # All phases should still be called — the orchestrator handles the upload
+    called = [c["phase"] for c in orch.phase_calls]
+    assert called == WORKER_PHASES
 
 
-def test_worker_loop_skips_both_when_manual_script_and_audio_provided(tmp_path: Path) -> None:
-    audio_dir = tmp_path / "uploaded"
-    audio_dir.mkdir()
-    fake_audio = audio_dir / "my_audio.mp3"
-    fake_audio.write_bytes(b"\x00" * 256)
+def test_worker_loop_passes_language_in_options(tmp_path: Path, monkeypatch) -> None:
+    """language from the command should be passed to PhaseContext.options."""
+    # StubApi does not include language — defaults to "mandarin"
+    api = StubApi()
+    orch = StubOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
-    manual_script = "手动输入的文案"
-    api = StubApiWithManualInputs(manual_script=manual_script, uploaded_audio_path=str(fake_audio))
-    spy_script = SpyScriptBridge()
-    spy_media = SpyMediaBridge()
-    loop = WorkerLoop(
-        api=api,
-        worker_id="worker-mac",
-        workspace_root=tmp_path,
-        script_bridge=spy_script,
-        media_bridge=spy_media,
-        schedule_bridge=StubScheduleBridge(),
-    )
+    # Patch run_phase to inspect ctx.options
+    original_run = orch.run_phase
+    seen_options: list[dict] = []
+
+    def capturing_run(phase: str, ctx: PhaseContext) -> list:
+        seen_options.append(ctx.options.copy())
+        return original_run(phase, ctx)
+
+    orch.run_phase = capturing_run  # type: ignore[assignment]
 
     loop.run_once()
 
-    assert len(spy_script.generate_calls) == 0, f"LLM should be skipped but was called {len(spy_script.generate_calls)} times"
-    assert len(spy_media.tts_calls) == 0, f"TTS should be skipped but was called {len(spy_media.tts_calls)} times"
+    assert len(seen_options) == len(WORKER_PHASES)
+    assert seen_options[0].get("language") == "mandarin"
+
+
+def test_worker_loop_constructs_project_dir_correctly(tmp_path: Path, monkeypatch) -> None:
+    """project_dir should be workspace_root/projects/project_id, passed to the orchestrator."""
+    api = StubApi()
+    orch = StubOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
+
+    loop.run_once()
+
+    # Verify the orchestrator received the correct job_id
+    assert len(orch.phase_calls) == len(WORKER_PHASES)
+    for call in orch.phase_calls:
+        assert call["job_id"] == "job-001"

@@ -175,8 +175,10 @@ class PhaseOrchestrator:
                 "final_script": manual_script,
             }
         else:
+            language = ctx.options.get("language", "mandarin")
             script_result = self._script_bridge.generate(
                 product=ctx.product, output_dir=job_dir, mock=False,
+                language=language,
             )
 
         # 2. Emit artifact pointers for txt + json

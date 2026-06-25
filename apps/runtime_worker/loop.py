@@ -1,110 +1,56 @@
+"""WorkerLoop — pulls tasks from the control plane and runs them via PhaseOrchestrator.
+
+Replaces the old inline pipeline (_DefaultMediaBridge + manual phase wiring)
+with orchestrated phase execution.  The same PhaseOrchestrator used by
+_auto_tick in the control plane is reused here, so worker and control-plane
+share identical pipeline logic.
+"""
+
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from apps.runtime_worker.http_client import WorkerHttpClient
-from apps.control_plane.services.schedule_store import ScheduleStore
-from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-from packages.pipeline_services.subtitle_service import SubtitleService
-from packages.pipeline_services.tts_provider import MiMoTTSProvider, QwenTTSProvider
-from packages.pipeline_services.video_service import VideoService
-from packages.provider_config.app_config import AppConfigManager
+from packages.pipeline_services.phase_orchestrator import (
+    PhaseContext,
+    PhaseOrchestrator,
+)
 from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
 
 
-class _DefaultMediaBridge:
-    """使用独立 service 替代旧 LegacyMediaBridge。"""
-
-    def __init__(self) -> None:
-        self._subtitle_svc = SubtitleService()
-        self._video_svc = VideoService(dry_run=False)
-
-    def synthesize_tts(self, script_text: str, output_path: Path) -> Path:
-        config = AppConfigManager()
-        tts_config = config.get_tts_config()
-
-        class _TTSConfig:
-            model = tts_config.get("model", "mimo-v2.5-tts")
-            voice = tts_config.get("voice", "Mia")
-            instructions = tts_config.get("instructions", "")
-            language_type = tts_config.get("language_type", "")
-            optimize_instructions = tts_config.get("optimize_instructions", False)
-            fallback_voice = tts_config.get("fallback_voice", "Dean")
-            randomize_voice = tts_config.get("randomize_voice", False)
-            random_voices = tts_config.get("random_voices", ["Mia", "Dean"])
-            style_control_mode = tts_config.get("style_control_mode", "simple")
-            style_prompt = tts_config.get("style_prompt", "自然 清晰")
-            voice_design_prompt = tts_config.get("voice_design_prompt", "")
-            audio_format = tts_config.get("audio_format", "wav")
-            audio_tags_enabled = tts_config.get("audio_tags_enabled", False)
-            audio_tags = tts_config.get("audio_tags", "")
-            voice_clone_sample_path = tts_config.get("voice_clone_sample_path", "")
-            voice_clone_mime_type = tts_config.get("voice_clone_mime_type", "")
-            optimize_text_preview = tts_config.get("optimize_text_preview", False)
-            director_character = tts_config.get("director_character", "")
-            director_scene = tts_config.get("director_scene", "")
-            director_guidance = tts_config.get("director_guidance", "")
-
-        model = _TTSConfig.model or ""
-        if model.startswith("qwen"):
-            api_key = config.get_api_key("qwen")
-            base_url = config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1"
-            provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
-        else:
-            api_key = config.get_api_key("mimo")
-            base_url = config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1"
-            provider = MiMoTTSProvider(api_key=api_key, base_url=base_url)
-
-        audio_bytes = provider.synthesize(script_text, _TTSConfig())
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(audio_bytes)
-        return output_path
-
-    def build_script_timed_srt(self, audio_path: Path, srt_path: Path, script_text: str) -> None:
-        self._subtitle_svc.build_srt(audio_path, srt_path, script_text)
-
-    def build_base_video(self, project_dir: Path, job_payload: dict[str, Any], output_path: Path) -> None:
-        self._video_svc.build_base_video(project_dir, job_payload, output_path)
-
-    def burn_final_video(
-        self,
-        base_video_path: Path,
-        audio_path: Path,
-        srt_path: Path | None = None,
-        final_video_path: Path | None = None,
-        cover_clip_path: Path | None = None,
-        cover_title: dict | None = None,
-        music_path: Path | None = None,
-        music_volume: int = 80,
-    ) -> None:
-        if final_video_path is None:
-            raise TypeError("final_video_path is required")
-        self._video_svc.burn_final_video(
-            base_video_path, audio_path, srt_path, final_video_path,
-            cover_clip_path, cover_title=cover_title, music_path=music_path, music_volume=music_volume,
-        )
+# Phases the worker executes in sequence.
+# Review gates (script_review, tts_review, asset_review) are handled by the
+# control plane; the worker only runs the "action" phases plus final_review
+# (which burns the final video — it is NOT a gating review from the worker's
+# perspective).
+WORKER_PHASES = [
+    "script_generating",
+    "tts_generating",
+    "subtitle_generating",
+    "asset_retrieving",
+    "video_rendering",
+    "final_review",
+]
 
 
 class WorkerLoop:
+    """Pulls a task from *api*, runs all pipeline phases, uploads artifacts."""
+
     def __init__(
         self,
         api: Any,
         worker_id: str,
         workspace_root: Path,
-        script_bridge: Any = None,
-        media_bridge: Any = None,
-        schedule_bridge: Any = None,
+        orchestrator: PhaseOrchestrator,
     ) -> None:
         self.api = api
         self.worker_id = worker_id
         self.workspace_root = workspace_root
-        self.adapter = MacLocalRuntimeAdapter()
-        self.script_bridge = script_bridge or LegacyScriptBridge(Path.cwd())
-        self.media_bridge = media_bridge or _DefaultMediaBridge()
-        self.schedule_bridge = schedule_bridge or ScheduleStore(Path.cwd())
+        self.orchestrator = orchestrator
 
     def run_once(self) -> None:
         command = self.api.poll()
@@ -113,122 +59,131 @@ class WorkerLoop:
 
         started_at = datetime.now(timezone.utc).isoformat()
         self.adapter.ensure_tools()
-        attempt_root = self.adapter.attempt_root(self.workspace_root, command["attempt_id"]).resolve()
+
         self.api.download_input_bundle(command["input_bundle_url"])
 
-        job_dir = attempt_root / "output"
-        job_dir.mkdir(parents=True, exist_ok=True)
+        root_dir = Path.cwd()
+        project_dir = (root_dir / self.workspace_root / "projects" / command["project_id"]).resolve()
+        job_id = command["job_id"]
 
-        manual_script = command.get("manual_script", "")
-        uploaded_audio_path = command.get("uploaded_audio_path", "")
-        music_track_path = command.get("music_track_path", "")
-        music_volume = command.get("music_volume", 80)
-        language = command.get("language", "mandarin")
-        cover_title = command.get("cover_title") or None
-
-        if manual_script:
-            final_script = manual_script
-            script_path = job_dir / "script.txt"
-            script_path.write_text(final_script, encoding="utf-8")
-            script_json_path = job_dir / "script.json"
-            script_json_path.write_text(f'{{"final_script": "{final_script}", "source": "manual"}}', encoding="utf-8")
-            script_result = {"final_script": final_script, "source": "manual", "txt_path": str(script_path), "json_path": str(script_json_path)}
-        else:
-            script_result = self.script_bridge.generate(product=os.environ.get("PRODUCT", "荔枝菌"), output_dir=job_dir, mock=False, language=language)
-            final_script = script_result["final_script"]
-
-        audio_path = job_dir / "audio.mp3"
-        if uploaded_audio_path:
-            src_audio = Path.cwd() / uploaded_audio_path
-            if src_audio.exists():
-                import shutil
-                shutil.copy2(src_audio, audio_path)
-            else:
-                self.media_bridge.synthesize_tts(final_script, audio_path)
-        else:
-            self.media_bridge.synthesize_tts(final_script, audio_path)
-
-        srt_path = job_dir / "subtitles.srt"
-        self.media_bridge.build_script_timed_srt(audio_path, srt_path, final_script)
-
-        final_video_path = job_dir / "final.mp4"
-        project_dir = (Path.cwd() / self.workspace_root / "projects" / command["project_id"]).resolve()
-
-        # Use selected_clips.json if available (semantic retrieval path)
-        use_legacy = True
-        clip_list_path = job_dir / "selected_clips.json"
-        # Resolve music path relative to cwd
-        music_path: Path | None = None
-        if music_track_path:
-            music_path = Path.cwd() / music_track_path
-            if not music_path.exists():
-                music_path = None
-        if clip_list_path.exists():
-            import json as _json
-            selected = _json.loads(clip_list_path.read_text(encoding="utf-8"))
-            selected = [item for item in selected if Path(item["file_path"]).exists()]
-            if selected:
-                use_legacy = False
-                base_video_path = job_dir / "base.mp4"
-                self.media_bridge.build_base_video(
-                    project_dir,
-                    {
-                        "job_id": command["job_id"],
-                        "asset_bundle": {"audio_path": str(audio_path), "selected_clips": selected},
-                        "sequence": 1,
-                    },
-                    base_video_path,
-                )
-                self.media_bridge.burn_final_video(
-                    base_video_path, audio_path, srt_path, final_video_path,
-                    cover_clip_path=None, cover_title=cover_title, music_path=music_path, music_volume=music_volume,
-                )
-
-        if use_legacy:
-            # Fallback: use legacy bridge for both build and burn
-            base_video_path = job_dir / "base.mp4"
-            self.media_bridge.build_base_video(project_dir, {"job_id": command["job_id"], "asset_bundle": {"audio_path": str(audio_path)}, "sequence": 1}, base_video_path)
-            self.media_bridge.burn_final_video(
-                base_video_path, audio_path, srt_path, final_video_path,
-                cover_clip_path=None, cover_title=cover_title, music_path=music_path, music_volume=music_volume,
-            )
-
-        self.schedule_bridge.add(
-            job_id=command["job_id"],
-            platform=command.get("platform", ""),
-            title=command.get("product", ""),
-            description="",
+        # Write job JSON so the orchestrator can read cover_title, music, etc.
+        job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
+        job_json_path.parent.mkdir(parents=True, exist_ok=True)
+        existing_job: dict[str, Any] = {}
+        if job_json_path.exists():
+            existing_job = json.loads(job_json_path.read_text(encoding="utf-8"))
+        for key, val in [
+            ("job_id", job_id),
+            ("project_id", command["project_id"]),
+            ("product", command.get("product", os.environ.get("PRODUCT", "荔枝菌"))),
+            ("platform", command.get("platform", "")),
+            ("cover_title", command.get("cover_title") or {}),
+            ("music_track_path", command.get("music_track_path", "")),
+            ("music_volume", command.get("music_volume", 80)),
+        ]:
+            if key not in existing_job:
+                existing_job[key] = val
+        job_json_path.write_text(
+            json.dumps(existing_job, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
         )
 
-        outputs = [Path(script_result["txt_path"]).resolve(), Path(script_result["json_path"]).resolve(), audio_path.resolve(), srt_path.resolve(), final_video_path.resolve()]
+        # Build PhaseContext
+        product = command.get("product", os.environ.get("PRODUCT", "荔枝菌"))
+        ctx = PhaseContext(
+            job_id=job_id,
+            project_dir=project_dir,
+            root_dir=root_dir,
+            product=product,
+            options={
+                "manual_script": command.get("manual_script", ""),
+                "uploaded_audio_path": command.get("uploaded_audio_path", ""),
+                "language": command.get("language", "mandarin"),
+            },
+        )
 
-        uploaded_files = [
-            {
-                "relative_path": str(path.relative_to(attempt_root.resolve())),
-                "size_bytes": path.stat().st_size,
-            }
-            for path in outputs
-        ]
-        self.api.upload_artifacts(command["task_id"], uploaded_files)
+        # Execute each phase in sequence and collect artifacts
+        all_artifacts = []
+        for phase in WORKER_PHASES:
+            artifacts = self.orchestrator.run_phase(phase, ctx)
+            all_artifacts.extend(artifacts)
 
+        # Upload artifacts
+        workspace_dir = root_dir / "workspace"
+        uploaded_files = []
+        for art in all_artifacts:
+            if not art.relative_path:
+                continue
+            abs_path = workspace_dir / art.relative_path
+            if abs_path.exists():
+                uploaded_files.append({
+                    "relative_path": art.relative_path,
+                    "size_bytes": abs_path.stat().st_size,
+                })
+        if uploaded_files:
+            self.api.upload_artifacts(command["task_id"], uploaded_files)
+
+        # Report success
         finished_at = datetime.now(timezone.utc).isoformat()
-        self.api.report(
-            {
-                "worker_id": self.worker_id,
-                "project_id": command["project_id"],
-                "job_id": command["job_id"],
-                "task_id": command["task_id"],
-                "attempt_id": command["attempt_id"],
-                "lease_id": command["lease_id"],
-                "status": "succeeded",
-                "started_at": started_at,
-                "finished_at": finished_at,
-                "artifact_manifest": {"files": uploaded_files},
-                "metrics": {},
-                "logs_summary": "legacy bridges completed",
-                "error": {},
-            }
+        self.api.report({
+            "worker_id": self.worker_id,
+            "project_id": command["project_id"],
+            "job_id": job_id,
+            "task_id": command["task_id"],
+            "attempt_id": command["attempt_id"],
+            "lease_id": command["lease_id"],
+            "status": "succeeded",
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "artifact_manifest": {"files": uploaded_files},
+            "metrics": {},
+            "logs_summary": "orchestrator completed",
+            "error": {},
+        })
+
+    @property
+    def adapter(self) -> MacLocalRuntimeAdapter:
+        """Lazy adapter for ensure_tools() (no-op on mac-local)."""
+        if not hasattr(self, "_adapter"):
+            self._adapter = MacLocalRuntimeAdapter()
+        return self._adapter
+
+
+def _build_orchestrator(root_dir: Path) -> PhaseOrchestrator:
+    """Construct a PhaseOrchestrator with real service dependencies."""
+    from apps.control_plane.services.schedule_store import ScheduleStore
+    from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+    from packages.pipeline_services.subtitle_service import SubtitleService
+    from packages.pipeline_services.video_service import VideoService
+    from packages.pipeline_services.tts_provider import MiMoTTSProvider
+    from packages.provider_config.app_config import AppConfigManager
+
+    app_config = AppConfigManager()
+    tts_cfg = app_config.get_tts_config()
+    tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
+
+    if tts_model.startswith("qwen"):
+        from packages.pipeline_services.tts_provider import QwenTTSProvider
+        tts_provider = QwenTTSProvider(
+            api_key=app_config.get_api_key("qwen"),
+            base_url=app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1",
         )
+    else:
+        tts_provider = MiMoTTSProvider(
+            api_key=app_config.get_api_key("mimo"),
+            base_url=app_config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1",
+        )
+
+    return PhaseOrchestrator(
+        script_bridge=LegacyScriptBridge(root_dir),
+        subtitle_svc=SubtitleService(),
+        video_svc=VideoService(dry_run=False),
+        tts_provider=tts_provider,
+        schedule_store=ScheduleStore(root_dir),
+        get_tts_config=app_config.get_tts_config,
+        get_llm_config=app_config.get_llm_config,
+    )
+
 
 def main() -> None:
     worker_id = os.environ.get("WORKER_ID", "worker-mac")
@@ -240,11 +195,10 @@ def main() -> None:
         worker_version="0.1.0",
         capabilities=["mac-local"],
     )
+    orchestrator = _build_orchestrator(root_dir)
     WorkerLoop(
         api=api,
         worker_id=worker_id,
         workspace_root=workspace_root,
-        script_bridge=LegacyScriptBridge(root_dir),
-        media_bridge=_DefaultMediaBridge(),
-        schedule_bridge=ScheduleStore(root_dir),
+        orchestrator=orchestrator,
     ).run_once()
