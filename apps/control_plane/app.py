@@ -21,7 +21,6 @@ from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.domain_core.state import next_phase
-from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
 from packages.pipeline_services.tts_provider import MiMoTTSProvider
@@ -95,57 +94,6 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                         print(f"[COVER_TITLE] Auto-generated: {cover_title['text']}", flush=True)
                 except Exception as e:
                     print(f"[COVER_TITLE WARN] Failed to auto-generate: {e}", flush=True)
-
-    elif phase == "asset_retrieving":
-        # Run semantic retrieval: script text → keyword match → selected clips
-        script_text = ""
-        for a in job_dir.glob("*口播文案.txt"):
-            script_text = a.read_text(encoding="utf-8").strip()
-            break
-
-        if script_text:
-            db_path = shared_asset_db_path(root_dir)
-
-            from packages.pipeline_services.asset_library import AssetRepository, AssetRetriever
-            from packages.pipeline_services.asset_library.classify import create_classify_fn
-
-            app_config = AppConfigManager()
-            llm_config = app_config.get_llm_config()
-            api_key = app_config.get_api_key(llm_config.get("provider", "deepseek"))
-            api_url = app_config.get_api_base_url(llm_config.get("provider", "deepseek"))
-
-            classify_fn = None
-            if api_key and api_url:
-                if not api_url.endswith("/chat/completions"):
-                    api_url = f"{api_url}/chat/completions"
-                classify_fn = create_classify_fn(
-                    api_url=api_url,
-                    api_key=api_key,
-                    model="deepseek-v4-flash",
-                )
-
-            repo = AssetRepository(db_path)
-            retriever = AssetRetriever(repo, classify_fn=classify_fn)
-
-            selected = retriever.retrieve(script_text, product)
-
-            clip_list_path = job_dir / "selected_clips.json"
-            clip_list_path.write_text(json.dumps(selected, ensure_ascii=False, indent=2), encoding="utf-8")
-
-            result.append({
-                "kind": "selected_clips",
-                "relative_path": _to_url_path(clip_list_path, workspace_dir),
-                "url": f"/workspace/{_to_url_path(clip_list_path, workspace_dir)}",
-                "size_bytes": clip_list_path.stat().st_size,
-            })
-        else:
-            # No script text found — emit sentinel so auto_tick can advance
-            result.append({
-                "kind": "asset_retrieval_done",
-                "relative_path": "",
-                "url": "",
-                "size_bytes": 0,
-            })
 
     elif phase == "video_rendering":
         base_path = job_dir / "base.mp4"
@@ -248,6 +196,7 @@ async def _auto_tick(root_dir: Path):
         tts_provider=tts_provider,
         schedule_store=ScheduleStore(root_dir),
         get_tts_config=app_config.get_tts_config,
+        get_llm_config=app_config.get_llm_config,
     )
 
     while True:
@@ -305,7 +254,7 @@ async def _auto_tick(root_dir: Path):
                         manual_script = data.get("manual_script", "")
                         uploaded_audio_path = data.get("uploaded_audio_path", "")
 
-                        if target in ("script_generating", "tts_generating", "tts_review", "subtitle_generating"):
+                        if target in ("script_generating", "tts_generating", "tts_review", "subtitle_generating", "asset_retrieving"):
                             ctx = PhaseContext(
                                 job_id=job_id,
                                 project_dir=project_dir,

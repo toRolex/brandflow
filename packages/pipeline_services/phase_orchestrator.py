@@ -95,6 +95,7 @@ class PhaseOrchestrator:
         tts_provider: Any,
         schedule_store: Any,
         get_tts_config: Callable[[], dict[str, Any]] | None = None,
+        get_llm_config: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self._script_bridge = script_bridge
         self._subtitle_svc = subtitle_svc
@@ -102,12 +103,14 @@ class PhaseOrchestrator:
         self._tts_provider = tts_provider
         self._schedule_store = schedule_store
         self._get_tts_config = get_tts_config
+        self._get_llm_config = get_llm_config
 
         self._handlers: dict[str, Callable[[PhaseContext], list[ArtifactPointer]]] = {
             "script_generating": self._run_script,
             "tts_generating": self._run_tts,
             "tts_review": self._run_tts_review,
             "subtitle_generating": self._run_subtitle,
+            "asset_retrieving": self._run_asset,
         }
 
     # -- public interface ---------------------------------------------------
@@ -321,6 +324,64 @@ class PhaseOrchestrator:
         if srt_path.exists():
             return [self._to_artifact("subtitle", srt_path, workspace_dir)]
         return []
+
+    # -- asset_retrieving handler --------------------------------------------
+
+    def _run_asset(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute semantic retrieval: script text -> keyword match -> selected clips."""
+        job_dir = self._job_dir(ctx)
+        workspace_dir = ctx.root_dir / "workspace"
+
+        script_text = self._discover_script(job_dir)
+
+        if not script_text:
+            print("[ASSET] No script text found — emitting sentinel", flush=True)
+            return [ArtifactPointer(
+                kind="asset_retrieval_done",
+                relative_path="",
+                url="",
+                size_bytes=0,
+            )]
+
+        from packages.file_store.paths import shared_asset_db_path
+        from packages.pipeline_services.asset_library import AssetRepository, AssetRetriever
+        from packages.pipeline_services.asset_library.classify import create_classify_fn
+
+        db_path = shared_asset_db_path(ctx.root_dir)
+
+        get_llm_config = self._get_llm_config
+        if get_llm_config is None:
+            app_config = AppConfigManager()
+            get_llm_config = app_config.get_llm_config
+        llm_config = get_llm_config()
+
+        app_config = AppConfigManager()
+        api_key = app_config.get_api_key(llm_config.get("provider", "deepseek"))
+        api_url = app_config.get_api_base_url(llm_config.get("provider", "deepseek"))
+
+        classify_fn = None
+        if api_key and api_url:
+            if not api_url.endswith("/chat/completions"):
+                api_url = f"{api_url}/chat/completions"
+            classify_fn = create_classify_fn(
+                api_url=api_url,
+                api_key=api_key,
+                model="deepseek-v4-flash",
+            )
+
+        repo = AssetRepository(db_path)
+        retriever = AssetRetriever(repo, classify_fn=classify_fn)
+
+        selected = retriever.retrieve(script_text, ctx.product)
+
+        clip_list_path = job_dir / "selected_clips.json"
+        clip_list_path.write_text(
+            json.dumps(selected, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        print(f"[ASSET] Retrieved {len(selected)} clips -> {clip_list_path}", flush=True)
+        return [self._to_artifact("selected_clips", clip_list_path, workspace_dir)]
 
     @staticmethod
     def _discover_script(job_dir: Path) -> str | None:
