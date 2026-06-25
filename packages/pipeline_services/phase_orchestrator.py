@@ -106,6 +106,7 @@ class PhaseOrchestrator:
         self._handlers: dict[str, Callable[[PhaseContext], list[ArtifactPointer]]] = {
             "script_generating": self._run_script,
             "tts_generating": self._run_tts,
+            "tts_review": self._run_tts_review,
         }
 
     # -- public interface ---------------------------------------------------
@@ -285,6 +286,17 @@ class PhaseOrchestrator:
             result.append(self._to_artifact("tts_audio", audio_path, workspace_dir))
 
         return result
+
+    def _run_tts_review(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """tts_review: return existing audio artifact for review."""
+        job_dir = self._job_dir(ctx)
+        workspace_dir = ctx.root_dir / "workspace"
+        audio_path = job_dir / "audio.mp3"
+        if audio_path.exists():
+            print(f"[TTS_REVIEW] Audio ready for review: {audio_path}", flush=True)
+            return [self._to_artifact("tts_audio", audio_path, workspace_dir)]
+        print(f"[TTS_REVIEW WARN] No audio found in {job_dir}", flush=True)
+        return []
 
     @staticmethod
     def _discover_script(job_dir: Path) -> str | None:

@@ -96,16 +96,6 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                 except Exception as e:
                     print(f"[COVER_TITLE WARN] Failed to auto-generate: {e}", flush=True)
 
-    elif phase == "tts_review":
-        # TTS review phase: just return existing audio artifact for review
-        audio_path = job_dir / "audio.mp3"
-        if audio_path.exists():
-            rel = _to_url_path(audio_path, workspace_dir)
-            result.append({"kind": "tts_audio", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": audio_path.stat().st_size})
-            print(f"[TTS_REVIEW] Audio ready for review: {audio_path}", flush=True)
-        else:
-            print(f"[TTS_REVIEW WARN] No audio found in {job_dir}", flush=True)
-
     elif phase == "subtitle_generating":
         audio_path = job_dir / "audio.mp3"
         srt_path = job_dir / "subtitles.srt"
@@ -339,7 +329,7 @@ async def _auto_tick(root_dir: Path):
                         manual_script = data.get("manual_script", "")
                         uploaded_audio_path = data.get("uploaded_audio_path", "")
 
-                        if target in ("script_generating", "tts_generating"):
+                        if target in ("script_generating", "tts_generating", "tts_review"):
                             ctx = PhaseContext(
                                 job_id=job_id,
                                 project_dir=project_dir,
