@@ -96,30 +96,6 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                 except Exception as e:
                     print(f"[COVER_TITLE WARN] Failed to auto-generate: {e}", flush=True)
 
-    elif phase == "subtitle_generating":
-        audio_path = job_dir / "audio.mp3"
-        srt_path = job_dir / "subtitles.srt"
-        print(f"[SUBTITLE] audio exists={audio_path.exists()}, srt exists={srt_path.exists()}", flush=True)
-        if audio_path.exists():
-            script_text = ""
-            for a in job_dir.glob("*口播文案.txt"):
-                script_text = a.read_text(encoding="utf-8").strip()
-                break
-            print(f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}", flush=True)
-            if script_text:
-                try:
-                    subtitle_svc.build_srt(audio_path, srt_path, script_text)
-                    print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
-                except Exception as e:
-                    print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback
-                    traceback.print_exc()
-        else:
-            print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
-        if srt_path.exists():
-            rel = _to_url_path(srt_path, workspace_dir)
-            result.append({"kind": "subtitle", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": srt_path.stat().st_size})
-
     elif phase == "asset_retrieving":
         # Run semantic retrieval: script text → keyword match → selected clips
         script_text = ""
@@ -329,7 +305,7 @@ async def _auto_tick(root_dir: Path):
                         manual_script = data.get("manual_script", "")
                         uploaded_audio_path = data.get("uploaded_audio_path", "")
 
-                        if target in ("script_generating", "tts_generating", "tts_review"):
+                        if target in ("script_generating", "tts_generating", "tts_review", "subtitle_generating"):
                             ctx = PhaseContext(
                                 job_id=job_id,
                                 project_dir=project_dir,

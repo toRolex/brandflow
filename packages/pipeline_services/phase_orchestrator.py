@@ -107,6 +107,7 @@ class PhaseOrchestrator:
             "script_generating": self._run_script,
             "tts_generating": self._run_tts,
             "tts_review": self._run_tts_review,
+            "subtitle_generating": self._run_subtitle,
         }
 
     # -- public interface ---------------------------------------------------
@@ -296,6 +297,29 @@ class PhaseOrchestrator:
             print(f"[TTS_REVIEW] Audio ready for review: {audio_path}", flush=True)
             return [self._to_artifact("tts_audio", audio_path, workspace_dir)]
         print(f"[TTS_REVIEW WARN] No audio found in {job_dir}", flush=True)
+        return []
+
+    def _run_subtitle(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """subtitle_generating: build SRT from audio + script text."""
+        job_dir = self._job_dir(ctx)
+        workspace_dir = ctx.root_dir / "workspace"
+        audio_path = job_dir / "audio.mp3"
+        srt_path = job_dir / "subtitles.srt"
+        print(f"[SUBTITLE] audio exists={audio_path.exists()}, srt exists={srt_path.exists()}", flush=True)
+        if audio_path.exists():
+            script_text = self._discover_script(job_dir) or ""
+            print(f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}", flush=True)
+            if script_text:
+                try:
+                    self._subtitle_svc.build_srt(audio_path, srt_path, script_text)
+                    print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
+                except Exception as e:
+                    print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
+                    import traceback; traceback.print_exc()
+        else:
+            print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
+        if srt_path.exists():
+            return [self._to_artifact("subtitle", srt_path, workspace_dir)]
         return []
 
     @staticmethod
