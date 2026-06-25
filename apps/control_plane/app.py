@@ -24,7 +24,7 @@ from packages.domain_core.state import next_phase
 from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
-from packages.pipeline_services.tts_provider import MiMoTTSProvider, QwenTTSProvider
+from packages.pipeline_services.tts_provider import MiMoTTSProvider
 from packages.provider_config.app_config import AppConfigManager
 from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
@@ -95,77 +95,6 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
                         print(f"[COVER_TITLE] Auto-generated: {cover_title['text']}", flush=True)
                 except Exception as e:
                     print(f"[COVER_TITLE WARN] Failed to auto-generate: {e}", flush=True)
-
-    elif phase == "tts_generating":
-        audio_path = job_dir / "audio.mp3"
-        if uploaded_audio_path:
-            src_audio = root_dir / uploaded_audio_path
-            if src_audio.exists():
-                import shutil
-                shutil.copy2(src_audio, audio_path)
-                print(f"[TTS] Using uploaded audio: {src_audio}", flush=True)
-            else:
-                print(f"[TTS WARN] Uploaded audio not found: {src_audio}", flush=True)
-        else:
-            existing_script = None
-            for a in job_dir.glob("*口播文案.txt"):
-                existing_script = a.read_text(encoding="utf-8").strip()
-                break
-            if not existing_script:
-                for a in job_dir.glob("*口播文案.json"):
-                    jdata = json.loads(a.read_text(encoding="utf-8"))
-                    existing_script = jdata.get("text", "").strip()
-                    break
-            print(f"[TTS DEBUG] phase=tts_generating, script_found={existing_script is not None}, len={len(existing_script) if existing_script else 0}", flush=True)
-            if existing_script:
-                try:
-                    app_config = AppConfigManager()
-                    tts_cfg = app_config.get_tts_config()
-
-                    class _TTSConfig:
-                        model = tts_cfg.get("model", "mimo-v2.5-tts")
-                        voice = tts_cfg.get("voice", "Mia")
-                        instructions = tts_cfg.get("instructions", "")
-                        language_type = tts_cfg.get("language_type", "")
-                        optimize_instructions = tts_cfg.get("optimize_instructions", False)
-                        fallback_voice = tts_cfg.get("fallback_voice", "Dean")
-                        randomize_voice = tts_cfg.get("randomize_voice", False)
-                        random_voices = tts_cfg.get("random_voices", ["Mia", "Dean"])
-                        style_control_mode = tts_cfg.get("style_control_mode", "simple")
-                        style_prompt = tts_cfg.get("style_prompt", "自然 清晰")
-                        voice_design_prompt = tts_cfg.get("voice_design_prompt", "")
-                        audio_format = tts_cfg.get("audio_format", "wav")
-                        audio_tags_enabled = tts_cfg.get("audio_tags_enabled", False)
-                        audio_tags = tts_cfg.get("audio_tags", "")
-                        voice_clone_sample_path = tts_cfg.get("voice_clone_sample_path", "")
-                        voice_clone_mime_type = tts_cfg.get("voice_clone_mime_type", "")
-                        optimize_text_preview = tts_cfg.get("optimize_text_preview", False)
-                        director_character = tts_cfg.get("director_character", "")
-                        director_scene = tts_cfg.get("director_scene", "")
-                        director_guidance = tts_cfg.get("director_guidance", "")
-
-                    model = _TTSConfig.model or ""
-                    if model.startswith("qwen"):
-                        api_key = app_config.get_api_key("qwen")
-                        base_url = app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1"
-                        tts_provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
-                    else:
-                        api_key = app_config.get_api_key("mimo")
-                        base_url = app_config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1"
-                        tts_provider = MiMoTTSProvider(api_key=api_key, base_url=base_url)
-
-                    audio_bytes = tts_provider.synthesize(existing_script, _TTSConfig())
-                    audio_path.write_bytes(audio_bytes)
-                    print(f"[TTS] Synthesized: {audio_path.exists()}, size={audio_path.stat().st_size if audio_path.exists() else 0}", flush=True)
-                except Exception as e:
-                    print(f"[TTS ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback
-                    traceback.print_exc()
-            else:
-                print(f"[TTS WARN] No script text found in {job_dir}", flush=True)
-        if audio_path.exists():
-            rel = _to_url_path(audio_path, workspace_dir)
-            result.append({"kind": "tts_audio", "relative_path": rel, "url": f"/workspace/{rel}", "size_bytes": audio_path.stat().st_size})
 
     elif phase == "tts_review":
         # TTS review phase: just return existing audio artifact for review
@@ -336,8 +265,12 @@ async def _auto_tick(root_dir: Path):
         script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
-        tts_provider=None,
+        tts_provider=MiMoTTSProvider(
+            api_key=AppConfigManager().get_api_key("mimo"),
+            base_url=AppConfigManager().get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1",
+        ),
         schedule_store=ScheduleStore(root_dir),
+        get_tts_config=AppConfigManager().get_tts_config,
     )
 
     while True:
@@ -395,13 +328,16 @@ async def _auto_tick(root_dir: Path):
                         manual_script = data.get("manual_script", "")
                         uploaded_audio_path = data.get("uploaded_audio_path", "")
 
-                        if target == "script_generating":
+                        if target in ("script_generating", "tts_generating"):
                             ctx = PhaseContext(
                                 job_id=job_id,
                                 project_dir=project_dir,
                                 root_dir=root_dir,
                                 product=product,
-                                options={"manual_script": manual_script},
+                                options={
+                                    "manual_script": manual_script,
+                                    "uploaded_audio_path": uploaded_audio_path,
+                                },
                             )
                             artifacts = [
                                 a.model_dump()

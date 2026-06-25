@@ -308,3 +308,231 @@ class TestJobDir:
     def test_creates_dir(self, orchestrator: PhaseOrchestrator, ctx: PhaseContext):
         d = orchestrator._job_dir(ctx)
         assert d.exists()
+
+
+# ---------------------------------------------------------------------------
+# _run_tts — TTS synthesis
+# ---------------------------------------------------------------------------
+
+_FAKE_TTS_CONFIG = {
+    "model": "mimo-v2.5-tts",
+    "voice": "Mia",
+    "instructions": "",
+    "language_type": "",
+    "optimize_instructions": False,
+    "fallback_voice": "Dean",
+    "randomize_voice": False,
+    "random_voices": ["Mia", "Dean"],
+    "style_control_mode": "simple",
+    "style_prompt": "自然 清晰",
+    "voice_design_prompt": "",
+    "audio_format": "wav",
+    "audio_tags_enabled": False,
+    "audio_tags": "",
+    "voice_clone_sample_path": "",
+    "voice_clone_mime_type": "",
+    "optimize_text_preview": False,
+    "director_character": "",
+    "director_scene": "",
+    "director_guidance": "",
+}
+
+
+def _make_orchestrator_with_tts_config(tts_provider=None, tts_config=None):
+    """Build a PhaseOrchestrator with get_tts_config injected."""
+    return PhaseOrchestrator(
+        script_bridge=MagicMock(),
+        subtitle_svc=MagicMock(),
+        video_svc=MagicMock(),
+        tts_provider=tts_provider or MagicMock(),
+        schedule_store=MagicMock(),
+        get_tts_config=lambda: tts_config or dict(_FAKE_TTS_CONFIG),
+    )
+
+
+class TestRunTTSScriptDiscovery:
+    """_run_tts should discover script text from *口播文案.txt then *.json."""
+
+    def test_reads_script_from_txt(self, tmp_path: Path, ctx: PhaseContext):
+        """Given a 口播文案.txt file, _run_tts reads it and calls synthesize."""
+        job_dir = tmp_path / "workspace" / "projects" / "proj-001" / "runtime" / "jobs" / "job-001"
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("这是一段测试文案。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b"\x00" * 100
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        artifacts = orch.run_phase("tts_generating", ctx)
+
+        mock_tts.synthesize.assert_called_once()
+        call_args = mock_tts.synthesize.call_args
+        assert call_args[0][0] == "这是一段测试文案。"
+        assert len(artifacts) == 1
+        assert artifacts[0].kind == "tts_audio"
+        assert artifacts[0].size_bytes == 100
+
+    def test_reads_script_from_json_when_no_txt(self, tmp_path: Path, ctx: PhaseContext):
+        """Falls back to 口播文案.json if no .txt file."""
+        job_dir = tmp_path / "workspace" / "projects" / "proj-001" / "runtime" / "jobs" / "job-001"
+        job_dir.mkdir(parents=True)
+        jfile = job_dir / "口播文案.json"
+        jfile.write_text(json.dumps({"text": "JSON 文案内容。"}, ensure_ascii=False), encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b"\x00" * 50
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        artifacts = orch.run_phase("tts_generating", ctx)
+
+        mock_tts.synthesize.assert_called_once()
+        assert mock_tts.synthesize.call_args[0][0] == "JSON 文案内容。"
+
+    def test_no_script_produces_empty_artifacts(self, ctx: PhaseContext):
+        """No script file → no synthesis, empty artifacts."""
+        mock_tts = MagicMock()
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        artifacts = orch.run_phase("tts_generating", ctx)
+
+        mock_tts.synthesize.assert_not_called()
+        assert artifacts == []
+
+
+class TestRunTTSUploadedAudio:
+    """_run_tts should copy uploaded audio when uploaded_audio_path is set."""
+
+    def test_copies_uploaded_audio(self, tmp_path: Path):
+        """When uploaded_audio_path points to an existing file, copies it directly."""
+        root_dir = tmp_path
+        project_dir = tmp_path / "workspace" / "projects" / "proj-001"
+        project_dir.mkdir(parents=True)
+
+        # Create uploaded audio source
+        upload_dir = tmp_path / "uploads"
+        upload_dir.mkdir()
+        src = upload_dir / "sample.mp3"
+        src.write_bytes(b"FAKE_AUDIO_DATA")
+
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=root_dir,
+            product="test",
+            options={"uploaded_audio_path": str(src.relative_to(root_dir))},
+        )
+
+        mock_tts = MagicMock()
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        artifacts = orch.run_phase("tts_generating", ctx)
+
+        mock_tts.synthesize.assert_not_called()
+        job_dir = project_dir / "runtime" / "jobs" / "job-001"
+        audio_path = job_dir / "audio.mp3"
+        assert audio_path.exists()
+        assert audio_path.read_bytes() == b"FAKE_AUDIO_DATA"
+        assert len(artifacts) == 1
+        assert artifacts[0].kind == "tts_audio"
+
+    def test_missing_uploaded_audio_no_crash(self, tmp_path: Path, capsys):
+        """When uploaded path doesn't exist, logs warning but doesn't crash."""
+        root_dir = tmp_path
+        project_dir = tmp_path / "workspace" / "projects" / "proj-001"
+        project_dir.mkdir(parents=True)
+
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=root_dir,
+            product="test",
+            options={"uploaded_audio_path": "nonexistent/file.mp3"},
+        )
+
+        mock_tts = MagicMock()
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        artifacts = orch.run_phase("tts_generating", ctx)
+
+        mock_tts.synthesize.assert_not_called()
+        assert artifacts == []
+
+
+class TestRunTTSSynthesizeError:
+    """TTS errors should be caught and logged, not propagated."""
+
+    def test_synthesize_error_does_not_raise(self, ctx: PhaseContext, capsys):
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("测试文案。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.side_effect = RuntimeError("TTS service down")
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        # Should NOT raise
+        artifacts = orch.run_phase("tts_generating", ctx)
+        assert artifacts == []
+
+        # Error was logged
+        captured = capsys.readouterr()
+        assert "TTS service down" in captured.out
+
+
+class TestRunTTSConfigBuilding:
+    """_run_tts builds a _TTSConfig shim from get_tts_config callable."""
+
+    def test_passes_config_object_to_synthesize(self, ctx: PhaseContext):
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("测试。", encoding="utf-8")
+
+        custom_config = dict(_FAKE_TTS_CONFIG)
+        custom_config["voice"] = "Dean"
+        custom_config["model"] = "mimo-v2-tts"
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b"\x00"
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts, tts_config=custom_config)
+
+        orch.run_phase("tts_generating", ctx)
+
+        call_args = mock_tts.synthesize.call_args
+        config_obj = call_args[0][1]
+        assert config_obj.voice == "Dean"
+        assert config_obj.model == "mimo-v2-tts"
+
+
+class TestRunTTSInHandlerMap:
+    """tts_generating should be registered in the handler map."""
+
+    def test_handler_registered(self):
+        orch = _make_orchestrator_with_tts_config()
+        assert "tts_generating" in orch._handlers
+
+
+class TestRunTTSAudioWritten:
+    """Audio file should be written to job_dir/audio.mp3."""
+
+    def test_audio_written_to_job_dir(self, ctx: PhaseContext):
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("测试文案。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b"\x01\x02\x03"
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        artifacts = orch.run_phase("tts_generating", ctx)
+
+        audio_path = job_dir / "audio.mp3"
+        assert audio_path.exists()
+        assert audio_path.read_bytes() == b"\x01\x02\x03"
+        assert len(artifacts) == 1
+        assert artifacts[0].kind == "tts_audio"
+        assert artifacts[0].url.startswith("/workspace/")
+        assert artifacts[0].size_bytes == 3
