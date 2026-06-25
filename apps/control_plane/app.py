@@ -261,16 +261,27 @@ def _phase_to_artifacts(phase: str, job_id: str, project_dir: Path, root_dir: Pa
 async def _auto_tick(root_dir: Path):
     """Dev-mode background loop: scans disk for non-review jobs, generates stub artifacts, and advances them."""
     # Construct orchestrator once; deps are stateless, reused across iterations
+    app_config = AppConfigManager()
+    tts_cfg = app_config.get_tts_config()
+    tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
+    if tts_model.startswith("qwen"):
+        from packages.pipeline_services.tts_provider import QwenTTSProvider
+        tts_provider = QwenTTSProvider(
+            api_key=app_config.get_api_key("qwen"),
+            base_url=app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1",
+        )
+    else:
+        tts_provider = MiMoTTSProvider(
+            api_key=app_config.get_api_key("mimo"),
+            base_url=app_config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1",
+        )
     orchestrator = PhaseOrchestrator(
         script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
-        tts_provider=MiMoTTSProvider(
-            api_key=AppConfigManager().get_api_key("mimo"),
-            base_url=AppConfigManager().get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1",
-        ),
+        tts_provider=tts_provider,
         schedule_store=ScheduleStore(root_dir),
-        get_tts_config=AppConfigManager().get_tts_config,
+        get_tts_config=app_config.get_tts_config,
     )
 
     while True:
