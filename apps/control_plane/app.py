@@ -19,6 +19,7 @@ from apps.control_plane.routes.projects import router as projects_router
 from apps.control_plane.routes.reviews import router as reviews_router
 from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.routes.tts import router as tts_router
+from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.domain_core.state import next_phase
 from packages.pipeline_services.subtitle_service import SubtitleService
@@ -212,6 +213,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(jobs_router)
     app.include_router(reviews_router)
     app.include_router(tts_router)
+    app.include_router(metrics_router)
 
     workspace = root_dir or Path.cwd() / "workspace"
     if workspace.exists():
