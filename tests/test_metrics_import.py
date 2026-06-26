@@ -185,3 +185,43 @@ class TestDedupUpdatesExisting:
         count = conn.execute("SELECT COUNT(*) AS c FROM video_metrics").fetchone()["c"]
         conn.close()
         assert count == 1
+
+
+# ── JobRecord + VideoService asset tracking tests ──────────────────────────────
+
+def test_job_record_has_used_asset_ids():
+    from packages.domain_core.models import JobRecord
+    job = JobRecord(job_id="test-001", phase="queued", review_status="none")
+    assert job.used_asset_ids == []
+    job.used_asset_ids = ["a1", "a2"]
+    assert job.used_asset_ids == ["a1", "a2"]
+
+
+def test_video_service_writes_used_asset_ids():
+    from packages.pipeline_services.video_service import VideoService
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        project_dir = Path(tmp)
+        audio_dir = project_dir / "audio"
+        audio_dir.mkdir()
+        audio_file = audio_dir / "test.mp3"
+        audio_file.write_bytes(b"fake audio")
+
+        job = {
+            "job_id": "test-job",
+            "asset_bundle": {
+                "audio_path": str(audio_file),
+                "selected_clips": [
+                    {"file_path": "/fake/clip1.mp4", "asset_id": "a1", "trim_start": 0, "trim_duration": 5},
+                    {"file_path": "/fake/clip2.mp4", "asset_id": "a2", "trim_start": 2, "trim_duration": 8},
+                ],
+            },
+            "used_asset_ids": [],
+        }
+
+        svc = VideoService(dry_run=True)
+        output_path = project_dir / "output" / "base.mp4"
+        svc.build_base_video(project_dir, job, output_path)
+        assert job["used_asset_ids"] == ["a1", "a2"]

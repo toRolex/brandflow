@@ -237,6 +237,8 @@ class VideoService:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if self.dry_run:
             output_path.write_bytes(b"DRY_RUN_BASE_VIDEO")
+            clips = job.get("asset_bundle", {}).get("selected_clips", [])
+            job["used_asset_ids"] = [c["asset_id"] for c in clips if c.get("asset_id")]
             return
 
         audio_path = Path(job["asset_bundle"]["audio_path"])
@@ -290,6 +292,8 @@ class VideoService:
             for tp in trimmed_paths:
                 if tp.exists():
                     tp.unlink()
+
+        job["used_asset_ids"] = [c["asset_id"] for c in selected_clips if c.get("asset_id")]
 
     def burn_final_video(
         self,
