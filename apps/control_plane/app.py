@@ -98,6 +98,10 @@ async def _auto_tick(root_dir: Path):
                             continue
 
                         # Execute real pipeline for the target phase
+                        # Skip review gates that have no orchestrator handler
+                        if target in REVIEW_PHASES and target not in orchestrator._handlers:
+                            continue
+
                         product = data.get("product", os.environ.get("PRODUCT", "荔枝菌"))
                         manual_script = data.get("manual_script", "")
                         uploaded_audio_path = data.get("uploaded_audio_path", "")
