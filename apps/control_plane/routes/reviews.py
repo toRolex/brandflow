@@ -4,8 +4,6 @@ import random
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from packages.domain_core.state import next_phase
@@ -15,9 +13,6 @@ from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
-templates = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parent.parent / "templates")
-)
 
 
 class ReviewAction(BaseModel):
@@ -69,15 +64,6 @@ def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
         except Exception:
             continue
     return None
-
-
-@router.get("/{job_id}", response_class=HTMLResponse)
-def review_detail(job_id: str, request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request=request,
-        name="review_detail.html",
-        context={"job_id": job_id},
-    )
 
 
 @router.post("/{job_id}/approve")

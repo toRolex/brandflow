@@ -163,7 +163,7 @@ export const api = {
     ),
 
   // Jobs
-  createJob: (projectId: string, body: { product: string; platforms: string[]; name?: string; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string }) =>
+  createJob: (projectId: string, body: { product: string; platforms: string[]; name?: string; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string; cover_title?: { text: string; highlight_words?: string[] } | null }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {
       method: "POST",
       body: JSON.stringify(body),
@@ -321,4 +321,49 @@ export const api = {
   // Music Library
   listMusic: () =>
     request<{ tracks: import("../types").MusicTrack[] }>("/api/music"),
+
+  // Cover Title
+  generateCoverTitle: (body: { script_text: string; product?: string; brand?: string }) =>
+    request<{ text: string; highlight_words: string[] }>("/api/cover-title/generate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // Metrics / Analytics
+  uploadMetrics: (file: File) =>
+    uploadFile<import("../types").ImportResult>("/api/metrics/upload", file),
+
+  scanMetrics: () =>
+    request<import("../types").ScanResult>("/api/metrics/scan", { method: "POST" }),
+
+  getMetricsOverview: (days: number = 7, platform?: string) => {
+    const qs = new URLSearchParams();
+    qs.set("days", String(days));
+    if (platform) qs.set("platform", platform);
+    return request<import("../types").MetricsOverview>(`/api/metrics/overview?${qs.toString()}`);
+  },
+
+  getMetricsVideos: (params?: {
+    sort_by?: string;
+    platform?: string;
+    search?: string;
+    page?: number;
+    page_size?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.sort_by) qs.set("sort_by", params.sort_by);
+    if (params?.platform) qs.set("platform", params.platform);
+    if (params?.search) qs.set("search", params.search);
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.page_size) qs.set("page_size", String(params.page_size));
+    return request<import("../types").VideoMetricPage>(`/api/metrics/videos?${qs.toString()}`);
+  },
+
+  getMetricsTopics: (days: number = 30, platform?: string, limit: number = 10) => {
+    const qs = new URLSearchParams();
+    qs.set("days", String(days));
+    if (platform) qs.set("platform", platform);
+    qs.set("limit", String(limit));
+    return request<import("../types").TopicStat[]>(`/api/metrics/topics?${qs.toString()}`);
+  },
 };

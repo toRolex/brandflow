@@ -3,12 +3,10 @@ from fastapi.testclient import TestClient
 from apps.control_plane.app import create_app
 
 
-def test_root_returns_minimal_projects_html() -> None:
+def test_root_serves_frontend() -> None:
     client = TestClient(create_app())
     response = client.get("/")
     assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
-    assert "项目列表" in response.text
 
 
 def test_poll_returns_idle_when_queue_is_empty() -> None:

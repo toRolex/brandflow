@@ -10,6 +10,7 @@ from packages.pipeline_services.script_service.prompts import (
     build_first_half_messages,
     build_second_half_messages,
     build_cantonese_conversion_messages,
+    build_cover_title_messages,
     DEFAULT_BRAND,
     DEFAULT_SCENE,
     DEFAULT_MATERIAL,
@@ -113,6 +114,22 @@ class ScriptGenerator:
         messages = build_cantonese_conversion_messages(mandarin_text, product, brand)
         raw = self._call_llm(messages)
         return raw.strip()
+
+    def generate_cover_title(self, script_text: str, product: str, brand: str) -> dict[str, Any]:
+        """根据脚本生成封面标题和高亮关键词。标题限制 10-15 字。"""
+        messages = build_cover_title_messages(script_text, product, brand)
+        raw = self._call_llm(messages)
+        try:
+            payload = self._extract_json(raw)
+            title = str(payload.get("title", "")).strip()
+            if len(title) > 15:
+                title = title[:15]
+            highlight_words = payload.get("highlight_words", [])
+            if isinstance(highlight_words, str):
+                highlight_words = [w.strip() for w in highlight_words.split(",") if w.strip()]
+            return {"text": title, "highlight_words": highlight_words}
+        except (ValueError, json.JSONDecodeError):
+            return {"text": product, "highlight_words": [product]}
 
     @staticmethod
     def _track_shorter(

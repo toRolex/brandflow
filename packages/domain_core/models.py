@@ -72,6 +72,7 @@ class JobRecord(BaseModel):
     cover_title: CoverTitle = Field(default_factory=CoverTitle)
     music_track_path: str = ""
     music_volume: int = 80
+    used_asset_ids: list[str] = []
 
 
 class WorkerLease(BaseModel):

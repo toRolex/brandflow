@@ -6,9 +6,7 @@ import pytest
 
 from packages.pipeline_services.video_service import (
     VideoService,
-    _build_ass_for_cover_title,
-    _hex_to_ass_bgr,
-    _ass_escape,
+    _render_cover_title_png,
 )
 
 
@@ -145,20 +143,10 @@ class TestVideoService:
         assert "subtitles" not in joined
 
 
-class TestCoverTitleAss:
-    def test_hex_to_ass_bgr(self):
-        assert _hex_to_ass_bgr("#FFD700") == "&H0000D7FF&"
-        assert _hex_to_ass_bgr("#000000") == "&H00000000&"
-        assert _hex_to_ass_bgr("#FF0000") == "&H000000FF&"
-        assert _hex_to_ass_bgr("FFD700") == "&H0000D7FF&"
-
-    def test_ass_escape(self):
-        assert _ass_escape("hello") == "hello"
-        assert _ass_escape(r"C:\path") == r"C:\\path"
-        assert _ass_escape("{text}") == r"\{text\}"
-
-    def test_build_ass_structure(self, tmp_path):
-        ass_path = _build_ass_for_cover_title(
+class TestCoverTitlePng:
+    def test_render_with_highlight(self, tmp_path):
+        out = tmp_path / "cover.png"
+        result = _render_cover_title_png(
             text="鲜嫩荔枝菌",
             highlight_words=["荔枝菌"],
             style={
@@ -170,85 +158,34 @@ class TestCoverTitleAss:
             },
             video_width=1080,
             video_height=1920,
-            duration=3.0,
-            output_path=tmp_path / "cover.ass",
+            output_path=out,
         )
-        assert ass_path.exists()
-        content = ass_path.read_text(encoding="utf-8")
+        assert result.exists()
+        assert result.stat().st_size > 0
 
-        # Verify key ASS sections
-        assert "[Script Info]" in content
-        assert "PlayResX: 1080" in content
-        assert "PlayResY: 1920" in content
-        assert "[V4+ Styles]" in content
-        assert "Style: Default" in content
-        assert "[Events]" in content
-        assert "Dialogue:" in content
-
-        # Verify highlight color override
-        assert r"{\c&H000000FF&}" in content
-        assert "荔枝菌" in content
-
-        # Verify duration range
-        assert "0:00:00.00,0:00:03.00" in content
-
-    def test_build_ass_top_position(self, tmp_path):
-        ass_path = _build_ass_for_cover_title(
-            text="标题",
-            highlight_words=[],
-            style={"position": "top"},
-            video_width=1080,
-            video_height=1920,
-            output_path=tmp_path / "top.ass",
-        )
-        content = ass_path.read_text(encoding="utf-8")
-        # Alignment 8 = top-center. The Format line declares the columns,
-        # and the Style line provides values in order — verify the event exists.
-        assert "0:00:00.00,0:00:03.00" in content
-        assert "标题" in content
-
-    def test_build_ass_bottom_position(self, tmp_path):
-        ass_path = _build_ass_for_cover_title(
-            text="标题",
-            highlight_words=[],
-            style={"position": "bottom"},
-            video_width=1080,
-            video_height=1920,
-            output_path=tmp_path / "bottom.ass",
-        )
-        content = ass_path.read_text(encoding="utf-8")
-        assert "0:00:00.00,0:00:03.00" in content
-
-    def test_build_ass_no_highlights(self, tmp_path):
-        ass_path = _build_ass_for_cover_title(
+    def test_render_no_highlights(self, tmp_path):
+        out = tmp_path / "simple.png"
+        result = _render_cover_title_png(
             text="简单标题",
             highlight_words=[],
             style={},
             video_width=1080,
             video_height=1920,
-            output_path=tmp_path / "simple.ass",
+            output_path=out,
         )
-        content = ass_path.read_text(encoding="utf-8")
-        # No highlight overrides
-        assert r"{\c" not in content
+        assert result.exists()
 
-    def test_build_ass_default_output_path(self, tmp_path):
-        """Default output_path writes to cover_title.ass in cwd."""
-        import os
-        orig_cwd = os.getcwd()
-        try:
-            os.chdir(tmp_path)
-            ass_path = _build_ass_for_cover_title(
-                text="测试",
-                highlight_words=[],
-                style={},
-                video_width=1080,
-                video_height=1920,
-            )
-            assert ass_path.exists()
-            assert ass_path.name == "cover_title.ass"
-        finally:
-            os.chdir(orig_cwd)
+    def test_render_top_position(self, tmp_path):
+        out = tmp_path / "top.png"
+        result = _render_cover_title_png(
+            text="标题",
+            highlight_words=[],
+            style={"position": "top"},
+            video_width=1080,
+            video_height=1920,
+            output_path=out,
+        )
+        assert result.exists()
 
 
 class TestVideoServiceCoverTitle:
@@ -323,22 +260,15 @@ class TestVideoServiceCoverTitle:
         svc = self._make_service()
         svc.burn_final_video(base, audio, None, final, cover_title=cover_title)
 
-        # ASS file should exist with cover title content
-        ass_path = tmp_path / "cover_title.ass"
-        assert ass_path.exists()
-        content = ass_path.read_text(encoding="utf-8")
-        # Highlight words get wrapped in ASS color override tags,
-        # so the full text "鲜嫩荔枝菌" is split. Check parts.
-        assert "鲜嫩" in content
-        assert "荔枝菌" in content
-        assert r"{\c" in content  # color override for highlight
+        # cover_title.png should exist
+        png_path = tmp_path / "cover_title.png"
+        assert png_path.exists()
+        assert png_path.stat().st_size > 0
 
-        # subtitles filter should be in the FFmpeg command
+        # overlay filter should be in the FFmpeg command
         call_args = mock_run.call_args[0][0]
         joined = " ".join(call_args)
-        assert "subtitles" in joined
-        # Cover title ASS uses force_style
-        assert "force_style" in joined
+        assert "overlay" in joined
 
     @patch("packages.pipeline_services.video_service.get_ffmpeg_path", return_value="ffmpeg")
     @patch("packages.pipeline_services.video_service.get_media_duration", return_value=10.0)

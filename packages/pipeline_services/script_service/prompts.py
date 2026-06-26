@@ -112,3 +112,33 @@ def build_cantonese_conversion_messages(
         {"role": "system", "content": _CANTONESE_SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
     ]
+
+
+_COVER_TITLE_SYSTEM_PROMPT = (
+    "你是一位短视频封面标题专家。根据口播文案生成一个吸引眼球的封面标题。\n"
+    "要求：\n"
+    "1. 标题 10-15 个字，简短有力\n"
+    "2. 从标题中挑选 1-2 个重点关键词（用于高亮显示）\n"
+    "3. 不使用 emoji，不使用标点符号\n"
+    "4. 标题要能概括视频核心卖点"
+)
+
+
+def build_cover_title_messages(
+    script_text: str,
+    product: str,
+    brand: str,
+) -> list[dict[str, str]]:
+    """构建封面标题生成的 LLM messages。"""
+    user_content = (
+        f"请根据以下短视频口播文案，生成一个封面标题：\n\n"
+        f"{script_text}\n\n"
+        f"品名：{product}\n"
+        f"品牌：{brand}\n\n"
+        f"请以 JSON 格式返回：\n"
+        '{{"title": "封面标题（10-15字）", "highlight_words": ["重点词1", "重点词2"]}}'
+    )
+    return [
+        {"role": "system", "content": _COVER_TITLE_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]

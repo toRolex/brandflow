@@ -31,12 +31,18 @@ export default function ProjectWorkbench() {
   const [jobName, setJobName] = useState("");
   const [scriptMode, setScriptMode] = useState<"auto" | "manual">("auto");
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioMode, setAudioMode] = useState<"tts" | "upload" | "library">("tts");
+  const [audioMode, setAudioMode] = useState<"tts" | "upload">("tts");
   const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
   const [selectedMusic, setSelectedMusic] = useState("");
   const [musicVolume, setMusicVolume] = useState(80);
   const [language, setLanguage] = useState<"mandarin" | "cantonese">("mandarin");
+  const [skipSubtitle, setSkipSubtitle] = useState(false);
   const [batchLanguage, setBatchLanguage] = useState(false);
+  const [batchSkipSubtitle, setBatchSkipSubtitle] = useState(false);
+  const [coverTitleText, setCoverTitleText] = useState("");
+  const [coverHighlightWords, setCoverHighlightWords] = useState("");
+  const [coverTitleCooldown, setCoverTitleCooldown] = useState(false);
+  const [batchCoverCooldown, setBatchCoverCooldown] = useState<Set<number>>(new Set());
 
   /* ── 批量创建相关状态 ── */
   const [batchMode, setBatchMode] = useState(false);
@@ -84,6 +90,14 @@ export default function ProjectWorkbench() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Poll job list every 5s while any job is not in a terminal state
+  useEffect(() => {
+    const terminal = new Set(["completed", "failed", "cancelled", "paused"]);
+    if (jobs.length === 0 || jobs.every((j) => terminal.has(j.phase))) return;
+    const timer = setInterval(load, 5000);
+    return () => clearInterval(timer);
+  }, [jobs, load]);
+
   useEffect(() => {
     api.listMusic().then((data) => setMusicTracks(data.tracks)).catch(() => {});
   }, []);
@@ -98,9 +112,13 @@ export default function ProjectWorkbench() {
         name: jobName || undefined,
         manual_script: scriptMode === "manual" ? manualScript : "",
         audio_source: audioMode,
-        music_track_path: audioMode === "library" ? selectedMusic : "",
-        music_volume: audioMode === "library" ? musicVolume : 80,
+        music_track_path: selectedMusic,
+        music_volume: musicVolume,
         language: language,
+        skip_subtitle: skipSubtitle,
+        cover_title: coverTitleText.trim()
+          ? { text: coverTitleText.trim(), highlight_words: coverHighlightWords.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
+          : undefined,
       });
       if (audioMode === "upload" && audioFile) {
         await api.uploadJobAudio(job.job_id, audioFile);
@@ -122,9 +140,12 @@ export default function ProjectWorkbench() {
         manual_script: c.scriptMode === "manual" ? c.manualScript : "",
         skip_subtitle: c.skipSubtitle,
         audio_source: c.audioMode,
-        music_track_path: c.audioMode === "library" ? c.musicPath : "",
-        music_volume: c.audioMode === "library" ? c.musicVolume : 80,
+        music_track_path: c.musicPath,
+        music_volume: c.musicVolume,
         language: c.language,
+        cover_title: c.coverTitleText.trim()
+          ? { text: c.coverTitleText.trim(), highlight_words: c.coverHighlightWords.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
+          : undefined,
       })) });
       load();
     } catch (e) {
@@ -241,6 +262,19 @@ export default function ProjectWorkbench() {
                 />
                 粤语版
               </label>
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-2">
+                <input
+                  type="checkbox"
+                  checked={batchSkipSubtitle}
+                  onChange={(e) => {
+                    setBatchSkipSubtitle(e.target.checked);
+                    setBatchConfigs((prev) =>
+                      prev.map((c) => ({ ...c, skipSubtitle: e.target.checked })),
+                    );
+                  }}
+                />
+                全部跳过字幕
+              </label>
             </>
           )}
         </div>
@@ -291,8 +325,8 @@ export default function ProjectWorkbench() {
         {/* ── 批量模式 UI ── */}
         {batchMode ? (
           <>
-            {/* 创建数量 */}
-            <div className="mt-4 pt-4 border-t">
+            {/* 创建数量 + 字幕总控 */}
+            <div className="mt-4 pt-4 border-t flex items-end gap-4 flex-wrap">
               <label className="grid gap-1.5 text-xs text-[#59636e] w-32">
                 创建数量
                 <input
@@ -398,15 +432,6 @@ export default function ProjectWorkbench() {
                     />
                     上传音频
                   </label>
-                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      name={`batchAudioMode-${i}`}
-                      checked={c.audioMode === "library"}
-                      onChange={() => updateBatchConfig(i, { audioMode: "library" })}
-                    />
-                    音乐库
-                  </label>
                 </div>
                 {c.audioMode === "upload" && (
                   <div className="flex items-center gap-3">
@@ -426,53 +451,97 @@ export default function ProjectWorkbench() {
                     )}
                   </div>
                 )}
-                {c.audioMode === "library" && (
-                  <div className="flex items-center gap-3 flex-wrap mb-3">
-                    <select
-                      className="border rounded-lg px-3 py-1.5 text-sm min-w-[200px]"
-                      value={c.musicPath}
-                      onChange={(e) => updateBatchConfig(i, { musicPath: e.target.value })}
-                    >
-                      <option value="">-- 选择背景音乐 --</option>
-                      {musicTracks.map((t) => (
-                        <option key={t.relative_path} value={t.relative_path}>
-                          {t.filename}
-                          {t.duration_seconds != null
-                            ? ` (${Math.floor(t.duration_seconds)}s)`
-                            : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50"
-                      onClick={() => {
-                        if (musicTracks.length === 0) return;
-                        const pick = musicTracks[Math.floor(Math.random() * musicTracks.length)];
-                        updateBatchConfig(i, { musicPath: pick.relative_path });
-                      }}
-                    >
-                      🎲 随机
-                    </button>
-                    {musicTracks.length === 0 && (
-                      <span className="text-xs text-gray-400">
-                        音乐库为空，请将音频文件放入 workspace/music_library/
-                      </span>
-                    )}
-                    <label className="flex items-center gap-2 text-xs text-[#59636e] ml-4">
-                      音量
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={c.musicVolume}
-                        onChange={(e) => updateBatchConfig(i, { musicVolume: Number(e.target.value) })}
-                        className="w-24"
-                      />
-                      <span className="w-8 text-right">{c.musicVolume}%</span>
-                    </label>
-                  </div>
-                )}
+
+                {/* 封面标题（可选） */}
+                <div className="flex items-center gap-4 mb-3 mt-3">
+                  <span className="text-xs text-[#59636e] font-medium">封面标题（可选）</span>
+                  <button
+                    type="button"
+                    className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
+                    disabled={c.scriptMode === "auto" && !c.manualScript.trim() || batchCoverCooldown.has(i)}
+                    onClick={async () => {
+                      const text = c.scriptMode === "manual" ? c.manualScript : "";
+                      if (!text.trim()) return;
+                      setBatchCoverCooldown((prev) => new Set(prev).add(i));
+                      try {
+                        const res = await api.generateCoverTitle({ script_text: text, product });
+                        updateBatchConfig(i, { coverTitleText: res.text, coverHighlightWords: res.highlight_words.join("，") });
+                      } catch (e) {
+                        console.error("generate cover title failed", e);
+                      } finally {
+                        setTimeout(() => setBatchCoverCooldown((prev) => { const next = new Set(prev); next.delete(i); return next; }), 5000);
+                      }
+                    }}
+                  >
+                    {batchCoverCooldown.has(i) ? "冷却中（5s）..." : c.scriptMode === "auto" ? "需先输入文案才能生成" : "自动生成标题"}
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap mb-3">
+                  <input
+                    type="text"
+                    className="border rounded-lg px-3 py-2 text-sm min-w-[220px] flex-1 max-w-xs"
+                    placeholder="输入封面标题（留空则不显示）"
+                    value={c.coverTitleText}
+                    onChange={(e) => updateBatchConfig(i, { coverTitleText: e.target.value })}
+                  />
+                  <input
+                    type="text"
+                    className="border rounded-lg px-3 py-2 text-sm min-w-[180px]"
+                    placeholder="高亮关键词，用逗号分隔"
+                    value={c.coverHighlightWords}
+                    onChange={(e) => updateBatchConfig(i, { coverHighlightWords: e.target.value })}
+                  />
+                </div>
+
+                {/* 背景音乐（可选） */}
+                <div className="flex items-center gap-4 mb-3 mt-3">
+                  <span className="text-xs text-[#59636e] font-medium">背景音乐（可选）</span>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap mb-3">
+                  <select
+                    className="border rounded-lg px-3 py-1.5 text-sm min-w-[200px]"
+                    value={c.musicPath}
+                    onChange={(e) => updateBatchConfig(i, { musicPath: e.target.value })}
+                  >
+                    <option value="">-- 选择背景音乐 --</option>
+                    {musicTracks.map((t) => (
+                      <option key={t.relative_path} value={t.relative_path}>
+                        {t.filename}
+                        {t.duration_seconds != null
+                          ? ` (${Math.floor(t.duration_seconds)}s)`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50"
+                    onClick={() => {
+                      if (musicTracks.length === 0) return;
+                      const pick = musicTracks[Math.floor(Math.random() * musicTracks.length)];
+                      updateBatchConfig(i, { musicPath: pick.relative_path });
+                    }}
+                  >
+                    🎲 随机
+                  </button>
+                  {musicTracks.length === 0 && (
+                    <span className="text-xs text-gray-400">
+                      音乐库为空，请将音频文件放入 workspace/music_library/
+                    </span>
+                  )}
+                  <label className="flex items-center gap-2 text-xs text-[#59636e] ml-4">
+                    音量
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={c.musicVolume}
+                      onChange={(e) => updateBatchConfig(i, { musicVolume: Number(e.target.value) })}
+                      className="w-24"
+                    />
+                    <span className="w-8 text-right">{c.musicVolume}%</span>
+                  </label>
+                </div>
               </div>
             ))}
 
@@ -520,6 +589,14 @@ export default function ProjectWorkbench() {
                   />
                   粤语版
                 </label>
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
+                  <input
+                    type="checkbox"
+                    checked={skipSubtitle}
+                    onChange={(e) => setSkipSubtitle(e.target.checked)}
+                  />
+                  跳过字幕
+                </label>
               </div>
               {scriptMode === "manual" && (
                 <textarea
@@ -553,15 +630,6 @@ export default function ProjectWorkbench() {
                   />
                   上传音频
                 </label>
-                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="audioMode"
-                    checked={audioMode === "library"}
-                    onChange={() => setAudioMode("library")}
-                  />
-                  音乐库
-                </label>
               </div>
               {audioMode === "upload" && (
                 <div className="flex items-center gap-3">
@@ -579,53 +647,102 @@ export default function ProjectWorkbench() {
                   )}
                 </div>
               )}
-              {audioMode === "library" && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <select
-                    className="border rounded-lg px-3 py-1.5 text-sm min-w-[200px]"
-                    value={selectedMusic}
-                    onChange={(e) => setSelectedMusic(e.target.value)}
-                  >
-                    <option value="">-- 选择背景音乐 --</option>
-                    {musicTracks.map((t) => (
-                      <option key={t.relative_path} value={t.relative_path}>
-                        {t.filename}
-                        {t.duration_seconds != null
-                          ? ` (${Math.floor(t.duration_seconds)}s)`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50"
-                    onClick={() => {
-                      if (musicTracks.length === 0) return;
-                      const pick = musicTracks[Math.floor(Math.random() * musicTracks.length)];
-                      setSelectedMusic(pick.relative_path);
-                    }}
-                  >
-                    🎲 随机
-                  </button>
-                  {musicTracks.length === 0 && (
-                    <span className="text-xs text-gray-400">
-                      音乐库为空，请将音频文件放入 workspace/music_library/
-                    </span>
-                  )}
-                  <label className="flex items-center gap-2 text-xs text-[#59636e] ml-4">
-                    音量
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={musicVolume}
-                      onChange={(e) => setMusicVolume(Number(e.target.value))}
-                      className="w-24"
-                    />
-                    <span className="w-8 text-right">{musicVolume}%</span>
-                  </label>
-                </div>
-              )}
+            </div>
+
+            {/* Cover Title Section */}
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex items-center gap-4 mb-3">
+                <span className="text-xs text-[#59636e] font-medium">封面标题（可选）</span>
+                <button
+                  type="button"
+                  className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
+                  disabled={scriptMode === "auto" && !manualScript.trim() || coverTitleCooldown}
+                  onClick={async () => {
+                    const text = scriptMode === "manual" ? manualScript : "";
+                    if (!text.trim()) return;
+                    setCoverTitleCooldown(true);
+                    try {
+                      const res = await api.generateCoverTitle({ script_text: text, product });
+                      setCoverTitleText(res.text);
+                      setCoverHighlightWords(res.highlight_words.join("，"));
+                    } catch (e) {
+                      console.error("generate cover title failed", e);
+                    } finally {
+                      setTimeout(() => setCoverTitleCooldown(false), 5000);
+                    }
+                  }}
+                >
+                  {coverTitleCooldown ? "冷却中（5s）..." : scriptMode === "auto" ? "需先输入文案才能生成" : "自动生成标题"}
+                </button>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <input
+                  type="text"
+                  className="border rounded-lg px-3 py-2 text-sm min-w-[260px] flex-1 max-w-md"
+                  placeholder="输入封面标题（留空则不显示）"
+                  value={coverTitleText}
+                  onChange={(e) => setCoverTitleText(e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="border rounded-lg px-3 py-2 text-sm min-w-[200px]"
+                  placeholder="高亮关键词，用逗号分隔"
+                  value={coverHighlightWords}
+                  onChange={(e) => setCoverHighlightWords(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Background Music Section (always visible) */}
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex items-center gap-4 mb-3">
+                <span className="text-xs text-[#59636e] font-medium">背景音乐（可选）</span>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <select
+                  className="border rounded-lg px-3 py-1.5 text-sm min-w-[200px]"
+                  value={selectedMusic}
+                  onChange={(e) => setSelectedMusic(e.target.value)}
+                >
+                  <option value="">-- 选择背景音乐 --</option>
+                  {musicTracks.map((t) => (
+                    <option key={t.relative_path} value={t.relative_path}>
+                      {t.filename}
+                      {t.duration_seconds != null
+                        ? ` (${Math.floor(t.duration_seconds)}s)`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50"
+                  onClick={() => {
+                    if (musicTracks.length === 0) return;
+                    const pick = musicTracks[Math.floor(Math.random() * musicTracks.length)];
+                    setSelectedMusic(pick.relative_path);
+                  }}
+                >
+                  🎲 随机
+                </button>
+                {musicTracks.length === 0 && (
+                  <span className="text-xs text-gray-400">
+                    音乐库为空，请将音频文件放入 workspace/music_library/
+                  </span>
+                )}
+                <label className="flex items-center gap-2 text-xs text-[#59636e] ml-4">
+                  音量
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={musicVolume}
+                    onChange={(e) => setMusicVolume(Number(e.target.value))}
+                    className="w-24"
+                  />
+                  <span className="w-8 text-right">{musicVolume}%</span>
+                </label>
+              </div>
             </div>
 
             <div className="mt-4 pt-4 border-t flex justify-end">

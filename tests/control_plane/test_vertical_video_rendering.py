@@ -5,7 +5,28 @@ from typing import Any
 
 import pytest
 
-from apps.control_plane.app import _auto_tick, _phase_to_artifacts
+from apps.control_plane.app import _auto_tick
+from packages.pipeline_services.phase_orchestrator import PhaseContext, PhaseOrchestrator
+
+
+def _make_orchestrator(root_dir: Path, video_svc, schedule_store) -> PhaseOrchestrator:
+    """Build an orchestrator with stubs for video_svc and schedule_store."""
+    from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+    from packages.pipeline_services.subtitle_service import SubtitleService
+
+    class StubTTSProvider:
+        def synthesize(self, text: str, config: Any) -> bytes:
+            return b"tts"
+
+    orch = PhaseOrchestrator(
+        script_bridge=LegacyScriptBridge(root_dir),
+        subtitle_svc=SubtitleService(),
+        video_svc=video_svc,
+        schedule_store=schedule_store,
+    )
+    stub = StubTTSProvider()
+    orch._build_tts_provider = staticmethod(lambda cfg: stub)
+    return orch
 
 
 def test_video_rendering_uses_media_bridge_with_selected_clips(monkeypatch, tmp_path: Path) -> None:
@@ -51,16 +72,18 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(monkeypatch, tmp_
             return 1
 
     monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
-    monkeypatch.setattr("apps.control_plane.app.VideoService", StubVideoService)
-    monkeypatch.setattr("apps.control_plane.app.ScheduleStore", StubScheduleStore)
 
-    artifacts = _phase_to_artifacts(
-        "video_rendering",
-        "job-001",
-        project_dir,
-        root_dir,
-        "荔枝菌",
+    video_svc = StubVideoService()
+    schedule_store = StubScheduleStore(root_dir)
+    orchestrator = _make_orchestrator(root_dir, video_svc, schedule_store)
+
+    ctx = PhaseContext(
+        job_id="job-001",
+        project_dir=project_dir,
+        root_dir=root_dir,
+        product="荔枝菌",
     )
+    artifacts = orchestrator.run_phase("video_rendering", ctx)
 
     assert captured["project_dir"] == project_dir
     assert captured["output_path"] == job_dir / "base.mp4"
@@ -69,7 +92,7 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(monkeypatch, tmp_
         {"file_path": str(clip_a)},
         {"file_path": str(clip_b)},
     ]
-    assert artifacts[0]["kind"] == "video_base"
+    assert artifacts[0].kind == "video_base"
 
 
 def test_final_review_allows_missing_srt_when_skip_subtitle_is_enabled(monkeypatch, tmp_path: Path) -> None:
@@ -124,19 +147,21 @@ def test_final_review_allows_missing_srt_when_skip_subtitle_is_enabled(monkeypat
             return 1
 
     monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
-    monkeypatch.setattr("apps.control_plane.app.VideoService", StubVideoService)
-    monkeypatch.setattr("apps.control_plane.app.ScheduleStore", StubScheduleStore)
 
-    artifacts = _phase_to_artifacts(
-        "final_review",
-        "job-001",
-        project_dir,
-        root_dir,
-        "荔枝菌",
+    video_svc = StubVideoService()
+    schedule_store = StubScheduleStore(root_dir)
+    orchestrator = _make_orchestrator(root_dir, video_svc, schedule_store)
+
+    ctx = PhaseContext(
+        job_id="job-001",
+        project_dir=project_dir,
+        root_dir=root_dir,
+        product="荔枝菌",
     )
+    artifacts = orchestrator.run_phase("final_review", ctx)
 
     assert captured["srt_path"] is None
-    assert artifacts[0]["kind"] == "final_video"
+    assert artifacts[0].kind == "final_video"
 
 
 def test_auto_tick_skips_subtitle_phase_when_skip_subtitle_is_enabled(monkeypatch, tmp_path: Path) -> None:
@@ -165,11 +190,7 @@ def test_auto_tick_skips_subtitle_phase_when_skip_subtitle_is_enabled(monkeypatc
             return
         raise asyncio.CancelledError()
 
-    def fail_phase_to_artifacts(*args, **kwargs):
-        raise AssertionError("_phase_to_artifacts should not be called when skip_subtitle=True")
-
     monkeypatch.setattr("apps.control_plane.app.asyncio.sleep", fake_sleep)
-    monkeypatch.setattr("apps.control_plane.app._phase_to_artifacts", fail_phase_to_artifacts)
 
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(_auto_tick(root_dir))
@@ -205,11 +226,7 @@ def test_auto_tick_auto_approves_review_gates(monkeypatch, tmp_path: Path) -> No
             return
         raise asyncio.CancelledError()
 
-    def fail_phase_to_artifacts(*args, **kwargs):
-        raise AssertionError("_phase_to_artifacts should not be called when auto_approve=True")
-
     monkeypatch.setattr("apps.control_plane.app.asyncio.sleep", fake_sleep)
-    monkeypatch.setattr("apps.control_plane.app._phase_to_artifacts", fail_phase_to_artifacts)
 
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(_auto_tick(root_dir))
