@@ -353,3 +353,67 @@ class TestScanEndpoint:
         data = resp.json()
         assert data["files_processed"] >= 1
         assert data["total_inserted"] >= 1
+
+
+# ── Integration: real data directory ────────────────────────────────────────────
+
+def test_scan_real_data_directory():
+    """Test scanning the actual data/ directory if it exists."""
+    from pathlib import Path
+    import shutil
+
+    real_data = Path(__file__).resolve().parent.parent / "data"
+    if not real_data.exists():
+        import pytest
+        pytest.skip("data/ directory not found")
+
+    # Create app with temp root
+    from apps.control_plane.app import create_app
+    from fastapi.testclient import TestClient
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        app = create_app(root_dir=root)
+
+        # Copy data structure to temp root
+        shutil.copytree(str(real_data), str(root / "data"), dirs_exist_ok=True)
+
+        client = TestClient(app)
+
+        # 1. Scan should find and import files
+        resp = client.post("/api/metrics/scan")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["files_processed"] > 0, f"Expected files_processed > 0, got {data}"
+        assert data["total_inserted"] > 0, f"Expected total_inserted > 0, got {data}"
+
+        # 2. Overview should return real aggregated data
+        resp = client.get("/api/metrics/overview?days=30")
+        assert resp.status_code == 200
+        overview = resp.json()
+        assert overview["total_plays"] > 0, "Expected total_plays > 0 from real data"
+        assert overview["video_count"] > 0, "Expected video_count > 0"
+
+        # 3. Videos endpoint should return sorted list
+        resp = client.get("/api/metrics/videos?sort_by=plays_desc")
+        assert resp.status_code == 200
+        videos = resp.json()
+        assert videos["total"] > 0
+        # Verify sort order: first item plays >= last item plays
+        if len(videos["items"]) > 1:
+            assert videos["items"][0]["plays"] >= videos["items"][-1]["plays"]
+
+        # 4. Topics should return non-empty keyword list
+        resp = client.get("/api/metrics/topics?days=30")
+        assert resp.status_code == 200
+        topics = resp.json()
+        assert len(topics) > 0, "Expected at least one topic keyword"
+
+        # 5. Platform filter should work
+        resp = client.get("/api/metrics/overview?days=30&platform=weixin")
+        assert resp.status_code == 200
+
+        # 6. Search should work
+        resp = client.get("/api/metrics/videos?search=%E8%8D%94%E6%9E%9D%E8%8F%8C")  # 荔枝菌
+        assert resp.status_code == 200
