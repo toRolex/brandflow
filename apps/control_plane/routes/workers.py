@@ -8,7 +8,7 @@ from packages.file_store.repository import FileStoreRepository
 
 router = APIRouter(prefix="/workers", tags=["workers"])
 
-REVIEW_PHASES = {"script_review", "tts_review", "final_review"}
+REVIEW_PHASES = {"script_review", "tts_review", "asset_review", "final_review"}
 
 
 def _artifact_kind(path: str) -> str:

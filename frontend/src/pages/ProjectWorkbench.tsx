@@ -90,6 +90,14 @@ export default function ProjectWorkbench() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Poll job list every 5s while any job is not in a terminal state
+  useEffect(() => {
+    const terminal = new Set(["completed", "failed", "cancelled", "paused"]);
+    if (jobs.length === 0 || jobs.every((j) => terminal.has(j.phase))) return;
+    const timer = setInterval(load, 5000);
+    return () => clearInterval(timer);
+  }, [jobs, load]);
+
   useEffect(() => {
     api.listMusic().then((data) => setMusicTracks(data.tracks)).catch(() => {});
   }, []);
@@ -254,6 +262,19 @@ export default function ProjectWorkbench() {
                 />
                 粤语版
               </label>
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-2">
+                <input
+                  type="checkbox"
+                  checked={batchSkipSubtitle}
+                  onChange={(e) => {
+                    setBatchSkipSubtitle(e.target.checked);
+                    setBatchConfigs((prev) =>
+                      prev.map((c) => ({ ...c, skipSubtitle: e.target.checked })),
+                    );
+                  }}
+                />
+                全部跳过字幕
+              </label>
             </>
           )}
         </div>
@@ -323,19 +344,6 @@ export default function ProjectWorkbench() {
               <div className="flex items-end pb-1">
                 <BatchScriptUploader onScripts={handleScriptsUpload} />
               </div>
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-2">
-                <input
-                  type="checkbox"
-                  checked={batchSkipSubtitle}
-                  onChange={(e) => {
-                    setBatchSkipSubtitle(e.target.checked);
-                    setBatchConfigs((prev) =>
-                      prev.map((c) => ({ ...c, skipSubtitle: e.target.checked })),
-                    );
-                  }}
-                />
-                全部跳过字幕
-              </label>
             </div>
 
             {/* 每个 Job 的独立配置卡片 */}

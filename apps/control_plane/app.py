@@ -73,6 +73,29 @@ async def _auto_tick(root_dir: Path):
                         # Skip review gates that are already pending approval (not yet approved)
                         if current in REVIEW_PHASES and data.get("review_status") not in ("approved",):
                             if data.get("auto_approve", False):
+                                # Execute handler if the review phase has one (e.g. final_review)
+                                if current in orchestrator._handlers:
+                                    product = data.get("product", os.environ.get("PRODUCT", "荔枝菌"))
+                                    ctx = PhaseContext(
+                                        job_id=job_id,
+                                        project_dir=project_dir,
+                                        root_dir=root_dir,
+                                        product=product,
+                                        options={
+                                            "manual_script": data.get("manual_script", ""),
+                                            "uploaded_audio_path": data.get("uploaded_audio_path", ""),
+                                        },
+                                    )
+                                    artifacts = [
+                                        a.model_dump()
+                                        for a in orchestrator.run_phase(current, ctx)
+                                    ]
+                                    existing = data.get("artifacts", [])
+                                    existing_kinds = {a.get("kind") for a in existing}
+                                    for a in artifacts:
+                                        if a["kind"] not in existing_kinds:
+                                            existing.append(a)
+                                    data["artifacts"] = existing
                                 try:
                                     data["phase"] = next_phase(current)
                                 except ValueError:
@@ -81,6 +104,17 @@ async def _auto_tick(root_dir: Path):
                                 f.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                                 print(f"[AUTO-TICK] {job_id}: auto_approved {current} -> {data['phase']}", flush=True)
                                 continue
+                            continue
+
+                        # Already-approved review gate — advance to next phase
+                        if current in REVIEW_PHASES and data.get("review_status") == "approved":
+                            try:
+                                data["phase"] = next_phase(current)
+                            except ValueError:
+                                data["phase"] = "completed"
+                            data["review_status"] = "none"
+                            f.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                            print(f"[AUTO-TICK] {job_id}: approved_review {current} -> {data['phase']}", flush=True)
                             continue
 
                         # Process the current phase, then advance if artifacts are produced

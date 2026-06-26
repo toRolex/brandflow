@@ -63,7 +63,7 @@ def _render_cover_title_png(
     outline_color = style.get("outline_color", DEFAULT_COVER_STYLE["outline_color"]).lstrip("#")
     position = style.get("position", DEFAULT_COVER_STYLE["position"])
 
-    max_w = int(video_width * 0.9)  # 90% of video width, 5% margin each side
+    max_w = int(video_width * 0.86)  # 86% of video width, 7% margin each side
 
     # Load a CJK-capable font at max size first, then auto-shrink
     font_paths = [
@@ -81,15 +81,15 @@ def _render_cover_title_png(
                 continue
         return ImageFont.load_default()
 
-    # Auto-scale: start from max, shrink until text fits
-    font_size = max(int(video_height * 0.10), 36)
+    # Auto-scale: start from max, shrink until text fits width
+    font_size = max(int(video_height * 0.06), 32)
     font = _load_font(font_size)
 
     # Measure text width at current font size, shrink if needed
     tmp_img = Image.new("RGBA", (1, 1))
     tmp_draw = ImageDraw.Draw(tmp_img)
     text_w = tmp_draw.textlength(text, font=font)
-    while text_w > max_w and font_size > 24:
+    while text_w > max_w and font_size > 20:
         font_size = int(font_size * 0.85)
         font = _load_font(font_size)
         text_w = tmp_draw.textlength(text, font=font)
@@ -145,9 +145,9 @@ def _render_cover_title_png(
     total_h = sum(line_heights) + line_spacing * (len(lines) - 1)
 
     if position == "top":
-        y_start = int(video_height * 0.08)
+        y_start = int(video_height * 0.10)
     elif position == "bottom":
-        y_start = video_height - int(video_height * 0.08) - total_h
+        y_start = video_height - int(video_height * 0.10) - total_h
     else:
         y_start = (video_height - total_h) // 2
 
@@ -412,7 +412,7 @@ class VideoService:
             inputs = ["-i", str(cover_clip_path), "-i", str(base_video_path), "-i", str(audio_path)]
             if has_cover_title:
                 inputs += ["-i", str(cover_title_png)]
-            audio_idx, music_idx = len(inputs) - 2, len(inputs) - 1
+            audio_idx = 2
         else:
             ct_idx = 2 if has_cover_title else None
             vf, v_label = _build_simple_video_filter(
@@ -425,14 +425,16 @@ class VideoService:
             inputs = ["-i", str(base_video_path), "-i", str(audio_path)]
             if has_cover_title:
                 inputs += ["-i", str(cover_title_png)]
-            audio_idx, music_idx = len(inputs) - 2, len(inputs) - 1
+            audio_idx = 1
 
         # ── Build audio filter (if music) ──
-        af, a_label = "", f"{audio_idx}:a:0"
         if has_music:
+            inputs += ["-stream_loop", "-1", "-i", str(music_path)]
+            music_idx = inputs.count("-i") - 1
             af = _make_music_mix_filter(audio_idx, music_idx, music_vol, fade_start)
             a_label = "[amix]"
-            inputs += ["-stream_loop", "-1", "-i", str(music_path)]
+        else:
+            af, a_label = "", f"{audio_idx}:a:0"
 
         # ── Combine filters and assemble command ──
         filter_complex = f"{vf};{af}" if vf and af else vf or af
