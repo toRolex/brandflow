@@ -50,7 +50,7 @@ export default function TopicGrid({
             {formatNum(t.total_plays)}
           </div>
           <div className="text-xs text-gray-500">
-            {t.video_count} 条视频 · 完播 {(t.avg_completion * 100).toFixed(0)}%
+            {t.video_count} 条视频 · 完播 {t.avg_completion.toFixed(0)}%
           </div>
         </div>
       ))}

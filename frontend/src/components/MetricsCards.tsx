@@ -47,7 +47,7 @@ export default function MetricsCards({
       {ITEMS.map((it) => {
         const raw = data[it.key];
         const display = it.isRate
-          ? (raw * 100).toFixed(1) + "%"
+          ? raw.toFixed(1) + "%"
           : formatNum(raw as number);
         return (
           <div
