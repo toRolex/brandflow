@@ -49,13 +49,11 @@ def orchestrator() -> PhaseOrchestrator:
     bridge = MagicMock()
     subtitle_svc = MagicMock()
     video_svc = MagicMock()
-    tts_provider = MagicMock()
     schedule_store = MagicMock()
     return PhaseOrchestrator(
         script_bridge=bridge,
         subtitle_svc=subtitle_svc,
         video_svc=video_svc,
-        tts_provider=tts_provider,
         schedule_store=schedule_store,
     )
 
@@ -109,17 +107,15 @@ class TestPhaseOrchestratorInit:
             script_bridge=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
-            tts_provider=MagicMock(),
             schedule_store=MagicMock(),
         )
         assert orch._script_bridge is not None
         assert orch._subtitle_svc is not None
         assert orch._video_svc is not None
-        assert orch._tts_provider is not None
         assert orch._schedule_store is not None
 
     def test_has_handler_map(self):
-        orch = PhaseOrchestrator(*[MagicMock()] * 5)
+        orch = PhaseOrchestrator(*[MagicMock()] * 4)
         assert isinstance(orch._handlers, dict)
         assert "script_generating" in orch._handlers
 
@@ -339,15 +335,17 @@ _FAKE_TTS_CONFIG = {
 
 
 def _make_orchestrator_with_tts_config(tts_provider=None, tts_config=None):
-    """Build a PhaseOrchestrator with get_tts_config injected."""
-    return PhaseOrchestrator(
+    """Build a PhaseOrchestrator with get_tts_config injected and _build_tts_provider mocked."""
+    orch = PhaseOrchestrator(
         script_bridge=MagicMock(),
         subtitle_svc=MagicMock(),
         video_svc=MagicMock(),
-        tts_provider=tts_provider or MagicMock(),
         schedule_store=MagicMock(),
         get_tts_config=lambda: tts_config or dict(_FAKE_TTS_CONFIG),
     )
+    mock_provider = tts_provider or MagicMock()
+    orch._build_tts_provider = staticmethod(lambda cfg: mock_provider)
+    return orch
 
 
 class TestRunTTSScriptDiscovery:

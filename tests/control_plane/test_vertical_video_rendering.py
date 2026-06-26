@@ -18,13 +18,15 @@ def _make_orchestrator(root_dir: Path, video_svc, schedule_store) -> PhaseOrches
         def synthesize(self, text: str, config: Any) -> bytes:
             return b"tts"
 
-    return PhaseOrchestrator(
+    orch = PhaseOrchestrator(
         script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=video_svc,
-        tts_provider=StubTTSProvider(),
         schedule_store=schedule_store,
     )
+    stub = StubTTSProvider()
+    orch._build_tts_provider = staticmethod(lambda cfg: stub)
+    return orch
 
 
 def test_video_rendering_uses_media_bridge_with_selected_clips(monkeypatch, tmp_path: Path) -> None:

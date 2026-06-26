@@ -23,7 +23,6 @@ from apps.control_plane.services.dispatch import Dispatcher
 from packages.domain_core.state import next_phase
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
-from packages.pipeline_services.tts_provider import MiMoTTSProvider
 from packages.provider_config.app_config import AppConfigManager
 from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
@@ -37,25 +36,12 @@ AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 async def _auto_tick(root_dir: Path):
     """Dev-mode background loop: scans disk for non-review jobs, generates stub artifacts, and advances them."""
     # Construct orchestrator once; deps are stateless, reused across iterations
+    # TTS provider is now built dynamically per-job inside PhaseOrchestrator._run_tts
     app_config = AppConfigManager()
-    tts_cfg = app_config.get_tts_config()
-    tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
-    if tts_model.startswith("qwen"):
-        from packages.pipeline_services.tts_provider import QwenTTSProvider
-        tts_provider = QwenTTSProvider(
-            api_key=app_config.get_api_key("qwen"),
-            base_url=app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1",
-        )
-    else:
-        tts_provider = MiMoTTSProvider(
-            api_key=app_config.get_api_key("mimo"),
-            base_url=app_config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1",
-        )
     orchestrator = PhaseOrchestrator(
         script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
-        tts_provider=tts_provider,
         schedule_store=ScheduleStore(root_dir),
         get_tts_config=app_config.get_tts_config,
         get_llm_config=app_config.get_llm_config,

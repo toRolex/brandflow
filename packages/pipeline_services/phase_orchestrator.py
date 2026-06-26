@@ -92,7 +92,6 @@ class PhaseOrchestrator:
         script_bridge: LegacyScriptBridge,
         subtitle_svc: SubtitleService,
         video_svc: VideoService,
-        tts_provider: Any,
         schedule_store: Any,
         get_tts_config: Callable[[], dict[str, Any]] | None = None,
         get_llm_config: Callable[[], dict[str, Any]] | None = None,
@@ -100,7 +99,6 @@ class PhaseOrchestrator:
         self._script_bridge = script_bridge
         self._subtitle_svc = subtitle_svc
         self._video_svc = video_svc
-        self._tts_provider = tts_provider
         self._schedule_store = schedule_store
         self._get_tts_config = get_tts_config
         self._get_llm_config = get_llm_config
@@ -148,6 +146,29 @@ class PhaseOrchestrator:
             size_bytes=path.stat().st_size if path.exists() else 0,
         )
 
+    @staticmethod
+    def _build_tts_provider(tts_cfg: dict[str, Any]) -> Any:
+        """Build TTS provider dynamically from current config.
+
+        Reads model from *tts_cfg* and returns the matching provider instance
+        so that config changes (e.g. mimo → qwen) take effect immediately
+        without restarting the worker.
+        """
+        from packages.pipeline_services.tts_provider import MiMoTTSProvider, QwenTTSProvider
+
+        app_config = AppConfigManager()
+        tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
+
+        if tts_model.startswith("qwen"):
+            return QwenTTSProvider(
+                api_key=app_config.get_api_key("qwen"),
+                base_url=app_config.get_api_base_url("qwen") or "https://dashscope.aliyuncs.com/api/v1",
+            )
+        return MiMoTTSProvider(
+            api_key=app_config.get_api_key("mimo"),
+            base_url=app_config.get_api_base_url("mimo") or "https://api.xiaomimimo.com/v1",
+        )
+
     # -- script_generating handler ------------------------------------------
 
     def _run_script(self, ctx: PhaseContext) -> list[ArtifactPointer]:
@@ -159,6 +180,23 @@ class PhaseOrchestrator:
 
         # 1. Generate or write script
         if manual_script:
+            language = ctx.options.get("language", "mandarin")
+            if language == "cantonese":
+                try:
+                    app_cfg = AppConfigManager()
+                    llm_cfg = app_cfg.get_llm_config()
+
+                    class _LLMConfig:
+                        api_key = app_cfg.get_llm_api_key()
+                        base_url = app_cfg.get_llm_endpoint()
+                        model = llm_cfg.get("model", "deepseek-v4-pro")
+
+                    gen = ScriptGenerator(_LLMConfig())
+                    manual_script = gen.to_cantonese(manual_script, ctx.product, "滋元堂")
+                    print(f"[SCRIPT] Converted manual script to Cantonese", flush=True)
+                except Exception as e:
+                    print(f"[SCRIPT WARN] Cantonese conversion failed, using original: {e}", flush=True)
+
             txt_path = job_dir / "口播文案.txt"
             txt_path.write_text(manual_script, encoding="utf-8")
             json_path = job_dir / "口播文案.json"
@@ -271,12 +309,13 @@ class PhaseOrchestrator:
                 try:
                     get_tts_config = self._get_tts_config
                     if get_tts_config is None:
-                        app_config = AppConfigManager()
-                        get_tts_config = app_config.get_tts_config
+                        app_cfg = AppConfigManager()
+                        get_tts_config = app_cfg.get_tts_config
                     tts_cfg = get_tts_config()
 
                     config = _TTSConfigShim(tts_cfg)
-                    audio_bytes = self._tts_provider.synthesize(existing_script, config)
+                    tts_provider = self._build_tts_provider(tts_cfg)
+                    audio_bytes = tts_provider.synthesize(existing_script, config)
                     audio_path.write_bytes(audio_bytes)
                     print(
                         f"[TTS] Synthesized: {audio_path.exists()}, "
