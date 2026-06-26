@@ -1,13 +1,11 @@
 import type { VideoMetric } from "../types";
 
 const SORT_OPTIONS = [
-  { value: "plays", label: "播放量" },
-  { value: "likes", label: "点赞" },
-  { value: "comments", label: "评论" },
-  { value: "shares", label: "分享" },
-  { value: "completion_rate", label: "完播率" },
-  { value: "followers_gained", label: "涨粉" },
-  { value: "publish_date", label: "发布日期" },
+  { value: "plays_desc", label: "播放量" },
+  { value: "likes_desc", label: "点赞" },
+  { value: "completion_desc", label: "完播率" },
+  { value: "followers_desc", label: "涨粉" },
+  { value: "date_desc", label: "发布日期" },
 ];
 
 const PLATFORM_OPTIONS = [
@@ -154,12 +152,12 @@ export default function VideoTable({
                           <div
                             className="h-full bg-blue-500 rounded-full"
                             style={{
-                              width: `${Math.min(v.completion_rate * 100, 100)}%`,
+                              width: `${Math.min(v.completion_rate, 100)}%`,
                             }}
                           />
                         </div>
                         <span className="text-xs text-gray-500">
-                          {(v.completion_rate * 100).toFixed(0)}%
+                          {v.completion_rate.toFixed(0)}%
                         </span>
                       </div>
                     ) : (

@@ -27,7 +27,7 @@ const PLATFORM_OPTIONS = [
 export default function AnalyticsPage() {
   const [days, setDays] = useState(7);
   const [platform, setPlatform] = useState("");
-  const [sortBy, setSortBy] = useState("plays");
+  const [sortBy, setSortBy] = useState("plays_desc");
   const [search, setSearch] = useState("");
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [topics, setTopics] = useState<TopicStat[]>([]);
