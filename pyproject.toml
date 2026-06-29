@@ -15,12 +15,14 @@ dependencies = [
     "pyyaml>=6.0.3",
     "httpx>=0.28.1",
     "python-multipart>=0.0.29",
+    "pysocks>=1.7.1",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
+    "ruff>=0.15.20",
 ]
 
 [tool.pytest.ini_options]
@@ -33,8 +35,11 @@ markers = [
 ]
 
 [[tool.uv.index]]
-url = "https://mirrors.aliyun.com/pypi/simple/"
+url = "http://mirrors.aliyun.com/pypi/simple/"
 
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
+
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
