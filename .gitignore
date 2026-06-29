@@ -1,6 +1,8 @@
 .env
 .env.*
 !.env.example
+config/app_config.json
+config/providers.yaml
 .runtime_batch_direction.txt
 001见手青/
 AGENTS.md

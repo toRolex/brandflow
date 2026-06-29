@@ -332,6 +332,8 @@ class VideoService:
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
             )
             trimmed_paths.append(trimmed)
@@ -496,4 +498,4 @@ class VideoService:
             str(final_video_path),
         ]
 
-        subprocess.run(cmd, capture_output=True, text=True, timeout=600, check=True)
+        subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, check=True)

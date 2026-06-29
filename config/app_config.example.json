@@ -7,24 +7,21 @@
   "tts": {
     "provider": "mimo",
     "model": "mimo-v2.5-tts",
-    "voice": "Rocky",
-    "fallback_voice": "BackupVoice",
+    "voice": "Mia",
+    "fallback_voice": "Dean",
     "randomize_voice": false,
-    "random_voices": [
-      "A",
-      "B"
-    ],
-    "style_prompt": "活泼热情",
-    "voice_design_prompt": "年轻女性，声音甜美",
+    "random_voices": ["Mia", "Dean"],
+    "style_prompt": "自然 清晰 适合短视频带货口播",
+    "voice_design_prompt": "",
     "style_control_mode": "simple",
     "director": {
-      "character": "年轻女性",
-      "scene": "厨房",
-      "guidance": "热情洋溢"
+      "character": "",
+      "scene": "",
+      "guidance": ""
     },
     "audio_tags": {
       "enabled": true,
-      "tags": "(温柔)"
+      "tags": ""
     },
     "audio_format": "wav",
     "sample_rate": 44100,
@@ -43,8 +40,8 @@
     "model": "mimo-v2.5"
   },
   "media": {
-    "ffmpeg_path": "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg",
-    "ffprobe_path": "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe",
+    "ffmpeg_path": "ffmpeg",
+    "ffprobe_path": "ffprobe",
     "subtitle_mode": "script_timed",
     "max_retry": 3,
     "retry_delay_seconds": 60
