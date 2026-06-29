@@ -228,7 +228,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173"],
+        allow_origins=["http://localhost:5173", "http://localhost:17890"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -244,6 +244,10 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(reviews_router)
     app.include_router(tts_router)
     app.include_router(metrics_router)
+
+    @app.get("/api/health")
+    async def health():
+        return {"status": "ok", "version": "0.4.0"}
 
     workspace = root_dir or Path.cwd() / "workspace"
     if workspace.exists():
