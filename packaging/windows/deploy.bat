@@ -117,7 +117,7 @@ if %errorlevel% neq 0 (
     :rollback
     if defined ROLLBACK_TAG (
         echo   回滚到 !ROLLBACK_TAG! ... >> "%LOG_FILE%"
-        git checkout !ROLLBACK_TAG! -- .
+        git reset --hard !ROLLBACK_TAG!
         uv sync --all-extras --dev >nul
         nssm restart ziyuantang-control-plane
         nssm restart ziyuantang-worker
