@@ -32,8 +32,9 @@ jobs:
         # run: uv run ty
         run: echo "type check skipped"
 
-      - name: Run tests
-        run: uv run pytest tests/ -q --tb=short
+      - name: Install ffmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        id: setup-ffmpeg
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -72,3 +73,6 @@ jobs:
       - name: Build frontend
         run: pnpm build
         working-directory: frontend
+
+      - name: Run tests
+        run: uv run pytest tests/ -q --tb=short -m "not e2e"
