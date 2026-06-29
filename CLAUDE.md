@@ -19,6 +19,12 @@ windows服务器项目路径：进入"C:\Users\ziyua\Documents\Code\ai-video-pip
 SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 zyt@100.121.152.103 "cmd /c \"cd /d C:\Users\ziyua\Documents\Code\ai-video-pipeline && <命令>\""
 ```
 
+**Windows 测试机网络：**
+| 地址 | 说明 | 端口 |
+|---|---|---|
+| `100.121.152.103:17890` | Tailscale 虚拟 IP，跨网段可用 | 控制面 / Web 看板 |
+| `192.168.31.158:17890` | 局域网直连 IP（WiFi Public 网络需防火墙放行） | 控制面 / Web 看板 |
+
 - 优先用 WSL，优先用环境变量传密码（`SSHPASS` + `-e`）
 - 默认只执行只读命令；高风险操作（修改配置、重启、删除）前必须先确认
 

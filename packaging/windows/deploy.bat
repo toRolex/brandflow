@@ -63,11 +63,7 @@ if %errorlevel% neq 0 (
 echo [5/8] 安装前端依赖并编译...
 cd frontend
 call nvm use 20.18.3
-if "%CI_DEPLOY_TEST%"=="1" (
-    pnpm install --no-frozen-lockfile
-) else (
-    pnpm install --frozen-lockfile
-)
+pnpm install --frozen-lockfile
 if %errorlevel% neq 0 (
     echo [错误] pnpm install 失败 >> "%LOG_FILE%"
     popd & exit /b 1
@@ -96,28 +92,17 @@ if not exist "%PROJECT_DIR%\.env" (
 
 :: ---- Step 6: 重启服务 ----
 echo [7/8] 重启服务...
-if "%CI_DEPLOY_TEST%"=="1" (
-    echo   CI 测试模式：跳过服务重启
-) else (
-    nssm restart ziyuantang-control-plane
-    if %errorlevel% neq 0 (
-        nssm start ziyuantang-control-plane
-    )
-    nssm restart ziyuantang-worker
-    if %errorlevel% neq 0 (
-        nssm start ziyuantang-worker
-    )
+nssm restart ziyuantang-control-plane
+if %errorlevel% neq 0 (
+    nssm start ziyuantang-control-plane
+)
+nssm restart ziyuantang-worker
+if %errorlevel% neq 0 (
+    nssm start ziyuantang-worker
 )
 
 :: ---- Step 7: 健康检查 + 回滚 ----
 echo [8/8] 健康检查...
-if "%CI_DEPLOY_TEST%"=="1" (
-    echo   CI 测试模式：跳过健康检查
-    echo [%date% %time%] ========== 部署成功 ========== >> "%LOG_FILE%"
-    echo 部署成功！
-    goto :cleanup_tags
-)
-
 timeout /t 5 /nobreak >nul
 
 curl -f http://127.0.0.1:17890/api/health >nul 2>&1
@@ -143,11 +128,10 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [%date% %time%] ========== 部署成功 ========== >> "%LOG_FILE%"
-echo 部署成功！
-
 :: ---- 清理历史 tag（保留最近 10 个）----
-:cleanup_tags
 for /f "skip=10 delims=" %%t in ('git tag --sort=-creatordate ^| findstr "deploy-"') do (
     git tag -d %%t >nul
 )
+
+echo [%date% %time%] ========== 部署成功 ========== >> "%LOG_FILE%"
+echo 部署成功！

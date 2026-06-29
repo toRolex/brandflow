@@ -21,8 +21,6 @@ jobs:
 
       - name: Run deploy script
         shell: cmd
-        env:
-          CI_DEPLOY_TEST: "1"
         run: |
           set PATH=%CD%\tools;%CD%\tools\node_modules\.bin;%PATH%
           packaging\windows\deploy.bat
