@@ -17,7 +17,7 @@ jobs:
         run: |
           curl -L -o tools\uv.zip https://github.com/astral-sh/uv/releases/download/0.11.25/uv-x86_64-pc-windows-msvc.zip
           tar -xf tools\uv.zip -C tools
-          npm install --prefix tools pnpm@9
+          npm install --prefix tools pnpm
 
       - name: Run deploy script
         shell: cmd
