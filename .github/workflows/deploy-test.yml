@@ -26,6 +26,9 @@ jobs:
       - name: Run deploy script
         shell: cmd
         run: |
+          dir tools
+          tools\uv.exe --version
           set PATH=%CD%\tools;%CD%\tools\node_modules\.bin;%PATH%
+          where uv
           packaging\windows\deploy.bat
         working-directory: ${{ github.workspace }}
