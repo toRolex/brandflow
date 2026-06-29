@@ -12,15 +12,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install tools into workspace
+        shell: cmd
+        run: |
+          mkdir tools
+          curl -L -o tools\uv.zip https://github.com/astral-sh/uv/releases/download/0.15.20/uv-x86_64-pc-windows-msvc.zip
+          tar -xf tools\uv.zip -C tools
+          curl -L -o tools\nssm.zip https://nssm.cc/release/nssm-2.24.zip
+          tar -xf tools\nssm.zip -C tools
+          copy tools\nssm-2.24\win64\nssm.exe tools\nssm.exe
+          npm install --prefix tools pnpm
+
       - name: Run deploy script
         shell: cmd
         run: |
-          echo PATH=%PATH%
-          where uv
-          where pnpm
-          where nssm
-          set PATH=C:\Users\ziyua\.local\bin;C:\Users\ziyua\AppData\Roaming\npm;%PATH%
-          echo PATH_AFTER=%PATH%
-          where uv
+          set PATH=%CD%\tools;%CD%\tools\node_modules\.bin;%PATH%
           packaging\windows\deploy.bat
         working-directory: ${{ github.workspace }}
