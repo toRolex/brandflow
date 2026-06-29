@@ -19,6 +19,13 @@ jobs:
           tar -xf tools\uv.zip -C tools
           npm install --prefix tools pnpm
 
+      - name: Fix lockfile for pnpm 11
+        shell: cmd
+        run: |
+          set PATH=%CD%\tools;%CD%\tools\node_modules\.bin;%PATH%
+          cd frontend
+          pnpm install --fix-lockfile --no-frozen-lockfile
+
       - name: Run deploy script
         shell: cmd
         run: |
