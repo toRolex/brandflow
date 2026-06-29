@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -52,94 +53,97 @@ class WorkerLoop:
         self.workspace_root = workspace_root
         self.orchestrator = orchestrator
 
-    def run_once(self) -> None:
-        command = self.api.poll()
-        if command["command"] == "idle":
-            return
-
-        started_at = datetime.now(timezone.utc).isoformat()
-        self.adapter.ensure_tools()
-
-        self.api.download_input_bundle(command["input_bundle_url"])
-
-        root_dir = Path.cwd()
-        project_dir = (root_dir / self.workspace_root / "projects" / command["project_id"]).resolve()
-        job_id = command["job_id"]
-
-        # Write job JSON so the orchestrator can read cover_title, music, etc.
-        job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
-        job_json_path.parent.mkdir(parents=True, exist_ok=True)
-        existing_job: dict[str, Any] = {}
-        if job_json_path.exists():
-            existing_job = json.loads(job_json_path.read_text(encoding="utf-8"))
-        for key, val in [
-            ("job_id", job_id),
-            ("project_id", command["project_id"]),
-            ("product", command.get("product", os.environ.get("PRODUCT", "荔枝菌"))),
-            ("platform", command.get("platform", "")),
-            ("cover_title", command.get("cover_title") or {}),
-            ("music_track_path", command.get("music_track_path", "")),
-            ("music_volume", command.get("music_volume", 80)),
-        ]:
-            if key not in existing_job:
-                existing_job[key] = val
-        job_json_path.write_text(
-            json.dumps(existing_job, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-
-        # Build PhaseContext
-        product = command.get("product", os.environ.get("PRODUCT", "荔枝菌"))
-        ctx = PhaseContext(
-            job_id=job_id,
-            project_dir=project_dir,
-            root_dir=root_dir,
-            product=product,
-            options={
-                "manual_script": command.get("manual_script", ""),
-                "uploaded_audio_path": command.get("uploaded_audio_path", ""),
-                "language": command.get("language", "mandarin"),
-            },
-        )
-
-        # Execute each phase in sequence and collect artifacts
-        all_artifacts = []
-        for phase in WORKER_PHASES:
-            artifacts = self.orchestrator.run_phase(phase, ctx)
-            all_artifacts.extend(artifacts)
-
-        # Upload artifacts
-        workspace_dir = root_dir / "workspace"
-        uploaded_files = []
-        for art in all_artifacts:
-            if not art.relative_path:
+    def run_forever(self) -> None:
+        """常驻循环：poll 任务，idle 时 sleep 5 秒后重试，非 idle 时执行完整流水线。"""
+        while True:
+            command = self.api.poll()
+            if command["command"] == "idle":
+                time.sleep(5)
                 continue
-            abs_path = workspace_dir / art.relative_path
-            if abs_path.exists():
-                uploaded_files.append({
-                    "relative_path": art.relative_path,
-                    "size_bytes": abs_path.stat().st_size,
-                })
-        if uploaded_files:
-            self.api.upload_artifacts(command["task_id"], uploaded_files)
 
-        # Report success
-        finished_at = datetime.now(timezone.utc).isoformat()
-        self.api.report({
-            "worker_id": self.worker_id,
-            "project_id": command["project_id"],
-            "job_id": job_id,
-            "task_id": command["task_id"],
-            "attempt_id": command["attempt_id"],
-            "lease_id": command["lease_id"],
-            "status": "succeeded",
-            "started_at": started_at,
-            "finished_at": finished_at,
-            "artifact_manifest": {"files": uploaded_files},
-            "metrics": {},
-            "logs_summary": "orchestrator completed",
-            "error": {},
-        })
+            started_at = datetime.now(timezone.utc).isoformat()
+            self.adapter.ensure_tools()
+
+            self.api.download_input_bundle(command["input_bundle_url"])
+
+            root_dir = Path.cwd()
+            project_dir = (root_dir / self.workspace_root / "projects" / command["project_id"]).resolve()
+            job_id = command["job_id"]
+
+            # Write job JSON so the orchestrator can read cover_title, music, etc.
+            job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
+            job_json_path.parent.mkdir(parents=True, exist_ok=True)
+            existing_job: dict[str, Any] = {}
+            if job_json_path.exists():
+                existing_job = json.loads(job_json_path.read_text(encoding="utf-8"))
+            for key, val in [
+                ("job_id", job_id),
+                ("project_id", command["project_id"]),
+                ("product", command.get("product", os.environ.get("PRODUCT", "荔枝菌"))),
+                ("platform", command.get("platform", "")),
+                ("cover_title", command.get("cover_title") or {}),
+                ("music_track_path", command.get("music_track_path", "")),
+                ("music_volume", command.get("music_volume", 80)),
+            ]:
+                if key not in existing_job:
+                    existing_job[key] = val
+            job_json_path.write_text(
+                json.dumps(existing_job, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            # Build PhaseContext
+            product = command.get("product", os.environ.get("PRODUCT", "荔枝菌"))
+            ctx = PhaseContext(
+                job_id=job_id,
+                project_dir=project_dir,
+                root_dir=root_dir,
+                product=product,
+                options={
+                    "manual_script": command.get("manual_script", ""),
+                    "uploaded_audio_path": command.get("uploaded_audio_path", ""),
+                    "language": command.get("language", "mandarin"),
+                },
+            )
+
+            # Execute each phase in sequence and collect artifacts
+            all_artifacts = []
+            for phase in WORKER_PHASES:
+                artifacts = self.orchestrator.run_phase(phase, ctx)
+                all_artifacts.extend(artifacts)
+
+            # Upload artifacts
+            workspace_dir = root_dir / "workspace"
+            uploaded_files = []
+            for art in all_artifacts:
+                if not art.relative_path:
+                    continue
+                abs_path = workspace_dir / art.relative_path
+                if abs_path.exists():
+                    uploaded_files.append({
+                        "relative_path": art.relative_path,
+                        "size_bytes": abs_path.stat().st_size,
+                    })
+            if uploaded_files:
+                self.api.upload_artifacts(command["task_id"], uploaded_files)
+
+            # Report success
+            finished_at = datetime.now(timezone.utc).isoformat()
+            self.api.report({
+                "worker_id": self.worker_id,
+                "project_id": command["project_id"],
+                "job_id": job_id,
+                "task_id": command["task_id"],
+                "attempt_id": command["attempt_id"],
+                "lease_id": command["lease_id"],
+                "status": "succeeded",
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "artifact_manifest": {"files": uploaded_files},
+                "metrics": {},
+                "logs_summary": "orchestrator completed",
+                "error": {},
+            })
 
     @property
     def adapter(self) -> MacLocalRuntimeAdapter:
@@ -190,4 +194,4 @@ def main() -> None:
         worker_id=worker_id,
         workspace_root=workspace_root,
         orchestrator=orchestrator,
-    ).run_once()
+    ).run_forever()

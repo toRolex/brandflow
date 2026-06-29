@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from apps.runtime_worker.http_client import WorkerHttpClient
 from apps.runtime_worker.loop import WORKER_PHASES, WorkerLoop
 from packages.pipeline_services.phase_orchestrator import (
@@ -20,11 +22,14 @@ from packages.pipeline_services.phase_orchestrator import (
 
 
 class StubIdleApi:
-    def __init__(self) -> None:
+    def __init__(self, max_polls: int = 2) -> None:
         self.poll_calls = 0
+        self.max_polls = max_polls
 
     def poll(self) -> dict:
         self.poll_calls += 1
+        if self.poll_calls >= self.max_polls:
+            raise SystemExit(0)
         return {"command": "idle", "next_poll_after_seconds": 5}
 
 
@@ -35,8 +40,12 @@ class StubApi:
         self.reports: list[dict] = []
         self.uploads: list[tuple[str, list[dict]]] = []
         self.download_requests: list[str] = []
+        self.poll_calls = 0
 
     def poll(self) -> dict:
+        self.poll_calls += 1
+        if self.poll_calls > 1:
+            raise SystemExit(0)
         return {
             "command": "run_task",
             "project_id": "project-001",
@@ -74,8 +83,12 @@ class StubApiWithManualInputs:
         self.download_requests: list[str] = []
         self.manual_script = manual_script
         self.uploaded_audio_path = uploaded_audio_path
+        self.poll_calls = 0
 
     def poll(self) -> dict:
+        self.poll_calls += 1
+        if self.poll_calls > 1:
+            raise SystemExit(0)
         return {
             "command": "run_task",
             "project_id": "project-001",
@@ -176,13 +189,14 @@ def test_http_client_absolute_url_handles_absolute_and_relative_paths() -> None:
     assert client._absolute_url("bundle") == "http://127.0.0.1:17890/bundle"
 
 
-def test_worker_loop_returns_immediately_for_idle_command(tmp_path: Path) -> None:
-    api = StubIdleApi()
+def test_worker_loop_sleeps_and_retries_on_idle(tmp_path: Path) -> None:
+    api = StubIdleApi(max_polls=2)
     loop = _make_loop(tmp_path, api)
 
-    loop.run_once()
+    with pytest.raises(SystemExit):
+        loop.run_forever()
 
-    assert api.poll_calls == 1
+    assert api.poll_calls == 2
 
 
 def test_worker_loop_calls_all_phases_in_order(tmp_path: Path, monkeypatch) -> None:
@@ -190,7 +204,8 @@ def test_worker_loop_calls_all_phases_in_order(tmp_path: Path, monkeypatch) -> N
     orch = StubOrchestrator()
     loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
-    loop.run_once()
+    with pytest.raises(SystemExit):
+        loop.run_forever()
 
     # All WORKER_PHASES should be called in order
     called = [c["phase"] for c in orch.phase_calls]
@@ -202,7 +217,8 @@ def test_worker_loop_passes_product_from_command(tmp_path: Path, monkeypatch) ->
     orch = StubOrchestrator()
     loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
-    loop.run_once()
+    with pytest.raises(SystemExit):
+        loop.run_forever()
 
     # All phases should receive the product from the command (default env)
     for call in orch.phase_calls:
@@ -226,7 +242,8 @@ def test_worker_loop_reports_success_and_uploads_artifacts(tmp_path: Path, monke
     orch = FileCreatingOrchestrator()
     loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
-    loop.run_once()
+    with pytest.raises(SystemExit):
+        loop.run_forever()
 
     assert api.download_requests == ["/bundle"]
     assert api.uploads[0][0] == "task-001"
@@ -243,7 +260,8 @@ def test_worker_loop_writes_job_json_with_command_fields(tmp_path: Path, monkeyp
     orch = StubOrchestrator()
     loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
-    loop.run_once()
+    with pytest.raises(SystemExit):
+        loop.run_forever()
 
     # Verify job JSON was written
     job_json = tmp_path.resolve() / "projects" / "project-001" / "control" / "jobs" / "job-001.json"
@@ -261,7 +279,8 @@ def test_worker_loop_skips_llm_when_manual_script_provided(tmp_path: Path, monke
     orch = StubOrchestrator()
     loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
-    loop.run_once()
+    with pytest.raises(SystemExit):
+        loop.run_forever()
 
     # All phases should still be called
     called = [c["phase"] for c in orch.phase_calls]
@@ -284,7 +303,8 @@ def test_worker_loop_skips_tts_when_audio_uploaded(tmp_path: Path, monkeypatch) 
     orch = StubOrchestrator()
     loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
-    loop.run_once()
+    with pytest.raises(SystemExit):
+        loop.run_forever()
 
     # All phases should still be called — the orchestrator handles the upload
     called = [c["phase"] for c in orch.phase_calls]
@@ -308,7 +328,8 @@ def test_worker_loop_passes_language_in_options(tmp_path: Path, monkeypatch) -> 
 
     orch.run_phase = capturing_run  # type: ignore[assignment]
 
-    loop.run_once()
+    with pytest.raises(SystemExit):
+        loop.run_forever()
 
     assert len(seen_options) == len(WORKER_PHASES)
     assert seen_options[0].get("language") == "mandarin"
@@ -320,7 +341,8 @@ def test_worker_loop_constructs_project_dir_correctly(tmp_path: Path, monkeypatc
     orch = StubOrchestrator()
     loop = _make_loop(tmp_path, api, orch, monkeypatch)
 
-    loop.run_once()
+    with pytest.raises(SystemExit):
+        loop.run_forever()
 
     # Verify the orchestrator received the correct job_id
     assert len(orch.phase_calls) == len(WORKER_PHASES)

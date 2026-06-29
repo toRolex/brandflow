@@ -251,6 +251,10 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(tts_router)
     app.include_router(metrics_router)
 
+    @app.get("/api/health")
+    async def health():
+        return {"status": "ok", "version": "0.4.0"}
+
     workspace = root_dir or Path.cwd() / "workspace"
     if workspace.exists():
         app.mount("/workspace", StaticFiles(directory=str(workspace)), name="workspace")
