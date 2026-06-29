@@ -33,8 +33,7 @@ jobs:
         run: echo "type check skipped"
 
       - name: Install ffmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v3
-        id: setup-ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
