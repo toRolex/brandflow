@@ -21,7 +21,7 @@ jobs:
           powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://nssm.cc/release/nssm-2.24.zip' -OutFile 'tools\nssm.zip' -UseBasicParsing"
           tar -xf tools\nssm.zip -C tools
           copy tools\nssm-2.24\win64\nssm.exe tools\nssm.exe
-          npm install --prefix tools pnpm
+          npm install --prefix tools pnpm@9
 
       - name: Run deploy script
         shell: cmd
