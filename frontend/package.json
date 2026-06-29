@@ -3,9 +3,6 @@
   "private": true,
   "version": "0.4.0",
   "type": "module",
-  "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
-  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
