@@ -1,0 +1,18 @@
+name: Deploy Test
+
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  deploy:
+    runs-on: windows-test
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run deploy script
+        shell: cmd
+        run: packaging\windows\deploy.bat
+        working-directory: ${{ github.workspace }}

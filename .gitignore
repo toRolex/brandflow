@@ -40,4 +40,6 @@ frontend/package-lock.json
 *.png
 *.mp3
 *.yml
+!.github/workflows/*.yml
 skills-lock.json
+node_modules
