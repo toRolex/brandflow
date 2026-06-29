@@ -80,6 +80,10 @@ async def _auto_tick(root_dir: Path):
                             if data.get("auto_approve", False):
                                 # Execute handler if the review phase has one (e.g. final_review)
                                 if current in orchestrator._handlers:
+                                    print(
+                                        f"[AUTO-TICK] {job_id}: running handler for {current}",
+                                        flush=True,
+                                    )
                                     product = data.get(
                                         "product", os.environ.get("PRODUCT", "荔枝菌")
                                     )
