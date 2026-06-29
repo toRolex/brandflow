@@ -13,10 +13,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup PATH for tools
-        shell: powershell
+        shell: cmd
         run: |
-          Add-Content -Path $env:GITHUB_PATH -Value "C:\Users\ziyua\.local\bin"
-          Add-Content -Path $env:GITHUB_PATH -Value "C:\Users\ziyua\AppData\Roaming\npm"
+          echo C:\Users\ziyua\.local\bin>>%GITHUB_PATH%
+          echo C:\Users\ziyua\AppData\Roaming\npm>>%GITHUB_PATH%
 
       - name: Run deploy script
         shell: cmd
