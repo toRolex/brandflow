@@ -1,7 +1,6 @@
 """Tests for MetricsStore — CSV (微信视频号) and XLSX (小红书) import."""
 import csv
 import io
-import sqlite3
 import tempfile
 from pathlib import Path
 
@@ -199,7 +198,6 @@ def test_job_record_has_used_asset_ids():
 
 def test_video_service_writes_used_asset_ids():
     from packages.pipeline_services.video_service import VideoService
-    import tempfile
     from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmp:

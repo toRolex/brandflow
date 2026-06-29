@@ -193,7 +193,7 @@ class PhaseOrchestrator:
 
                     gen = ScriptGenerator(_LLMConfig())
                     manual_script = gen.to_cantonese(manual_script, ctx.product, "滋元堂")
-                    print(f"[SCRIPT] Converted manual script to Cantonese", flush=True)
+                    print("[SCRIPT] Converted manual script to Cantonese", flush=True)
                 except Exception as e:
                     print(f"[SCRIPT WARN] Cantonese conversion failed, using original: {e}", flush=True)
 
@@ -361,7 +361,8 @@ class PhaseOrchestrator:
                     print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
                 except Exception as e:
                     print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback; traceback.print_exc()
+                    import traceback
+                    traceback.print_exc()
         else:
             print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
         if srt_path.exists():

@@ -382,7 +382,7 @@ class TestRunTTSScriptDiscovery:
         mock_tts.synthesize.return_value = b"\x00" * 50
         orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
 
-        artifacts = orch.run_phase("tts_generating", ctx)
+        orch.run_phase("tts_generating", ctx)
 
         mock_tts.synthesize.assert_called_once()
         assert mock_tts.synthesize.call_args[0][0] == "JSON 文案内容。"

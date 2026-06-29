@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
-from fastapi.responses import JSONResponse
 
 from apps.control_plane.services.metrics import MetricsStore
 

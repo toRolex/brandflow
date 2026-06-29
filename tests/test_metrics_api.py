@@ -5,7 +5,7 @@ import csv
 import io
 import json
 import tempfile
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -359,7 +359,6 @@ class TestScanEndpoint:
 
 def test_scan_real_data_directory():
     """Test scanning the actual data/ directory if it exists."""
-    from pathlib import Path
     import shutil
 
     real_data = Path(__file__).resolve().parent.parent / "data"
@@ -370,7 +369,6 @@ def test_scan_real_data_directory():
     # Create app with temp root
     from apps.control_plane.app import create_app
     from fastapi.testclient import TestClient
-    import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
