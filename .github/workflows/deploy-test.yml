@@ -12,13 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup PATH for tools
-        shell: cmd
-        run: |
-          echo C:\Users\ziyua\.local\bin>>%GITHUB_PATH%
-          echo C:\Users\ziyua\AppData\Roaming\npm>>%GITHUB_PATH%
-
       - name: Run deploy script
         shell: cmd
-        run: packaging\windows\deploy.bat
+        run: |
+          set PATH=C:\Users\ziyua\.local\bin;C:\Users\ziyua\AppData\Roaming\npm;%PATH%
+          packaging\windows\deploy.bat
         working-directory: ${{ github.workspace }}
