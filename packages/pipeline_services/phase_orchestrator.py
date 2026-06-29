@@ -545,6 +545,11 @@ class PhaseOrchestrator:
                     music_path = None
 
         actual_srt_path = None if skip_subtitle else srt_path
+        cond = (
+            f"base={base_path.exists()} audio={audio_path.exists()}"
+            f" skip_subtitle={skip_subtitle} srt={srt_path.exists()}"
+        )
+        print(f"[FINAL] {ctx.job_id}: {cond}", flush=True)
         if (
             base_path.exists()
             and audio_path.exists()
@@ -562,6 +567,7 @@ class PhaseOrchestrator:
             )
 
         if final_path.exists():
+            print(f"[FINAL] {ctx.job_id}: final.mp4 produced ({final_path.stat().st_size} bytes)", flush=True)
             self._schedule_store.add(
                 job_id=ctx.job_id,
                 platform=platform,
@@ -569,6 +575,7 @@ class PhaseOrchestrator:
                 description="",
             )
             return [self._to_artifact("final_video", final_path, workspace_dir)]
+        print(f"[FINAL] {ctx.job_id}: final.mp4 NOT produced", flush=True)
         return []
 
     @staticmethod
