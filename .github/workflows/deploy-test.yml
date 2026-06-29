@@ -23,5 +23,7 @@ jobs:
         shell: cmd
         run: |
           set PATH=%CD%\tools;%CD%\tools\node_modules\.bin;%PATH%
+          echo PWD=%CD%
+          echo PWD_DRIVE=%CD:~0,2%
           packaging\windows\deploy.bat
         working-directory: ${{ github.workspace }}
