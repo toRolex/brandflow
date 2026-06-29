@@ -15,6 +15,12 @@ jobs:
       - name: Run deploy script
         shell: cmd
         run: |
+          echo PATH=%PATH%
+          where uv
+          where pnpm
+          where nssm
           set PATH=C:\Users\ziyua\.local\bin;C:\Users\ziyua\AppData\Roaming\npm;%PATH%
+          echo PATH_AFTER=%PATH%
+          where uv
           packaging\windows\deploy.bat
         working-directory: ${{ github.workspace }}
