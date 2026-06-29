@@ -95,6 +95,9 @@ async def _auto_tick(root_dir: Path):
                                             "uploaded_audio_path": data.get(
                                                 "uploaded_audio_path", ""
                                             ),
+                                            "language": data.get(
+                                                "language", "mandarin"
+                                            ),
                                         },
                                     )
                                     artifacts = [
@@ -187,6 +190,7 @@ async def _auto_tick(root_dir: Path):
                             options={
                                 "manual_script": manual_script,
                                 "uploaded_audio_path": uploaded_audio_path,
+                                "language": data.get("language", "mandarin"),
                             },
                         )
                         artifacts = [
@@ -212,6 +216,10 @@ async def _auto_tick(root_dir: Path):
                                 data["phase"] = next_phase(target)
                             except ValueError:
                                 data["phase"] = "completed"
+                            # Reset review_status when entering a review phase
+                            # Prevents leaked "approved" status from auto-approve flow
+                            if data["phase"] in REVIEW_PHASES:
+                                data["review_status"] = "none"
                         elif target == "video_rendering":
                             # Video rendering failure: retry once, then mark as failed
                             if "video_rendering" in data.get("last_error", ""):
