@@ -9,6 +9,11 @@ from pydantic import BaseModel
 from packages.domain_core.state import next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+from packages.pipeline_services.phase_orchestrator import PhaseOrchestrator, PhaseContext
+from packages.pipeline_services.video_service import VideoService
+from packages.pipeline_services.subtitle_service import SubtitleService
+from packages.provider_config.app_config import AppConfigManager
+from apps.control_plane.services.schedule_store import ScheduleStore
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +78,40 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
+
+    # For final_review, run handler to produce final.mp4 before advancing
+    if record.phase == "final_review":
+        try:
+            root_dir = Path(request.app.state.root_dir)
+            app_config = AppConfigManager()
+            orchestrator = PhaseOrchestrator(
+                script_bridge=LegacyScriptBridge(root_dir),
+                subtitle_svc=SubtitleService(),
+                video_svc=VideoService(dry_run=False),
+                schedule_store=ScheduleStore(root_dir),
+                get_tts_config=app_config.get_tts_config,
+                get_llm_config=app_config.get_llm_config,
+            )
+            ctx = PhaseContext(
+                job_id=job_id,
+                project_dir=root_dir / "workspace" / "projects" / project_id,
+                root_dir=root_dir,
+                product=record.product,
+                options={},
+            )
+            artifacts = orchestrator.run_phase("final_review", ctx)
+            existing_kinds = {a.kind for a in record.artifacts}
+            new_ones = [a for a in artifacts if a.kind not in existing_kinds]
+            if new_ones:
+                record = record.model_copy(
+                    update={"artifacts": record.artifacts + new_ones}
+                )
+            logger.info(
+                f"[Review] 终审烧录完成: job={job_id}, kinds={[a.kind for a in artifacts]}"
+            )
+        except Exception as e:
+            logger.error(f"[Review] 终审烧录失败: job={job_id}, error={e}")
+
     try:
         nxt = next_phase(record.phase)
     except ValueError:
