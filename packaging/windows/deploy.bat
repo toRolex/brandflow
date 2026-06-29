@@ -64,7 +64,7 @@ echo [5/8] 安装前端依赖并编译...
 cd frontend
 if exist pnpm-lock.yaml (echo   found pnpm-lock.yaml) else (echo   pnpm-lock.yaml MISSING)
 call nvm use 20.18.3 2>nul
-pnpm install --frozen-lockfile
+pnpm install --no-frozen-lockfile
 if %errorlevel% neq 0 (
     echo [错误] pnpm install 失败 >> "%LOG_FILE%"
     popd & exit /b 1
