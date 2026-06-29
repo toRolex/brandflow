@@ -18,7 +18,7 @@ jobs:
           mkdir tools
           curl -L -o tools\uv.zip https://github.com/astral-sh/uv/releases/download/0.11.25/uv-x86_64-pc-windows-msvc.zip
           tar -xf tools\uv.zip -C tools
-          curl -L -o tools\nssm.zip https://github.com/puppetlabs/nssm/releases/download/2.24/nssm-2.24.zip
+          powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://nssm.cc/release/nssm-2.24.zip' -OutFile 'tools\nssm.zip' -UseBasicParsing"
           tar -xf tools\nssm.zip -C tools
           copy tools\nssm-2.24\win64\nssm.exe tools\nssm.exe
           npm install --prefix tools pnpm
