@@ -329,7 +329,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
     @app.get("/api/health")
     async def health():
-        return {"status": "ok", "version": "0.4.0"}
+        return {"status": "ok", "version": "0.5.1"}
 
     workspace = root_dir or Path.cwd() / "workspace"
     if workspace.exists():

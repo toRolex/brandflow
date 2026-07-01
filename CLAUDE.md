@@ -13,6 +13,21 @@ windows服务器项目路径：进入"C:\Users\ziyua\Documents\Code\ai-video-pip
 - 依赖或技术栈变更
 - 目录结构变更
 
+## Git Flow 分支规范
+
+**禁止直接在 `main` 和 `develop` 分支上提交任何修改。** 所有开发工作必须按 Git Flow 模型进行：
+
+1. 从 `develop` 切出 `feature/<功能名>` 分支进行开发
+2. 完成后合并回 `develop`（使用 `--no-ff`）
+3. 发版时从 `develop` 创建 `release-<版本号>` 分支
+4. 线上紧急修复从 `main` 切 `hotfix-<版本号>` 分支
+5. 合并到 `main` / `develop` 必须使用 `--no-ff` 保留分支历史
+6. 每次发布必须在 `main` 上打 tag
+7. **每次合并 `release-*` 到 `main` 后，必须发布 Release Note**（使用 `gh release create` 或 `gh release edit`），格式按 Git Flow 规范的 Release Note 章节，包含新功能、问题修复、升级指南等
+8. **每次发版前，同步三处版本号：** `pyproject.toml`、`apps/control_plane/app.py`（`/api/health` 接口）、`frontend/package.json`
+
+详见 `/git-flow-conventions` 技能中的完整分支命名、commit message、PR 规范。
+
 ## 远程连接（sshpass）
 
 ```bash
