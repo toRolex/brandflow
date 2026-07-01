@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from packages.pipeline_services.asset_library.retriever import _compute_trim_params
@@ -385,7 +387,16 @@ class VideoService:
             "OutlineColour=&H00000000,Outline=2,MarginV=30,Bold=1"
         )
         has_subtitles = srt_path is not None and srt_path.exists()
-        srt_ffmpeg = _format_ass_path_for_ffmpeg(srt_path) if has_subtitles else ""
+
+        # 临时复制 SRT 到 ASCII-only 路径，避免 libass 在 Windows 上处理中文路径失败
+        _srt_temp_dir: str | None = None
+        if has_subtitles and any(ord(c) > 127 for c in str(srt_path)):
+            _srt_temp_dir = tempfile.mkdtemp(prefix="subs_", dir=str(final_video_path.parent))
+            _srt_clean_path = Path(_srt_temp_dir) / "subtitles.srt"
+            shutil.copy2(srt_path, _srt_clean_path)
+            srt_ffmpeg = _format_ass_path_for_ffmpeg(_srt_clean_path)
+        else:
+            srt_ffmpeg = _format_ass_path_for_ffmpeg(srt_path) if has_subtitles else ""
 
         cover_title_text = (cover_title or {}).get("text", "")
         cover_title_png: Path | None = None
@@ -494,4 +505,8 @@ class VideoService:
             str(final_video_path),
         ]
 
-        subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, check=True)
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, check=True)
+        finally:
+            if _srt_temp_dir:
+                shutil.rmtree(_srt_temp_dir, ignore_errors=True)
