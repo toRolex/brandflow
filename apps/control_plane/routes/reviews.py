@@ -140,6 +140,10 @@ def reject_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
         reject_target = "tts_generating"
     elif record.phase == "asset_review":
         reject_target = "asset_retrieving"
+    elif record.phase == "script_review":
+        reject_target = "script_generating"
+    elif record.phase == "final_review":
+        reject_target = "video_rendering"
     else:
         reject_target = "queued"
 

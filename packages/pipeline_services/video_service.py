@@ -302,10 +302,6 @@ class VideoService:
 
         trim_params = _compute_trim_params(selected_clips, audio_duration)
 
-        target_width, target_height = get_video_size(
-            Path(selected_clips[0]["file_path"])
-        )
-
         trimmed_paths: list[Path] = []
         ffmpeg = get_ffmpeg_path()
         for i, tp in enumerate(trim_params):
@@ -321,7 +317,7 @@ class VideoService:
                     "-i",
                     str(src),
                     "-vf",
-                    f"scale={target_width}:{target_height},fps=30,setsar=1",
+                    "fps=30,setsar=1",
                     "-c:v",
                     "libx264",
                     "-preset",
@@ -385,7 +381,7 @@ class VideoService:
         ffmpeg = get_ffmpeg_path()
 
         subtitle_style = (
-            "Fontname=sans-serif,Fontsize=12,PrimaryColour=&H00FFFFFF,"
+            "Fontname=Microsoft YaHei,Fontsize=12,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,Outline=2,MarginV=30,Bold=1"
         )
         has_subtitles = srt_path is not None and srt_path.exists()
