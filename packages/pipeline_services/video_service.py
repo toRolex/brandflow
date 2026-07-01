@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from packages.pipeline_services.asset_library.retriever import _compute_trim_params
@@ -385,113 +387,125 @@ class VideoService:
             "OutlineColour=&H00000000,Outline=2,MarginV=30,Bold=1"
         )
         has_subtitles = srt_path is not None and srt_path.exists()
-        srt_ffmpeg = _format_ass_path_for_ffmpeg(srt_path) if has_subtitles else ""
 
-        cover_title_text = (cover_title or {}).get("text", "")
-        cover_title_png: Path | None = None
-        if cover_title_text:
-            base_duration = get_media_duration(base_video_path)
-            if base_duration >= 3.0:
-                width, height = get_video_size(base_video_path)
-                cover_title_png = final_video_path.parent / "cover_title.png"
-                _render_cover_title_png(
-                    text=cover_title_text,
-                    highlight_words=(cover_title or {}).get("highlight_words", []),
-                    style=(cover_title or {}).get("style", DEFAULT_COVER_STYLE),
-                    video_width=width,
-                    video_height=height,
-                    output_path=cover_title_png,
-                )
+        # 临时复制 SRT 到 ASCII-only 路径，避免 libass 在 Windows 上处理中文路径失败
+        _srt_temp_dir: str | None = None
+        try:
+            if has_subtitles and any(ord(c) > 127 for c in str(srt_path)):
+                _srt_temp_dir = tempfile.mkdtemp(prefix="subs_", dir=str(final_video_path.parent))
+                _srt_clean_path = Path(_srt_temp_dir) / "subtitles.srt"
+                shutil.copy2(srt_path, _srt_clean_path)
+                srt_ffmpeg = _format_ass_path_for_ffmpeg(_srt_clean_path)
+            else:
+                srt_ffmpeg = _format_ass_path_for_ffmpeg(srt_path) if has_subtitles else ""
 
-        encoder_args = [
-            "-c:v",
-            "libx264",
-            "-preset",
-            "medium",
-            "-crf",
-            "23",
-            "-pix_fmt",
-            "yuv420p",
-        ]
+            cover_title_text = (cover_title or {}).get("text", "")
+            cover_title_png: Path | None = None
+            if cover_title_text:
+                base_duration = get_media_duration(base_video_path)
+                if base_duration >= 3.0:
+                    width, height = get_video_size(base_video_path)
+                    cover_title_png = final_video_path.parent / "cover_title.png"
+                    _render_cover_title_png(
+                        text=cover_title_text,
+                        highlight_words=(cover_title or {}).get("highlight_words", []),
+                        style=(cover_title or {}).get("style", DEFAULT_COVER_STYLE),
+                        video_width=width,
+                        video_height=height,
+                        output_path=cover_title_png,
+                    )
 
-        has_music = music_path is not None
-        music_vol = 0.0
-        fade_start = 0.0
-        if has_music:
-            voice_duration = get_media_duration(audio_path)
-            fade_start = max(0, voice_duration - 1.5)
-            music_vol = music_volume / 100.0
-
-        has_cover = cover_clip_path is not None and cover_clip_path.exists()
-        has_cover_title = cover_title_png is not None and cover_title_png.exists()
-
-        # ── Build video filter ──
-        if has_cover:
-            width, height = get_video_size(base_video_path)
-            # cover_title_idx = 3 if both cover clip and cover title exist
-            ct_idx = 3 if has_cover_title else None
-            vf, v_label = _build_cover_video_filter(
-                cover_idx=0,
-                base_idx=1,
-                width=width,
-                height=height,
-                cover_title_idx=ct_idx,
-                has_subtitles=has_subtitles,
-                srt_sub_escaped=srt_ffmpeg,
-                subtitle_style=subtitle_style,
-            )
-            inputs = [
-                "-i",
-                str(cover_clip_path),
-                "-i",
-                str(base_video_path),
-                "-i",
-                str(audio_path),
+            encoder_args = [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
             ]
-            if has_cover_title:
-                inputs += ["-i", str(cover_title_png)]
-            audio_idx = 2
-        else:
-            ct_idx = 2 if has_cover_title else None
-            vf, v_label = _build_simple_video_filter(
-                base_idx=0,
-                cover_title_idx=ct_idx,
-                has_subtitles=has_subtitles,
-                srt_sub_escaped=srt_ffmpeg,
-                subtitle_style=subtitle_style,
-            )
-            inputs = ["-i", str(base_video_path), "-i", str(audio_path)]
-            if has_cover_title:
-                inputs += ["-i", str(cover_title_png)]
-            audio_idx = 1
 
-        # ── Build audio filter (if music) ──
-        if has_music:
-            inputs += ["-stream_loop", "-1", "-i", str(music_path)]
-            music_idx = inputs.count("-i") - 1
-            af = _make_music_mix_filter(audio_idx, music_idx, music_vol, fade_start)
-            a_label = "[amix]"
-        else:
-            af, a_label = "", f"{audio_idx}:a:0"
+            has_music = music_path is not None
+            music_vol = 0.0
+            fade_start = 0.0
+            if has_music:
+                voice_duration = get_media_duration(audio_path)
+                fade_start = max(0, voice_duration - 1.5)
+                music_vol = music_volume / 100.0
 
-        # ── Combine filters and assemble command ──
-        filter_complex = f"{vf};{af}" if vf and af else vf or af
+            has_cover = cover_clip_path is not None and cover_clip_path.exists()
+            has_cover_title = cover_title_png is not None and cover_title_png.exists()
 
-        cmd = [ffmpeg] + inputs
-        if filter_complex:
-            cmd += ["-filter_complex", filter_complex, "-map", v_label, "-map", a_label]
-        else:
-            cmd += ["-map", v_label, "-map", a_label]
-        cmd += encoder_args + [
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-shortest",
-            "-movflags",
-            "+faststart",
-            "-y",
-            str(final_video_path),
-        ]
+            # ── Build video filter ──
+            if has_cover:
+                width, height = get_video_size(base_video_path)
+                ct_idx = 3 if has_cover_title else None
+                vf, v_label = _build_cover_video_filter(
+                    cover_idx=0,
+                    base_idx=1,
+                    width=width,
+                    height=height,
+                    cover_title_idx=ct_idx,
+                    has_subtitles=has_subtitles,
+                    srt_sub_escaped=srt_ffmpeg,
+                    subtitle_style=subtitle_style,
+                )
+                inputs = [
+                    "-i",
+                    str(cover_clip_path),
+                    "-i",
+                    str(base_video_path),
+                    "-i",
+                    str(audio_path),
+                ]
+                if has_cover_title:
+                    inputs += ["-i", str(cover_title_png)]
+                audio_idx = 2
+            else:
+                ct_idx = 2 if has_cover_title else None
+                vf, v_label = _build_simple_video_filter(
+                    base_idx=0,
+                    cover_title_idx=ct_idx,
+                    has_subtitles=has_subtitles,
+                    srt_sub_escaped=srt_ffmpeg,
+                    subtitle_style=subtitle_style,
+                )
+                inputs = ["-i", str(base_video_path), "-i", str(audio_path)]
+                if has_cover_title:
+                    inputs += ["-i", str(cover_title_png)]
+                audio_idx = 1
 
-        subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, check=True)
+            # ── Build audio filter (if music) ──
+            if has_music:
+                inputs += ["-stream_loop", "-1", "-i", str(music_path)]
+                music_idx = inputs.count("-i") - 1
+                af = _make_music_mix_filter(audio_idx, music_idx, music_vol, fade_start)
+                a_label = "[amix]"
+            else:
+                af, a_label = "", f"{audio_idx}:a:0"
+
+            # ── Combine filters and assemble command ──
+            filter_complex = f"{vf};{af}" if vf and af else vf or af
+
+            cmd = [ffmpeg] + inputs
+            if filter_complex:
+                cmd += ["-filter_complex", filter_complex, "-map", v_label, "-map", a_label]
+            else:
+                cmd += ["-map", v_label, "-map", a_label]
+            cmd += encoder_args + [
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-shortest",
+                "-movflags",
+                "+faststart",
+                "-y",
+                str(final_video_path),
+            ]
+
+            subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600, check=True)
+        finally:
+            if _srt_temp_dir:
+                shutil.rmtree(_srt_temp_dir, ignore_errors=True)
