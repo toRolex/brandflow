@@ -468,3 +468,70 @@ class TestJobTickService:
             )
         assert exc.value.job_id == "test-job"
         assert exc.value.phase == "script_generating"
+
+
+# ---------------------------------------------------------------------------
+# JobTickService.advance_after_report
+# ---------------------------------------------------------------------------
+
+
+class TestAdvanceAfterReport:
+    def test_advances_from_non_review_phase(self) -> None:
+        """Worker report on a non-review phase advances to next phase."""
+        record = make_record(phase="tts_generating")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+
+        svc = JobTickService(orchestrator=Mock(spec=PhaseOrchestrator), repo=mock_repo)
+        summary = svc.advance_after_report(
+            "proj-001",
+            "test-job",
+            [{"relative_path": "audio.mp3", "size_bytes": 1024}],
+        )
+        assert summary.action == "advanced"
+        assert summary.to_phase == "tts_review"  # advances to review
+        mock_repo.save_job.assert_called_once()
+
+    def test_sets_review_pending_when_advancing_to_review(self) -> None:
+        """Advancing from a gate phase into a review sets review_status=pending."""
+        record = make_record(phase="tts_generating")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+
+        svc = JobTickService(orchestrator=Mock(spec=PhaseOrchestrator), repo=mock_repo)
+        svc.advance_after_report(
+            "proj-001",
+            "test-job",
+            [{"relative_path": "audio.mp3", "size_bytes": 2048}],
+        )
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == "tts_review"
+        assert saved.review_status == "pending"
+
+    def test_skips_when_already_at_terminal(self) -> None:
+        """Report on a completed job should skip."""
+        record = make_record(phase="completed")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+
+        svc = JobTickService(orchestrator=Mock(spec=PhaseOrchestrator), repo=mock_repo)
+        summary = svc.advance_after_report(
+            "proj-001", "test-job", []
+        )
+        assert summary.action == "skipped"
+
+    def test_merges_artifacts_from_manifest(self) -> None:
+        """Artifacts from worker manifest should be merged into the record."""
+        record = make_record(phase="video_rendering")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+
+        svc = JobTickService(orchestrator=Mock(spec=PhaseOrchestrator), repo=mock_repo)
+        svc.advance_after_report(
+            "proj-001",
+            "test-job",
+            [{"relative_path": "final_video.mp4", "size_bytes": 50000}],
+        )
+        saved = mock_repo.save_job.call_args[0][1]
+        assert len(saved.artifacts) == 1
+        assert saved.artifacts[0].kind == "final_video"

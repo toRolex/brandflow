@@ -409,3 +409,102 @@ class JobTickService:
             to_phase=to_phase,
             message=action.message,
         )
+
+    def advance_after_report(
+        self,
+        project_id: str,
+        job_id: str,
+        manifest_files: list[dict[str, Any]],
+    ) -> TickSummary:
+        """Worker-report entry point: advance job based on worker's output.
+
+        Does NOT run any handler — the worker already did.
+        Only re-decides the transition, persists, and returns a summary.
+
+        Parameters
+        ----------
+        project_id : str
+            Project the job belongs to.
+        job_id : str
+            Unique job identifier.
+        manifest_files : list[dict]
+            Artifact manifest from the worker, typically
+            ``payload.artifact_manifest["files"]``.
+
+        Returns
+        -------
+        TickSummary
+            Describes what happened during advancement.
+        """
+        record = self._repo.load_job(project_id, job_id)
+        initial_phase = record.phase
+
+        # Build artifacts list from manifest
+        new_artifacts: list[ArtifactPointer] = []
+        for f in manifest_files:
+            kind = _artifact_kind(f.get("relative_path", ""))
+            new_artifacts.append(
+                ArtifactPointer(
+                    kind=kind,
+                    relative_path=f.get("relative_path", ""),
+                    size_bytes=f.get("size_bytes", 0),
+                )
+            )
+
+        # Merge into record, avoiding duplicates by kind
+        existing_kinds = {a.kind for a in record.artifacts}
+        for a in new_artifacts:
+            if a.kind not in existing_kinds:
+                record.artifacts.append(a)
+                existing_kinds.add(a.kind)
+
+        # Worker has already executed the phase — no run_handler,
+        # always post-handler path via _transition_after_artifacts
+        action = _transition_after_artifacts(record, tuple(new_artifacts))
+
+        # Apply phase / review_status changes
+        update: dict[str, Any] = {}
+        if action.new_phase is not None:
+            update["phase"] = action.new_phase
+        if action.new_review_status is not None:
+            update["review_status"] = action.new_review_status
+
+        if update:
+            record = record.model_copy(update=update)
+            self._repo.save_job(project_id, record)
+
+        if action.review_event:
+            event = {"job_id": job_id, "project_id": project_id, **action.review_event}
+            self._repo.append_review_event(project_id, event)
+
+        to_phase = action.new_phase if action.new_phase is not None else initial_phase
+        if to_phase == initial_phase:
+            action_type = "skipped"
+        elif to_phase == "completed":
+            action_type = "completed"
+        elif to_phase == "failed":
+            action_type = "failed"
+        else:
+            action_type = "advanced"
+
+        return TickSummary(
+            action=action_type,
+            from_phase=initial_phase,
+            to_phase=to_phase,
+            message=action.message,
+        )
+
+
+def _artifact_kind(path: str) -> str:
+    """Map artifact file path to a known kind."""
+    if path.endswith(".txt") or path.endswith(".json"):
+        return "script"
+    if path.endswith(".mp3"):
+        return "tts_audio"
+    if path.endswith(".srt"):
+        return "subtitle"
+    if path.endswith(".mp4"):
+        if "final" in path:
+            return "final_video"
+        return "source_video"
+    return "unknown"
