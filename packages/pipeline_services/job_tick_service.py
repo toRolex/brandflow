@@ -191,8 +191,34 @@ def _compute_transition(
         )
 
     # ------------------------------------------------------------------
-    # 5. Handler produced artifacts → advance
+    # 5. Post-handler: artifacts present or phase has no handler
+    #    → delegate to per-phase failure / advance logic
     # ------------------------------------------------------------------
+    if artifacts or phase not in HANDLED_PHASES:
+        return _transition_after_artifacts(record, artifacts)
+
+    # ------------------------------------------------------------------
+    # 6. Pre-handler: no artifacts yet, phase has a registered handler
+    #    → tell the caller to run the handler
+    # ------------------------------------------------------------------
+    return TickAction(
+        run_handler=True,
+        handler_phase=phase,
+        message=f"phase {phase} needs handler execution",
+    )
+
+def _transition_after_artifacts(
+    record: JobRecord,
+    artifacts: tuple[Any, ...],
+) -> TickAction:
+    """Decide transition after a phase handler produced artifacts (or not).
+
+    Separated from ``_compute_transition`` so per-phase failure logic is
+    isolated for testing.
+    """
+    phase = record.phase
+
+    # 1. Artifacts produced → advance
     if artifacts:
         next_p = _safe_next(phase)
         if next_p in REVIEW_PHASES:
@@ -206,43 +232,39 @@ def _compute_transition(
             message=f"{phase} produced artifacts, advancing to {next_p}",
         )
 
-    # ------------------------------------------------------------------
-    # 6. No artifacts — post-handler or pre-handler decision
-    # ------------------------------------------------------------------
-
-    # 6a. video_rendering: retry once, then fail
+    # 2. No artifacts — per-phase failure handling
+    # 2a. video_rendering: retry once, then fail
     if phase == "video_rendering":
         if "video_rendering" in (record.last_error or ""):
             return TickAction(
                 new_phase="failed",
-                message=f"video_rendering failed after retry",
+                message="video_rendering failed after retry",
             )
         return TickAction(
-            message=f"video_rendering produced no artifacts, will retry next tick",
+            message="video_rendering produced no artifacts, will retry next tick",
         )
 
-    # 6b. subtitle_generating: stay in phase (critical — do not auto-advance)
+    # 2b. subtitle_generating: stay in phase (critical — do not auto-advance)
     if phase == "subtitle_generating":
         return TickAction(
-            message=f"subtitle_generating produced no artifacts, staying in phase",
+            message="subtitle_generating produced no artifacts, staying in phase",
         )
 
-    # 6c. asset_retrieving: auto-advance on no artifacts
+    # 2c. asset_retrieving: auto-advance on no artifacts (transitional phase)
     if phase == "asset_retrieving":
         return TickAction(
             new_phase=_safe_next(phase),
-            message=f"asset_retrieving produced no artifacts, auto-advancing",
+            message="asset_retrieving produced no artifacts, auto-advancing",
         )
 
-    # 6d. Other handled phases: run handler
+    # 2d. Other handled phases: auto-advance (transitional or empty handler)
     if phase in HANDLED_PHASES:
         return TickAction(
-            run_handler=True,
-            handler_phase=phase,
-            message=f"phase {phase} needs handler execution",
+            new_phase=_safe_next(phase),
+            message=f"{phase} produced no artifacts, auto-advancing (fallback)",
         )
 
-    # 6e. Fallback — auto-advance (defensive, should be unreachable in practice)
+    # 2e. Fallback — auto-advance
     return TickAction(
         new_phase=_safe_next(phase),
         message=f"auto-advance from {phase} (fallback)",

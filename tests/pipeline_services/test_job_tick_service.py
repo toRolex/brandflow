@@ -12,6 +12,7 @@ from packages.pipeline_services.job_tick_service import (
     REVIEW_PHASES,
     TickAction,
     _compute_transition,
+    _transition_after_artifacts,
 )
 
 
@@ -277,7 +278,7 @@ class TestArtifactsProduced:
 class TestVideoRenderingNoArtifacts:
     def test_first_failure_retries(self) -> None:
         """No artifacts + no prior last_error → retry next tick."""
-        action = _compute_transition(
+        action = _transition_after_artifacts(
             make_record(phase="video_rendering", last_error=""),
             (),
         )
@@ -287,7 +288,7 @@ class TestVideoRenderingNoArtifacts:
 
     def test_second_failure_marks_failed(self) -> None:
         """No artifacts + prior video_rendering error → mark as failed."""
-        action = _compute_transition(
+        action = _transition_after_artifacts(
             make_record(phase="video_rendering", last_error="video_rendering failed to produce artifacts"),
             (),
         )
@@ -302,7 +303,7 @@ class TestVideoRenderingNoArtifacts:
 
 class TestSubtitleGeneratingNoArtifacts:
     def test_stays_in_phase(self) -> None:
-        action = _compute_transition(
+        action = _transition_after_artifacts(
             make_record(phase="subtitle_generating"),
             (),
         )
@@ -318,7 +319,7 @@ class TestSubtitleGeneratingNoArtifacts:
 
 class TestAutoAdvanceNoArtifacts:
     def test_asset_retrieving_auto_advances(self) -> None:
-        action = _compute_transition(
+        action = _transition_after_artifacts(
             make_record(phase="asset_retrieving"),
             (),
         )
