@@ -1,8 +1,10 @@
+import { resolve } from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+  base: "./",
   plugins: [react(), tailwindcss()],
   server: {
     host: true,
@@ -15,5 +17,11 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        analytics: resolve(__dirname, "analytics.html"),
+      },
+    },
   },
 });

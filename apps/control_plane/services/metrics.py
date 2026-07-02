@@ -623,3 +623,225 @@ class MetricsStore:
 
         topics.sort(key=lambda x: x["total_plays"], reverse=True)
         return topics[:limit]
+
+    # ── Increment computation ──────────────────────────────────────────────────────
+
+    def compute_increment(
+        self,
+        current_snapshot_date: str,
+        previous_snapshot_date: str,
+        platform: str | None = None,
+        include_detail: bool = False,
+    ) -> dict[str, Any]:
+        """Compute day-over-day delta between two snapshot dates.
+
+        Queries records by ``imported_at LIKE '<date>%'`` for each snapshot,
+        then delegates to :func:`compute_metrics_diff`.
+
+        .. deprecated::
+            Prefer using :func:`compute_metrics_diff` with explicitly fetched
+            record lists. This method relies on ``imported_at`` which gets
+            overwritten by the production UPSERT import.
+        """
+        def _fetch(date_str: str) -> list[dict[str, Any]]:
+            where = ["imported_at LIKE ?"]
+            params: list[Any] = [f"{date_str}%"]
+            if platform:
+                where.append("platform = ?")
+                params.append(platform)
+            conn = self._conn()
+            try:
+                return [dict(r) for r in conn.execute(
+                    f"SELECT * FROM video_metrics WHERE {' AND '.join(where)}",
+                    params,
+                ).fetchall()]
+            finally:
+                conn.close()
+
+        return compute_metrics_diff(
+            previous_records=_fetch(previous_snapshot_date),
+            current_records=_fetch(current_snapshot_date),
+            current_snapshot_date=current_snapshot_date,
+            previous_snapshot_date=previous_snapshot_date,
+            include_detail=include_detail,
+        )
+
+    def compute_increment_vs_snapshot(
+        self,
+        snapshot_records: list[dict[str, Any]],
+        snapshot_date: str,
+        previous_snapshot_date: str,
+        include_detail: bool = False,
+    ) -> dict[str, Any]:
+        """Compare current DB state against a previously-saved snapshot."""
+        conn = self._conn()
+        try:
+            current_records = [dict(r) for r in conn.execute(
+                "SELECT * FROM video_metrics"
+            ).fetchall()]
+        finally:
+            conn.close()
+
+        return compute_metrics_diff(
+            previous_records=snapshot_records,
+            current_records=current_records,
+            current_snapshot_date=snapshot_date,
+            previous_snapshot_date=previous_snapshot_date,
+            include_detail=include_detail,
+        )
+
+
+# ── Standalone diff function ─────────────────────────────────────────────────
+
+
+def compute_metrics_diff(
+    previous_records: list[dict[str, Any]],
+    current_records: list[dict[str, Any]],
+    current_snapshot_date: str,
+    previous_snapshot_date: str,
+    include_detail: bool = False,
+) -> dict[str, Any]:
+    """Compute day-over-day delta between two lists of video metric records.
+
+    This is a **pure function** — it only compares the two provided lists
+    and does not touch the database.  Use it when you have already fetched
+    both snapshots (e.g. one from a saved file, one from the current DB).
+
+    Parameters
+    ----------
+    previous_records:
+        Records from the earlier snapshot.
+    current_records:
+        Records from the later snapshot.
+    current_snapshot_date:
+        Label for the current snapshot (e.g. ``"2026-07-02"``).
+    previous_snapshot_date:
+        Label for the previous snapshot (e.g. ``"2026-07-01"``).
+    include_detail:
+        When ``True``, the returned dict includes a ``"detail"`` key with
+        every new/updated video's delta (for ``increment-detail.json``).
+
+    Returns
+    -------
+    dict with keys:
+        snapshot_date, previous_snapshot, summary, top_gainers, daily_trend
+        and optionally ``detail`` (when *include_detail* is ``True``).
+    """
+    # Build keyed dicts
+    current_map: dict[tuple[str, str, str], dict[str, Any]] = {
+        (r["platform"], r["title"], r["publish_date"]): r for r in current_records
+    }
+    previous_map: dict[tuple[str, str, str], dict[str, Any]] = {
+        (r["platform"], r["title"], r["publish_date"]): r for r in previous_records
+    }
+
+    all_keys = set(current_map.keys()) | set(previous_map.keys())
+
+    delta_out = {
+        "plays": "plays_delta",
+        "likes": "likes_delta",
+        "comments": "comments_delta",
+        "shares": "shares_delta",
+        "followers_gained": "followers_delta",
+    }
+
+    summary: dict[str, int] = {
+        "plays_delta": 0,
+        "likes_delta": 0,
+        "followers_delta": 0,
+        "shares_delta": 0,
+        "comments_delta": 0,
+        "new_videos": 0,
+        "updated_videos": 0,
+        "disappeared_videos": 0,
+    }
+
+    top_gainers: list[dict[str, Any]] = []
+    detail: list[dict[str, Any]] = []
+    daily_agg: dict[str, dict[str, int]] = {}
+
+    for key in all_keys:
+        p, title, pub_date = key
+        in_cur = key in current_map
+        in_prev = key in previous_map
+
+        if in_cur and not in_prev:
+            # New video
+            summary["new_videos"] += 1
+            cur = current_map[key]
+            item: dict[str, Any] = {
+                "title": title,
+                "platform": p,
+                "publish_date": pub_date,
+            }
+            for field, out_name in delta_out.items():
+                val = cur.get(field) or 0
+                item[out_name] = val
+                summary[out_name] += val
+            if item["plays_delta"] > 0:
+                top_gainers.append(item)
+            detail.append(item)
+
+            # Daily trend
+            agg = daily_agg.setdefault(
+                pub_date,
+                {"plays_delta": 0, "likes_delta": 0, "followers_delta": 0},
+            )
+            for out_name in ("plays_delta", "likes_delta", "followers_delta"):
+                agg[out_name] += item[out_name]
+
+        elif not in_cur and in_prev:
+            # Disappeared video
+            summary["disappeared_videos"] += 1
+
+        else:
+            # Updated video (only count if at least one metric changed)
+            cur = current_map[key]
+            prev = previous_map[key]
+            item = {
+                "title": title,
+                "platform": p,
+                "publish_date": pub_date,
+            }
+            has_delta = False
+            for field, out_name in delta_out.items():
+                delta = (cur.get(field) or 0) - (prev.get(field) or 0)
+                item[out_name] = delta
+                if delta != 0:
+                    has_delta = True
+                summary[out_name] += delta
+            if not has_delta:
+                continue
+            summary["updated_videos"] += 1
+            if item["plays_delta"] > 0:
+                top_gainers.append(item)
+            detail.append(item)
+
+            # Daily trend
+            agg = daily_agg.setdefault(
+                pub_date,
+                {"plays_delta": 0, "likes_delta": 0, "followers_delta": 0},
+            )
+            for out_name in ("plays_delta", "likes_delta", "followers_delta"):
+                agg[out_name] += item[out_name]
+
+    # Sort top_gainers by plays_delta desc, limit 10
+    top_gainers.sort(key=lambda x: x["plays_delta"], reverse=True)
+    top_gainers = top_gainers[:10]
+
+    # Daily trend sorted by date
+    daily_trend = [
+        {"date": date, **agg}
+        for date, agg in sorted(daily_agg.items())
+    ]
+
+    result: dict[str, Any] = {
+        "snapshot_date": current_snapshot_date,
+        "previous_snapshot": previous_snapshot_date,
+        "summary": summary,
+        "top_gainers": top_gainers,
+        "daily_trend": daily_trend,
+    }
+    if include_detail:
+        result["detail"] = detail
+    return result
