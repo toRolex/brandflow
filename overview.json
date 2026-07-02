@@ -1,0 +1,730 @@
+{
+  "total_plays": 0,
+  "total_likes": 0,
+  "total_followers": 0,
+  "avg_completion": 0,
+  "video_count": 0,
+  "daily": [
+    {
+      "publish_date": "2026-03-12",
+      "plays": 1187,
+      "likes": 19,
+      "followers": 2,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-13",
+      "plays": 45,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-14",
+      "plays": 1162,
+      "likes": 13,
+      "followers": 6,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-16",
+      "plays": 707,
+      "likes": 12,
+      "followers": 4,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-17",
+      "plays": 259,
+      "likes": 7,
+      "followers": 4,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-18",
+      "plays": 340,
+      "likes": 2,
+      "followers": 4,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-19",
+      "plays": 291,
+      "likes": 18,
+      "followers": 3,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-20",
+      "plays": 269,
+      "likes": 2,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-21",
+      "plays": 219,
+      "likes": 2,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-22",
+      "plays": 305,
+      "likes": 4,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-23",
+      "plays": 250,
+      "likes": 2,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-24",
+      "plays": 190,
+      "likes": 2,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-25",
+      "plays": 60,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-26",
+      "plays": 97,
+      "likes": 2,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-27",
+      "plays": 243,
+      "likes": 3,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-28",
+      "plays": 506,
+      "likes": 1,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-29",
+      "plays": 166,
+      "likes": 1,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-03-30",
+      "plays": 100,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-01",
+      "plays": 23,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-02",
+      "plays": 66,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-03",
+      "plays": 15,
+      "likes": 1,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-04",
+      "plays": 41,
+      "likes": 1,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-05",
+      "plays": 9,
+      "likes": 1,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-06",
+      "plays": 20,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-07",
+      "plays": 13,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-09",
+      "plays": 69,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-10",
+      "plays": 3634,
+      "likes": 8,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-11",
+      "plays": 127,
+      "likes": 2,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-13",
+      "plays": 169,
+      "likes": 3,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-14",
+      "plays": 287,
+      "likes": 3,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-15",
+      "plays": 568,
+      "likes": 5,
+      "followers": 2,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-16",
+      "plays": 812,
+      "likes": 13,
+      "followers": 5,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-17",
+      "plays": 223,
+      "likes": 4,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-18",
+      "plays": 62,
+      "likes": 1,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-20",
+      "plays": 3,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-22",
+      "plays": 5,
+      "likes": 0,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-23",
+      "plays": 198,
+      "likes": 3,
+      "followers": 2,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-24",
+      "plays": 11192,
+      "likes": 71,
+      "followers": 13,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-25",
+      "plays": 77,
+      "likes": 1,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-27",
+      "plays": 38979,
+      "likes": 580,
+      "followers": 29,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-28",
+      "plays": 208,
+      "likes": 2,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-29",
+      "plays": 3335,
+      "likes": 30,
+      "followers": 2,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-04-30",
+      "plays": 17498,
+      "likes": 132,
+      "followers": 16,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-01",
+      "plays": 13898,
+      "likes": 79,
+      "followers": 7,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-02",
+      "plays": 2503,
+      "likes": 22,
+      "followers": 8,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-03",
+      "plays": 343,
+      "likes": 6,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-04",
+      "plays": 775,
+      "likes": 5,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-05",
+      "plays": 234,
+      "likes": 7,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-07",
+      "plays": 3258,
+      "likes": 68,
+      "followers": 6,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-08",
+      "plays": 1980,
+      "likes": 36,
+      "followers": 6,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-09",
+      "plays": 1333,
+      "likes": 32,
+      "followers": 5,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-10",
+      "plays": 2536,
+      "likes": 37,
+      "followers": 2,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-11",
+      "plays": 1304,
+      "likes": 32,
+      "followers": 3,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-12",
+      "plays": 163,
+      "likes": 10,
+      "followers": 6,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-13",
+      "plays": 323,
+      "likes": 9,
+      "followers": 5,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-14",
+      "plays": 1075,
+      "likes": 8,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-15",
+      "plays": 71,
+      "likes": 3,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-16",
+      "plays": 2593,
+      "likes": 46,
+      "followers": 7,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-17",
+      "plays": 6780,
+      "likes": 106,
+      "followers": 7,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-18",
+      "plays": 8190,
+      "likes": 98,
+      "followers": 5,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-19",
+      "plays": 3575,
+      "likes": 118,
+      "followers": 12,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-20",
+      "plays": 35600,
+      "likes": 490,
+      "followers": 22,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-21",
+      "plays": 13137,
+      "likes": 243,
+      "followers": 20,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-22",
+      "plays": 10894,
+      "likes": 113,
+      "followers": 8,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-23",
+      "plays": 201,
+      "likes": 0,
+      "followers": 0,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-24",
+      "plays": 4727,
+      "likes": 51,
+      "followers": 2,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-25",
+      "plays": 3685,
+      "likes": 27,
+      "followers": 1,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-26",
+      "plays": 3932,
+      "likes": 27,
+      "followers": 2,
+      "avg_completion": 0
+    },
+    {
+      "publish_date": "2026-05-27",
+      "plays": 3826,
+      "likes": 14,
+      "followers": 1,
+      "avg_completion": 23.936
+    },
+    {
+      "publish_date": "2026-05-28",
+      "plays": 1998,
+      "likes": 9,
+      "followers": 1,
+      "avg_completion": 11.615
+    },
+    {
+      "publish_date": "2026-05-29",
+      "plays": 961,
+      "likes": 5,
+      "followers": 0,
+      "avg_completion": 9.17
+    },
+    {
+      "publish_date": "2026-05-30",
+      "plays": 3485,
+      "likes": 30,
+      "followers": 3,
+      "avg_completion": 16.698
+    },
+    {
+      "publish_date": "2026-05-31",
+      "plays": 927,
+      "likes": 9,
+      "followers": 0,
+      "avg_completion": 10.24
+    },
+    {
+      "publish_date": "2026-06-01",
+      "plays": 1154,
+      "likes": 7,
+      "followers": 0,
+      "avg_completion": 14.426666666666668
+    },
+    {
+      "publish_date": "2026-06-02",
+      "plays": 110787,
+      "likes": 650,
+      "followers": 333,
+      "avg_completion": 17.05666666666667
+    },
+    {
+      "publish_date": "2026-06-03",
+      "plays": 42287,
+      "likes": 88,
+      "followers": 22,
+      "avg_completion": 22.713333333333335
+    },
+    {
+      "publish_date": "2026-06-04",
+      "plays": 49619,
+      "likes": 84,
+      "followers": 29,
+      "avg_completion": 20.735
+    },
+    {
+      "publish_date": "2026-06-05",
+      "plays": 45524,
+      "likes": 70,
+      "followers": 19,
+      "avg_completion": 20.135714285714283
+    },
+    {
+      "publish_date": "2026-06-06",
+      "plays": 785805,
+      "likes": 2268,
+      "followers": 192,
+      "avg_completion": 20.268571428571427
+    },
+    {
+      "publish_date": "2026-06-07",
+      "plays": 251097,
+      "likes": 567,
+      "followers": 120,
+      "avg_completion": 31.4925
+    },
+    {
+      "publish_date": "2026-06-08",
+      "plays": 111373,
+      "likes": 529,
+      "followers": 34,
+      "avg_completion": 22.902
+    },
+    {
+      "publish_date": "2026-06-09",
+      "plays": 172278,
+      "likes": 369,
+      "followers": 90,
+      "avg_completion": 26.179230769230767
+    },
+    {
+      "publish_date": "2026-06-10",
+      "plays": 30297,
+      "likes": 157,
+      "followers": 14,
+      "avg_completion": 32.04
+    },
+    {
+      "publish_date": "2026-06-11",
+      "plays": 69375,
+      "likes": 157,
+      "followers": 22,
+      "avg_completion": 27.00181818181818
+    },
+    {
+      "publish_date": "2026-06-12",
+      "plays": 33550,
+      "likes": 108,
+      "followers": 8,
+      "avg_completion": 24.514285714285712
+    },
+    {
+      "publish_date": "2026-06-13",
+      "plays": 156931,
+      "likes": 236,
+      "followers": 49,
+      "avg_completion": 30.177142857142858
+    },
+    {
+      "publish_date": "2026-06-14",
+      "plays": 16428,
+      "likes": 61,
+      "followers": 5,
+      "avg_completion": 25.6625
+    },
+    {
+      "publish_date": "2026-06-15",
+      "plays": 132589,
+      "likes": 372,
+      "followers": 93,
+      "avg_completion": 32.43
+    },
+    {
+      "publish_date": "2026-06-16",
+      "plays": 18295,
+      "likes": 51,
+      "followers": 12,
+      "avg_completion": 11.863333333333335
+    },
+    {
+      "publish_date": "2026-06-17",
+      "plays": 87038,
+      "likes": 141,
+      "followers": 35,
+      "avg_completion": 27.676
+    },
+    {
+      "publish_date": "2026-06-18",
+      "plays": 29323,
+      "likes": 69,
+      "followers": 7,
+      "avg_completion": 27.59
+    },
+    {
+      "publish_date": "2026-06-19",
+      "plays": 5290,
+      "likes": 59,
+      "followers": 8,
+      "avg_completion": 20.4075
+    },
+    {
+      "publish_date": "2026-06-20",
+      "plays": 4222,
+      "likes": 36,
+      "followers": 3,
+      "avg_completion": 20.27
+    },
+    {
+      "publish_date": "2026-06-21",
+      "plays": 6739,
+      "likes": 29,
+      "followers": 3,
+      "avg_completion": 30.97
+    },
+    {
+      "publish_date": "2026-06-22",
+      "plays": 91735,
+      "likes": 182,
+      "followers": 33,
+      "avg_completion": 29.233846153846155
+    },
+    {
+      "publish_date": "2026-06-23",
+      "plays": 42308,
+      "likes": 97,
+      "followers": 33,
+      "avg_completion": 30.921666666666667
+    },
+    {
+      "publish_date": "2026-06-24",
+      "plays": 92708,
+      "likes": 134,
+      "followers": 17,
+      "avg_completion": 29.2775
+    },
+    {
+      "publish_date": "2026-06-25",
+      "plays": 24958,
+      "likes": 50,
+      "followers": 7,
+      "avg_completion": 31.933333333333334
+    },
+    {
+      "publish_date": "2026-06-26",
+      "plays": 17383,
+      "likes": 21,
+      "followers": 6,
+      "avg_completion": 22.245
+    },
+    {
+      "publish_date": "2026-06-27",
+      "plays": 5490,
+      "likes": 13,
+      "followers": 4,
+      "avg_completion": 20.607142857142858
+    },
+    {
+      "publish_date": "2026-06-28",
+      "plays": 2428,
+      "likes": 3,
+      "followers": 0,
+      "avg_completion": 19.095
+    },
+    {
+      "publish_date": "2026-06-29",
+      "plays": 8184,
+      "likes": 38,
+      "followers": 4,
+      "avg_completion": 27.238333333333333
+    },
+    {
+      "publish_date": "2026-06-30",
+      "plays": 13703,
+      "likes": 27,
+      "followers": 4,
+      "avg_completion": 22.71875
+    }
+  ]
+}
