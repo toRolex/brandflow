@@ -321,3 +321,40 @@ export interface ScanResult {
   inserted: number;
   updated: number;
 }
+
+// ── Increment / Analytics ──────────────────────────────
+
+export interface IncrementData {
+  snapshot_date: string;
+  previous_snapshot: string;
+  summary: {
+    plays_delta: number;
+    likes_delta: number;
+    followers_delta: number;
+    shares_delta: number;
+    comments_delta: number;
+    new_videos: number;
+    updated_videos: number;
+    disappeared_videos: number;
+  };
+  top_gainers: VideoIncrement[];
+  daily_trend: DailyIncrement[];
+}
+
+export interface VideoIncrement {
+  title: string;
+  platform: string;
+  publish_date: string;
+  plays_delta: number;
+  likes_delta: number;
+  followers_delta: number;
+  shares_delta: number;
+  comments_delta: number;
+}
+
+export interface DailyIncrement {
+  date: string;
+  plays_delta: number;
+  likes_delta: number;
+  followers_delta: number;
+}

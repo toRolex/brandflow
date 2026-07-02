@@ -3,7 +3,11 @@
 github 项目地址：
 https://github.com/toRolex/ai-video-pipeline
 
-windows服务器项目路径：进入"C:\Users\ziyua\Documents\Code\ai-video-pipeline"文件夹
+**Windows 服务器：**
+| 环境 | 用户 | 项目路径 |
+|------|------|----------|
+| 测试机（`100.121.152.103`） | `ziyua` | `C:\Users\ziyua\Documents\Code\ai-video-pipeline` |
+| 生产机（`192.168.31.222`） | `zyt18` | 尚未部署（GitHub Actions 推 `main` 自动部署） |
 
 ## 项目上下文维护
 
@@ -28,19 +32,40 @@ windows服务器项目路径：进入"C:\Users\ziyua\Documents\Code\ai-video-pip
 
 详见 `/git-flow-conventions` 技能中的完整分支命名、commit message、PR 规范。
 
-## 远程连接（sshpass）
+## 远程连接（SSH 密钥）
 
-```bash
-SSHPASS='123456' sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 zyt@100.121.152.103 "cmd /c \"cd /d C:\Users\ziyua\Documents\Code\ai-video-pipeline && <命令>\""
+Mac 已配置 SSH 密钥认证到测试机，通过 `~/.ssh/config` 管理连接。
+
+**SSH 配置（`~/.ssh/config`）：**
+```
+Host zyt
+    HostName 100.121.152.103
+    User zyt
+    Port 22
+
+Host prod-jump
+    HostName 192.168.31.222
+    User zyt18
+    ProxyJump zyt@100.121.152.103
+    StrictHostKeyChecking no
 ```
 
-**Windows 测试机网络：**
-| 地址 | 说明 | 端口 |
-|---|---|---|
-| `100.121.152.103:17890` | Tailscale 虚拟 IP，跨网段可用 | 控制面 / Web 看板 |
-| `192.168.31.158:17890` | 局域网直连 IP（WiFi Public 网络需防火墙放行） | 控制面 / Web 看板 |
+**快捷连接：**
+```bash
+# 测试机（直连，密钥认证）
+ssh zyt@100.121.152.103 "cmd /c \"cd /d C:\Users\ziyua\Documents\Code\ai-video-pipeline && <命令>\""
 
-- 优先用 WSL，优先用环境变量传密码（`SSHPASS` + `-e`）
+# 生产机（跳板，密钥认证）
+ssh prod-jump "<命令>"
+```
+
+**Windows 机器网络：**
+| 机器 | 主机名 | IP | 说明 |
+|------|--------|-----|------|
+| 测试机 | — | `100.121.152.103:17890` | Tailscale 虚拟 IP，跨网段可用 |
+| 测试机 | — | `192.168.31.158:17890` | 局域网直连 IP |
+| 生产机 | `ziyuantang1` | `192.168.31.222:17890` | 局域网 IP，通过测试机跳板连接 |
+
 - 默认只执行只读命令；高风险操作（修改配置、重启、删除）前必须先确认
 
 ## 项目概述
@@ -168,7 +193,8 @@ uv run pytest tests/ -q --tb=short
 │   │   ├── retrieval_contract.py     # 检索契约
 │   │   ├── retrieval_embedding.py    # 向量检索
 │   │   ├── retrieval_keyword.py      # 关键词检索
-│   │   └── phase_runner.py           # Phase 执行器
+│   │   ├── phase_runner.py           # Phase 执行器
+│   │   └── job_tick_service.py       # Job 生命周期 tick 调度
 │   ├── provider_config/              # AppConfigManager + provider 配置桥接
 │   └── runtime_adapters/             # 平台适配（MacLocal / WindowsProd）
 │
@@ -285,6 +311,7 @@ queued → script_generating → script_review → tts_generating → tts_review
   - `subtitle_service.py`（SRT 字幕生成）
   - `video_service.py`（视频组装与烧录）
   - `llm_client.py`（通用 LLM HTTP 客户端）
+  - `job_tick_service.py`（Job 生命周期 tick 调度：_compute_transition 纯函数 + JobTickService）
 - `legacy_script_bridge.py` 保留，已改写为使用 `ScriptGenerator`
 
 ## Agent skills

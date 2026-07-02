@@ -8,12 +8,11 @@ from pydantic import BaseModel
 
 from packages.domain_core.state import next_phase
 from packages.file_store.repository import FileStoreRepository
+from packages.pipeline_services.phase_orchestrator import (
+    PhaseContext,
+    create_orchestrator,
+)
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-from packages.pipeline_services.phase_orchestrator import PhaseOrchestrator, PhaseContext
-from packages.pipeline_services.video_service import VideoService
-from packages.pipeline_services.subtitle_service import SubtitleService
-from packages.provider_config.app_config import AppConfigManager
-from apps.control_plane.services.schedule_store import ScheduleStore
 
 logger = logging.getLogger(__name__)
 
@@ -83,15 +82,7 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
     if record.phase == "final_review":
         try:
             root_dir = Path(request.app.state.root_dir)
-            app_config = AppConfigManager()
-            orchestrator = PhaseOrchestrator(
-                script_bridge=LegacyScriptBridge(root_dir),
-                subtitle_svc=SubtitleService(),
-                video_svc=VideoService(dry_run=False),
-                schedule_store=ScheduleStore(root_dir),
-                get_tts_config=app_config.get_tts_config,
-                get_llm_config=app_config.get_llm_config,
-            )
+            orchestrator = create_orchestrator(root_dir)
             ctx = PhaseContext(
                 job_id=job_id,
                 project_dir=root_dir / "workspace" / "projects" / project_id,

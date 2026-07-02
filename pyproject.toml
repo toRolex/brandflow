@@ -1,6 +1,6 @@
 [project]
 name = "ziyuantang-pipeline"
-version = "0.5.1"
+version = "0.6.0"
 description = "Local short-video automation pipeline"
 requires-python = ">=3.11"
 dependencies = [

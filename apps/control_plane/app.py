@@ -19,35 +19,23 @@ from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.services.dispatch import Dispatcher
-from packages.domain_core.state import next_phase
-from packages.pipeline_services.subtitle_service import SubtitleService
-from packages.pipeline_services.video_service import VideoService
-from packages.provider_config.app_config import AppConfigManager
-from apps.control_plane.services.schedule_store import ScheduleStore
-from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-from packages.pipeline_services.phase_orchestrator import (
-    PhaseContext,
-    PhaseOrchestrator,
+from packages.file_store.repository import FileStoreRepository
+from packages.pipeline_services.job_tick_service import (
+    JobTickService,
+    PhaseExecutionError,
 )
+from packages.pipeline_services.phase_orchestrator import create_orchestrator
 
 
-REVIEW_PHASES = {"script_review", "tts_review", "asset_review", "final_review"}
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 
 
 async def _auto_tick(root_dir: Path):
-    """Dev-mode background loop: scans disk for non-review jobs, generates stub artifacts, and advances them."""
-    # Construct orchestrator once; deps are stateless, reused across iterations
-    # TTS provider is now built dynamically per-job inside PhaseOrchestrator._run_tts
-    app_config = AppConfigManager()
-    orchestrator = PhaseOrchestrator(
-        script_bridge=LegacyScriptBridge(root_dir),
-        subtitle_svc=SubtitleService(),
-        video_svc=VideoService(dry_run=False),
-        schedule_store=ScheduleStore(root_dir),
-        get_tts_config=app_config.get_tts_config,
-        get_llm_config=app_config.get_llm_config,
-    )
+    """Dev-mode background loop: scans disk and delegates to JobTickService."""
+    # Construct orchestrator and tick service once; deps are stateless
+    orchestrator = create_orchestrator(root_dir)
+    repo = FileStoreRepository(root_dir)
+    tick_svc = JobTickService(orchestrator=orchestrator, repo=repo)
 
     while True:
         await asyncio.sleep(AUTO_TICK_INTERVAL)
@@ -59,6 +47,7 @@ async def _auto_tick(root_dir: Path):
             for project_dir in sorted(projects_root.iterdir()):
                 if not project_dir.is_dir():
                     continue
+                project_id = project_dir.name
                 jobs_dir = project_dir / "control" / "jobs"
                 if not jobs_dir.exists():
                     continue
@@ -67,225 +56,43 @@ async def _auto_tick(root_dir: Path):
                     try:
                         data = json.loads(f.read_text(encoding="utf-8"))
                         job_id = data.get("job_id", "")
-                        current = data.get("phase", "")
-
                         if not job_id:
-                            continue
-                        if current in ("completed", "failed", "cancelled", "paused"):
-                            continue
-                        # Skip review gates that are already pending approval (not yet approved)
-                        if current in REVIEW_PHASES and data.get(
-                            "review_status"
-                        ) not in ("approved",):
-                            if data.get("auto_approve", False):
-                                # Execute handler if the review phase has one (e.g. final_review)
-                                if current in orchestrator._handlers:
-                                    print(
-                                        f"[AUTO-TICK] {job_id}: running handler for {current}",
-                                        flush=True,
-                                    )
-                                    product = data.get(
-                                        "product", os.environ.get("PRODUCT", "荔枝菌")
-                                    )
-                                    ctx = PhaseContext(
-                                        job_id=job_id,
-                                        project_dir=project_dir,
-                                        root_dir=root_dir,
-                                        product=product,
-                                        options={
-                                            "manual_script": data.get(
-                                                "manual_script", ""
-                                            ),
-                                            "uploaded_audio_path": data.get(
-                                                "uploaded_audio_path", ""
-                                            ),
-                                            "language": data.get(
-                                                "language", "mandarin"
-                                            ),
-                                        },
-                                    )
-                                    artifacts = [
-                                        a.model_dump()
-                                        for a in orchestrator.run_phase(current, ctx)
-                                    ]
-                                    existing = data.get("artifacts", [])
-                                    existing_kinds = {a.get("kind") for a in existing}
-                                    for a in artifacts:
-                                        if a["kind"] not in existing_kinds:
-                                            existing.append(a)
-                                    data["artifacts"] = existing
-                                try:
-                                    data["phase"] = next_phase(current)
-                                except ValueError:
-                                    data["phase"] = "completed"
-                                data["review_status"] = "approved"
-                                f.write_text(
-                                    json.dumps(data, ensure_ascii=False, indent=2)
-                                    + "\n",
-                                    encoding="utf-8",
-                                )
-                                print(
-                                    f"[AUTO-TICK] {job_id}: auto_approved {current} -> {data['phase']}",
-                                    flush=True,
-                                )
-                                continue
-                            continue
-
-                        # Already-approved review gate — advance to next phase
-                        if (
-                            current in REVIEW_PHASES
-                            and data.get("review_status") == "approved"
-                        ):
-                            try:
-                                data["phase"] = next_phase(current)
-                            except ValueError:
-                                data["phase"] = "completed"
-                            data["review_status"] = "none"
-                            f.write_text(
-                                json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-                                encoding="utf-8",
-                            )
-                            print(
-                                f"[AUTO-TICK] {job_id}: approved_review {current} -> {data['phase']}",
-                                flush=True,
-                            )
-                            continue
-
-                        # Process the current phase, then advance if artifacts are produced
-                        # or if the phase produces no artifacts (auto-advance to next phase)
-                        if current == "queued":
-                            target = "script_generating"
-                        else:
-                            target = current
-
-                        if current == "subtitle_generating" and data.get(
-                            "skip_subtitle", False
-                        ):
-                            data["phase"] = next_phase("subtitle_generating")
-                            f.write_text(
-                                json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-                                encoding="utf-8",
-                            )
-                            print(
-                                f"[AUTO-TICK] {job_id}: skip subtitle_generating -> {data['phase']}",
-                                flush=True,
-                            )
-                            continue
-
-                        # Execute real pipeline for the target phase
-                        # Skip review gates that have no orchestrator handler
-                        if (
-                            target in REVIEW_PHASES
-                            and target not in orchestrator._handlers
-                        ):
                             continue
 
                         product = data.get(
                             "product", os.environ.get("PRODUCT", "荔枝菌")
                         )
-                        manual_script = data.get("manual_script", "")
-                        uploaded_audio_path = data.get("uploaded_audio_path", "")
+                        options = {
+                            "manual_script": data.get("manual_script", ""),
+                            "uploaded_audio_path": data.get("uploaded_audio_path", ""),
+                            "language": data.get("language", "mandarin"),
+                        }
 
-                        ctx = PhaseContext(
-                            job_id=job_id,
-                            project_dir=project_dir,
+                        summary = tick_svc.tick(
+                            project_id,
+                            job_id,
+                            product,
                             root_dir=root_dir,
-                            product=product,
-                            options={
-                                "manual_script": manual_script,
-                                "uploaded_audio_path": uploaded_audio_path,
-                                "language": data.get("language", "mandarin"),
-                            },
+                            project_dir=project_dir,
+                            options=options,
                         )
-                        artifacts = [
-                            a.model_dump() for a in orchestrator.run_phase(target, ctx)
-                        ]
-
-                        # Merge artifacts (keep existing, add new ones)
-                        existing = data.get("artifacts", [])
-                        existing_kinds = {a.get("kind") for a in existing}
-                        for a in artifacts:
-                            if a["kind"] not in existing_kinds:
-                                existing.append(a)
-                        data["artifacts"] = existing
-
-                        # Advance to next phase after processing current one
-                        # Only advance one phase per auto_tick iteration
-                        if target in REVIEW_PHASES:
-                            data["phase"] = target
-                            data["review_status"] = "pending"
-                        elif artifacts:
-                            # Artifacts produced, advance to next phase
-                            try:
-                                data["phase"] = next_phase(target)
-                            except ValueError:
-                                data["phase"] = "completed"
-                            # Reset review_status when entering a review phase
-                            # Prevents leaked "approved" status from auto-approve flow
-                            if data["phase"] in REVIEW_PHASES:
-                                data["review_status"] = "none"
-                        elif target == "video_rendering":
-                            # Video rendering failure: retry once, then mark as failed
-                            if "video_rendering" in data.get("last_error", ""):
-                                data["phase"] = "failed"
-                                print(
-                                    f"[AUTO-TICK] {job_id}: video_rendering failed after retry, marking as failed",
-                                    flush=True,
-                                )
-                            else:
-                                print(
-                                    f"[AUTO-TICK] {job_id}: video_rendering produced no artifacts, will retry next tick",
-                                    flush=True,
-                                )
-                                data["last_error"] = (
-                                    "video_rendering failed to produce artifacts"
-                                )
-                        elif target == "subtitle_generating":
-                            # Critical phase: do NOT auto-advance on failure
-                            # Stay in current phase and log the error
+                        if summary.action != "skipped":
                             print(
-                                f"[AUTO-TICK] {job_id}: {target} produced no artifacts, staying in phase",
+                                f"[AUTO-TICK] {job_id}: {summary.from_phase} -> {summary.to_phase} ({summary.action})",
                                 flush=True,
                             )
-                            data["last_error"] = f"{target} failed to produce artifacts"
-                        else:
-                            # No artifacts produced - auto-advance (transitional phase or error)
-                            try:
-                                data["phase"] = next_phase(target)
-                            except ValueError:
-                                data["phase"] = "completed"
-
-                        f.write_text(
-                            json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-                            encoding="utf-8",
-                        )
+                    except PhaseExecutionError as e:
                         print(
-                            f"[AUTO-TICK] {job_id}: {current} -> {data['phase']} (artifacts: {[a['kind'] for a in artifacts]})",
+                            f"[AUTO-TICK] {e.job_id}: {e.phase} phase failed: {e}",
                             flush=True,
                         )
-
-                        review_path = project_dir / "reviews" / "review_events.jsonl"
-                        review_path.parent.mkdir(parents=True, exist_ok=True)
-                        with review_path.open("a", encoding="utf-8") as h:
-                            h.write(
-                                json.dumps(
-                                    {
-                                        "job_id": job_id,
-                                        "event": "auto_tick",
-                                        "from_phase": current,
-                                        "to_phase": data["phase"],
-                                    },
-                                    ensure_ascii=False,
-                                )
-                                + "\n"
-                            )
                     except Exception as e:
-                        print(f"[AUTO-TICK ERROR] {f.name}: {e}")
+                        print(f"[AUTO-TICK ERROR] {f.name}: {e}", flush=True)
                         import traceback
 
                         traceback.print_exc()
         except Exception as e:
-            print(f"[AUTO-TICK LOOP ERROR] {e}")
+            print(f"[AUTO-TICK LOOP ERROR] {e}", flush=True)
             import traceback
 
             traceback.print_exc()
@@ -317,6 +124,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
     app.state.dispatcher = Dispatcher()
     app.state.root_dir = root_dir or Path.cwd()
+    app.state.orchestrator = create_orchestrator(app.state.root_dir)
     app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)
@@ -329,7 +137,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
     @app.get("/api/health")
     async def health():
-        return {"status": "ok", "version": "0.5.1"}
+        return {"status": "ok", "version": "0.6.0"}
 
     workspace = root_dir or Path.cwd() / "workspace"
     if workspace.exists():

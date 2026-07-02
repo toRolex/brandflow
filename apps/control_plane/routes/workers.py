@@ -1,29 +1,11 @@
 from fastapi import APIRouter, Request
 
 from apps.control_plane.services.reconcile import choose_report_outcome
-from packages.domain_core.models import ArtifactPointer
-from packages.domain_core.state import next_phase
 from packages.domain_core.worker_protocol import PollRequest, WorkerReport
 from packages.file_store.repository import FileStoreRepository
+from packages.pipeline_services.job_tick_service import JobTickService
 
 router = APIRouter(prefix="/workers", tags=["workers"])
-
-REVIEW_PHASES = {"script_review", "tts_review", "asset_review", "final_review"}
-
-
-def _artifact_kind(path: str) -> str:
-    """Map artifact file path to a known kind."""
-    if path.endswith(".txt") or path.endswith(".json"):
-        return "script"
-    if path.endswith(".mp3"):
-        return "tts_audio"
-    if path.endswith(".srt"):
-        return "subtitle"
-    if path.endswith(".mp4"):
-        if "final" in path:
-            return "final_video"
-        return "source_video"
-    return "unknown"
 
 
 @router.post("/poll")
@@ -66,57 +48,19 @@ def report_task(
         job_id = payload.job_id
 
         if project_id and job_id:
-            repo = FileStoreRepository(request.app.state.root_dir)
             try:
-                record = repo.load_job(project_id, job_id)
-                current_phase = record.phase
+                repo = FileStoreRepository(request.app.state.root_dir)
+                orchestrator = getattr(request.app.state, "orchestrator", None)
+                if orchestrator is None:
+                    raise RuntimeError(
+                        "orchestrator not available on app.state — "
+                        "cannot advance job after worker report"
+                    )
 
-                artifacts = list(record.artifacts)
-                manifest = payload.artifact_manifest
-                if manifest and "files" in manifest:
-                    for f in manifest["files"]:
-                        kind = _artifact_kind(f["relative_path"])
-                        artifacts.append(
-                            ArtifactPointer(
-                                kind=kind,
-                                relative_path=f["relative_path"],
-                                size_bytes=f.get("size_bytes", 0),
-                            )
-                        )
-
-                if current_phase not in REVIEW_PHASES:
-                    try:
-                        next_p = next_phase(current_phase)
-                    except ValueError:
-                        next_p = "completed"
-
-                    if next_p in REVIEW_PHASES:
-                        record = record.model_copy(
-                            update={
-                                "phase": next_p,
-                                "review_status": "pending",
-                                "artifacts": artifacts,
-                            }
-                        )
-                    else:
-                        record = record.model_copy(
-                            update={
-                                "phase": next_p,
-                                "artifacts": artifacts,
-                            }
-                        )
-                else:
-                    record = record.model_copy(update={"artifacts": artifacts})
-
-                repo.save_job(project_id, record)
-                repo.append_review_event(
-                    project_id,
-                    {
-                        "job_id": job_id,
-                        "event": "worker_report",
-                        "from_phase": current_phase,
-                        "to_phase": record.phase,
-                    },
+                tick_svc = JobTickService(orchestrator=orchestrator, repo=repo)
+                manifest_files = (payload.artifact_manifest or {}).get("files", [])
+                _ = tick_svc.advance_after_report(
+                    project_id, job_id, list(manifest_files)
                 )
             except Exception:
                 pass

@@ -163,28 +163,10 @@ class WorkerLoop:
 
 
 def _build_orchestrator(root_dir: Path) -> PhaseOrchestrator:
-    """Construct a PhaseOrchestrator with real service dependencies.
+    """Construct a PhaseOrchestrator with real service dependencies."""
+    from packages.pipeline_services.phase_orchestrator import create_orchestrator
 
-    Note: TTS provider is now built dynamically per-job inside
-    ``PhaseOrchestrator._run_tts`` so that config changes take effect
-    immediately without restarting the worker.
-    """
-    from apps.control_plane.services.schedule_store import ScheduleStore
-    from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-    from packages.pipeline_services.subtitle_service import SubtitleService
-    from packages.pipeline_services.video_service import VideoService
-    from packages.provider_config.app_config import AppConfigManager
-
-    app_config = AppConfigManager()
-
-    return PhaseOrchestrator(
-        script_bridge=LegacyScriptBridge(root_dir),
-        subtitle_svc=SubtitleService(),
-        video_svc=VideoService(dry_run=False),
-        schedule_store=ScheduleStore(root_dir),
-        get_tts_config=app_config.get_tts_config,
-        get_llm_config=app_config.get_llm_config,
-    )
+    return create_orchestrator(root_dir)
 
 
 def main() -> None:

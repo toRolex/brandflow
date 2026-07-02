@@ -12,7 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run deploy script
+      - name: Sync code to production directory and deploy
         shell: cmd
-        run: packaging\windows\deploy.bat
-        working-directory: ${{ github.workspace }}
+        run: |
+          xcopy /y /e /q "%CD%\*" "D:\视频生成工厂\ai-video-pipeline\" >nul
+          cd /d D:\视频生成工厂\ai-video-pipeline
+          call packaging\windows\deploy.bat
