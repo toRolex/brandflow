@@ -4,7 +4,6 @@ from apps.control_plane.services.reconcile import choose_report_outcome
 from packages.domain_core.worker_protocol import PollRequest, WorkerReport
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import JobTickService
-from packages.pipeline_services.phase_orchestrator import PhaseOrchestrator
 
 router = APIRouter(prefix="/workers", tags=["workers"])
 
@@ -51,25 +50,11 @@ def report_task(
         if project_id and job_id:
             try:
                 repo = FileStoreRepository(request.app.state.root_dir)
-                # Reuse the orchestrator from app state if available,
-                # or create a lightweight one for report-time advancement.
                 orchestrator = getattr(request.app.state, "orchestrator", None)
                 if orchestrator is None:
-                    # Fallback: dummy orchestrator (should not happen at runtime)
-                    from packages.pipeline_services.subtitle_service import SubtitleService
-                    from packages.pipeline_services.video_service import VideoService
-                    from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-                    from apps.control_plane.services.schedule_store import ScheduleStore
-                    from packages.provider_config.app_config import AppConfigManager
-
-                    app_cfg = AppConfigManager()
-                    orchestrator = PhaseOrchestrator(
-                        script_bridge=LegacyScriptBridge(request.app.state.root_dir),
-                        subtitle_svc=SubtitleService(),
-                        video_svc=VideoService(dry_run=False),
-                        schedule_store=ScheduleStore(request.app.state.root_dir),
-                        get_tts_config=app_cfg.get_tts_config,
-                        get_llm_config=app_cfg.get_llm_config,
+                    raise RuntimeError(
+                        "orchestrator not available on app.state — "
+                        "cannot advance job after worker report"
                     )
 
                 tick_svc = JobTickService(orchestrator=orchestrator, repo=repo)

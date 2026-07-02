@@ -51,11 +51,10 @@ def mock_projects(tmp_path: Path) -> Path:
 def _patch_deps():
     """Return patchers for all expensive constructors in _auto_tick."""
     return [
-        patch("apps.control_plane.app.AppConfigManager"),
-        patch("apps.control_plane.app.LegacyScriptBridge"),
-        patch("apps.control_plane.app.SubtitleService"),
-        patch("apps.control_plane.app.VideoService"),
-        patch("apps.control_plane.app.ScheduleStore"),
+        patch(
+            "apps.control_plane.app.create_orchestrator",
+            return_value=Mock(spec=["run_phase"]),
+        ),
         patch("apps.control_plane.app.FileStoreRepository"),
     ]
 
