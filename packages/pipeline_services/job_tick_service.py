@@ -111,6 +111,48 @@ def _safe_next(phase: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Transition helpers (shared between tick and advance_after_report)
+# ---------------------------------------------------------------------------
+
+
+def _merge_artifacts(
+    existing: list[ArtifactPointer],
+    new_artifacts: list[ArtifactPointer],
+) -> list[ArtifactPointer]:
+    """Merge *new_artifacts* into *existing*, deduplicating by kind."""
+    existing_kinds = {a.kind for a in existing}
+    result = list(existing)
+    for a in new_artifacts:
+        if a.kind not in existing_kinds:
+            result.append(a)
+            existing_kinds.add(a.kind)
+    return result
+
+
+def _build_tick_summary(
+    initial_phase: str,
+    action: TickAction,
+) -> TickSummary:
+    """Build a TickSummary from the initial phase and the action taken."""
+    to_phase = action.new_phase if action.new_phase is not None else initial_phase
+    if to_phase == initial_phase:
+        action_type = "skipped"
+    elif to_phase == "completed":
+        action_type = "completed"
+    elif to_phase == "failed":
+        action_type = "failed"
+    else:
+        action_type = "advanced"
+
+    return TickSummary(
+        action=action_type,
+        from_phase=initial_phase,
+        to_phase=to_phase,
+        message=action.message,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Pure transition function
 # ---------------------------------------------------------------------------
 
@@ -364,12 +406,8 @@ class JobTickService:
                     job_id, handler_phase, str(e), e
                 ) from e
 
-            # Merge new artifacts into existing ones (avoid duplicates by kind)
-            existing_kinds = {a.kind for a in record.artifacts}
-            for a in artifacts:
-                if a.kind not in existing_kinds:
-                    record.artifacts.append(a)
-                    existing_kinds.add(a.kind)
+            # Merge new artifacts
+            record.artifacts = _merge_artifacts(record.artifacts, artifacts)
 
             # 4. Second transition decision after handler ran
             if action.new_phase is not None:
@@ -400,22 +438,7 @@ class JobTickService:
                 self._repo.append_review_event(project_id, event)
 
         # 7. Build summary
-        to_phase = action.new_phase if action.new_phase is not None else initial_phase
-        if to_phase == initial_phase and not action.run_handler:
-            action_type = "skipped"
-        elif to_phase == "completed":
-            action_type = "completed"
-        elif to_phase == "failed":
-            action_type = "failed"
-        else:
-            action_type = "advanced"
-
-        return TickSummary(
-            action=action_type,
-            from_phase=initial_phase,
-            to_phase=to_phase,
-            message=action.message,
-        )
+        return _build_tick_summary(initial_phase, action)
 
     def advance_after_report(
         self,
@@ -458,16 +481,12 @@ class JobTickService:
                 )
             )
 
-        # Merge into record, avoiding duplicates by kind
-        existing_kinds = {a.kind for a in record.artifacts}
-        for a in new_artifacts:
-            if a.kind not in existing_kinds:
-                record.artifacts.append(a)
-                existing_kinds.add(a.kind)
+        # Merge into record
+        record.artifacts = _merge_artifacts(record.artifacts, new_artifacts)
 
-        # Worker has already executed the phase — no run_handler,
-        # always post-handler path via _transition_after_artifacts
-        action = _transition_after_artifacts(record, tuple(new_artifacts))
+        # Worker has already executed the phase — use the unified
+        # compute_transition entry point (non-empty artifacts → post-handler path)
+        action = _compute_transition(record, tuple(new_artifacts))
 
         # Apply phase / review_status changes
         update: dict[str, Any] = {}
@@ -484,22 +503,7 @@ class JobTickService:
             event = {"job_id": job_id, "project_id": project_id, **action.review_event}
             self._repo.append_review_event(project_id, event)
 
-        to_phase = action.new_phase if action.new_phase is not None else initial_phase
-        if to_phase == initial_phase:
-            action_type = "skipped"
-        elif to_phase == "completed":
-            action_type = "completed"
-        elif to_phase == "failed":
-            action_type = "failed"
-        else:
-            action_type = "advanced"
-
-        return TickSummary(
-            action=action_type,
-            from_phase=initial_phase,
-            to_phase=to_phase,
-            message=action.message,
-        )
+        return _build_tick_summary(initial_phase, action)
 
 
 def _artifact_kind(path: str) -> str:

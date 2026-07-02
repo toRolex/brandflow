@@ -33,6 +33,25 @@ def to_url_path(path: Path, workspace_dir: Path) -> str:
     return path.relative_to(workspace_dir).as_posix()
 
 
+def create_orchestrator(root_dir: Path) -> PhaseOrchestrator:
+    """Factory: build a PhaseOrchestrator with real service dependencies."""
+    from apps.control_plane.services.schedule_store import ScheduleStore
+    from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+    from packages.pipeline_services.subtitle_service import SubtitleService
+    from packages.pipeline_services.video_service import VideoService
+    from packages.provider_config.app_config import AppConfigManager
+
+    app_config = AppConfigManager()
+    return PhaseOrchestrator(
+        script_bridge=LegacyScriptBridge(root_dir),
+        subtitle_svc=SubtitleService(),
+        video_svc=VideoService(dry_run=False),
+        schedule_store=ScheduleStore(root_dir),
+        get_tts_config=app_config.get_tts_config,
+        get_llm_config=app_config.get_llm_config,
+    )
+
+
 # ---------------------------------------------------------------------------
 # TTS config shim (duck-type, preserves tts_provider.synthesize() API)
 # ---------------------------------------------------------------------------

@@ -22,11 +22,7 @@ from apps.control_plane.services.dispatch import Dispatcher
 from apps.control_plane.services.schedule_store import ScheduleStore
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import JobTickService, PhaseExecutionError
-from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
-from packages.pipeline_services.phase_orchestrator import PhaseOrchestrator
-from packages.pipeline_services.subtitle_service import SubtitleService
-from packages.pipeline_services.video_service import VideoService
-from packages.provider_config.app_config import AppConfigManager
+from packages.pipeline_services.phase_orchestrator import create_orchestrator
 
 
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
@@ -35,15 +31,7 @@ AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 async def _auto_tick(root_dir: Path):
     """Dev-mode background loop: scans disk and delegates to JobTickService."""
     # Construct orchestrator and tick service once; deps are stateless
-    app_config = AppConfigManager()
-    orchestrator = PhaseOrchestrator(
-        script_bridge=LegacyScriptBridge(root_dir),
-        subtitle_svc=SubtitleService(),
-        video_svc=VideoService(dry_run=False),
-        schedule_store=ScheduleStore(root_dir),
-        get_tts_config=app_config.get_tts_config,
-        get_llm_config=app_config.get_llm_config,
-    )
+    orchestrator = create_orchestrator(root_dir)
     repo = FileStoreRepository(root_dir)
     tick_svc = JobTickService(orchestrator=orchestrator, repo=repo)
 
@@ -136,6 +124,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
     app.state.dispatcher = Dispatcher()
     app.state.root_dir = root_dir or Path.cwd()
+    app.state.orchestrator = create_orchestrator(app.state.root_dir)
     app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)
