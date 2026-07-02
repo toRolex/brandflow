@@ -1,27 +1,43 @@
 """Export metrics.db → JSON files for static GitHub Pages deployment.
 
 Usage:
-    uv run python tools/export_metrics_json.py [--db PATH] [--out DIR]
+    uv run python tools/export_metrics_json.py            [--db PATH] [--out DIR]
+    uv run python tools/export_metrics_json.py --save-snapshot YYYY-MM-DD [--out DIR]
     uv run python tools/export_metrics_json.py --current YYYY-MM-DD --previous YYYY-MM-DD [--out DIR]
 
 This reads the same metrics.db used by the control plane and writes
 overview.json, videos.json, and topics.json consumable by the
 standalone AnalyticsStaticPage on GitHub Pages.
 
-When ``--current`` and ``--previous`` are both provided, it writes
-``increment.json`` and ``increment-detail.json`` instead.
+Snapshot flow (recommended — works with production UPSERT):
+    1. Before importing new data:  run ``--save-snapshot YYYY-MM-DD``
+    2. Import CSV/XLSX into metrics.db as usual
+    3. Run ``--current YYYY-MM-DD --previous YYYY-MM-DD`` to see deltas
 """
 
 from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 from argparse import ArgumentParser
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from apps.control_plane.services.metrics import MetricsStore
+# Ensure project root is on sys.path when run directly
+_THIS_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _THIS_DIR.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from apps.control_plane.services.metrics import (
+    MetricsStore,
+    compute_metrics_diff,
+)
+
+_SNAPSHOT_DIR = "data/snapshots"
+_SNAPSHOT_VERSION = 1
 
 _INT_FIELDS = {
     "plays",
@@ -35,6 +51,60 @@ _INT_FIELDS = {
     "forward_count",
 }
 _REAL_FIELDS = {"completion_rate", "avg_watch_duration", "cover_click_rate"}
+
+
+# ── SnapshotStore ─────────────────────────────────────────────────────────────
+
+
+class SnapshotStore:
+    """File-based snapshot storage for incremental metric comparison.
+
+    Snapshots are saved as ``snapshot_YYYY-MM-DD.json`` files under a
+    designated directory.  Each file is a JSON array of full video_metrics
+    records, wrapped with a version header for forward compatibility.
+    """
+
+    def __init__(self, snapshots_dir: str | Path = _SNAPSHOT_DIR) -> None:
+        self._dir = Path(snapshots_dir)
+
+    def path_for(self, date: str) -> Path:
+        return self._dir / f"snapshot_{date}.json"
+
+    def save(self, records: list[dict[str, Any]], date: str) -> Path:
+        """Atomically write a snapshot file."""
+        self._dir.mkdir(parents=True, exist_ok=True)
+        dest = self.path_for(date)
+        tmp = dest.with_suffix(".tmp")
+        payload = {
+            "version": _SNAPSHOT_VERSION,
+            "snapshot_date": date,
+            "records": records,
+        }
+        tmp.write_text(json.dumps(payload, ensure_ascii=False))
+        tmp.replace(dest)
+        return dest
+
+    def load(self, date: str) -> list[dict[str, Any]]:
+        """Load records from a snapshot file."""
+        dest = self.path_for(date)
+        if not dest.exists():
+            raise FileNotFoundError(
+                f"Snapshot not found: {dest}\n"
+                f"Run with --save-snapshot {date} first."
+            )
+        payload = json.loads(dest.read_text())
+        # Future-proofing — we only understand version 1 for now
+        return payload["records"]
+
+    def list_dates(self) -> list[str]:
+        """Return sorted list of available snapshot dates."""
+        if not self._dir.exists():
+            return []
+        dates: list[str] = []
+        for f in sorted(self._dir.glob("snapshot_*.json")):
+            date = f.stem.removeprefix("snapshot_")
+            dates.append(date)
+        return dates
 
 
 def export_all(db_path: str, out_dir: Path) -> None:
@@ -77,6 +147,19 @@ def _row_dict(r: sqlite3.Row) -> dict:
                 d[field] = [] if field == "used_asset_ids" else None
         elif field == "used_asset_ids" and raw is None:
             d[field] = []
+    return d
+
+
+def _full_row_dict(r: sqlite3.Row) -> dict:
+    """Convert a row to a plain dict preserving all original values (no defaults)."""
+    d = dict(r)
+    for field in ("used_asset_ids", "extra"):
+        raw = d.get(field)
+        if isinstance(raw, str):
+            try:
+                d[field] = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                d[field] = None
     return d
 
 
@@ -276,6 +359,12 @@ def main() -> None:
         "--out", default="dist", help="Output directory (default: dist/)"
     )
     parser.add_argument(
+        "--save-snapshot",
+        default=None,
+        metavar="DATE",
+        help="Save a snapshot of current DB as snapshot_DATE.json (YYYY-MM-DD)",
+    )
+    parser.add_argument(
         "--current",
         default=None,
         help="Current snapshot date (YYYY-MM-DD) for increment export",
@@ -293,7 +382,6 @@ def main() -> None:
     if args.db:
         db_path = args.db
     else:
-        # Try common locations relative to this script
         here = Path(__file__).resolve().parent.parent
         candidates = [
             here / "data" / "metrics.db",
@@ -307,16 +395,49 @@ def main() -> None:
             )
         db_path = str(found[0])
 
-    # Increment mode
+    store = MetricsStore(db_path=db_path)
+
+    # ── Save snapshot mode ──────────────────────────────────────────────
+    if args.save_snapshot:
+        snapshot_store = SnapshotStore()
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute("SELECT * FROM video_metrics").fetchall()
+            records = [_full_row_dict(r) for r in rows]
+        finally:
+            conn.close()
+
+        path = snapshot_store.save(records, args.save_snapshot)
+        print(f"Saved snapshot: {path}  ({len(records)} records)")
+
+        # Also run the normal export
+        export_all(db_path, out_dir)
+        return
+
+    # ── Increment mode ──────────────────────────────────────────────────
     if args.current and args.previous:
-        store = MetricsStore(db_path=db_path)
-        increment = store.compute_increment(
-            args.current, args.previous, include_detail=True
+        snapshot_store = SnapshotStore()
+
+        try:
+            previous_records = snapshot_store.load(args.previous)
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            available = snapshot_store.list_dates()
+            if available:
+                print(f"Available snapshots: {', '.join(available)}")
+            return
+
+        # Compute increment by comparing saved snapshot vs current DB
+        increment = store.compute_increment_vs_snapshot(
+            snapshot_records=previous_records,
+            snapshot_date=args.current,
+            previous_snapshot_date=args.previous,
+            include_detail=True,
         )
 
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # increment.json — summary + top_gainers + daily_trend
         inc_out: dict[str, Any] = {
             "snapshot_date": increment["snapshot_date"],
             "previous_snapshot": increment["previous_snapshot"],
@@ -328,7 +449,6 @@ def main() -> None:
             json.dumps(inc_out, ensure_ascii=False, indent=2)
         )
 
-        # increment-detail.json — full detail array
         (out_dir / "increment-detail.json").write_text(
             json.dumps(increment["detail"], ensure_ascii=False, indent=2)
         )
@@ -339,6 +459,7 @@ def main() -> None:
             print(f"  {f.name}  ({size / 1024:.1f} KB)")
         return
 
+    # ── Normal export mode ──────────────────────────────────────────────
     export_all(db_path, out_dir)
 
 
