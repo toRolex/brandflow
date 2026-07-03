@@ -47,11 +47,12 @@ class ScriptGenerator:
         self,
         product: str,
         brand: str = DEFAULT_BRAND,
-        scene: str = DEFAULT_SCENE,
-        material: str = DEFAULT_MATERIAL,
+        scene: str | None = None,
+        material: str | None = None,
         custom_prompt: str = "",
         mock: bool = False,
         language: str = "mandarin",
+        product_config: dict | None = None,
     ) -> ScriptResult:
         if mock:
             return self._mock_result(product, brand, language)
@@ -61,7 +62,8 @@ class ScriptGenerator:
         for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
             first_half = self._generate_half(
                 build_first_half_messages(
-                    product, brand, scene, material, custom_prompt
+                    product, brand, scene, material, custom_prompt,
+                    product_config=product_config,
                 )
             )
             first_len = compact_len(first_half)
@@ -75,6 +77,7 @@ class ScriptGenerator:
                     first_half,
                     first_len,
                     custom_prompt,
+                    product_config=product_config,
                 )
             )
 

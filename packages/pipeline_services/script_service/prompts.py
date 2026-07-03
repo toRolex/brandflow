@@ -11,14 +11,38 @@ _SYSTEM_PROMPT = (
 )
 
 
+def _resolve_script_config(
+    product_config: dict | None,
+    scene: str | None,
+    material: str | None,
+) -> tuple[str, str, str]:
+    """Resolve scene, material, and system prompt from product_config or defaults."""
+    s = scene if scene is not None else DEFAULT_SCENE
+    m = material if material is not None else DEFAULT_MATERIAL
+    sp = _SYSTEM_PROMPT
+    if product_config and "script" in product_config:
+        sc = product_config["script"]
+        if scene is None and "scene" in sc:
+            s = sc["scene"]
+        if material is None and "material" in sc:
+            m = sc["material"]
+        if "system_prompt" in sc and sc["system_prompt"]:
+            sp = sc["system_prompt"]
+    return s, m, sp
+
+
 def build_first_half_messages(
     product: str,
     brand: str,
-    scene: str = DEFAULT_SCENE,
-    material: str = DEFAULT_MATERIAL,
+    scene: str | None = None,
+    material: str | None = None,
     custom_prompt: str = "",
+    product_config: dict | None = None,
 ) -> list[dict[str, str]]:
     """构建前半段（4句）的 LLM messages。"""
+    scene, material, system_prompt = _resolve_script_config(
+        product_config, scene, material
+    )
     user_content = (
         f"请为「{product}」（品牌：{brand}）撰写短视频口播文案的前半段（前4句）。\n"
         f"场景：{scene}\n"
@@ -39,7 +63,7 @@ def build_first_half_messages(
         '{"sentence_1": "...", "sentence_2": "...", "sentence_3": "...", "sentence_4": "..."}'
     )
     return [
-        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_content},
     ]
 
@@ -47,13 +71,17 @@ def build_first_half_messages(
 def build_second_half_messages(
     product: str,
     brand: str,
-    scene: str = DEFAULT_SCENE,
-    material: str = DEFAULT_MATERIAL,
+    scene: str | None = None,
+    material: str | None = None,
     first_half: str = "",
     first_length: int = 0,
     custom_prompt: str = "",
+    product_config: dict | None = None,
 ) -> list[dict[str, str]]:
     """构建后半段（4句）的 LLM messages。"""
+    scene, material, system_prompt = _resolve_script_config(
+        product_config, scene, material
+    )
     user_content = (
         f"这是「{product}」短视频口播文案的前半段（{first_length}字）：\n"
         f"{first_half}\n\n"
@@ -73,7 +101,7 @@ def build_second_half_messages(
         '{"sentence_5": "...", "sentence_6": "...", "sentence_7": "...", "sentence_8": "..."}'
     )
     return [
-        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_content},
     ]
 
