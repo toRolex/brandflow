@@ -58,7 +58,7 @@ AI 能力的供应商。LLM 支持 deepseek/kimi/openai；TTS 仅使用 mimo（m
 - `TaskState` 枚举 — 被 `domain_core.models.Phase` 替代
 
 ### 新增的 service
-- `PhaseOrchestrator`（`packages/pipeline_services/phase_orchestrator.py`） — 单阶段执行编排器。通过策略 map 路由到 7 个 handler（script / tts / tts_review / subtitle / asset / video / final），构造函数注入依赖（script_bridge, subtitle_svc, video_svc, tts_provider, schedule_store）。`_auto_tick` 和 `WorkerLoop` 均通过 `run_phase(phase, ctx)` 调用。替代已删除的 `_phase_to_artifacts` 和 `_DefaultMediaBridge`。
+- `PhaseOrchestrator`（`packages/pipeline_services/phase_orchestrator.py`） — 单阶段执行编排器。通过策略 map 路由到 8 个 handler（script / tts / tts_review / subtitle / asset / video / final_rendering / final_review），构造函数注入依赖（script_bridge, subtitle_svc, video_svc, tts_provider, schedule_store）。`_auto_tick` 和 `WorkerLoop` 均通过 `run_phase(phase, ctx)` 调用。替代已删除的 `_phase_to_artifacts` 和 `_DefaultMediaBridge`。
 - `LLMClient`（`packages/pipeline_services/llm_client.py`） — 通用 LLM HTTP 客户端
 - `ScriptGenerator`（`packages/pipeline_services/script_service/`） — 脚本生成 service
 - `MiMoTTSProvider`（扩展，`packages/pipeline_services/tts_provider.py`） — MiMo TTS 完整 service（HTTP + 响应 + 重试），minimax 不再使用

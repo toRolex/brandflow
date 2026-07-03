@@ -58,6 +58,7 @@ def _next(phase: str) -> str:
         "asset_retrieving",
         "asset_review",
         "video_rendering",
+        "final_rendering",
         "final_review",
         "completed",
     ]
@@ -164,16 +165,15 @@ class TestReviewAutoApprove:
         assert action.new_review_status == "approved"
         assert action.review_event == {"event": "auto_approve"}
 
-    def test_auto_approve_with_handler_final_review(self) -> None:
+    def test_auto_approve_no_handler_final_review(self) -> None:
+        """final_review is no longer a handled phase → auto-approve just advances."""
         action = _compute_transition(
             make_record(phase="final_review", auto_approve=True),
             (),
         )
-        assert action.run_handler is True
-        assert action.handler_phase == "final_review"
-        assert action.new_phase == _next("final_review")
+        assert action.run_handler is False
+        assert action.new_phase == _next("final_review")  # "completed"
         assert action.new_review_status == "approved"
-        assert action.review_event == {"event": "auto_approve"}
 
     def test_auto_approve_with_approved_does_not_reapprove(self) -> None:
         """Already-approved reviews should advance, not re-auto-approve."""
@@ -413,11 +413,11 @@ class TestEdgeCases:
         assert action.message == ""
 
     def test_review_phase_sets_handler_phase_when_in_handled(self) -> None:
-        """tts_review and final_review are in both REVIEW and HANDLED sets."""
+        """tts_review is in both REVIEW and HANDLED sets; final_review is only in REVIEW."""
         assert "tts_review" in REVIEW_PHASES
         assert "tts_review" in HANDLED_PHASES
         assert "final_review" in REVIEW_PHASES
-        assert "final_review" in HANDLED_PHASES
+        assert "final_review" not in HANDLED_PHASES
 
     def test_non_review_handled_is_not_in_review(self) -> None:
         assert "script_generating" in HANDLED_PHASES

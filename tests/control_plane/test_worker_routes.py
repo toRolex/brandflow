@@ -1,6 +1,26 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
+from packages.domain_core.models import JobRecord
+from packages.file_store.repository import FileStoreRepository
+
+
+def _save_test_job(
+    app, project_id: str, job_id: str, **overrides: object
+) -> None:
+    repo = FileStoreRepository(app.state.root_dir)
+    record = JobRecord(
+        job_id=job_id,
+        project_id=project_id,
+        product="test",
+        name="test",
+        phase="queued",
+        review_status="none",
+        **overrides,
+    )
+    repo.save_job(project_id, record)
 
 
 def test_root_serves_frontend() -> None:
@@ -9,8 +29,8 @@ def test_root_serves_frontend() -> None:
     assert response.status_code == 200
 
 
-def test_poll_returns_idle_when_queue_is_empty() -> None:
-    client = TestClient(create_app())
+def test_poll_returns_idle_when_queue_is_empty(tmp_path: Path) -> None:
+    client = TestClient(create_app(root_dir=tmp_path))
     response = client.post(
         "/workers/poll",
         json={
@@ -25,9 +45,9 @@ def test_poll_returns_idle_when_queue_is_empty() -> None:
     assert response.json()["command"] == "idle"
 
 
-def test_poll_returns_run_task_when_job_is_queued() -> None:
-    app = create_app()
-    app.state.dispatcher.enqueue_demo_job(project_id="p1", job_id="j1")
+def test_poll_returns_run_task_when_job_is_queued(tmp_path: Path) -> None:
+    app = create_app(root_dir=tmp_path)
+    _save_test_job(app, project_id="p1", job_id="j1")
     client = TestClient(app)
     response = client.post(
         "/workers/poll",
@@ -42,12 +62,15 @@ def test_poll_returns_run_task_when_job_is_queued() -> None:
     payload = response.json()
     assert payload["command"] == "run_task"
     assert payload["project_id"] == "p1"
+    assert payload["handler_phase"] == "script_generating"
     assert payload["attempt_id"]
 
 
-def test_heartbeat_endpoint_accepts_progress_for_current_task() -> None:
-    app = create_app()
-    app.state.dispatcher.enqueue_demo_job(project_id="p1", job_id="j1")
+def test_heartbeat_endpoint_accepts_progress_for_current_task(
+    tmp_path: Path,
+) -> None:
+    app = create_app(root_dir=tmp_path)
+    _save_test_job(app, project_id="p1", job_id="j1")
     client = TestClient(app)
     poll = client.post(
         "/workers/poll",
@@ -71,9 +94,9 @@ def test_heartbeat_endpoint_accepts_progress_for_current_task() -> None:
     }
 
 
-def test_artifacts_endpoint_accepts_current_task_outputs() -> None:
-    app = create_app()
-    app.state.dispatcher.enqueue_demo_job(project_id="p1", job_id="j1")
+def test_artifacts_endpoint_accepts_current_task_outputs(tmp_path: Path) -> None:
+    app = create_app(root_dir=tmp_path)
+    _save_test_job(app, project_id="p1", job_id="j1")
     client = TestClient(app)
     poll = client.post(
         "/workers/poll",
@@ -102,9 +125,9 @@ def test_artifacts_endpoint_accepts_current_task_outputs() -> None:
     }
 
 
-def test_report_endpoint_accepts_current_attempt() -> None:
-    app = create_app()
-    app.state.dispatcher.enqueue_demo_job(project_id="p1", job_id="j1")
+def test_report_endpoint_accepts_current_attempt(tmp_path: Path) -> None:
+    app = create_app(root_dir=tmp_path)
+    _save_test_job(app, project_id="p1", job_id="j1")
     client = TestClient(app)
     poll = client.post(
         "/workers/poll",

@@ -3,6 +3,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
+from packages.domain_core.models import JobRecord
+from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 
 
@@ -15,10 +17,20 @@ def test_legacy_script_bridge_writes_json_and_txt(tmp_path: Path) -> None:
     assert Path(result["json_path"]).exists()
 
 
-def test_stale_report_rejected_as_orphan() -> None:
+def test_stale_report_rejected_as_orphan(tmp_path: Path) -> None:
     """A report with a mismatched attempt_id is rejected with outcome=orphan."""
-    app = create_app()
-    app.state.dispatcher.enqueue_demo_job(project_id="p1", job_id="j1")
+    app = create_app(root_dir=tmp_path)
+    repo = FileStoreRepository(app.state.root_dir)
+    record = JobRecord(
+        job_id="j1",
+        project_id="p1",
+        product="test",
+        name="test",
+        phase="queued",
+        review_status="none",
+    )
+    repo.save_job("p1", record)
+
     client = TestClient(app)
 
     # Poll to get a valid task assignment.

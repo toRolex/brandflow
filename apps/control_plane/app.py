@@ -122,8 +122,8 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.state.dispatcher = Dispatcher()
     app.state.root_dir = root_dir or Path.cwd()
+    app.state.dispatcher = Dispatcher(FileStoreRepository(app.state.root_dir))
     app.state.orchestrator = create_orchestrator(app.state.root_dir)
     app.include_router(api_assets_router)
     app.include_router(api_projects_router)

@@ -20,6 +20,7 @@ class PollCommandIdle(BaseModel):
 
 class PollCommandRunTask(BaseModel):
     command: Literal["run_task"]
+    handler_phase: str
     project_id: str
     job_id: str
     task_id: str

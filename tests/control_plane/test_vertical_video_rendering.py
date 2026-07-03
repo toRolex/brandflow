@@ -106,7 +106,7 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(
     assert artifacts[0].kind == "video_base"
 
 
-def test_final_review_allows_missing_srt_when_skip_subtitle_is_enabled(
+def test_final_rendering_allows_missing_srt_when_skip_subtitle_is_enabled(
     monkeypatch, tmp_path: Path
 ) -> None:
     root_dir = tmp_path
@@ -173,7 +173,7 @@ def test_final_review_allows_missing_srt_when_skip_subtitle_is_enabled(
         root_dir=root_dir,
         product="荔枝菌",
     )
-    artifacts = orchestrator.run_phase("final_review", ctx)
+    artifacts = orchestrator.run_phase("final_rendering", ctx)
 
     assert captured["srt_path"] is None
     assert artifacts[0].kind == "final_video"
