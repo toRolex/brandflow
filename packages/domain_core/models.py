@@ -79,6 +79,8 @@ class JobRecord(BaseModel):
     music_track_path: str = ""
     music_volume: int = 80
     used_asset_ids: list[str] = []
+    scene_folder_ids: list[str] = Field(default_factory=list)
+    transition_duration_ms: int = 500
 
 
 class WorkerLease(BaseModel):

@@ -236,7 +236,6 @@ def _cluster_descriptions(
         "max_tokens": 3000,
     }
     headers = {
-        "api-key": api_key,
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
@@ -348,10 +347,14 @@ def suggest_categories(
         conn.close()
         from packages.pipeline_services.asset_library.models import AssetRecord
 
+        from packages.pipeline_services.asset_library.repository import (
+            row_to_record,
+        )
+
         assets = []
         for row in rows:
             try:
-                assets.append(_row_to_record(row))
+                assets.append(row_to_record(row))
             except Exception:
                 continue
 
@@ -448,29 +451,3 @@ def suggest_categories(
     }
 
 
-def _row_to_record(row) -> object:
-    """Convert a sqlite3.Row to an AssetRecord-like object for iteration."""
-    from packages.pipeline_services.asset_library.models import (
-        AssetRecord,
-        Category,
-    )
-
-    raw_category = row["category"]
-    try:
-        category = Category(raw_category)
-    except ValueError:
-        category = Category.MACRO  # fallback
-    return AssetRecord(
-        asset_id=row["asset_id"],
-        file_path=row["file_path"],
-        category=category,
-        product=row["product"],
-        confidence=row["confidence"],
-        duration_seconds=row["duration_seconds"],
-        status=row["status"],
-        usage_count=row["usage_count"],
-        source_video=row["source_video"],
-        tags=json.loads(row["tags"]) if row["tags"] else [],
-        created_at=row["created_at"],
-        last_used_at=row["last_used_at"],
-    )

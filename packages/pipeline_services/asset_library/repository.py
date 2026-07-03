@@ -98,7 +98,7 @@ class AssetRepository:
             "SELECT * FROM assets WHERE asset_id = ?", (asset_id,)
         ).fetchone()
         conn.close()
-        return _row_to_record(row) if row else None
+        return row_to_record(row) if row else None
 
     def query_by_category(self, product: str, category: Category) -> list[AssetRecord]:
         conn = sqlite3.connect(str(self.db_path))
@@ -108,7 +108,7 @@ class AssetRepository:
             (product, category.value),
         ).fetchall()
         conn.close()
-        return [_row_to_record(r) for r in rows]
+        return [row_to_record(r) for r in rows]
 
     def query_by_category_name(
         self, product: str, category_name: str
@@ -124,7 +124,7 @@ class AssetRepository:
             (product, category_name),
         ).fetchall()
         conn.close()
-        return [_row_to_record(r) for r in rows]
+        return [row_to_record(r) for r in rows]
 
     def query_all_available(self, product: str) -> list[AssetRecord]:
         conn = sqlite3.connect(str(self.db_path))
@@ -134,7 +134,7 @@ class AssetRepository:
             (product,),
         ).fetchall()
         conn.close()
-        return [_row_to_record(r) for r in rows]
+        return [row_to_record(r) for r in rows]
 
     def get_usage_count(self, asset_id: str) -> int:
         conn = sqlite3.connect(str(self.db_path))
@@ -247,7 +247,7 @@ class AssetRepository:
         pass
 
 
-def _row_to_record(row: sqlite3.Row) -> AssetRecord:
+def row_to_record(row: sqlite3.Row) -> AssetRecord:
     raw_category = row["category"]
     try:
         category = Category(raw_category)
