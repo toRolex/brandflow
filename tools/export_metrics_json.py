@@ -167,7 +167,7 @@ def _full_row_dict(r: sqlite3.Row) -> dict:
 
 
 def _export_overview(conn: sqlite3.Connection, out_dir: Path) -> None:
-    """Write overview.json — all daily data; frontend computes range."""
+    """Write overview.json — daily + aggregated totals."""
     daily_rows = conn.execute(
         """SELECT
                 publish_date,
@@ -180,12 +180,22 @@ def _export_overview(conn: sqlite3.Connection, out_dir: Path) -> None:
             ORDER BY publish_date""",
     ).fetchall()
 
+    totals = conn.execute(
+        """SELECT
+                COALESCE(SUM(plays), 0)              AS total_plays,
+                COALESCE(SUM(likes), 0)              AS total_likes,
+                COALESCE(SUM(followers_gained), 0)   AS total_followers,
+                COALESCE(AVG(completion_rate), 0)    AS avg_completion,
+                COUNT(*)                             AS video_count
+            FROM video_metrics""",
+    ).fetchone()
+
     overview = {
-        "total_plays": 0,
-        "total_likes": 0,
-        "total_followers": 0,
-        "avg_completion": 0,
-        "video_count": 0,
+        "total_plays": totals["total_plays"],
+        "total_likes": totals["total_likes"],
+        "total_followers": totals["total_followers"],
+        "avg_completion": round(totals["avg_completion"], 2),
+        "video_count": totals["video_count"],
         "daily": [dict(r) for r in daily_rows],
     }
     (out_dir / "overview.json").write_text(
