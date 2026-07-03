@@ -589,3 +589,135 @@ class TestRunTTSAudioWritten:
         assert artifacts[0].kind == "tts_audio"
         assert artifacts[0].url.startswith("/workspace/")
         assert artifacts[0].size_bytes == 3
+
+
+# ---------------------------------------------------------------------------
+# _run_video — import/generate mode base video composition
+# ---------------------------------------------------------------------------
+
+
+class TestRunVideo:
+    """Import mode: _run_video now composes montage clips instead of
+    short-circuiting on assembled.mp4."""
+
+    def test_import_mode_concats_assembled_and_clips(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        """Import mode: assembled.mp4 + selected_clips → built clip base + concat."""
+        import subprocess
+        from unittest.mock import patch
+
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+
+        # Create assembled.mp4 (scene segment from montage_assembling)
+        (job_dir / "assembled.mp4").write_text("fake assembled video")
+
+        # Create audio.mp3 and selected_clips.json (from tts + asset retrieval)
+        (job_dir / "audio.mp3").write_text("fake audio")
+        (job_dir / "selected_clips.json").write_text(
+            json.dumps([{"file_path": str(job_dir / "clip1.mp4")}]),
+            encoding="utf-8",
+        )
+        (job_dir / "clip1.mp4").write_text("fake clip")
+
+        def _build_side_effect(*args, **kwargs):
+            """Simulate VideoService.build_base_video producing _clip_base.mp4."""
+            # args: (project_dir, job_dict, output_path)
+            output_path = args[2]
+            output_path.write_text("fake clip base video")
+
+        orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
+
+        with patch.object(
+            orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"
+        ):
+            with patch.object(subprocess, "run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                def _concat_effect(*args, **kwargs):
+                    """Simulate ffmpeg concat producing base.mp4."""
+                    (job_dir / "base.mp4").write_text("concatenated video")
+                    return MagicMock(returncode=0)
+
+                mock_run.side_effect = _concat_effect
+
+                artifacts = orchestrator.run_phase("video_rendering", ctx)
+
+        assert len(artifacts) == 1
+        assert artifacts[0].kind == "video_base"
+        assert (job_dir / "base.mp4").exists()
+        assert (job_dir / "base.mp4").read_text() == "concatenated video"
+
+        # Verify build_base_video was called
+        orchestrator._video_svc.build_base_video.assert_called_once()
+
+        # Verify ffmpeg concat was called with both inputs
+        concat_call = mock_run.call_args
+        assert concat_call is not None
+        call_args = concat_call[0][0]
+        assert "-i" in call_args
+        assert "-filter_complex" in call_args
+        filter_idx = call_args.index("-filter_complex")
+        assert "concat=n=2" in call_args[filter_idx + 1]
+
+        # Temp _clip_base.mp4 should be cleaned up
+        assert not (job_dir / "_clip_base.mp4").exists()
+
+    def test_import_mode_fallback_no_clips(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        """Import mode with assembled.mp4 but no clips → copy assembled as base."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+
+        (job_dir / "assembled.mp4").write_text("fake assembled")
+        # No audio.mp3, no selected_clips.json
+
+        artifacts = orchestrator.run_phase("video_rendering", ctx)
+
+        assert len(artifacts) == 1
+        assert artifacts[0].kind == "video_base"
+        assert (job_dir / "base.mp4").exists()
+        assert (job_dir / "base.mp4").read_text() == "fake assembled"
+        orchestrator._video_svc.build_base_video.assert_not_called()
+
+    def test_generate_mode_clips_only(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        """Generate mode: no assembled.mp4, build clip base directly."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+
+        (job_dir / "audio.mp3").write_text("fake audio")
+        (job_dir / "selected_clips.json").write_text(
+            json.dumps([{"file_path": str(job_dir / "clip1.mp4")}]),
+            encoding="utf-8",
+        )
+        (job_dir / "clip1.mp4").write_text("fake clip")
+
+        def _build_side_effect(*args, **kwargs):
+            output_path = args[2]
+            output_path.write_text("clip base video")
+
+        orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
+
+        artifacts = orchestrator.run_phase("video_rendering", ctx)
+
+        assert len(artifacts) == 1
+        assert artifacts[0].kind == "video_base"
+        assert (job_dir / "base.mp4").exists()
+        assert (job_dir / "base.mp4").read_text() == "clip base video"
+        orchestrator._video_svc.build_base_video.assert_called_once()
+
+    def test_no_sources_returns_empty(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        """Neither assembled.mp4 nor clips available → empty artifacts."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+
+        artifacts = orchestrator.run_phase("video_rendering", ctx)
+
+        assert artifacts == []
+        orchestrator._video_svc.build_base_video.assert_not_called()
