@@ -6,7 +6,7 @@ import logging
 import os
 from pathlib import Path
 
-from packages.provider_config.app_config import AppConfigManager
+# AppConfigManager imported lazily in resolve_vision_config to break circular import
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +199,8 @@ class VisionClient:
 
 def resolve_vision_config(providers_payload: dict) -> dict:
     """Resolve vision provider config from AppConfigManager."""
+    from packages.provider_config.app_config import AppConfigManager
+
     manager = AppConfigManager()
     config = manager.get_vision_config()
     return {

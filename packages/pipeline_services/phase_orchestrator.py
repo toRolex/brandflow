@@ -532,13 +532,20 @@ class PhaseOrchestrator:
     def _run_video(self, ctx: PhaseContext) -> list[ArtifactPointer]:
         """video_rendering: compose base video for final rendering.
 
-        In import mode, uses ``assembled.mp4`` (produced by
-        ``montage_assembling``) directly as the base video, skipping clip-based
-        composition.
+        In import mode:
+          1. Build a clip-based montage video from ``audio.mp3`` and
+             ``selected_clips.json``.
+          2. Concatenate ``assembled.mp4`` (scene segment from
+             ``montage_assembling``) with the clip-based video → ``base.mp4``.
 
-        In generate mode, builds a base video from ``audio.mp3`` and
-        ``selected_clips.json`` as before.
+        In generate mode, builds base video from clips directly (no
+        ``assembled.mp4`` expected to exist).
+
+        Falls back gracefully when one or both sources are missing.
         """
+        import shutil
+        import subprocess as _subprocess
+
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
         audio_path = job_dir / "audio.mp3"
@@ -546,38 +553,15 @@ class PhaseOrchestrator:
         base_path = job_dir / "base.mp4"
         assembled_path = job_dir / "assembled.mp4"
 
-        # Import mode: use assembled.mp4 from montage_assembling as base
-        if assembled_path.exists():
-            import shutil
-            shutil.copy2(assembled_path, base_path)
-            print(
-                f"[VIDEO] Using assembled video as base for {ctx.job_id}",
-                flush=True,
-            )
-            if base_path.exists():
-                return [self._to_artifact("video_base", base_path, workspace_dir)]
-            return []
+        # -- Step 1: build clip-based montage video ---------------------------
+        clip_base_path = job_dir / "_clip_base.mp4"
+        clip_base_built = False
 
-        if not audio_path.exists():
-            print(
-                f"[VIDEO WARN] audio.mp3 not found, skipping video composition for {ctx.job_id}",
-                flush=True,
-            )
-        elif not clip_list_path.exists():
-            print(
-                f"[VIDEO WARN] selected_clips.json not found for {ctx.job_id}",
-                flush=True,
-            )
-        else:
+        if audio_path.exists() and clip_list_path.exists():
             selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
             selected = [item for item in selected if Path(item["file_path"]).exists()]
 
-            if not selected:
-                print(
-                    f"[VIDEO WARN] no valid clips found after filtering for {ctx.job_id}",
-                    flush=True,
-                )
-            else:
+            if selected:
                 self._video_svc.build_base_video(
                     ctx.project_dir,
                     {
@@ -588,8 +572,66 @@ class PhaseOrchestrator:
                         },
                         "sequence": 1,
                     },
-                    base_path,
+                    clip_base_path,
                 )
+                clip_base_built = clip_base_path.exists()
+
+        # -- Step 2: compose final base.mp4 ------------------------------------
+        assembled_exists = assembled_path.exists()
+
+        if assembled_exists and clip_base_built:
+            # Import mode: concat scene segment + montage clips
+            ffmpeg = self._get_ffmpeg_path()
+            _subprocess.run(
+                [
+                    ffmpeg, "-y",
+                    "-i", str(assembled_path),
+                    "-i", str(clip_base_path),
+                    "-filter_complex",
+                    "[0:v]settb=AVTB[v0];[1:v]settb=AVTB[v1];"
+                    "[v0][v1]concat=n=2:v=1:a=0",
+                    "-map", "[v]",
+                    "-an",
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",
+                    "-crf", "23",
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    str(base_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            print(
+                f"[VIDEO] Concatenated assembled + clip base for {ctx.job_id}",
+                flush=True,
+            )
+        elif clip_base_built:
+            # Generate mode (or import mode without assembled.mp4 yet)
+            shutil.copy2(clip_base_path, base_path)
+            print(
+                f"[VIDEO] Using clip-based video as base for {ctx.job_id}",
+                flush=True,
+            )
+        elif assembled_exists:
+            # Import mode fallback: scene segment only, no clips available
+            shutil.copy2(assembled_path, base_path)
+            print(
+                f"[VIDEO] Using assembled video as base for {ctx.job_id} (no clips)",
+                flush=True,
+            )
+        else:
+            print(
+                f"[VIDEO WARN] Neither assembled.mp4 nor clip base produced"
+                f" for {ctx.job_id}",
+                flush=True,
+            )
+
+        # Clean up temp clip base
+        if clip_base_path.exists():
+            clip_base_path.unlink()
 
         if base_path.exists():
             return [self._to_artifact("video_base", base_path, workspace_dir)]
