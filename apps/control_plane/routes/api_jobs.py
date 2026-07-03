@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from packages.domain_core.models import (
@@ -326,6 +327,40 @@ async def upload_job_audio(request: Request, job_id: str, file: UploadFile):
         "audio_path": relative_path,
         "size_bytes": len(content),
     }
+
+
+@router.get("/api/jobs/{job_id}/export")
+def export_job(request: Request, job_id: str):
+    """Build and download an export bundle ZIP for a completed job."""
+    from packages.pipeline_services.export_service import build_export_bundle
+
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    record = repo.load_job(project_id, job_id)
+    if record.phase != "completed":
+        raise HTTPException(status_code=400, detail="job not yet completed")
+
+    root_dir: Path = request.app.state.root_dir
+    workspace_dir = root_dir / "workspace"
+    project_dir = workspace_dir / "projects" / project_id
+    job_dir = project_dir / "runtime" / "jobs" / job_id
+    export_dir = project_dir / "runtime" / "exports"
+
+    zip_path = build_export_bundle(
+        job_dir=job_dir,
+        workspace_dir=workspace_dir,
+        project_dir=project_dir,
+        export_dir=export_dir,
+    )
+
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=f"export_{job_id}.zip",
+    )
 
 
 def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
