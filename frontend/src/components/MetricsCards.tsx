@@ -26,7 +26,7 @@ export default function MetricsCards({
 }) {
   if (loading) {
     return (
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
@@ -43,7 +43,7 @@ export default function MetricsCards({
   if (!data) return null;
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
       {ITEMS.map((it) => {
         const raw = data[it.key];
         const display = it.isRate
