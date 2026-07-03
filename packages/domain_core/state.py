@@ -11,6 +11,8 @@ PHASE_ORDER = [
     "final_rendering",
     "final_review",
     "completed",
+    "scene_assembling",
+    "montage_assembling",
 ]
 
 
@@ -23,4 +25,5 @@ def next_phase(current: str) -> str:
 
 def rewind_from_phase(start_phase: str) -> list[str]:
     index = PHASE_ORDER.index(start_phase)
-    return PHASE_ORDER[index:-1]
+    completed_index = PHASE_ORDER.index("completed")
+    return PHASE_ORDER[index:completed_index]

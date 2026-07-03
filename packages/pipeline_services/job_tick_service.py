@@ -10,12 +10,12 @@ contained in a single referentially transparent function.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from packages.domain_core.models import ArtifactPointer, JobRecord
-from packages.domain_core.state import next_phase
+from packages.domain_core.state import PHASE_ORDER, next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
@@ -67,6 +67,9 @@ class TickAction:
     handler_phase : str | None
         Which phase handler to run (only meaningful when *run_handler* is
         True).  ``None`` means the current phase.
+    parallel_phases : list[str]
+        Additional phase handlers to run in parallel with *handler_phase*
+        (import-mode dual dispatch).
     review_event : dict | None
         Optional review event payload to persist when the transition is
         the result of an auto-approve.
@@ -78,6 +81,7 @@ class TickAction:
     new_review_status: str | None = None
     run_handler: bool = False
     handler_phase: str | None = None
+    parallel_phases: list[str] = field(default_factory=list)
     review_event: dict | None = None
     message: str = ""
 
@@ -108,9 +112,18 @@ class PhaseExecutionError(Exception):
 
 
 def _safe_next(phase: str) -> str:
-    """Return the next phase after *phase*, or ``"completed"`` if already at the end."""
+    """Return the next phase after *phase*, or ``"completed"`` if already at the end.
+
+    The import-only phases (``scene_assembling``, ``montage_assembling``) are
+    stored after ``"completed"`` in PHASE_ORDER, so we explicitly stop the
+    linear advance at ``"completed"``.
+    """
     try:
-        return next_phase(phase)
+        next_p = next_phase(phase)
+        completed_index = PHASE_ORDER.index("completed")
+        if PHASE_ORDER.index(next_p) > completed_index:
+            return "completed"
+        return next_p
     except ValueError:
         return "completed"
 
@@ -190,6 +203,33 @@ def _compute_transition(
         return TickAction()
 
     # ------------------------------------------------------------------
+    # 0b. Import mode: skip script_review/tts_review (defensive)
+    # ------------------------------------------------------------------
+    if record.mode == "import" and phase in ("script_review", "tts_review"):
+        return TickAction(
+            new_phase=_safe_next(phase),
+            message=f"skip {phase} in import mode",
+        )
+
+    # ------------------------------------------------------------------
+    # 1b. Import mode phase routing
+    # ------------------------------------------------------------------
+    if phase == "scene_assembling":
+        return TickAction(
+            run_handler=True,
+            handler_phase="scene_assembling",
+            parallel_phases=["tts_generating"],
+            new_phase="montage_assembling",
+            message="scene_assembling + tts_generating (parallel) → montage_assembling",
+        )
+
+    if phase == "montage_assembling":
+        return TickAction(
+            new_phase="asset_retrieving",
+            message="montage_assembling → asset_retrieving",
+        )
+
+    # ------------------------------------------------------------------
     # 2. Review phases
     # ------------------------------------------------------------------
     if phase in REVIEW_PHASES:
@@ -241,6 +281,11 @@ def _compute_transition(
     # 4. Queued → route to script_generating handler
     # ------------------------------------------------------------------
     if phase == "queued":
+        if record.mode == "import":
+            return TickAction(
+                new_phase="scene_assembling",
+                message="queued → scene_assembling (import mode, no handler yet)",
+            )
         return TickAction(
             run_handler=True,
             handler_phase="script_generating",
@@ -394,7 +439,7 @@ class JobTickService:
         # 2. First transition decision (pre-handler)
         action = _compute_transition(record, ())
 
-        # 3. Execute handler if the transition requires it
+        # 3. Execute handler(s) if the transition requires it
         artifacts: list[ArtifactPointer] = []
         if action.run_handler:
             ctx = PhaseContext(
@@ -406,8 +451,18 @@ class JobTickService:
                 options=options or {},
             )
             handler_phase = action.handler_phase or record.phase
+
             try:
-                artifacts = self._orchestrator.run_phase(handler_phase, ctx)
+                if action.parallel_phases:
+                    # Parallel dispatch for import mode
+                    all_phases = [handler_phase] + action.parallel_phases
+                    phase_results = self._orchestrator.run_phases_parallel(
+                        all_phases, ctx
+                    )
+                    for ph_artifacts in phase_results.values():
+                        artifacts.extend(ph_artifacts)
+                else:
+                    artifacts = self._orchestrator.run_phase(handler_phase, ctx)
             except Exception as e:
                 raise PhaseExecutionError(job_id, handler_phase, str(e), e) from e
 

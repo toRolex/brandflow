@@ -51,6 +51,7 @@ class Dispatcher:
                     }
                     return {
                         "command": "run_task",
+                        "mode": record.mode,
                         "handler_phase": action.handler_phase,
                         "project_id": project_id,
                         "job_id": job_id,

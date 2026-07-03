@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -136,6 +137,8 @@ class PhaseOrchestrator:
             "video_rendering": self._run_video,
             "final_rendering": self._run_final_rendering,
             "final_review": self._run_final,
+            "scene_assembling": self._run_scene_assembly,
+            "montage_assembling": self._run_montage_assembly,
         }
 
     # -- public interface ---------------------------------------------------
@@ -151,6 +154,38 @@ class PhaseOrchestrator:
                 f"Unknown phase: {phase!r}.  Known: {list(self._handlers)}"
             )
         return handler(ctx)
+
+    def run_phases_parallel(
+        self, phases: list[str], ctx: PhaseContext
+    ) -> dict[str, list[ArtifactPointer]]:
+        """Execute multiple phases concurrently via ``ThreadPoolExecutor``.
+
+        Each phase runs its registered handler.  Errors are caught per-phase
+        so that one failure does not kill the entire batch.
+
+        Returns
+        -------
+        dict[str, list[ArtifactPointer]]
+            Mapping from phase name to its produced artifacts.
+        """
+        results: dict[str, list[ArtifactPointer]] = {}
+
+        with ThreadPoolExecutor(max_workers=len(phases)) as executor:
+            future_map = {
+                executor.submit(self.run_phase, phase, ctx): phase
+                for phase in phases
+            }
+            for future in as_completed(future_map):
+                phase_name = future_map[future]
+                try:
+                    results[phase_name] = future.result()
+                except Exception as e:
+                    print(
+                        f"[PARALLEL] Phase {phase_name} failed: {e}", flush=True
+                    )
+                    results[phase_name] = []
+
+        return results
 
     # -- helpers ------------------------------------------------------------
 
@@ -607,6 +642,32 @@ class PhaseOrchestrator:
 
     def _run_final(self, ctx: PhaseContext) -> list[ArtifactPointer]:
         """final_review: pure gate — no handler logic.  Burn happens in final_rendering."""
+        return []
+
+    # -- scene_assembling handler (skeleton) ----------------------------------
+
+    def _run_scene_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """scene_assembling: import-mode scene assembly skeleton.
+
+        .. todo:: Fill in real scene composition logic in Phase 2 Slice 2+.
+        """
+        print(
+            f"[SCENE] scene_assembling skeleton for {ctx.job_id}",
+            flush=True,
+        )
+        return []
+
+    # -- montage_assembling handler (skeleton) ---------------------------------
+
+    def _run_montage_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """montage_assembling: import-mode montage assembly skeleton.
+
+        .. todo:: Fill in real montage composition logic in Phase 2 Slice 2+.
+        """
+        print(
+            f"[MONTAGE] montage_assembling skeleton for {ctx.job_id}",
+            flush=True,
+        )
         return []
 
     @staticmethod

@@ -12,6 +12,7 @@ from packages.domain_core.models import (
     CoverTitleStyle,
     JobRecord,
     Language,
+    ProductionMode,
 )
 from packages.file_store.repository import FileStoreRepository
 from apps.control_plane.services.music_library import MusicLibrary
@@ -37,6 +38,7 @@ class CreateJobRequest(BaseModel):
     product: str
     brand: str = ""
     platforms: list[str]
+    mode: ProductionMode = "generate"
     asset: str | None = None
     manual_script: str = ""
     uploaded_audio_path: str = ""
@@ -53,6 +55,7 @@ class CreateJobRequest(BaseModel):
 class BatchJobItem(BaseModel):
     name: str = ""
     manual_script: str = ""
+    mode: ProductionMode = "generate"
     skip_subtitle: bool = False
     audio_source: AudioSource = "tts"
     language: Language = "mandarin"
@@ -65,6 +68,7 @@ class BatchCreateRequest(BaseModel):
     product: str
     brand: str = ""
     platforms: list[str]
+    mode: ProductionMode = "generate"
     auto_approve: bool = False
     jobs: list[BatchJobItem]
 
@@ -97,6 +101,7 @@ def _make_job_response(
         "product": record.product,
         "brand": record.brand,
         "name": record.name or record.product,
+        "mode": record.mode,
         "platforms": platforms,
         "phase": record.phase,
         "review_status": record.review_status,
@@ -126,6 +131,7 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         product=payload.product,
         brand=payload.brand,
         name=payload.name or payload.product,
+        mode=payload.mode,
         phase="queued",
         review_status="none",
         manual_script=payload.manual_script,
@@ -164,6 +170,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             product=payload.product,
             brand=payload.brand,
             name=item.name or payload.product,
+            mode=item.mode,
             phase="queued",
             review_status="none",
             manual_script=item.manual_script,
@@ -183,6 +190,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
     return {
         "product": payload.product,
         "platforms": payload.platforms,
+        "mode": payload.mode,
         "auto_approve": payload.auto_approve,
         "count": len(results),
         "results": results,

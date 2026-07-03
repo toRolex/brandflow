@@ -25,6 +25,7 @@ class PollCommandRunTask(BaseModel):
     job_id: str
     task_id: str
     task_type: str
+    mode: str = "generate"
     lease_id: str
     attempt_id: str
     lease_expires_at: str

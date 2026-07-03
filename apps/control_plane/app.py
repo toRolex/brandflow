@@ -66,6 +66,7 @@ async def _auto_tick(root_dir: Path):
                             "manual_script": data.get("manual_script", ""),
                             "uploaded_audio_path": data.get("uploaded_audio_path", ""),
                             "language": data.get("language", "mandarin"),
+                            "mode": data.get("mode", "generate"),
                         }
 
                         summary = tick_svc.tick(
