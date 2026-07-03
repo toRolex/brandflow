@@ -53,6 +53,7 @@ class Dispatcher:
                         "command": "run_task",
                         "mode": record.mode,
                         "handler_phase": action.handler_phase,
+                        "parallel_phases": list(action.parallel_phases),
                         "project_id": project_id,
                         "job_id": job_id,
                         "product": record.product,

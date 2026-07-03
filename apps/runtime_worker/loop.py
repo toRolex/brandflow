@@ -103,6 +103,12 @@ class WorkerLoop:
             # Execute the single requested phase
             artifacts = self.orchestrator.run_phase(handler_phase, ctx)
 
+            # Run parallel phases (if any) after the main phase
+            parallel_phases: list[str] = command.get("parallel_phases", [])
+            for pp in parallel_phases:
+                pp_artifacts = self.orchestrator.run_phase(pp, ctx)
+                artifacts.extend(pp_artifacts)
+
             # Upload artifacts
             workspace_dir = root_dir / "workspace"
             uploaded_files = []
