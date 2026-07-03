@@ -334,7 +334,7 @@ def list_music(request: Request):
 class GenerateCoverTitleRequest(BaseModel):
     script_text: str
     product: str = ""
-    brand: str = "滋元堂"
+    brand: str = ""
 
 
 _COVER_TITLE_RATE_LIMIT: dict[str, float] = {}

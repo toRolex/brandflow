@@ -61,13 +61,11 @@ def validate_script(text: str, product: str, brand: str) -> dict[str, Any]:
         errors.append(f"品名「{product}」出现 {product_count} 次，要求恰好 1 次")
 
     brand_count = text.count(brand)
-    if brand_count < 1:
-        errors.append(f"品牌「{brand}」未出现")
-    elif brand_count > 1:
-        errors.append(f"品牌「{brand}」出现 {brand_count} 次，要求恰好 1 次")
-
-    if "充分烹熟" not in text:
-        errors.append("缺少「充分烹熟」")
+    if brand:
+        if brand_count < 1:
+            errors.append(f"品牌「{brand}」未出现")
+        elif brand_count > 1:
+            errors.append(f"品牌「{brand}」出现 {brand_count} 次，要求恰好 1 次")
 
     if EMOJI_RE.search(text):
         errors.append("包含 emoji 表情")
@@ -79,7 +77,6 @@ def validate_script(text: str, product: str, brand: str) -> dict[str, Any]:
     return {"ok": len(errors) == 0, "errors": errors}
 
 
-_CANTONESE_COOK_TERMS = ["充分烹熟", "徹底煮熟", "煮到熟透", "彻底煮熟"]
 
 
 def validate_cantonese_script(text: str, product: str, brand: str) -> dict[str, Any]:
@@ -95,11 +92,8 @@ def validate_cantonese_script(text: str, product: str, brand: str) -> dict[str, 
     if product not in text:
         errors.append(f"品名「{product}」未出现")
 
-    if brand not in text:
+    if brand and brand not in text:
         errors.append(f"品牌「{brand}」未出现")
-
-    if not any(term in text for term in _CANTONESE_COOK_TERMS):
-        errors.append(f"缺少烹熟同义表达（{' / '.join(_CANTONESE_COOK_TERMS)}）")
 
     if EMOJI_RE.search(text):
         errors.append("包含 emoji 表情")
