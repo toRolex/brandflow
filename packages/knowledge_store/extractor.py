@@ -70,9 +70,7 @@ class KnowledgeExtractor:
     def __init__(self, llm_client: LLMClient | None = None) -> None:
         self._client = llm_client
 
-    def extract(
-        self, text: str, source_document: str = ""
-    ) -> list[KnowledgeItem]:
+    def extract(self, text: str, source_document: str = "") -> list[KnowledgeItem]:
         """Extract knowledge items from text.
 
         Args:

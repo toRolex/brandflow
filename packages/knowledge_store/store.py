@@ -92,9 +92,7 @@ class KnowledgeStore:
         for item in items:
             _write_json(self._item_path(item.id), item.to_dict())
 
-    def list_items(
-        self, document_id: str | None = None
-    ) -> list[KnowledgeItem]:
+    def list_items(self, document_id: str | None = None) -> list[KnowledgeItem]:
         if not self._items_dir.exists():
             return []
         all_items: list[KnowledgeItem] = []
@@ -107,9 +105,7 @@ class KnowledgeStore:
                         all_items.append(item)
         return all_items
 
-    def get_top_k_items(
-        self, item_type: str, k: int = 5
-    ) -> list[KnowledgeItem]:
+    def get_top_k_items(self, item_type: str, k: int = 5) -> list[KnowledgeItem]:
         """Return top-K items of the given type, sorted by priority descending."""
         all_items: list[KnowledgeItem] = []
         for f in sorted(self._items_dir.iterdir()):

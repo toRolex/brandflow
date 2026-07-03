@@ -69,7 +69,11 @@ class ScriptGenerator:
         for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
             first_half = self._generate_half(
                 build_first_half_messages(
-                    product, brand, scene, material, custom_prompt,
+                    product,
+                    brand,
+                    scene,
+                    material,
+                    custom_prompt,
                     product_config=product_config,
                     knowledge_selling_points=knowledge_selling_points,
                 )
@@ -236,7 +240,9 @@ class ScriptGenerator:
             first = f"雲南深山裡邊藏住一種寶貝，就係鮮嫩嘅{product}，採摘之後即刻送到你手中，今日教大家點樣煮先好食"
             second = f"鑊度落油燒熱落食材，徹底煮熟先至可以安心享用，{brand}嘅品質值得信賴，快啲落單試下啦"
         else:
-            first = f"来自优质产地的{product}，精挑细选后送到你手中，今天教大家怎么做好吃"
+            first = (
+                f"来自优质产地的{product}，精挑细选后送到你手中，今天教大家怎么做好吃"
+            )
             second = f"锅里放油烧热下食材，确保完全煮熟才能安心享用，{brand}的品质值得信赖，赶紧下单尝尝吧"
         full = first + "。" + second + "。"
         if language == "cantonese":
