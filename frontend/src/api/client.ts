@@ -382,6 +382,36 @@ export const api = {
     return request<import("../types").TopicStat[]>(`/api/metrics/topics?${qs.toString()}`);
   },
 
+  // Script Templates
+  listTemplates: () =>
+    request<import("../types").ScriptTemplate[]>("/api/config/templates"),
+
+  getTemplate: (id: string) =>
+    request<import("../types").ScriptTemplate>(`/api/config/templates/${id}`),
+
+  createTemplate: (payload: import("../types").ScriptTemplate) =>
+    request<import("../types").ScriptTemplate>("/api/config/templates", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateTemplate: (id: string, payload: import("../types").ScriptTemplate) =>
+    request<import("../types").ScriptTemplate>(`/api/config/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteTemplate: (id: string) =>
+    request<{ status: string }>(`/api/config/templates/${id}`, {
+      method: "DELETE",
+    }),
+
+  previewTemplate: (id: string, slotContents: Record<string, string>, variableValues: Record<string, string>) =>
+    request<import("../types").PreviewResponse>(`/api/config/templates/${id}/preview`, {
+      method: "POST",
+      body: JSON.stringify({ slot_contents: slotContents, variable_values: variableValues }),
+    }),
+
   // Scene folders
   getSceneFolders: () =>
     request<import("../types").SceneFoldersResponse>("/api/scene/folders"),
