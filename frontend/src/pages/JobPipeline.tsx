@@ -1,18 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobDetail, Phase, AssetCategory } from "../types";
+import type { JobDetail, Phase } from "../types";
 import { PIPELINE_STEPS } from "../types";
 import PipelineSidebar from "../components/PipelineSidebar";
 import ScriptPreview from "../components/ScriptPreview";
 import MediaPlayer from "../components/MediaPlayer";
 import AssetGrid from "../components/AssetGrid";
 import ClipReviewCard from "../components/ClipReviewCard";
-
-const VALID_CATEGORIES: AssetCategory[] = [
-  "产地溯源", "筛选分拣", "清洗泡发", "切配处理", "下锅入锅",
-  "烹饪翻炒", "出锅装盘", "成品展示", "试吃品尝", "产品特写",
-];
 
 function computeCompletedPhases(currentPhase: Phase): Phase[] {
   const terminalPhases: Phase[] = ["completed", "failed", "cancelled", "paused"];
@@ -270,7 +265,7 @@ export default function JobPipeline() {
           return {
             asset_id: String(clip.asset_id || `clip-${index}`),
             file_path: String(clip.file_path || ""),
-            category: VALID_CATEGORIES.includes(category as AssetCategory) ? (category as AssetCategory) : "产品特写",
+            category: category,
             product: "",
             confidence: 1,
             duration_seconds: 0,
@@ -482,6 +477,7 @@ export default function JobPipeline() {
           onStepClick={(key) => setActiveStepKey(key)}
           activeStepKey={activeStepKey}
           jobInfo={job.name ? `${job.name} (${job.product})` : (job.product ? `${job.job_id} ${job.product}` : job.job_id)}
+          mode={job.mode}
           onPause={() => api.pauseJob(job.job_id)}
           onRetry={handleRetry}
           onViewLogs={async () => {

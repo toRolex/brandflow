@@ -68,3 +68,13 @@ async def suggest(request: Request, body: SuggestRequest) -> SuggestResponse:
         descriptions=result.get("descriptions", []),
         errors=result.get("errors", []),
     )
+
+
+@router.get("")
+async def list_categories() -> list[dict]:
+    """Return the currently configured asset categories."""
+    manager = AppConfigManager()
+    return [
+        {"id": c.id, "name": c.name, "description": c.description}
+        for c in manager.get_categories()
+    ]

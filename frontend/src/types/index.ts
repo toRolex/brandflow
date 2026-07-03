@@ -44,17 +44,7 @@ export interface AssetFile {
   in_use: boolean;
 }
 
-export type AssetCategory =
-  | "产地溯源"
-  | "筛选分拣"
-  | "清洗泡发"
-  | "切配处理"
-  | "下锅入锅"
-  | "烹饪翻炒"
-  | "出锅装盘"
-  | "成品展示"
-  | "试吃品尝"
-  | "产品特写";
+export type AssetCategory = string;
 
 export interface AssetRecord {
   asset_id: string;
@@ -81,6 +71,12 @@ export interface AssetFilters {
   confidenceMax: number;
   usageMin: number;
   usageMax: number;
+}
+
+export interface CategoryItem {
+  id: string;
+  name: string;
+  description: string;
 }
 
 export type IndexStatus = "idle" | "processing" | "done";

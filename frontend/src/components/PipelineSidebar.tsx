@@ -1,5 +1,5 @@
 import { PIPELINE_STEPS } from "../types";
-import type { Phase } from "../types";
+import type { Phase, ProductionMode } from "../types";
 
 interface Props {
   currentPhase: Phase;
@@ -7,10 +7,13 @@ interface Props {
   onStepClick: (key: string) => void;
   activeStepKey: string;
   jobInfo?: string;
+  mode?: ProductionMode;
   onPause?: () => void;
   onRetry?: () => void;
   onViewLogs?: () => void;
 }
+
+const IMPORT_HIDE_PHASES: Set<string> = new Set(["script_review", "tts_review"]);
 
 export default function PipelineSidebar({
   currentPhase,
@@ -18,6 +21,7 @@ export default function PipelineSidebar({
   onStepClick,
   activeStepKey,
   jobInfo,
+  mode,
   onPause,
   onRetry,
   onViewLogs,
@@ -32,7 +36,13 @@ export default function PipelineSidebar({
       </div>
       {PIPELINE_STEPS.filter((step) => {
         const terminalPhases: Phase[] = ["completed", "failed", "cancelled", "paused"];
-        return !terminalPhases.includes(step.phase) || step.phase === currentPhase;
+        if (terminalPhases.includes(step.phase) && step.phase !== currentPhase) {
+          return false;
+        }
+        if (mode === "import" && IMPORT_HIDE_PHASES.has(step.phase)) {
+          return false;
+        }
+        return true;
       }).map((step) => {
         const stepNum = PIPELINE_STEPS.indexOf(step) + 1;
         const done = completedPhases.includes(step.phase);
