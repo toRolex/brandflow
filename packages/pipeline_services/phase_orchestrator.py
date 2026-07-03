@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -543,9 +544,6 @@ class PhaseOrchestrator:
 
         Falls back gracefully when one or both sources are missing.
         """
-        import shutil
-        import subprocess as _subprocess
-
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
         audio_path = job_dir / "audio.mp3"
@@ -582,7 +580,7 @@ class PhaseOrchestrator:
         if assembled_exists and clip_base_built:
             # Import mode: concat scene segment + montage clips
             ffmpeg = self._get_ffmpeg_path()
-            _subprocess.run(
+            subprocess.run(
                 [
                     ffmpeg, "-y",
                     "-i", str(assembled_path),
@@ -728,7 +726,6 @@ class PhaseOrchestrator:
         to create a crossfade scene segment.
         """
         import random
-        import subprocess as _subprocess  # avoid shadowing
 
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
@@ -836,7 +833,7 @@ class PhaseOrchestrator:
             ])
 
             print(f"[SCENE] Running ffmpeg xfade for {len(clips)} clips", flush=True)
-            _subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
+            subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
 
         if scene_path.exists():
             print(
@@ -859,9 +856,6 @@ class PhaseOrchestrator:
         If only one of the two files exists it is used directly; if neither
         exists the handler returns an empty list.
         """
-        import shutil
-        import subprocess as _subprocess
-
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
         scene_path = job_dir / "scene_segment.mp4"
@@ -877,7 +871,7 @@ class PhaseOrchestrator:
                 flush=True,
             )
             ffmpeg = self._get_ffmpeg_path()
-            _subprocess.run(
+            subprocess.run(
                 [
                     ffmpeg, "-y",
                     "-i", str(scene_path),
