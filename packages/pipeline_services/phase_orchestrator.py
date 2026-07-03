@@ -498,10 +498,17 @@ class PhaseOrchestrator:
         if api_key and api_url:
             if not api_url.endswith("/chat/completions"):
                 api_url = f"{api_url}/chat/completions"
+
+            # Read configurable categories for classification
+            app_cfg = AppConfigManager()
+            categories = app_cfg.get_categories()
+            category_names = [c.name for c in categories] if categories else None
+
             classify_fn = create_classify_fn(
                 api_url=api_url,
                 api_key=api_key,
-                model="deepseek-v4-flash",
+                model=app_cfg.get_category_suggestion_model(),
+                category_names=category_names,
             )
 
         repo = AssetRepository(db_path)

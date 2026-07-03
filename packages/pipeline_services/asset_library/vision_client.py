@@ -10,7 +10,6 @@ from packages.provider_config.app_config import AppConfigManager
 
 logger = logging.getLogger(__name__)
 
-
 _VISION_PROMPT = """你是一个菌菇视频素材分类助手。请识别这张图片属于以下哪个类别，只返回一个类别名称：
 
 可选类别：产地溯源, 筛选分拣, 清洗泡发, 切配处理, 下锅入锅, 烹饪翻炒, 出锅装盘, 成品展示, 试吃品尝, 产品特写
@@ -18,14 +17,53 @@ _VISION_PROMPT = """你是一个菌菇视频素材分类助手。请识别这张
 返回格式：{"category": "类别名", "confidence": 0.0-1.0}"""
 
 
+def build_vision_prompt(category_names: list[str] | None = None) -> str:
+    """Build a vision classification prompt from a list of category names.
+
+    Parameters
+    ----------
+    category_names:
+        Category names to include in the prompt. Falls back to the legacy
+        food categories when ``None`` or empty.
+
+    Returns
+    -------
+    str
+        A formatted vision classification prompt.
+    """
+    names = category_names or [
+        "产地溯源",
+        "筛选分拣",
+        "清洗泡发",
+        "切配处理",
+        "下锅入锅",
+        "烹饪翻炒",
+        "出锅装盘",
+        "成品展示",
+        "试吃品尝",
+        "产品特写",
+    ]
+    return (
+        "你是一个视频素材分类助手。请识别这张图片属于以下哪个类别，只返回一个类别名称：\n\n"
+        f"可选类别：{', '.join(names)}\n\n"
+        '返回格式：{"category": "类别名", "confidence": 0.0-1.0}'
+    )
+
+
 class VisionClient:
     def __init__(
-        self, api_key: str = "", endpoint: str = "", model: str = "", provider: str = ""
+        self,
+        api_key: str = "",
+        endpoint: str = "",
+        model: str = "",
+        provider: str = "",
+        categories: list[str] | None = None,
     ) -> None:
         self.api_key = api_key or os.getenv("VISION_API_KEY", "")
         self.endpoint = endpoint or os.getenv("VISION_API_URL", "")
         self.model = model or os.getenv("VISION_MODEL", "")
         self.provider = provider or os.getenv("VISION_PROVIDER", "openai")
+        self._vision_prompt = build_vision_prompt(categories)
 
     def classify_frame(self, image_path: Path) -> dict:
         logger.info(
@@ -86,7 +124,7 @@ class VisionClient:
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": _VISION_PROMPT},
+                        {"type": "text", "text": self._vision_prompt},
                         {"type": "image_url", "image_url": {"url": data_url}},
                     ],
                 }
@@ -127,7 +165,7 @@ class VisionClient:
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": _VISION_PROMPT},
+                        {"type": "text", "text": self._vision_prompt},
                         {
                             "type": "image",
                             "source": {

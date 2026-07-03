@@ -4,7 +4,7 @@ import logging
 import random
 from collections.abc import Callable
 
-from packages.pipeline_services.asset_library.models import AssetRecord, Category
+from packages.pipeline_services.asset_library.models import AssetRecord
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +28,10 @@ class AssetRetriever:
         selected: list[dict] = []
 
         for i, sentence in enumerate(sentences):
-            requested_category = self._classify(sentence)
-            if requested_category:
-                candidates = self.repository.query_by_category(
-                    product, requested_category
+            requested_category_name = self._classify(sentence)
+            if requested_category_name:
+                candidates = self.repository.query_by_category_name(
+                    product, requested_category_name
                 )
                 candidates = [c for c in candidates if c.usage_count < MAX_CLIP_REUSE]
                 if candidates:
@@ -39,8 +39,8 @@ class AssetRetriever:
                     selected.append(
                         {
                             "sentence": sentence,
-                            "category": requested_category.value,
-                            "requested_category": requested_category.value,
+                            "category": requested_category_name,
+                            "requested_category": requested_category_name,
                             "file_path": chosen.file_path,
                             "asset_id": chosen.asset_id,
                             "duration_seconds": chosen.duration_seconds,
@@ -49,19 +49,17 @@ class AssetRetriever:
                     )
                     self.repository.increment_usage(chosen.asset_id)
                     logger.info(
-                        f"[Retriever] 句子 {i + 1}: LLM分类 → {requested_category.value}, 素材={chosen.asset_id}"
+                        f"[Retriever] 句子 {i + 1}: LLM分类 → {requested_category_name}, 素材={chosen.asset_id}"
                     )
                     continue
 
             fallback = self._fallback(product)
             if fallback:
-                requested_cat = (
-                    requested_category.value if requested_category else "未知"
-                )
+                requested_cat = requested_category_name or "未知"
                 selected.append(
                     {
                         "sentence": sentence,
-                        "category": fallback.category.value,
+                        "category": fallback.category_name(),
                         "requested_category": requested_cat,
                         "file_path": fallback.file_path,
                         "asset_id": fallback.asset_id,
@@ -71,7 +69,7 @@ class AssetRetriever:
                 )
                 self.repository.increment_usage(fallback.asset_id)
                 logger.info(
-                    f"[Retriever] 句子 {i + 1}: 降级匹配 想匹配{requested_cat} → {fallback.category.value}, 素材={fallback.asset_id}"
+                    f"[Retriever] 句子 {i + 1}: 降级匹配 想匹配{requested_cat} → {fallback.category_name()}, 素材={fallback.asset_id}"
                 )
             else:
                 logger.warning(
@@ -83,16 +81,10 @@ class AssetRetriever:
         )
         return selected
 
-    def _classify(self, sentence: str) -> Category | None:
+    def _classify(self, sentence: str) -> str | None:
         if self._classify_fn is None:
             return None
-        cat_name = self._classify_fn(sentence)
-        if cat_name is None:
-            return None
-        try:
-            return Category(cat_name)
-        except ValueError:
-            return None
+        return self._classify_fn(sentence)
 
     def _fallback(self, product: str) -> AssetRecord | None:
         all_assets = self.repository.query_all_available(product)

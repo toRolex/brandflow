@@ -5,6 +5,11 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from packages.pipeline_services.asset_library.category_config import (
+    CategoryConfig,
+    default_categories,
+)
+
 try:
     from dotenv import load_dotenv
 except ImportError:
@@ -54,6 +59,11 @@ DEFAULTS: dict[str, Any] = {
         "subtitle_mode": "script_timed",
         "max_retry": 3,
         "retry_delay_seconds": 60,
+    },
+    "asset_library": {
+        "categories": [],
+        "category_suggestion_model": "deepseek-v4-flash",
+        "category_suggestion_sample_size": 20,
     },
     "video": {
         "cover_title_style": {
@@ -306,3 +316,38 @@ class AppConfigManager:
         scene = config.get("scene", {})
         defaults = DEFAULTS["scene"]
         return _deep_merge(defaults, scene)
+
+    def get_asset_library_config(self) -> dict[str, Any]:
+        config = self._load()
+        al = config.get("asset_library", {})
+        defaults = DEFAULTS["asset_library"]
+        return _deep_merge(defaults, al)
+
+    def get_categories(self) -> list[CategoryConfig]:
+        """Return the configured asset categories.
+
+        Reads from ``asset_library.categories`` in ``app_config.json``.
+        Falls back to the default food categories (matching the legacy ``Category`` enum)
+        when the list is empty.
+        """
+        al_config = self.get_asset_library_config()
+        raw: list[dict] = al_config.get("categories", [])
+        if not raw:
+            return default_categories()
+        return [
+            CategoryConfig(
+                id=c.get("id", ""),
+                name=c.get("name", ""),
+                description=c.get("description", ""),
+                vision_prompt=c.get("vision_prompt", ""),
+            )
+            for c in raw
+        ]
+
+    def get_category_suggestion_model(self) -> str:
+        al_config = self.get_asset_library_config()
+        return al_config.get("category_suggestion_model", "deepseek-v4-flash")
+
+    def get_category_suggestion_sample_size(self) -> int:
+        al_config = self.get_asset_library_config()
+        return al_config.get("category_suggestion_sample_size", 20)

@@ -9,6 +9,13 @@ from pydantic import BaseModel, Field
 
 
 class Category(str, Enum):
+    """Deprecated: use ``CategoryConfig`` from ``category_config.py`` instead.
+
+    This enum is retained for backward compatibility with existing indexed assets.
+    New code should prefer ``CategoryConfig`` from
+    ``packages.pipeline_services.asset_library.category_config``.
+    """
+
     ORIGIN = "产地溯源"
     SORTING = "筛选分拣"
     WASHING = "清洗泡发"
@@ -37,6 +44,15 @@ class AssetRecord(BaseModel):
     tags: list[str] = Field(default_factory=list)
     created_at: str = ""
     last_used_at: str = ""
+
+    def category_name(self) -> str:
+        """Return the category value as a plain string.
+
+        Works with both deprecated ``Category`` enum and config-based string categories.
+        """
+        if isinstance(self.category, Category):
+            return self.category.value
+        return str(self.category)
 
 
 def load_keyword_map() -> dict[str, list[str]]:
