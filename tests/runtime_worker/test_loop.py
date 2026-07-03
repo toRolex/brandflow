@@ -387,3 +387,105 @@ def test_worker_loop_constructs_project_dir_correctly(
     # Verify the orchestrator received the correct job_id (single call)
     assert len(orch.phase_calls) == 1
     assert orch.phase_calls[0]["job_id"] == "job-001"
+
+
+def test_worker_loop_runs_parallel_phases_after_main_phase(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """When the poll response includes parallel_phases, the worker runs them."""
+    api = StubApi()
+    orch = StubOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
+
+    # Override the poll response to return scene_assembling + tts_generating parallel
+    original_poll = api.poll
+
+    def patched_poll():
+        result = original_poll()
+        result["handler_phase"] = "scene_assembling"
+        result["parallel_phases"] = ["tts_generating"]
+        return result
+
+    api.poll = patched_poll
+
+    with pytest.raises(SystemExit):
+        loop.run_forever()
+
+    # Both phases should have been executed
+    called = [c["phase"] for c in orch.phase_calls]
+    assert called == ["scene_assembling", "tts_generating"]
+
+
+def test_worker_loop_includes_parallel_artifacts_in_report(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Artifacts from parallel phases should be included in upload and report."""
+    api = StubApi()
+
+    class ParallelFileOrchestrator(StubOrchestrator):
+        def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
+            artifacts = super().run_phase(phase, ctx)
+            workspace_dir = ctx.root_dir / "workspace"
+            for art in artifacts:
+                abs_path = workspace_dir / art.relative_path
+                abs_path.parent.mkdir(parents=True, exist_ok=True)
+                abs_path.write_bytes(b"\x00" * 64)
+            return artifacts
+
+    orch = ParallelFileOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
+
+    original_poll = api.poll
+
+    def patched_poll():
+        result = original_poll()
+        result["handler_phase"] = "scene_assembling"
+        result["parallel_phases"] = ["tts_generating"]
+        return result
+
+    api.poll = patched_poll
+
+    with pytest.raises(SystemExit):
+        loop.run_forever()
+
+    # Verify both phases' artifacts are in the upload
+    assert len(api.uploads) > 0
+    uploaded_files = api.uploads[0][1]
+    uploaded_kinds = {f["relative_path"].split("/")[-1] for f in uploaded_files}
+    assert "scene_assembling.stub" in uploaded_kinds
+    assert "tts_generating.stub" in uploaded_kinds
+
+
+class TestDispatcherParallel:
+    """Dispatcher handles parallel_phases in poll responses."""
+
+    def test_dispatcher_includes_parallel_phases(self, tmp_path: Path) -> None:
+        """Dispatcher poll response includes parallel_phases when the action has them."""
+        from packages.domain_core.models import JobRecord
+        from apps.control_plane.services.dispatch import Dispatcher
+        from packages.file_store.repository import FileStoreRepository
+
+        root_dir = tmp_path
+        repo = FileStoreRepository(root_dir)
+        project_id = "proj-001"
+        project_dir = root_dir / "workspace" / "projects" / project_id
+        project_dir.mkdir(parents=True)
+
+        # Save a job in scene_assembling phase
+        record = JobRecord(
+            job_id="job-001",
+            project_id=project_id,
+            product="test",
+            phase="scene_assembling",
+            mode="import",
+            review_status="none",
+        )
+        repo.save_job(project_id, record)
+
+        dispatcher = Dispatcher(repo)
+        result = dispatcher.poll("worker-001")
+
+        assert result["command"] == "run_task"
+        assert result["handler_phase"] == "scene_assembling"
+        assert "parallel_phases" in result
+        assert "tts_generating" in result["parallel_phases"]
