@@ -4,26 +4,83 @@
 
 ## 核心概念
 
+### Instance（实例）
+一次独立的 toB 部署。每个客户拥有独立的系统实例（独立进程、独立素材库、独立配置），实例之间不共享数据。零食公司部署和滋元堂部署是不同的 Instance。
+
 ### Job（任务）
 一次短视频生产任务的完整生命周期。每个 Job 从 `queued` 开始，经过状态机的各个 Phase，最终到达 `completed` 或异常终态。Job 是控制面调度和 Worker 执行的最小单元。
 
 ### Phase（阶段）
-Job 生命周期中的一个离散步骤。合法 Phase 值由 `domain_core.models.Phase` 定义，顺序由 `domain_core.state.PHASE_ORDER` 决定。Phase 只能通过 `next_phase()` 前进或 `rewind_from_phase()` 回退，不存在跳跃。
+Job 生命周期中的一个离散步骤。系统根据脚本来源模式使用不同的状态机：
+
+**Import 模式状态机**（预写脚本导入）：
+```
+queued → scene_assembling ──────────────────────┐
+       → tts_generating → subtitle_generating ──┤
+                                                 ↓
+                            montage_assembling ←─┘
+                                                 ↓
+                            video_rendering
+                                                 ↓
+                            final_review → completed
+```
+- `scene_assembling` 和 `tts_generating` 并行：场景拼接只操作视频文件，TTS 只处理配音，互不依赖
+- `montage_assembling` 依赖 TTS 完成（脚本正文决定素材分类匹配，TTS 音频时长决定每个素材展示时长）
+- `subtitle_generating` 依赖 TTS 完成（需要音频做时间对齐）
+
+**Generate 模式状态机**（LLM 生成，保留旧流程）：
+```
+queued → script_generating → script_review → tts_generating → tts_review
+       → subtitle_generating → asset_retrieving → asset_review
+       → video_rendering → final_review → completed
+```
 
 ### Review Gate（审核门）
-状态机中的 4 个人工审核检查点：`script_review`、`tts_review`、`asset_review`、`final_review`。Job 在审核门处暂停，等待审核员批准（approve）、驳回（reject）或覆盖（override）。`auto_approve=True` 时自动通过。
+状态机中的人工审核检查点。审核门的行为取决于脚本来源模式：
+
+- **Import 模式（预写脚本导入）** — 精简为 `asset_review`（素材匹配质量确认）和 `final_review`（最终视频验收）两个门。`script_review` 和 `tts_review` 自动跳过，因为脚本内容由客户团队自行把控。
+- **Generate 模式（LLM 生成）** — 保留完整四门：`script_review`、`tts_review`、`asset_review`、`final_review`，LLM 输出需要人工验证。
+
+`auto_approve=True` 时所有审核门自动通过，实现全自动生产。
 
 ### Script（脚本）
-用于短视频口播的文案文本。由 LLM 两段式生成（前半段 4 句 + 后半段 4 句），必须满足质检硬条件：150-200 字、品名出现 1 次、无 emoji、无医疗功效词。品牌名称检查仅在 brand 字段非空时生效。
+一条口播文案，对应一个待生产的短视频。脚本有两种来源，由 Job 的 `mode` 字段显式控制：
+
+- **Import 模式（`mode="import"`）** — 通过 `BatchJobItem.manual_script` 字段直接传入预写文案。系统跳过 LLM 生成，直接进入 TTS、字幕和视频生产。
+- **Generate 模式（`mode="generate"`）** — 系统通过 LLM 两段式生成脚本。保留旧系统的质检能力。`manual_script` 为空时自动使用此模式。
 
 ### Asset（素材）
 已索引的视频片段。原始视频经 ffmpeg 场景切片、Vision 模型分类后，按产品和 Category 归档到 SQLite 索引。素材在 `asset_retrieving` 阶段被检索并匹配到脚本句子。
 
 ### Category（素材分类）
-素材片段的语义分类，由 `asset_library.models.Category` 枚举定义。包括：产地溯源、烹饪翻炒、产品特写等 10 个类别。分类由 Vision 模型（帧分类）和 LLM（句子分类）共同完成。
+素材片段的语义分类，由 Instance 级配置定义（而非硬编码枚举）。每个 Instance 拥有自己的分类体系。分类有两种建立方式：
+- **运营手动配置** — 部署时在配置中定义分类名和对应的 Vision prompt，AI 按此规则自动标注素材
+- **AI 自动建议** — 系统扫描素材库全部视频后，自动归纳出一套分类体系，运营人员审核确认后启用
 
-### Product（产品）
-被推广的商品实体（如"羊肚菌""见手青"）。是 Job 的必填字段，贯穿脚本生成（品名校验）、素材检索（按产品筛选）、排期记录的全流程。
+分类由 Vision 模型（帧分类）和 LLM（文本匹配）协作完成。脚本通过文本语义自动匹配对应分类检索素材。
+
+### Scene Asset（场景素材）
+用于 Scene Segment 的独立视频文件，不经过素材库切片和分类流程。运营人员通过 Web 界面上传到 Instance 配置的场景文件夹，系统在 Scene Segment 阶段从各文件夹随机选取。Scene Asset 保持原始完整时长，不裁剪。
+
+### Production Mode（生产模式）
+一个 Job 包含两种串联的视频生产阶段，最终合成一个完整视频：
+
+**Scene Segment（场景段）** — 视频前半部分，纯视频拼接，无需配音和字幕。从 Instance 级配置的 N 个素材文件夹中各随机选取一个 Scene Asset，按文件夹顺序拼接。片段之间使用 crossfade 转场（默认 0.5s），转场类型和时长由 Instance 配置决定。Scene Asset 不裁剪，保持原始时长。
+
+**Montage Segment（混剪段）** — 视频后半部分，需要配音、字幕和素材检索。沿用旧系统句子级匹配逻辑：脚本按句拆分，每句匹配一个 Category，从对应分类中检索素材片段。素材展示时长由 TTS 对应的句子时长决定。唯一的改动是将 Category 数据源从硬编码枚举切换为 Instance 配置的分类体系。
+
+Scene Segment 和 Montage Segment 的 TTS/字幕阶段可并行执行，最终在 `video_rendering` 阶段合成。
+
+### Export Bundle（导出包）
+一个 Job 完成后产出的完整产物集合，供二次剪辑使用：
+
+- **最终视频** — 合成的完整 MP4
+- **原始素材** — 所有被选中的源视频片段（场景段 + 混剪段），未经裁剪和转场处理
+- **独立音轨** — TTS 生成的配音音频（WAV），未与视频合成
+- **字幕文件** — SRT 格式字幕，未烧录到视频
+- **时间线描述** — JSON 格式的剪辑决策文件，记录每段素材的入出点、转场类型、音频对齐信息
+
+产物打包为 ZIP，目录结构清晰，可直接导入 DaVinci Resolve / Premiere Pro 进行二次精剪。
 
 ### Control Plane（控制面）
 FastAPI Web 应用，负责任务调度、状态管理、审核流程、前端看板。是 Job 状态的唯一写入者。入口：`apps/control_plane/`。
