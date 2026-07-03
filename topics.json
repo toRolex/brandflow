@@ -1,15 +1,15 @@
 [
   {
     "keyword": "荔枝菌",
-    "total_plays": 1513795,
-    "video_count": 151,
-    "avg_completion": 25.95
+    "total_plays": 1403435,
+    "video_count": 149,
+    "avg_completion": 26.11
   },
   {
     "keyword": "广州美食",
-    "total_plays": 953154,
-    "video_count": 89,
-    "avg_completion": 26.58
+    "total_plays": 952613,
+    "video_count": 87,
+    "avg_completion": 26.83
   },
   {
     "keyword": "松茸",
@@ -55,8 +55,8 @@
   },
   {
     "keyword": "顺德美食",
-    "total_plays": 286857,
-    "video_count": 23,
-    "avg_completion": 26.55
+    "total_plays": 286571,
+    "video_count": 22,
+    "avg_completion": 26.77
   }
 ]
