@@ -183,12 +183,13 @@ class TestImportModeSceneAssembling:
 
 class TestImportModeMontageAssembling:
     def test_montage_assembling_advances_to_asset_retrieving(self) -> None:
-        """montage_assembling → advance to asset_retrieving."""
+        """montage_assembling → handler then advance to asset_retrieving."""
         action = _compute_transition(
             make_record(phase="montage_assembling", mode="import"), ()
         )
         assert action.new_phase == "asset_retrieving"
-        assert action.run_handler is False
+        assert action.run_handler is True
+        assert action.handler_phase == "montage_assembling"
 
     def test_montage_assembling_generate_mode(self) -> None:
         """montage_assembling + generate mode routes to asset_retrieving."""
