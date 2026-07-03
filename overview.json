@@ -1,9 +1,9 @@
 {
-  "total_plays": 2677234,
-  "total_likes": 9364,
-  "total_followers": 1446,
-  "avg_completion": 24.33,
-  "video_count": 801,
+  "total_plays": 2738127,
+  "total_likes": 9503,
+  "total_followers": 1479,
+  "avg_completion": 24.55,
+  "video_count": 827,
   "daily": [
     {
       "publish_date": "2026-03-12",
@@ -532,129 +532,129 @@
     },
     {
       "publish_date": "2026-06-03",
-      "plays": 42287,
-      "likes": 88,
+      "plays": 42548,
+      "likes": 90,
       "followers": 22,
-      "avg_completion": 22.713333333333335
+      "avg_completion": 22.71666666666667
     },
     {
       "publish_date": "2026-06-04",
-      "plays": 49619,
-      "likes": 84,
+      "plays": 49787,
+      "likes": 86,
       "followers": 29,
-      "avg_completion": 20.735
+      "avg_completion": 20.731666666666666
     },
     {
       "publish_date": "2026-06-05",
-      "plays": 45524,
+      "plays": 45582,
       "likes": 70,
       "followers": 19,
-      "avg_completion": 20.135714285714283
+      "avg_completion": 20.142857142857142
     },
     {
       "publish_date": "2026-06-06",
-      "plays": 785805,
-      "likes": 2268,
-      "followers": 192,
+      "plays": 785981,
+      "likes": 2269,
+      "followers": 193,
       "avg_completion": 20.268571428571427
     },
     {
       "publish_date": "2026-06-07",
-      "plays": 251097,
+      "plays": 251103,
       "likes": 567,
       "followers": 120,
-      "avg_completion": 31.4925
+      "avg_completion": 31.5025
     },
     {
       "publish_date": "2026-06-08",
-      "plays": 111373,
-      "likes": 529,
+      "plays": 112167,
+      "likes": 533,
       "followers": 34,
-      "avg_completion": 22.902
+      "avg_completion": 22.928
     },
     {
       "publish_date": "2026-06-09",
-      "plays": 172278,
+      "plays": 172699,
       "likes": 369,
       "followers": 90,
-      "avg_completion": 26.179230769230767
+      "avg_completion": 26.180769230769233
     },
     {
       "publish_date": "2026-06-10",
-      "plays": 30297,
+      "plays": 30326,
       "likes": 157,
       "followers": 14,
-      "avg_completion": 32.04
+      "avg_completion": 32.06333333333333
     },
     {
       "publish_date": "2026-06-11",
-      "plays": 69375,
+      "plays": 70300,
       "likes": 157,
       "followers": 22,
-      "avg_completion": 27.00181818181818
+      "avg_completion": 27.029999999999998
     },
     {
       "publish_date": "2026-06-12",
-      "plays": 33550,
+      "plays": 33559,
       "likes": 108,
       "followers": 8,
-      "avg_completion": 24.514285714285712
+      "avg_completion": 24.511428571428574
     },
     {
       "publish_date": "2026-06-13",
-      "plays": 156931,
-      "likes": 236,
-      "followers": 49,
-      "avg_completion": 30.177142857142858
+      "plays": 157947,
+      "likes": 242,
+      "followers": 53,
+      "avg_completion": 30.21
     },
     {
       "publish_date": "2026-06-14",
-      "plays": 16428,
-      "likes": 61,
+      "plays": 16750,
+      "likes": 62,
       "followers": 5,
-      "avg_completion": 25.6625
+      "avg_completion": 25.6825
     },
     {
       "publish_date": "2026-06-15",
-      "plays": 132589,
-      "likes": 372,
+      "plays": 132778,
+      "likes": 374,
       "followers": 93,
-      "avg_completion": 32.43
+      "avg_completion": 32.446666666666665
     },
     {
       "publish_date": "2026-06-16",
-      "plays": 18295,
-      "likes": 51,
-      "followers": 12,
-      "avg_completion": 11.863333333333335
+      "plays": 18354,
+      "likes": 53,
+      "followers": 13,
+      "avg_completion": 11.835
     },
     {
       "publish_date": "2026-06-17",
-      "plays": 87038,
-      "likes": 141,
-      "followers": 35,
-      "avg_completion": 27.676
+      "plays": 87959,
+      "likes": 145,
+      "followers": 36,
+      "avg_completion": 27.689
     },
     {
       "publish_date": "2026-06-18",
-      "plays": 29323,
-      "likes": 69,
-      "followers": 7,
-      "avg_completion": 27.59
+      "plays": 29822,
+      "likes": 71,
+      "followers": 8,
+      "avg_completion": 27.63
     },
     {
       "publish_date": "2026-06-19",
-      "plays": 5290,
+      "plays": 5301,
       "likes": 59,
       "followers": 8,
-      "avg_completion": 20.4075
+      "avg_completion": 20.4425
     },
     {
       "publish_date": "2026-06-20",
-      "plays": 4222,
+      "plays": 4223,
       "likes": 36,
       "followers": 3,
-      "avg_completion": 20.27
+      "avg_completion": 20.266666666666666
     },
     {
       "publish_date": "2026-06-21",
@@ -665,66 +665,80 @@
     },
     {
       "publish_date": "2026-06-22",
-      "plays": 91735,
+      "plays": 92530,
       "likes": 182,
-      "followers": 33,
-      "avg_completion": 29.233846153846155
+      "followers": 34,
+      "avg_completion": 29.03923076923077
     },
     {
       "publish_date": "2026-06-23",
-      "plays": 42308,
+      "plays": 42628,
       "likes": 97,
       "followers": 33,
-      "avg_completion": 30.921666666666667
+      "avg_completion": 30.85166666666667
     },
     {
       "publish_date": "2026-06-24",
-      "plays": 92708,
-      "likes": 134,
+      "plays": 96584,
+      "likes": 142,
       "followers": 17,
-      "avg_completion": 29.2775
+      "avg_completion": 29.33
     },
     {
       "publish_date": "2026-06-25",
-      "plays": 24958,
-      "likes": 50,
+      "plays": 25684,
+      "likes": 52,
       "followers": 7,
-      "avg_completion": 31.933333333333334
+      "avg_completion": 31.96666666666667
     },
     {
       "publish_date": "2026-06-26",
-      "plays": 17383,
-      "likes": 21,
-      "followers": 6,
-      "avg_completion": 22.245
+      "plays": 18003,
+      "likes": 23,
+      "followers": 7,
+      "avg_completion": 22.131666666666664
     },
     {
       "publish_date": "2026-06-27",
-      "plays": 5490,
+      "plays": 5734,
       "likes": 13,
       "followers": 4,
-      "avg_completion": 20.607142857142858
+      "avg_completion": 20.64428571428571
     },
     {
       "publish_date": "2026-06-28",
-      "plays": 2428,
+      "plays": 2563,
       "likes": 3,
       "followers": 0,
-      "avg_completion": 19.095
+      "avg_completion": 19.0325
     },
     {
       "publish_date": "2026-06-29",
-      "plays": 8184,
-      "likes": 38,
+      "plays": 10971,
+      "likes": 42,
       "followers": 4,
-      "avg_completion": 27.238333333333333
+      "avg_completion": 26.886666666666667
     },
     {
       "publish_date": "2026-06-30",
-      "plays": 13703,
-      "likes": 27,
-      "followers": 4,
-      "avg_completion": 22.71875
+      "plays": 39637,
+      "likes": 95,
+      "followers": 20,
+      "avg_completion": 27.024444444444445
+    },
+    {
+      "publish_date": "2026-07-01",
+      "plays": 17933,
+      "likes": 28,
+      "followers": 7,
+      "avg_completion": 25.20421052631579
+    },
+    {
+      "publish_date": "2026-07-02",
+      "plays": 1658,
+      "likes": 1,
+      "followers": 0,
+      "avg_completion": 17.634
     }
   ]
 }

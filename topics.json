@@ -1,15 +1,15 @@
 [
   {
     "keyword": "荔枝菌",
-    "total_plays": 1403435,
-    "video_count": 149,
-    "avg_completion": 26.11
+    "total_plays": 1465675,
+    "video_count": 175,
+    "avg_completion": 26.16
   },
   {
     "keyword": "广州美食",
-    "total_plays": 952613,
+    "total_plays": 957599,
     "video_count": 87,
-    "avg_completion": 26.83
+    "avg_completion": 26.89
   },
   {
     "keyword": "松茸",
@@ -19,9 +19,9 @@
   },
   {
     "keyword": "深圳美食",
-    "total_plays": 789367,
+    "total_plays": 793367,
     "video_count": 59,
-    "avg_completion": 27.96
+    "avg_completion": 27.98
   },
   {
     "keyword": "一年一度松茸季来了",
@@ -43,20 +43,20 @@
   },
   {
     "keyword": "美食推荐",
-    "total_plays": 473658,
+    "total_plays": 474942,
     "video_count": 27,
-    "avg_completion": 26.28
+    "avg_completion": 26.31
   },
   {
     "keyword": "夏至菇",
-    "total_plays": 300273,
+    "total_plays": 304842,
     "video_count": 12,
-    "avg_completion": 34.07
+    "avg_completion": 34.12
   },
   {
     "keyword": "顺德美食",
-    "total_plays": 286571,
+    "total_plays": 287648,
     "video_count": 22,
-    "avg_completion": 26.77
+    "avg_completion": 26.78
   }
 ]

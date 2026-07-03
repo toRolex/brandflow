@@ -1,0 +1,292 @@
+{
+  "snapshot_date": "2026-07-03",
+  "previous_snapshot": "2026-07-03",
+  "summary": {
+    "plays_delta": 60893,
+    "likes_delta": 139,
+    "followers_delta": 33,
+    "shares_delta": 418,
+    "comments_delta": 12,
+    "new_videos": 26,
+    "updated_videos": 134,
+    "disappeared_videos": 0
+  },
+  "top_gainers": [
+    {
+      "title": "几十年没人种出来，不是技术问题，是它根本不让。#荔枝菌 #科普 #野生菌 #岭南山鲜",
+      "platform": "weixin",
+      "publish_date": "2026-06-30",
+      "plays_delta": 13583,
+      "likes_delta": 50,
+      "comments_delta": 5,
+      "shares_delta": 183,
+      "followers_delta": 13
+    },
+    {
+      "title": "真正会买的人，验荔枝菌不是拍照给别人看，而是先看细节。#荔枝菌 #真假鉴别 #买菜避坑",
+      "platform": "weixin",
+      "publish_date": "2026-07-01",
+      "plays_delta": 2882,
+      "likes_delta": 1,
+      "comments_delta": 0,
+      "shares_delta": 1,
+      "followers_delta": 1
+    },
+    {
+      "title": "盘底那层汁才是荔枝菌本来的味道，加了酱你就吃不到了。#荔枝菌 #清蒸 #老广吃法",
+      "platform": "weixin",
+      "publish_date": "2026-06-30",
+      "plays_delta": 2655,
+      "likes_delta": 6,
+      "comments_delta": 0,
+      "shares_delta": 25,
+      "followers_delta": 0
+    },
+    {
+      "title": "广东人都知道，这东西不是想找就有。#荔枝菌 #岭南山鲜 #广东美食",
+      "platform": "weixin",
+      "publish_date": "2026-06-24",
+      "plays_delta": 2175,
+      "likes_delta": 4,
+      "comments_delta": 1,
+      "shares_delta": 4,
+      "followers_delta": 0
+    },
+    {
+      "title": "有人觉得野生菌只要外形像，回家一煮才知道差别。#荔枝菌 #真假鉴别 #老广买菜",
+      "platform": "weixin",
+      "publish_date": "2026-07-01",
+      "plays_delta": 1829,
+      "likes_delta": 0,
+      "comments_delta": 0,
+      "shares_delta": 1,
+      "followers_delta": 0
+    },
+    {
+      "title": "不是没人试过，是真的种不出来。#荔枝菌 #科普 #稀缺 #野生菌",
+      "platform": "weixin",
+      "publish_date": "2026-06-29",
+      "plays_delta": 1631,
+      "likes_delta": 3,
+      "comments_delta": 0,
+      "shares_delta": 42,
+      "followers_delta": 0
+    },
+    {
+      "title": "鸡枞、荔枝菌、夏至菇，老广抢的是那口鲜。#荔枝菌 #鸡枞菌 #夏至菇",
+      "platform": "weixin",
+      "publish_date": "2026-06-24",
+      "plays_delta": 1573,
+      "likes_delta": 4,
+      "comments_delta": 1,
+      "shares_delta": 11,
+      "followers_delta": 0
+    },
+    {
+      "title": "雨只是机会，不是承诺，荔枝菌最难的就是时机。#荔枝菌 #岭南山鲜 #广东美食",
+      "platform": "weixin",
+      "publish_date": "2026-06-30",
+      "plays_delta": 1501,
+      "likes_delta": 0,
+      "comments_delta": 0,
+      "shares_delta": 2,
+      "followers_delta": 0
+    },
+    {
+      "title": "有人觉得节日煲汤越浓越体面，但荔枝菌偏偏适合清。#荔枝菌 #广东靓汤 #节日饭桌",
+      "platform": "weixin",
+      "publish_date": "2026-07-01",
+      "plays_delta": 1452,
+      "likes_delta": 4,
+      "comments_delta": 0,
+      "shares_delta": 1,
+      "followers_delta": 0
+    },
+    {
+      "title": "凌晨四点的荔枝林，比白天更能看出这口鲜来得多不容易。#荔枝菌 #源头实拍 #岭南山鲜",
+      "platform": "weixin",
+      "publish_date": "2026-06-30",
+      "plays_delta": 1451,
+      "likes_delta": 1,
+      "comments_delta": 0,
+      "shares_delta": 4,
+      "followers_delta": 0
+    }
+  ],
+  "daily_trend": [
+    {
+      "date": "2026-06-03",
+      "plays_delta": 261,
+      "likes_delta": 2,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-04",
+      "plays_delta": 168,
+      "likes_delta": 2,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-05",
+      "plays_delta": 58,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-06",
+      "plays_delta": 176,
+      "likes_delta": 1,
+      "followers_delta": 1
+    },
+    {
+      "date": "2026-06-07",
+      "plays_delta": 6,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-08",
+      "plays_delta": 794,
+      "likes_delta": 4,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-09",
+      "plays_delta": 421,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-10",
+      "plays_delta": 29,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-11",
+      "plays_delta": 925,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-12",
+      "plays_delta": 9,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-13",
+      "plays_delta": 1016,
+      "likes_delta": 6,
+      "followers_delta": 4
+    },
+    {
+      "date": "2026-06-14",
+      "plays_delta": 322,
+      "likes_delta": 1,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-15",
+      "plays_delta": 189,
+      "likes_delta": 2,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-16",
+      "plays_delta": 59,
+      "likes_delta": 2,
+      "followers_delta": 1
+    },
+    {
+      "date": "2026-06-17",
+      "plays_delta": 921,
+      "likes_delta": 4,
+      "followers_delta": 1
+    },
+    {
+      "date": "2026-06-18",
+      "plays_delta": 499,
+      "likes_delta": 2,
+      "followers_delta": 1
+    },
+    {
+      "date": "2026-06-19",
+      "plays_delta": 11,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-20",
+      "plays_delta": 1,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-22",
+      "plays_delta": 795,
+      "likes_delta": 0,
+      "followers_delta": 1
+    },
+    {
+      "date": "2026-06-23",
+      "plays_delta": 320,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-24",
+      "plays_delta": 3876,
+      "likes_delta": 8,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-25",
+      "plays_delta": 726,
+      "likes_delta": 2,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-26",
+      "plays_delta": 620,
+      "likes_delta": 2,
+      "followers_delta": 1
+    },
+    {
+      "date": "2026-06-27",
+      "plays_delta": 244,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-28",
+      "plays_delta": 135,
+      "likes_delta": 0,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-29",
+      "plays_delta": 2787,
+      "likes_delta": 4,
+      "followers_delta": 0
+    },
+    {
+      "date": "2026-06-30",
+      "plays_delta": 25934,
+      "likes_delta": 68,
+      "followers_delta": 16
+    },
+    {
+      "date": "2026-07-01",
+      "plays_delta": 17933,
+      "likes_delta": 28,
+      "followers_delta": 7
+    },
+    {
+      "date": "2026-07-02",
+      "plays_delta": 1658,
+      "likes_delta": 1,
+      "followers_delta": 0
+    }
+  ]
+}
