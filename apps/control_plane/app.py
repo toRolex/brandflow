@@ -21,6 +21,7 @@ from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.routes.scene import router as scene_router
 from apps.control_plane.routes.templates import router as templates_router
+from apps.control_plane.routes.products import router as products_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
@@ -141,6 +142,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(metrics_router)
     app.include_router(scene_router)
     app.include_router(templates_router)
+    app.include_router(products_router)
 
     @app.get("/api/health")
     async def health():

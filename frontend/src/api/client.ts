@@ -288,6 +288,24 @@ export const api = {
       method: "DELETE",
     }),
 
+  // Multi-Product Management
+  listProducts: () =>
+    request<Array<{ id: string; name: string }>>("/api/products"),
+
+  switchProduct: (productId: string) =>
+    request<{ active_product_id: string }>(`/api/products/${productId}/switch`, {
+      method: "POST",
+    }),
+
+  getProductConfigById: (productId: string) =>
+    request<import("../types").ProductConfig>(`/api/products/${productId}/config`),
+
+  saveProductConfigById: (productId: string, payload: import("../types").ProductConfig) =>
+    request<import("../types").ProductConfig>(`/api/products/${productId}/config`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
   // TTS
   getTTSConfig: (projectId?: string) =>
     request<Record<string, unknown>>(`/api/tts/config${projectId ? `?project_id=${projectId}` : ""}`),

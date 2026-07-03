@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../api/client";
+import { useProducts } from "../ProductContext";
 import type { ProductConfig } from "../types";
 
 interface FormErrors {
@@ -18,12 +19,15 @@ const DEFAULT_CONFIG: ProductConfig = {
 };
 
 export default function ProductConfigForm() {
+  const { products, activeProductId, activeProductName, switchProduct } = useProducts();
   const [config, setConfig] = useState<ProductConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -108,9 +112,85 @@ export default function ProductConfigForm() {
     return <div className="text-center py-12 text-gray-400">加载配置中...</div>;
   }
 
+  // Empty state: no products configured
+  if (products.length === 0 && !showNewForm) {
+    return (
+      <div>
+        <h1 className="text-xl font-bold mb-4">产品配置</h1>
+        <div className="text-center py-16 bg-white border border-dashed border-gray-300 rounded-xl">
+          <div className="text-4xl mb-3">📦</div>
+          <h2 className="text-lg font-semibold mb-2">暂无产品配置</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            创建一个产品配置，用于脚本生成和素材检索
+          </p>
+          <button
+            className="px-6 py-3 bg-[#0969da] text-white font-medium rounded-xl hover:brightness-110 transition-colors"
+            onClick={() => setShowNewForm(true)}
+          >
+            新建产品
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // New product creation form
+  if (showNewForm) {
+    return (
+      <div>
+        <h1 className="text-xl font-bold mb-6">新建产品配置</h1>
+        <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-lg">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            产品名称 <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm mb-4"
+            placeholder="输入产品名称，如：羊肚菌"
+            value={newProductName}
+            onChange={(e) => setNewProductName(e.target.value)}
+          />
+          <div className="flex gap-3">
+            <button
+              className="px-6 py-3 bg-[#0969da] text-white font-medium rounded-xl hover:brightness-110 disabled:opacity-50 transition-colors"
+              disabled={!newProductName.trim()}
+              onClick={async () => {
+                const id = newProductName.trim().toLowerCase().replace(/\s+/g, "_");
+                await api.switchProduct(id);
+                await switchProduct(id);
+                await loadConfig();
+                setShowNewForm(false);
+              }}
+            >
+              创建并编辑
+            </button>
+            <button
+              className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+              onClick={() => setShowNewForm(false)}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h1 className="text-xl font-bold mb-6">产品配置</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold">
+          产品配置
+          {activeProductName && (
+            <span className="ml-2 text-base font-normal text-gray-500">
+              — {activeProductName}
+            </span>
+          )}
+        </h1>
+        <div className="text-xs text-gray-400">
+          ID: {activeProductId}
+        </div>
+      </div>
 
       {loadError && (
         <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">

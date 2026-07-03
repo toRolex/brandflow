@@ -108,12 +108,13 @@ def test_product_config_with_categories() -> None:
 
 
 def test_product_config_file_structure() -> None:
-    """验证 app_config.json 中 product 段的写入格式"""
+    """验证 app_config.json 中 products 段的写入格式"""
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = AppConfigManager(config_dir=tmpdir)
         manager.set_product("default_name", "格式验证")
         config_path = manager.config_path
         with open(config_path, encoding="utf-8") as f:
             raw = json.load(f)
-        assert "product" in raw
-        assert raw["product"]["default_name"] == "格式验证"
+        assert "products" in raw
+        assert raw["products"][0]["default_name"] == "格式验证"
+        assert "active_product_id" in raw

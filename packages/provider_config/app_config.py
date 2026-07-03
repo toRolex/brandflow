@@ -185,8 +185,23 @@ class AppConfigManager:
     def _load(self) -> dict[str, Any]:
         if self.config_path.exists():
             with open(self.config_path, encoding="utf-8") as f:
-                return json.load(f)
+                raw = json.load(f)
+            return self._migrate_if_needed(raw)
         return {}
+
+    def _migrate_if_needed(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """自动迁移旧版 product 格式到新版 products 列表格式。"""
+        if "product" in raw and "products" not in raw:
+            old_product = raw.pop("product", {})
+            raw["products"] = [
+                {
+                    "id": "default",
+                    **old_product,
+                }
+            ]
+            raw["active_product_id"] = "default"
+            self._save(raw)
+        return raw
 
     def _save(self, config: dict[str, Any]) -> None:
         with open(self.config_path, "w", encoding="utf-8") as f:
@@ -339,34 +354,136 @@ class AppConfigManager:
         defaults = DEFAULTS["scene"]
         return _deep_merge(defaults, scene)
 
-    def get_product_config(self) -> dict[str, Any]:
-        config = self._load()
-        product = config.get("product", {})
+    def get_product_config(self, product_id: str | None = None) -> dict[str, Any]:
+        """获取产品配置。
+
+        Args:
+            product_id: 指定产品 ID。为 None 时返回活跃产品配置。
+        """
+        raw = self._load()
         defaults = DEFAULTS["product"]
-        return _deep_merge(defaults, product)
+        products = raw.get("products", [])
+
+        if product_id:
+            # 查找指定产品
+            for p in products:
+                if p.get("id") == product_id:
+                    merged = _deep_merge(defaults, p)
+                    merged.setdefault("id", product_id)
+                    merged.setdefault("name", merged.get("default_name", ""))
+                    return merged
+            # 未找到时返回 DEFAULTS
+            merged = deepcopy(defaults)
+            merged["id"] = product_id
+            merged["name"] = ""
+            return merged
+
+        # 无参时返回活跃产品配置
+        if not products:
+            return deepcopy(defaults)
+
+        active_id = raw.get("active_product_id", "")
+        for p in products:
+            if p.get("id") == active_id:
+                merged = _deep_merge(defaults, p)
+                merged.setdefault("id", active_id)
+                merged.setdefault("name", merged.get("default_name", ""))
+                return merged
+
+        # 活跃产品未找到时返回 DEFAULTS
+        return deepcopy(defaults)
 
     def set_product_config(self, values: dict[str, Any]) -> None:
-        config = self._load()
-        existing = config.get("product", {})
-        merged = _deep_merge(existing, values)
-        config["product"] = merged
-        self._save(config)
+        raw = self._load()
+        self._ensure_active_product(raw)
+        active_id = raw.get("active_product_id", "")
+
+        for i, p in enumerate(raw["products"]):
+            if p.get("id") == active_id:
+                existing = raw["products"][i]
+                merged = _deep_merge(existing, values)
+                raw["products"][i] = merged
+                break
+
+        self._save(raw)
 
     def set_product(self, key: str, value: Any) -> None:
-        config = self._load()
-        if "product" not in config:
-            config["product"] = {}
-        _set_nested(config["product"], key, value)
-        self._save(config)
+        raw = self._load()
+        self._ensure_active_product(raw)
+        active_id = raw.get("active_product_id", "")
+
+        for i, p in enumerate(raw["products"]):
+            if p.get("id") == active_id:
+                _set_nested(raw["products"][i], key, value)
+                break
+
+        self._save(raw)
 
     def reset_product_config(self) -> None:
-        config = self._load()
-        config.pop("product", None)
-        self._save(config)
+        raw = self._load()
+        active_id = raw.get("active_product_id", "")
+
+        # 移除活跃产品
+        products = raw.get("products", [])
+        for i, p in enumerate(products):
+            if p.get("id") == active_id:
+                products.pop(i)
+                break
+
+        # 重置活跃索引
+        if products:
+            raw["active_product_id"] = products[0]["id"]
+        else:
+            raw["active_product_id"] = ""
+
+        self._save(raw)
 
     def get_product_value(self, key: str, default: Any = None) -> Any:
         config = self.get_product_config()
         return _get_nested(config, key, default)
+
+    def _ensure_active_product(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """确保 products 列表和活跃产品存在，用于写入操作。"""
+        if "products" not in raw:
+            raw["products"] = []
+        if "active_product_id" not in raw:
+            raw["active_product_id"] = ""
+
+        # 有产品但无活跃 ID 时选择第一个
+        if not raw["active_product_id"] and raw["products"]:
+            raw["active_product_id"] = raw["products"][0]["id"]
+
+        # 无任何产品时创建默认
+        if not raw["products"]:
+            raw["products"] = [{"id": "default"}]
+            raw["active_product_id"] = "default"
+
+        return raw
+
+    def switch_product(self, product_id: str) -> None:
+        """切换到指定产品，不存在时自动创建。"""
+        raw = self._load()
+        if "products" not in raw:
+            raw["products"] = []
+
+        found = any(p.get("id") == product_id for p in raw["products"])
+        if not found:
+            raw["products"].append({"id": product_id})
+
+        raw["active_product_id"] = product_id
+        self._save(raw)
+
+    def list_products(self) -> list[dict[str, str]]:
+        """返回所有产品的 id + name 摘要。"""
+        raw = self._load()
+        products = raw.get("products", [])
+        return [
+            {
+                "id": p.get("id", ""),
+                "name": p.get("default_name", "") or p.get("name", "") or "",
+            }
+            for p in products
+        ]
 
     def get_asset_library_config(self) -> dict[str, Any]:
         config = self._load()
