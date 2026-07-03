@@ -357,7 +357,25 @@ export default function AnalyticsStaticPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 py-4">
+      <nav className="flex items-center gap-2 pb-3 border-b border-gray-200 mb-6">
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e]">
+          项目列表
+        </a>
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e]">
+          系统配置
+        </a>
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e]">
+          TTS 配置
+        </a>
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e]">
+          TTS 监控
+        </a>
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#0969da] bg-[#eff2f5]">
+          数据追踪
+        </a>
+      </nav>
+      <div className="space-y-6">
       {/* Top bar */}
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold text-gray-800 mr-auto">
@@ -480,6 +498,7 @@ export default function AnalyticsStaticPage() {
           />
         </>
       )}
+      </div>
     </div>
   );
 }
