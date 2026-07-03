@@ -95,7 +95,7 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(
     artifacts = orchestrator.run_phase("video_rendering", ctx)
 
     assert captured["project_dir"] == project_dir
-    assert captured["output_path"] == job_dir / "base.mp4"
+    assert captured["output_path"] == job_dir / "_clip_base.mp4"
     assert captured["payload"]["asset_bundle"]["audio_path"] == str(
         job_dir / "audio.mp3"
     )
