@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 TARGET_MIN_CHARS = 150
@@ -72,6 +73,85 @@ def _resolve_config(
     return script_cfg.get(key, default)
 
 
+def _check_knowledge_rules(
+    text: str,
+    config: dict | None,
+) -> list[str]:
+    """Check knowledge-based quality rules.
+
+    Reads knowledge_rules from config and validates against the KnowledgeStore.
+    Returns a list of error strings (empty = no errors).
+    Silently skips if knowledge_rules is not configured or store is empty.
+    """
+    if config is None:
+        return []
+    k_rules = config.get("knowledge_rules", {})
+    if not k_rules:
+        return []
+
+    store_dir = k_rules.get("store_dir", "")
+    if not store_dir:
+        return []
+
+    errors: list[str] = []
+
+    try:
+        from packages.knowledge_store.store import KnowledgeStore
+
+        store = KnowledgeStore(Path(store_dir))
+    except Exception:
+        return []
+
+    top_k = k_rules.get("top_k", 5)
+
+    # Check require_top_selling_points
+    require_top = k_rules.get("require_top_selling_points", False)
+    if require_top:
+        top_points = store.get_top_selling_points(top_k=top_k)
+        if top_points:
+            missing = []
+            for p in top_points:
+                if p.title not in text and p.content not in text:
+                    missing.append(p.title)
+            if missing:
+                errors.append(
+                    f"缺少核心卖点：{', '.join(missing[:3])}"
+                    + (f" 等 {len(missing)} 个" if len(missing) > 3 else "")
+                )
+
+    # Check min_selling_points_included
+    min_points = k_rules.get("min_selling_points_included", 0)
+    if min_points > 0:
+        all_points = store.get_top_selling_points(top_k=top_k)
+        if all_points:
+            included_count = sum(
+                1
+                for p in all_points
+                if p.title in text or p.content in text
+            )
+            if included_count < min_points:
+                errors.append(
+                    f"脚本中仅包含 {included_count} 个卖点，"
+                    f"要求至少 {min_points} 个"
+                )
+
+    # Check forbidden_words_from_knowledge
+    forbid_from_knowledge = k_rules.get("forbidden_words_from_knowledge", False)
+    if forbid_from_knowledge:
+        all_items = store.list_items()
+        forbidden_terms = [
+            item.content.strip()
+            for item in all_items
+            if item.type.value == "forbidden_word" and item.content.strip()
+        ]
+        if forbidden_terms:
+            for term in forbidden_terms:
+                if term in text:
+                    errors.append(f"包含知识库禁词「{term}」")
+
+    return errors
+
+
 def validate_script(
     text: str, product: str, brand: str, config: dict | None = None
 ) -> dict[str, Any]:
@@ -132,6 +212,9 @@ def validate_script(
     # 每句长度检查
     errors.extend(_max_sentence_length_errors(text, max_sentence_len))
 
+    # 知识库规则检查
+    errors.extend(_check_knowledge_rules(text, config))
+
     return {"ok": len(errors) == 0, "errors": errors}
 
 
@@ -178,5 +261,8 @@ def validate_cantonese_script(
             errors.append(f"包含医疗禁词「{term}」")
 
     errors.extend(_max_sentence_length_errors(text, max_sentence_len))
+
+    # 知识库规则检查
+    errors.extend(_check_knowledge_rules(text, config))
 
     return {"ok": len(errors) == 0, "errors": errors}

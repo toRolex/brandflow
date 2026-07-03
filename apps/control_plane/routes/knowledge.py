@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 
 from packages.knowledge_store.extractor import KnowledgeExtractor
 from packages.knowledge_store.models import KnowledgeDocument
@@ -129,3 +130,53 @@ def get_document_items(request: Request, doc_id: str):
         raise HTTPException(status_code=404, detail="Document not found")
     items = store.list_items(document_id=doc_id)
     return [item.to_dict() for item in items]
+
+
+@router.get("/selling-points")
+def list_selling_points(
+    request: Request,
+    priority_min: int | None = Query(None, ge=1, le=5),
+    priority_max: int | None = Query(None, ge=1, le=5),
+    tags: str | None = Query(None, description="Comma-separated tags"),
+):
+    """List all selling points with optional priority/tag filters."""
+    store = _get_store(request)
+    tag_list: list[str] | None = None
+    if tags:
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    items = store.list_selling_points(
+        priority_min=priority_min,
+        priority_max=priority_max,
+        tags=tag_list,
+    )
+    return [item.to_dict() for item in items]
+
+
+@router.put("/selling-points/{item_id}")
+def update_selling_point(
+    request: Request,
+    item_id: str,
+    body: dict[str, Any],
+):
+    """Update a selling point's title, content, priority, or tags."""
+    store = _get_store(request)
+    allowed_keys = {"title", "content", "priority", "tags"}
+    fields = {k: v for k, v in body.items() if k in allowed_keys}
+    if not fields:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid fields to update. Allowed: title, content, priority, tags",
+        )
+    updated = store.update_item(item_id, **fields)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Selling point not found")
+    return updated.to_dict()
+
+
+@router.post("/refresh")
+def refresh_knowledge(request: Request):
+    """Re-parse all uploaded documents and re-extract knowledge items."""
+    store = _get_store(request)
+    extractor = _make_extractor()
+    count = store.refresh_all(extractor)
+    return {"refreshed_count": count}
