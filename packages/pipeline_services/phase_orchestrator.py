@@ -254,6 +254,7 @@ class PhaseOrchestrator:
                 output_dir=job_dir,
                 mock=False,
                 language=language,
+                brand=ctx.brand,
             )
 
         # 2. Emit artifact pointers for txt + json

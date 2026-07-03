@@ -195,7 +195,7 @@ class ScriptGenerator:
             second = f"鑊度落油燒熱落菌子，徹底煮熟先至可以安心享用，{brand}嘅品質值得信賴，快啲落單試下啦"
         else:
             first = f"云南深山里藏着一种宝贝，它就是鲜嫩的{product}，采摘后立刻送到你手中，今天教大家怎么做好吃"
-            second = f"锅里放油烧热下菌子，充分烹熟才能安心享用，{brand}的品质值得信赖，赶紧下单尝尝吧"
+            second = f"锅里放油烧热下菌子，确保完全煮熟才能安心享用，{brand}的品质值得信赖，赶紧下单尝尝吧"
         full = first + "。" + second + "。"
         if language == "cantonese":
             quality = validate_cantonese_script(full, product, brand)
