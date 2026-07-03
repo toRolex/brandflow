@@ -60,7 +60,7 @@ async def _auto_tick(root_dir: Path):
                             continue
 
                         product = data.get(
-                            "product", os.environ.get("PRODUCT", "荔枝菌")
+                            "product", os.environ.get("PRODUCT", "")
                         )
                         options = {
                             "manual_script": data.get("manual_script", ""),

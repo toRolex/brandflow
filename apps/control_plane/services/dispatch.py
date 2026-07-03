@@ -54,6 +54,8 @@ class Dispatcher:
                         "handler_phase": action.handler_phase,
                         "project_id": project_id,
                         "job_id": job_id,
+                        "product": record.product,
+                        "brand": record.brand,
                         "task_id": task_id,
                         "task_type": "run_phase",
                         "lease_id": lease_id,

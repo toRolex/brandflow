@@ -99,6 +99,7 @@ class PhaseContext:
     project_dir: Path
     root_dir: Path
     product: str
+    brand: str = ""
     options: dict[str, Any] = field(default_factory=dict)
 
 
@@ -222,7 +223,7 @@ class PhaseOrchestrator:
 
                     gen = ScriptGenerator(_LLMConfig())
                     manual_script = gen.to_cantonese(
-                        manual_script, ctx.product, "滋元堂"
+                        manual_script, ctx.product, ctx.brand
                     )
                     print("[SCRIPT] Converted manual script to Cantonese", flush=True)
                 except Exception as e:
@@ -304,7 +305,7 @@ class PhaseOrchestrator:
                 model = llm_config.get("model", "deepseek-v4-pro")
 
             gen = ScriptGenerator(_CoverConfig())
-            cover_title = gen.generate_cover_title(script_text, ctx.product, "滋元堂")
+            cover_title = gen.generate_cover_title(script_text, ctx.product, ctx.brand)
             job_data["cover_title"] = cover_title
             job_json_path.write_text(
                 json.dumps(job_data, ensure_ascii=False, indent=2) + "\n",

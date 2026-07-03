@@ -402,6 +402,7 @@ class JobTickService:
                 project_dir=project_dir,
                 root_dir=root_dir,
                 product=product,
+                brand=record.brand,
                 options=options or {},
             )
             handler_phase = action.handler_phase or record.phase
