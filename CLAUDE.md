@@ -64,13 +64,13 @@ ssh prod-jump "<命令>"
 |------|--------|-----|------|
 | 测试机 | — | `100.121.152.103:17890` | Tailscale 虚拟 IP，跨网段可用 |
 | 测试机 | — | `192.168.31.158:17890` | 局域网直连 IP |
-| 生产机 | `ziyuantang1` | `192.168.31.222:17890` | 局域网 IP，通过测试机跳板连接 |
+| 生产机 | `brandflow1` | `192.168.31.222:17890` | 局域网 IP，通过测试机跳板连接 |
 
 - 默认只执行只读命令；高风险操作（修改配置、重启、删除）前必须先确认
 
 ## 项目概述
 
-**滋元堂矩阵流水线 3.0** — `control-plane + runtime-worker` 短视频自动化生产系统。
+**Brandflow 短视频自动化系统 3.0** — `control-plane + runtime-worker` 短视频自动化生产系统。
 
 - 控制面：`apps/control_plane/`（FastAPI + Web 看板，任务调度、审核）
 - 执行器：`apps/runtime_worker/`（拉模式 worker，直接调用 `packages/pipeline_services/` 下的独立 service）
@@ -287,7 +287,7 @@ queued → script_generating → script_review → tts_generating → tts_review
 
 ## 脚本质检硬条件
 - 150-200 字（`compact_len`）
-- 品名出现 1 次、品牌"滋元堂"出现 1 次
+- 品名出现 1 次、品牌名出现 1 次
 - 包含"充分烹熟"
 - 禁 emoji、禁医疗功效词（治疗/治愈/疗效/降血糖/降血压/抗癌/药到病除）
 - 已取消"首句≤20 字、尾句≤20 字"硬条件
