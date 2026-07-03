@@ -1,11 +1,12 @@
 import { useState } from "react";
-import type { ScriptCheckResult } from "../types";
+import type { ScriptCheckResult, ProductionMode } from "../types";
 
 interface Props {
   script: string;
   checks: ScriptCheckResult | null;
   brand?: string;
   safetyWarningText?: string;
+  mode?: ProductionMode;
   onApprove: () => void;
   onReject: () => void;
   onRegenerate: () => void;
@@ -18,6 +19,7 @@ export default function ScriptPreview({
   checks,
   brand,
   safetyWarningText,
+  mode,
   onApprove,
   onReject,
   onRegenerate,
@@ -82,7 +84,7 @@ export default function ScriptPreview({
       {checks && (
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs mb-4">
           <span className={checks.length >= 150 && checks.length <= 200 ? "text-[#1a7f37]" : "text-[#d1242f]"}>
-            字数: {checks.length} {checks.length >= 150 && checks.length <= 200 ? "\u2713" : "\u2717"}
+            字数: {checks.length} {checks.length >= 150 && checks.length <= 200 ? "✓" : "✗"}
           </span>
           {brand && (
             <span
@@ -97,10 +99,10 @@ export default function ScriptPreview({
             品名: {checks.product_name_count}次
           </span>
           <span className={checks.has_safety_warning ? "text-[#1a7f37]" : "text-[#d1242f]"}>
-            {safetyWarningText || "安全提示"}: {checks.has_safety_warning ? "\u2713" : "\u2717"}
+            {safetyWarningText || "安全提示"}: {checks.has_safety_warning ? "✓" : "✗"}
           </span>
           <span className={!checks.has_emoji ? "text-[#1a7f37]" : "text-[#d1242f]"}>
-            禁emoji: {!checks.has_emoji ? "\u2713" : "\u2717"}
+            禁emoji: {!checks.has_emoji ? "✓" : "✗"}
           </span>
           {checks.forbidden_terms.length > 0 && (
             <span className="text-[#d1242f]">禁词: {checks.forbidden_terms.join(", ")}</span>
@@ -134,41 +136,47 @@ export default function ScriptPreview({
         </div>
       )}
 
-      <div className="flex gap-1.5 flex-wrap">
-        <button
-          className="bg-[#0969da] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
-          onClick={onApprove}
-        >
-          {"\u2713"} 通过
-        </button>
-        <button
-          className="bg-[#d1242f] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
-          onClick={onReject}
-        >
-          {"\u2717"} 打回
-        </button>
-        <button
-          className="bg-white border border-[#393f46] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
-          onClick={onRegenerate}
-        >
-          {"\uD83D\uDD04"} 重生成脚本
-        </button>
-        <button
-          className="bg-white border border-[#393f46] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
-          onClick={() => {
-            setIsEditing(true);
-            setEditText(script);
-          }}
-        >
-          ✏️ 手动编辑
-        </button>
-        <button
-          className="bg-white border border-[#393f46] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
-          onClick={() => setShowPromptInput(!showPromptInput)}
-        >
-          📝 提示词重生成
-        </button>
-      </div>
+      {mode === "import" ? (
+        <div className="text-xs text-gray-500 mb-2">
+          此 Job 为手动导入模式，脚本仅供查看
+        </div>
+      ) : (
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            className="bg-[#0969da] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+            onClick={onApprove}
+          >
+            {"✓"} 通过
+          </button>
+          <button
+            className="bg-[#d1242f] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+            onClick={onReject}
+          >
+            {"✗"} 打回
+          </button>
+          <button
+            className="bg-white border border-[#393f46] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
+            onClick={onRegenerate}
+          >
+            {"🔄"} 重生成脚本
+          </button>
+          <button
+            className="bg-white border border-[#393f46] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
+            onClick={() => {
+              setIsEditing(true);
+              setEditText(script);
+            }}
+          >
+            {"✏️"} 手动编辑
+          </button>
+          <button
+            className="bg-white border border-[#393f46] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
+            onClick={() => setShowPromptInput(!showPromptInput)}
+          >
+            {"📝"} 提示词重生成
+          </button>
+        </div>
+      )}
     </div>
   );
 }

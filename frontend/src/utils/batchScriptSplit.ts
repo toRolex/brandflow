@@ -1,5 +1,8 @@
+import type { ProductionMode } from "../types";
+
 export interface BatchConfig {
   name: string;
+  productionMode: ProductionMode;
   scriptMode: "auto" | "manual";
   manualScript: string;
   skipSubtitle: boolean;
@@ -15,6 +18,7 @@ export interface BatchConfig {
 export function defaultBatchConfig(): BatchConfig {
   return {
     name: "",
+    productionMode: "generate",
     scriptMode: "auto",
     manualScript: "",
     skipSubtitle: false,

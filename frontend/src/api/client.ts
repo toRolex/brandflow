@@ -163,7 +163,7 @@ export const api = {
     ),
 
   // Jobs
-  createJob: (projectId: string, body: { product: string; brand?: string; platforms: string[]; name?: string; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string; cover_title?: { text: string; highlight_words?: string[] } | null }) =>
+  createJob: (projectId: string, body: { product: string; brand?: string; platforms: string[]; name?: string; mode?: import("../types").ProductionMode; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string; cover_title?: { text: string; highlight_words?: string[] } | null }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {
       method: "POST",
       body: JSON.stringify(body),
@@ -365,5 +365,45 @@ export const api = {
     if (platform) qs.set("platform", platform);
     qs.set("limit", String(limit));
     return request<import("../types").TopicStat[]>(`/api/metrics/topics?${qs.toString()}`);
+  },
+
+  // Scene folders
+  getSceneFolders: () =>
+    request<import("../types").SceneFoldersResponse>("/api/scene/folders"),
+
+  // Scene upload
+  uploadSceneVideo: async (folderName: string, file: File) => {
+    const form = new FormData();
+    form.append("folder", folderName);
+    form.append("file", file);
+    const res = await fetch("/api/scene/upload", { method: "POST", body: form });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text}`);
+    }
+    return res.json();
+  },
+
+  // Scene folder files
+  getSceneFolderFiles: (folderName: string) =>
+    request<import("../types").SceneFolderFilesResponse>(
+      `/api/scene/folders/${encodeURIComponent(folderName)}/files`
+    ),
+
+  // Delete scene file
+  deleteSceneFile: (folderName: string, fileName: string) =>
+    request<{ status: string }>(
+      `/api/scene/folders/${encodeURIComponent(folderName)}/files/${encodeURIComponent(fileName)}`,
+      { method: "DELETE" }
+    ),
+
+  // Export download (returns blob)
+  downloadExport: async (jobId: string) => {
+    const res = await fetch(`/api/jobs/${jobId}/export`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text}`);
+    }
+    return res.blob();
   },
 };
