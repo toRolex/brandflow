@@ -273,6 +273,21 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  // Product Config
+  getProductConfig: () =>
+    request<import("../types").ProductConfig>("/api/config/product"),
+
+  saveProductConfig: (payload: import("../types").ProductConfig) =>
+    request<import("../types").ProductConfig>("/api/config/product", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  resetProductConfig: () =>
+    request<{ status: string }>("/api/config/product", {
+      method: "DELETE",
+    }),
+
   // TTS
   getTTSConfig: (projectId?: string) =>
     request<Record<string, unknown>>(`/api/tts/config${projectId ? `?project_id=${projectId}` : ""}`),
