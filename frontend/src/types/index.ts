@@ -1,3 +1,5 @@
+export type ProductionMode = "import" | "generate";
+
 export type Phase =
   | "queued" | "script_generating" | "script_review"
   | "tts_generating" | "tts_review" | "subtitle_generating" | "asset_retrieving"
@@ -30,6 +32,7 @@ export interface JobSummary {
   display_index?: string;
   skip_subtitle?: boolean;
   auto_approve?: boolean;
+  mode?: ProductionMode;
   artifacts?: Artifact[];
 }
 
@@ -117,6 +120,7 @@ export interface JobDetail {
   uploaded_audio_path?: string;
   audio_source?: string;
   cover_title?: CoverTitle | null;
+  mode?: ProductionMode;
 }
 
 export interface CoverTitle {
@@ -135,6 +139,7 @@ export interface BatchJobItem {
   name: string;
   manual_script: string;
   skip_subtitle: boolean;
+  mode?: ProductionMode;
   audio_source?: string;
   music_track_path?: string;
   music_volume?: number;
@@ -255,6 +260,26 @@ export interface MusicTrack {
   relative_path: string;
   duration_seconds: number | null;
   size_bytes: number;
+}
+
+// ── Scene Upload ───────────────────────────────────
+
+export interface SceneFolder {
+  name: string;
+  file_count: number;
+}
+
+export interface SceneFolderFile {
+  name: string;
+  size_bytes: number;
+}
+
+export interface SceneFoldersResponse {
+  folders: SceneFolder[];
+}
+
+export interface SceneFolderFilesResponse {
+  files: SceneFolderFile[];
 }
 
 // ── Analytics / Metrics ──────────────────────────────────
