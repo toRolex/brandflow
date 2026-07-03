@@ -6,6 +6,8 @@ import ConfigPage from "./pages/ConfigPage";
 import TTSConfig from "./pages/TTSConfig";
 import TTSMonitor from "./pages/TTSMonitor";
 import ProductConfigForm from "./pages/ProductConfigForm";
+import CategoryManager from "./pages/CategoryManager";
+import QualityRulesForm from "./pages/QualityRulesForm";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -33,6 +35,8 @@ export default function App() {
         <NavLink to="/" label="项目列表" />
         <NavLink to="/config" label="系统配置" />
         <NavLink to="/system/config/product" label="产品配置" />
+        <NavLink to="/system/config/categories" label="素材分类" />
+        <NavLink to="/system/config/quality" label="质检规则" />
         <NavLink to="/tts-config" label="TTS 配置" />
         <NavLink to="/tts-monitor" label="TTS 监控" />
         <NavLink to="/analytics" label="数据追踪" />
@@ -44,6 +48,8 @@ export default function App() {
           <Route path="/jobs/:id" element={<JobPipeline />} />
           <Route path="/config" element={<ConfigPage />} />
           <Route path="/system/config/product" element={<ProductConfigForm />} />
+          <Route path="/system/config/categories" element={<CategoryManager />} />
+          <Route path="/system/config/quality" element={<QualityRulesForm />} />
           <Route path="/tts-config" element={<TTSConfig />} />
           <Route path="/tts-monitor" element={<TTSMonitor />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
