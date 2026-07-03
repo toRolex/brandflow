@@ -110,6 +110,74 @@ class TestAppConfigCategories:
             assert len(cats) == 10  # fallback to defaults
             assert cats[0].name == "产地溯源"
 
+    def test_get_categories_from_product_config(self) -> None:
+        """Product-level categories should take priority over asset_library."""
+        product_cats = [
+            {"id": "promo", "name": "促销活动"},
+            {"id": "unboxing", "name": "开箱展示"},
+        ]
+        al_cats = [
+            {"id": "origin", "name": "产地溯源"},
+        ]
+        config = {
+            "product": {"categories": product_cats},
+            "asset_library": {"categories": al_cats},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "app_config.json"
+            config_path.write_text(
+                json.dumps(config, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            manager = AppConfigManager(config_dir=tmpdir)
+            cats = manager.get_categories()
+            assert len(cats) == 2
+            assert cats[0].id == "promo"
+            assert cats[0].name == "促销活动"
+            assert cats[1].id == "unboxing"
+            assert cats[1].name == "开箱展示"
+
+    def test_get_categories_empty_product_falls_to_asset_library(self) -> None:
+        """Empty product.categories should fall back to asset_library.categories."""
+        al_cats = [
+            {"id": "origin", "name": "产地溯源"},
+            {"id": "stir_fry", "name": "烹饪翻炒"},
+        ]
+        config = {
+            "product": {"categories": []},
+            "asset_library": {"categories": al_cats},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "app_config.json"
+            config_path.write_text(
+                json.dumps(config, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            manager = AppConfigManager(config_dir=tmpdir)
+            cats = manager.get_categories()
+            assert len(cats) == 2
+            assert cats[0].id == "origin"
+            assert cats[0].name == "产地溯源"
+            assert cats[1].id == "stir_fry"
+            assert cats[1].name == "烹饪翻炒"
+
+    def test_get_categories_both_empty_returns_defaults(self) -> None:
+        """Both product.categories and asset_library.categories empty returns defaults."""
+        config = {
+            "product": {"categories": []},
+            "asset_library": {"categories": []},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "app_config.json"
+            config_path.write_text(
+                json.dumps(config, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            manager = AppConfigManager(config_dir=tmpdir)
+            cats = manager.get_categories()
+            assert len(cats) == 10  # fallback to defaults
+            assert cats[0].name == "产地溯源"
+
     def test_get_category_suggestion_model_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AppConfigManager(config_dir=tmpdir)

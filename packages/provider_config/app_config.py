@@ -377,23 +377,41 @@ class AppConfigManager:
     def get_categories(self) -> list[CategoryConfig]:
         """Return the configured asset categories.
 
-        Reads from ``asset_library.categories`` in ``app_config.json``.
-        Falls back to the default food categories (matching the legacy ``Category`` enum)
-        when the list is empty.
+        Priority chain:
+        1. ``product.categories`` (product-level override)
+        2. ``asset_library.categories`` (instance-level, backward compatible)
+        3. ``default_categories()`` (food fallback)
         """
+        # Priority 1: product-level categories
+        product_config = self.get_product_config()
+        product_cats: list[dict] = product_config.get("categories", [])
+        if product_cats:
+            return [
+                CategoryConfig(
+                    id=c.get("id", ""),
+                    name=c.get("name", ""),
+                    description=c.get("description", ""),
+                    vision_prompt=c.get("vision_prompt", ""),
+                )
+                for c in product_cats
+            ]
+
+        # Priority 2: asset_library categories (backward compatible)
         al_config = self.get_asset_library_config()
         raw: list[dict] = al_config.get("categories", [])
-        if not raw:
-            return default_categories()
-        return [
-            CategoryConfig(
-                id=c.get("id", ""),
-                name=c.get("name", ""),
-                description=c.get("description", ""),
-                vision_prompt=c.get("vision_prompt", ""),
-            )
-            for c in raw
-        ]
+        if raw:
+            return [
+                CategoryConfig(
+                    id=c.get("id", ""),
+                    name=c.get("name", ""),
+                    description=c.get("description", ""),
+                    vision_prompt=c.get("vision_prompt", ""),
+                )
+                for c in raw
+            ]
+
+        # Priority 3: default food categories
+        return default_categories()
 
     def get_category_suggestion_model(self) -> str:
         al_config = self.get_asset_library_config()
