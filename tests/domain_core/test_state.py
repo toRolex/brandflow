@@ -15,6 +15,7 @@ def test_rewind_from_phase_discards_downstream_phases() -> None:
         "asset_retrieving",
         "asset_review",
         "video_rendering",
+        "final_rendering",
         "final_review",
     ]
 
@@ -47,6 +48,7 @@ def test_job_record_serializes_review_state() -> None:
 def test_worker_run_task_command_contains_lease_and_attempt() -> None:
     command = PollCommandRunTask(
         command="run_task",
+        handler_phase="script_generating",
         project_id="p1",
         job_id="j1",
         task_id="t1",

@@ -1,4 +1,4 @@
-"""WorkerLoop — pulls tasks from the control plane and runs them via PhaseOrchestrator.
+"""WorkerLoop — pulls tasks from the control plane and runs a single phase.
 
 Replaces the old inline pipeline (_DefaultMediaBridge + manual phase wiring)
 with orchestrated phase execution.  The same PhaseOrchestrator used by
@@ -23,23 +23,8 @@ from packages.pipeline_services.phase_orchestrator import (
 from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
 
 
-# Phases the worker executes in sequence.
-# Review gates (script_review, tts_review, asset_review) are handled by the
-# control plane; the worker only runs the "action" phases plus final_review
-# (which burns the final video — it is NOT a gating review from the worker's
-# perspective).
-WORKER_PHASES = [
-    "script_generating",
-    "tts_generating",
-    "subtitle_generating",
-    "asset_retrieving",
-    "video_rendering",
-    "final_review",
-]
-
-
 class WorkerLoop:
-    """Pulls a task from *api*, runs all pipeline phases, uploads artifacts."""
+    """Pulls a task from *api*, runs the single requested phase, uploads artifact."""
 
     def __init__(
         self,
@@ -54,7 +39,7 @@ class WorkerLoop:
         self.orchestrator = orchestrator
 
     def run_forever(self) -> None:
-        """常驻循环：poll 任务，idle 时 sleep 5 秒后重试，非 idle 时执行完整流水线。"""
+        """Poll 任务，根据 handler_phase 执行单个 phase，report 后继续轮询。"""
         while True:
             command = self.api.poll()
             if command["command"] == "idle":
@@ -71,6 +56,7 @@ class WorkerLoop:
                 root_dir / self.workspace_root / "projects" / command["project_id"]
             ).resolve()
             job_id = command["job_id"]
+            handler_phase = command.get("handler_phase", "")
 
             # Write job JSON so the orchestrator can read cover_title, music, etc.
             job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
@@ -111,16 +97,13 @@ class WorkerLoop:
                 },
             )
 
-            # Execute each phase in sequence and collect artifacts
-            all_artifacts = []
-            for phase in WORKER_PHASES:
-                artifacts = self.orchestrator.run_phase(phase, ctx)
-                all_artifacts.extend(artifacts)
+            # Execute the single requested phase
+            artifacts = self.orchestrator.run_phase(handler_phase, ctx)
 
             # Upload artifacts
             workspace_dir = root_dir / "workspace"
             uploaded_files = []
-            for art in all_artifacts:
+            for art in artifacts:
                 if not art.relative_path:
                     continue
                 abs_path = workspace_dir / art.relative_path

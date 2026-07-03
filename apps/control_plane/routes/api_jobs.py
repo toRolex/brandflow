@@ -114,18 +114,6 @@ def _make_job_response(
 @router.post("/api/projects/{project_id}/jobs")
 def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     job_id = f"job_{payload.product}_{uuid4().hex[:8]}"
-    dispatcher = request.app.state.dispatcher
-    dispatcher.enqueue_demo_job(
-        project_id,
-        job_id,
-        manual_script=payload.manual_script,
-        uploaded_audio_path=payload.uploaded_audio_path,
-        audio_source=payload.audio_source,
-        language=payload.language,
-        cover_title=_cover_title_from_request(payload.cover_title).model_dump(),
-        music_track_path=payload.music_track_path,
-        music_volume=payload.music_volume,
-    )
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
         job_id=job_id,
@@ -156,24 +144,12 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
 @router.post("/api/projects/{project_id}/jobs/batch")
 def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateRequest):
     repo = FileStoreRepository(request.app.state.root_dir)
-    dispatcher = request.app.state.dispatcher
     existing_count = len(repo.list_jobs(project_id))
 
     results: list[dict] = []
     for i, item in enumerate(payload.jobs):
         job_id = f"job_{payload.product}_{uuid4().hex[:8]}"
         cover_title = _cover_title_from_request(item.cover_title)
-        dispatcher.enqueue_demo_job(
-            project_id,
-            job_id,
-            manual_script=item.manual_script,
-            uploaded_audio_path="",
-            audio_source=item.audio_source,
-            language=item.language,
-            cover_title=cover_title.model_dump(),
-            music_track_path=item.music_track_path,
-            music_volume=item.music_volume,
-        )
         record = JobRecord(
             job_id=job_id,
             project_id=project_id,
@@ -244,7 +220,6 @@ def retry_job(request: Request, job_id: str):
         project_id,
         record.model_copy(update={"phase": "queued", "review_status": "none"}),
     )
-    dispatcher.enqueue_demo_job(project_id, job_id)
     return {"status": "queued_for_retry", "job_id": job_id}
 
 

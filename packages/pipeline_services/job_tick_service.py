@@ -38,7 +38,7 @@ HANDLED_PHASES: frozenset[str] = frozenset(
         "subtitle_generating",
         "asset_retrieving",
         "video_rendering",
-        "final_review",
+        "final_rendering",
     }
 )
 

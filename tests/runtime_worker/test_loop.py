@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from apps.runtime_worker.http_client import WorkerHttpClient
-from apps.runtime_worker.loop import WORKER_PHASES, WorkerLoop
+from apps.runtime_worker.loop import WorkerLoop
 from packages.pipeline_services.phase_orchestrator import (
     ArtifactPointer,
     PhaseContext,
@@ -60,6 +60,7 @@ class StubApi:
             "heartbeat_url": "/heartbeat",
             "expected_outputs": ["script", "audio", "subtitles", "final_video"],
             "runtime_limits": {"max_seconds": 60},
+            "handler_phase": "script_generating",
         }
 
     def download_input_bundle(self, bundle_url: str) -> dict:
@@ -105,6 +106,7 @@ class StubApiWithManualInputs:
             "runtime_limits": {"max_seconds": 60},
             "manual_script": self.manual_script,
             "uploaded_audio_path": self.uploaded_audio_path,
+            "handler_phase": "script_generating",
         }
 
     def download_input_bundle(self, bundle_url: str) -> dict:
@@ -208,7 +210,7 @@ def test_worker_loop_sleeps_and_retries_on_idle(tmp_path: Path) -> None:
     assert api.poll_calls == 2
 
 
-def test_worker_loop_calls_all_phases_in_order(tmp_path: Path, monkeypatch) -> None:
+def test_worker_loop_calls_handler_phase_only(tmp_path: Path, monkeypatch) -> None:
     api = StubApi()
     orch = StubOrchestrator()
     loop = _make_loop(tmp_path, api, orch, monkeypatch)
@@ -216,9 +218,9 @@ def test_worker_loop_calls_all_phases_in_order(tmp_path: Path, monkeypatch) -> N
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # All WORKER_PHASES should be called in order
+    # Only handler_phase should be called, not a batch of all phases
     called = [c["phase"] for c in orch.phase_calls]
-    assert called == WORKER_PHASES
+    assert called == ["script_generating"]
 
 
 def test_worker_loop_passes_product_from_command(tmp_path: Path, monkeypatch) -> None:
@@ -229,9 +231,9 @@ def test_worker_loop_passes_product_from_command(tmp_path: Path, monkeypatch) ->
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # All phases should receive the product from the command (default env)
-    for call in orch.phase_calls:
-        assert call["product"]  # non-empty
+    # The single phase call should receive the product from the command
+    assert len(orch.phase_calls) == 1
+    assert orch.phase_calls[0]["product"]  # non-empty
 
 
 def test_worker_loop_reports_success_and_uploads_artifacts(
@@ -305,9 +307,9 @@ def test_worker_loop_skips_llm_when_manual_script_provided(
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # All phases should still be called
+    # Only handler_phase should be called
     called = [c["phase"] for c in orch.phase_calls]
-    assert called == WORKER_PHASES
+    assert called == ["script_generating"]
 
     # The job JSON should contain the fields needed by final_review
     job_json = (
@@ -338,9 +340,9 @@ def test_worker_loop_skips_tts_when_audio_uploaded(tmp_path: Path, monkeypatch) 
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # All phases should still be called — the orchestrator handles the upload
+    # Only handler_phase should still be called — the orchestrator handles the upload
     called = [c["phase"] for c in orch.phase_calls]
-    assert called == WORKER_PHASES
+    assert called == ["script_generating"]
 
 
 def test_worker_loop_passes_language_in_options(tmp_path: Path, monkeypatch) -> None:
@@ -363,7 +365,7 @@ def test_worker_loop_passes_language_in_options(tmp_path: Path, monkeypatch) -> 
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    assert len(seen_options) == len(WORKER_PHASES)
+    assert len(seen_options) == 1, "Only one phase should be executed"
     assert seen_options[0].get("language") == "mandarin"
 
 
@@ -378,7 +380,6 @@ def test_worker_loop_constructs_project_dir_correctly(
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # Verify the orchestrator received the correct job_id
-    assert len(orch.phase_calls) == len(WORKER_PHASES)
-    for call in orch.phase_calls:
-        assert call["job_id"] == "job-001"
+    # Verify the orchestrator received the correct job_id (single call)
+    assert len(orch.phase_calls) == 1
+    assert orch.phase_calls[0]["job_id"] == "job-001"

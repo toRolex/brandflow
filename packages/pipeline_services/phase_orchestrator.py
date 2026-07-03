@@ -133,6 +133,7 @@ class PhaseOrchestrator:
             "subtitle_generating": self._run_subtitle,
             "asset_retrieving": self._run_asset,
             "video_rendering": self._run_video,
+            "final_rendering": self._run_final_rendering,
             "final_review": self._run_final,
         }
 
@@ -527,10 +528,10 @@ class PhaseOrchestrator:
         print(f"[VIDEO WARN] base.mp4 not produced for {ctx.job_id}", flush=True)
         return []
 
-    # -- final_review handler ------------------------------------------------
+    # -- final_rendering handler ---------------------------------------------
 
-    def _run_final(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """final_review: burn subtitles, music, cover title into final video.
+    def _run_final_rendering(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """final_rendering: burn subtitles, music, cover title into final video.
 
         Reads settings from the job JSON file (written by the UI) rather than
         ``ctx.options``, since that is where the UI persists them.
@@ -598,6 +599,12 @@ class PhaseOrchestrator:
             )
             return [self._to_artifact("final_video", final_path, workspace_dir)]
         print(f"[FINAL] {ctx.job_id}: final.mp4 NOT produced", flush=True)
+        return []
+
+    # -- final_review handler (pure gate) ------------------------------------
+
+    def _run_final(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """final_review: pure gate — no handler logic.  Burn happens in final_rendering."""
         return []
 
     @staticmethod

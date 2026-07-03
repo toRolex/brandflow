@@ -228,7 +228,7 @@ uv run pytest tests/ -q --tb=short
 **Job 主状态 `phase`：**
 ```
 queued → script_generating → script_review → tts_generating → tts_review → subtitle_generating
-→ asset_retrieving → asset_review → video_rendering → final_review
+→ asset_retrieving → asset_review → video_rendering → final_rendering → final_review
 → completed
 ```
 

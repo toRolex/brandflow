@@ -8,6 +8,7 @@ PHASE_ORDER = [
     "asset_retrieving",
     "asset_review",
     "video_rendering",
+    "final_rendering",
     "final_review",
     "completed",
 ]
