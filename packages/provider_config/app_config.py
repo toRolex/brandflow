@@ -78,6 +78,28 @@ DEFAULTS: dict[str, Any] = {
         "folders": [],
         "transition_duration_ms": 500,
     },
+    "product": {
+        "default_name": "",
+        "default_brand": "",
+        "script": {
+            "scene": "食材展示、烹饪过程、成品呈现、享用场景",
+            "material": "食材近景、清洗处理、烹饪翻炒、成品摆盘",
+            "system_prompt": "你是一位短视频文案专家，专门为食品产品撰写抖音口播文案。",
+            "enable_qa_check": True,
+            "word_count_min": 150,
+            "word_count_max": 200,
+            "max_sentence_length": 20,
+            "forbidden_words": [
+                "治疗", "治愈", "疗效", "降血糖", "降血压", "抗癌", "药到病除",
+            ],
+            "required_word_count": {
+                "product": 1,
+                "brand": 1,
+            },
+            "emoji_forbidden": True,
+        },
+        "categories": [],
+    },
 }
 
 
@@ -316,6 +338,35 @@ class AppConfigManager:
         scene = config.get("scene", {})
         defaults = DEFAULTS["scene"]
         return _deep_merge(defaults, scene)
+
+    def get_product_config(self) -> dict[str, Any]:
+        config = self._load()
+        product = config.get("product", {})
+        defaults = DEFAULTS["product"]
+        return _deep_merge(defaults, product)
+
+    def set_product_config(self, values: dict[str, Any]) -> None:
+        config = self._load()
+        existing = config.get("product", {})
+        merged = _deep_merge(existing, values)
+        config["product"] = merged
+        self._save(config)
+
+    def set_product(self, key: str, value: Any) -> None:
+        config = self._load()
+        if "product" not in config:
+            config["product"] = {}
+        _set_nested(config["product"], key, value)
+        self._save(config)
+
+    def reset_product_config(self) -> None:
+        config = self._load()
+        config.pop("product", None)
+        self._save(config)
+
+    def get_product_value(self, key: str, default: Any = None) -> Any:
+        config = self.get_product_config()
+        return _get_nested(config, key, default)
 
     def get_asset_library_config(self) -> dict[str, Any]:
         config = self._load()
