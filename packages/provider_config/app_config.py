@@ -64,6 +64,10 @@ DEFAULTS: dict[str, Any] = {
             "position": "center",
         }
     },
+    "scene": {
+        "folders": [],
+        "transition_duration_ms": 500,
+    },
 }
 
 
@@ -296,3 +300,9 @@ class AppConfigManager:
     def get_video_value(self, key: str, default: Any = None) -> Any:
         config = self.get_video_config()
         return _get_nested(config, key, default)
+
+    def get_scene_config(self) -> dict[str, Any]:
+        config = self._load()
+        scene = config.get("scene", {})
+        defaults = DEFAULTS["scene"]
+        return _deep_merge(defaults, scene)

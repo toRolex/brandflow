@@ -21,6 +21,7 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
 )
+from packages.provider_config.app_config import AppConfigManager
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -225,6 +226,8 @@ def _compute_transition(
 
     if phase == "montage_assembling":
         return TickAction(
+            run_handler=True,
+            handler_phase="montage_assembling",
             new_phase="asset_retrieving",
             message="montage_assembling → asset_retrieving",
         )
@@ -442,6 +445,19 @@ class JobTickService:
         # 3. Execute handler(s) if the transition requires it
         artifacts: list[ArtifactPointer] = []
         if action.run_handler:
+            # Populate scene config for import mode
+            scene_folder_paths: list[str] = []
+            transition_duration_ms: int = 500
+            if record.mode == "import":
+                app_cfg = AppConfigManager()
+                scene_cfg = app_cfg.get_scene_config()
+                scene_folder_paths = [
+                    entry.get("path", "")
+                    for entry in scene_cfg.get("folders", [])
+                    if entry.get("path")
+                ]
+                transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
+
             ctx = PhaseContext(
                 job_id=job_id,
                 project_dir=project_dir,
@@ -449,6 +465,8 @@ class JobTickService:
                 product=product,
                 brand=record.brand,
                 options=options or {},
+                scene_folder_paths=scene_folder_paths,
+                transition_duration_ms=transition_duration_ms,
             )
             handler_phase = action.handler_phase or record.phase
 
