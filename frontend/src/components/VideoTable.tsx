@@ -66,7 +66,7 @@ export default function VideoTable({
           type="text"
           placeholder="搜索标题..."
           onChange={(e) => onSearchChange(e.target.value)}
-          className="ml-auto px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
+          className="ml-auto w-full sm:w-auto px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
         />
         <select
           onChange={(e) => onPlatformChange(e.target.value)}

@@ -20,10 +20,12 @@ class PollCommandIdle(BaseModel):
 
 class PollCommandRunTask(BaseModel):
     command: Literal["run_task"]
+    handler_phase: str
     project_id: str
     job_id: str
     task_id: str
     task_type: str
+    mode: str = "generate"
     lease_id: str
     attempt_id: str
     lease_expires_at: str

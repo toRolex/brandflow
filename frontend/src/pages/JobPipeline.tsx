@@ -1,18 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobDetail, Phase, AssetCategory } from "../types";
+import type { JobDetail, Phase } from "../types";
 import { PIPELINE_STEPS } from "../types";
 import PipelineSidebar from "../components/PipelineSidebar";
 import ScriptPreview from "../components/ScriptPreview";
 import MediaPlayer from "../components/MediaPlayer";
 import AssetGrid from "../components/AssetGrid";
 import ClipReviewCard from "../components/ClipReviewCard";
-
-const VALID_CATEGORIES: AssetCategory[] = [
-  "产地溯源", "筛选分拣", "清洗泡发", "切配处理", "下锅入锅",
-  "烹饪翻炒", "出锅装盘", "成品展示", "试吃品尝", "产品特写",
-];
 
 function computeCompletedPhases(currentPhase: Phase): Phase[] {
   const terminalPhases: Phase[] = ["completed", "failed", "cancelled", "paused"];
@@ -165,6 +160,23 @@ export default function JobPipeline() {
     }
   };
 
+  const handleDownloadExport = async () => {
+    try {
+      const blob = await api.downloadExport(job.job_id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${job.name || job.job_id}_export.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("download export failed", e);
+      setError("下载导出包失败");
+    }
+  };
+
   const findArtifact = (kind: string) => {
     return job.artifacts?.find((a) => a.kind === kind);
   };
@@ -180,6 +192,8 @@ export default function JobPipeline() {
           <ScriptPreview
             script={scriptContent || (scriptArtifact ? "加载中..." : "等待生成...")}
             checks={null}
+            brand={job.brand}
+            mode={job.mode}
             onApprove={() => handleApprove("script")}
             onReject={() => handleReject("script")}
             onRegenerate={handleRetry}
@@ -251,7 +265,7 @@ export default function JobPipeline() {
           return {
             asset_id: String(clip.asset_id || `clip-${index}`),
             file_path: String(clip.file_path || ""),
-            category: VALID_CATEGORIES.includes(category as AssetCategory) ? (category as AssetCategory) : "产品特写",
+            category: category,
             product: "",
             confidence: 1,
             duration_seconds: 0,
@@ -384,6 +398,15 @@ export default function JobPipeline() {
             <h3 className="text-lg font-semibold text-[#1a7f37] mb-2">生产完成</h3>
             <p className="text-gray-400 text-sm mb-4">视频已生成并排期发布</p>
             <MediaPlayer src={finalVideo?.url || ""} kind="video" />
+            <div className="flex justify-center gap-3 mt-6">
+              <button
+                className="bg-[#d1242f] text-white border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
+                onClick={handleDownloadExport}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                下载导出包
+              </button>
+            </div>
           </div>
         );
       }
@@ -454,6 +477,7 @@ export default function JobPipeline() {
           onStepClick={(key) => setActiveStepKey(key)}
           activeStepKey={activeStepKey}
           jobInfo={job.name ? `${job.name} (${job.product})` : (job.product ? `${job.job_id} ${job.product}` : job.job_id)}
+          mode={job.mode}
           onPause={() => api.pauseJob(job.job_id)}
           onRetry={handleRetry}
           onViewLogs={async () => {

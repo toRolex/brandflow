@@ -1,14 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobSummary, ScheduleEntry, MusicTrack } from "../types";
+import type { JobSummary, ScheduleEntry, MusicTrack, ProductionMode } from "../types";
 import JobTable from "../components/JobTable";
 import ScheduleTable from "../components/ScheduleTable";
 import SmartAssetLibrary from "./SmartAssetLibrary";
 import BatchScriptUploader from "../components/BatchScriptUploader";
+import SceneUpload from "../components/SceneUpload";
 import { applyScriptSplit, type BatchConfig, defaultBatchConfig } from "../utils/batchScriptSplit";
 
-const PRODUCTS = ["荔枝菌", "羊肚菌", "松茸"];
 const PLATFORMS = [
   { key: "douyin", label: "抖音" },
   { key: "xiaohongshu", label: "小红书" },
@@ -22,14 +22,15 @@ export default function ProjectWorkbench() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
-  const [product, setProduct] = useState(PRODUCTS[0]);
+  const [product, setProduct] = useState("");
+  const [brand, setBrand] = useState("");
   const [platforms, setPlatforms] = useState<string[]>(["douyin", "xiaohongshu"]);
-  const [tab, setTab] = useState<"jobs" | "schedule" | "assets">("jobs");
+  const [tab, setTab] = useState<"jobs" | "schedule" | "assets" | "scene">("jobs");
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState("");
   const [manualScript, setManualScript] = useState("");
   const [jobName, setJobName] = useState("");
-  const [scriptMode, setScriptMode] = useState<"auto" | "manual">("auto");
+  const [productionMode, setProductionMode] = useState<ProductionMode>("generate");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioMode, setAudioMode] = useState<"tts" | "upload">("tts");
   const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
@@ -108,9 +109,11 @@ export default function ProjectWorkbench() {
     try {
       const job = await api.createJob(id, {
         product,
+        brand: brand || undefined,
         platforms,
         name: jobName || undefined,
-        manual_script: scriptMode === "manual" ? manualScript : "",
+        mode: productionMode,
+        manual_script: productionMode === "import" ? manualScript : "",
         audio_source: audioMode,
         music_track_path: selectedMusic,
         music_volume: musicVolume,
@@ -135,9 +138,10 @@ export default function ProjectWorkbench() {
     if (!id) return;
     setBatchCreating(true);
     try {
-      await api.batchCreateJobs(id, { product, platforms, auto_approve: autoApprove, jobs: batchConfigs.map((c, i) => ({
+      await api.batchCreateJobs(id, { product, brand: brand || undefined, platforms, auto_approve: autoApprove, jobs: batchConfigs.map((c, i) => ({
         name: c.name || `${product} #${String(i + 1).padStart(3, "0")}`,
-        manual_script: c.scriptMode === "manual" ? c.manualScript : "",
+        mode: c.productionMode,
+        manual_script: c.productionMode === "import" ? c.manualScript : "",
         skip_subtitle: c.skipSubtitle,
         audio_source: c.audioMode,
         music_track_path: c.musicPath,
@@ -279,19 +283,27 @@ export default function ProjectWorkbench() {
           )}
         </div>
 
-        {/* ── 共享设置：产品 + 平台 ── */}
+        {/* ── 共享设置：产品 + 品牌 + 平台 ── */}
         <div className="flex gap-4 flex-wrap items-end">
           <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
-            产品选择
-            <select
+            产品名称
+            <input
+              type="text"
               className="border rounded-lg px-3 py-2 text-sm"
+              placeholder="如：龙井茶"
               value={product}
               onChange={(e) => setProduct(e.target.value)}
-            >
-              {PRODUCTS.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[160px]">
+            品牌（可选）
+            <input
+              type="text"
+              className="border rounded-lg px-3 py-2 text-sm"
+              placeholder="如：您的品牌名"
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+            />
           </label>
           {!batchMode && (
             <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
@@ -380,29 +392,35 @@ export default function ProjectWorkbench() {
                   </label>
                 </div>
 
-                {/* 文案来源 */}
+                {/* 生产模式 */}
                 <div className="flex items-center gap-4 mb-3">
-                  <span className="text-xs text-[#59636e] font-medium">文案来源</span>
-                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      name={`batchScriptMode-${i}`}
-                      checked={c.scriptMode === "auto"}
-                      onChange={() => updateBatchConfig(i, { scriptMode: "auto" })}
-                    />
-                    自动生成（LLM）
-                  </label>
-                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      name={`batchScriptMode-${i}`}
-                      checked={c.scriptMode === "manual"}
-                      onChange={() => updateBatchConfig(i, { scriptMode: "manual" })}
-                    />
-                    手动输入
-                  </label>
+                  <span className="text-xs text-[#59636e] font-medium">生产模式</span>
+                  <div className="flex rounded-lg border overflow-hidden">
+                    <button
+                      type="button"
+                      className={`px-3 py-1 text-sm font-medium transition-colors ${
+                        c.productionMode === "generate"
+                          ? "bg-[#0969da] text-white"
+                          : "bg-white text-[#59636e] hover:bg-gray-50"
+                      }`}
+                      onClick={() => updateBatchConfig(i, { productionMode: "generate", scriptMode: "auto" })}
+                    >
+                      智能生成
+                    </button>
+                    <button
+                      type="button"
+                      className={`px-3 py-1 text-sm font-medium transition-colors ${
+                        c.productionMode === "import"
+                          ? "bg-[#d1242f] text-white"
+                          : "bg-white text-[#59636e] hover:bg-gray-50"
+                      }`}
+                      onClick={() => updateBatchConfig(i, { productionMode: "import", scriptMode: "manual" })}
+                    >
+                      手动导入
+                    </button>
+                  </div>
                 </div>
-                {c.scriptMode === "manual" && (
+                {c.productionMode === "import" && (
                   <textarea
                     className="w-full border rounded-lg px-3 py-2 text-sm min-h-[80px] mb-3 placeholder:text-gray-400"
                     placeholder="请输入文案内容（150-200字）..."
@@ -458,9 +476,9 @@ export default function ProjectWorkbench() {
                   <button
                     type="button"
                     className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
-                    disabled={c.scriptMode === "auto" && !c.manualScript.trim() || batchCoverCooldown.has(i)}
+                    disabled={c.productionMode === "generate" || batchCoverCooldown.has(i)}
                     onClick={async () => {
-                      const text = c.scriptMode === "manual" ? c.manualScript : "";
+                      const text = c.productionMode === "import" ? c.manualScript : "";
                       if (!text.trim()) return;
                       setBatchCoverCooldown((prev) => new Set(prev).add(i));
                       try {
@@ -473,7 +491,7 @@ export default function ProjectWorkbench() {
                       }
                     }}
                   >
-                    {batchCoverCooldown.has(i) ? "冷却中（5s）..." : c.scriptMode === "auto" ? "需先输入文案才能生成" : "自动生成标题"}
+                    {batchCoverCooldown.has(i) ? "冷却中（5s）..." : c.productionMode === "generate" ? "需先输入文案才能生成" : "自动生成标题"}
                   </button>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap mb-3">
@@ -559,28 +577,34 @@ export default function ProjectWorkbench() {
         ) : (
           /* ── 单个创建 UI（保持现有流程不变） ── */
           <>
-            {/* Script Input Section */}
+            {/* Production Mode Section */}
             <div className="mt-4 pt-4 border-t">
               <div className="flex items-center gap-4 mb-3">
-                <span className="text-xs text-[#59636e] font-medium">文案来源</span>
-                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="scriptMode"
-                    checked={scriptMode === "auto"}
-                    onChange={() => setScriptMode("auto")}
-                  />
-                  自动生成（LLM）
-                </label>
-                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="scriptMode"
-                    checked={scriptMode === "manual"}
-                    onChange={() => setScriptMode("manual")}
-                  />
-                  手动输入
-                </label>
+                <span className="text-xs text-[#59636e] font-medium">生产模式</span>
+                <div className="flex rounded-lg border overflow-hidden">
+                  <button
+                    type="button"
+                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                      productionMode === "generate"
+                        ? "bg-[#0969da] text-white"
+                        : "bg-white text-[#59636e] hover:bg-gray-50"
+                    }`}
+                    onClick={() => setProductionMode("generate")}
+                  >
+                    智能生成
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                      productionMode === "import"
+                        ? "bg-[#d1242f] text-white"
+                        : "bg-white text-[#59636e] hover:bg-gray-50"
+                    }`}
+                    onClick={() => setProductionMode("import")}
+                  >
+                    手动导入
+                  </button>
+                </div>
                 <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
                   <input
                     type="checkbox"
@@ -598,13 +622,18 @@ export default function ProjectWorkbench() {
                   跳过字幕
                 </label>
               </div>
-              {scriptMode === "manual" && (
+              {productionMode === "import" && (
                 <textarea
                   className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px] placeholder:text-gray-400"
                   placeholder="请输入文案内容（150-200字）..."
                   value={manualScript}
                   onChange={(e) => setManualScript(e.target.value)}
                 />
+              )}
+              {productionMode === "generate" && (
+                <p className="text-xs text-gray-400 mt-1">
+                  LLM 将根据产品信息自动生成口播脚本
+                </p>
               )}
             </div>
 
@@ -656,9 +685,9 @@ export default function ProjectWorkbench() {
                 <button
                   type="button"
                   className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
-                  disabled={scriptMode === "auto" && !manualScript.trim() || coverTitleCooldown}
+                  disabled={productionMode === "generate" || coverTitleCooldown}
                   onClick={async () => {
-                    const text = scriptMode === "manual" ? manualScript : "";
+                    const text = productionMode === "import" ? manualScript : "";
                     if (!text.trim()) return;
                     setCoverTitleCooldown(true);
                     try {
@@ -672,7 +701,7 @@ export default function ProjectWorkbench() {
                     }
                   }}
                 >
-                  {coverTitleCooldown ? "冷却中（5s）..." : scriptMode === "auto" ? "需先输入文案才能生成" : "自动生成标题"}
+                  {coverTitleCooldown ? "冷却中（5s）..." : productionMode === "generate" ? "需先输入文案才能生成" : "自动生成标题"}
                 </button>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -757,7 +786,7 @@ export default function ProjectWorkbench() {
         )}
       </section>
 
-      {/* Tab: Jobs / Schedule */}
+      {/* Tab: Jobs / Schedule / Assets / Scene */}
       <div className="flex gap-4 border-b mb-4">
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
@@ -789,6 +818,16 @@ export default function ProjectWorkbench() {
         >
           智能素材库
         </button>
+        <button
+          className={`pb-2 text-sm font-medium transition-colors ${
+            tab === "scene"
+              ? "border-b-2 border-[#0969da] text-[#0969da]"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+          onClick={() => setTab("scene")}
+        >
+          场景素材
+        </button>
       </div>
 
       {tab === "jobs" ? (
@@ -805,6 +844,8 @@ export default function ProjectWorkbench() {
           entries={schedule}
           onExport={() => api.exportSchedule()}
         />
+      ) : tab === "scene" ? (
+        <SceneUpload />
       ) : (
         <SmartAssetLibrary projectId={id!} />
       )}

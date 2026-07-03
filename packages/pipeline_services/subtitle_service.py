@@ -235,8 +235,6 @@ class SubtitleService:
         cleaned = unicodedata.normalize("NFKC", self.strip_emoji(text or ""))
         cleaned = cleaned.translate(TRADITIONAL_CHAR_MAP)
         for source, target in {
-            "資元堂": "滋元堂",
-            "資源堂": "滋元堂",
             "視頻": "视频",
             "這個": "这个",
             "妳": "你",
@@ -414,11 +412,8 @@ class SubtitleService:
         if not srt_path.exists():
             return
         content = srt_path.read_text(encoding="utf-8-sig", errors="replace")
-        content = re.sub(r"[资紫滋知智之指支][源元远愿圆员][堂糖唐]", "滋元堂", content)
         content = content.translate(TRADITIONAL_CHAR_MAP)
         for source, target in [
-            ("資源堂", "滋元堂"),
-            ("資元堂", "滋元堂"),
             ("視頻", "视频"),
             ("這個", "这个"),
         ]:

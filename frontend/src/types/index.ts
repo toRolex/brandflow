@@ -1,3 +1,5 @@
+export type ProductionMode = "import" | "generate";
+
 export type Phase =
   | "queued" | "script_generating" | "script_review"
   | "tts_generating" | "tts_review" | "subtitle_generating" | "asset_retrieving"
@@ -17,6 +19,7 @@ export interface Project {
 export interface JobSummary {
   job_id: string;
   product: string;
+  brand?: string;
   name?: string;
   phase: Phase;
   review_status: ReviewStatus;
@@ -29,6 +32,7 @@ export interface JobSummary {
   display_index?: string;
   skip_subtitle?: boolean;
   auto_approve?: boolean;
+  mode?: ProductionMode;
   artifacts?: Artifact[];
 }
 
@@ -40,17 +44,7 @@ export interface AssetFile {
   in_use: boolean;
 }
 
-export type AssetCategory =
-  | "产地溯源"
-  | "筛选分拣"
-  | "清洗泡发"
-  | "切配处理"
-  | "下锅入锅"
-  | "烹饪翻炒"
-  | "出锅装盘"
-  | "成品展示"
-  | "试吃品尝"
-  | "产品特写";
+export type AssetCategory = string;
 
 export interface AssetRecord {
   asset_id: string;
@@ -79,6 +73,12 @@ export interface AssetFilters {
   usageMax: number;
 }
 
+export interface CategoryItem {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export type IndexStatus = "idle" | "processing" | "done";
 
 export interface IndexResult {
@@ -104,6 +104,7 @@ export interface JobDetail {
   job_id: string;
   project_id: string;
   product: string;
+  brand?: string;
   name?: string;
   platforms: string[];
   phase: Phase;
@@ -115,6 +116,7 @@ export interface JobDetail {
   uploaded_audio_path?: string;
   audio_source?: string;
   cover_title?: CoverTitle | null;
+  mode?: ProductionMode;
 }
 
 export interface CoverTitle {
@@ -133,6 +135,7 @@ export interface BatchJobItem {
   name: string;
   manual_script: string;
   skip_subtitle: boolean;
+  mode?: ProductionMode;
   audio_source?: string;
   music_track_path?: string;
   music_volume?: number;
@@ -142,6 +145,7 @@ export interface BatchJobItem {
 
 export interface BatchCreateRequest {
   product: string;
+  brand?: string;
   platforms: string[];
   auto_approve?: boolean;
   jobs: BatchJobItem[];
@@ -252,6 +256,26 @@ export interface MusicTrack {
   relative_path: string;
   duration_seconds: number | null;
   size_bytes: number;
+}
+
+// ── Scene Upload ───────────────────────────────────
+
+export interface SceneFolder {
+  name: string;
+  file_count: number;
+}
+
+export interface SceneFolderFile {
+  name: string;
+  size_bytes: number;
+}
+
+export interface SceneFoldersResponse {
+  folders: SceneFolder[];
+}
+
+export interface SceneFolderFilesResponse {
+  files: SceneFolderFile[];
 }
 
 // ── Analytics / Metrics ──────────────────────────────────

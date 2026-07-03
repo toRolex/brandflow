@@ -1,4 +1,4 @@
-"""WorkerLoop — pulls tasks from the control plane and runs them via PhaseOrchestrator.
+"""WorkerLoop — pulls tasks from the control plane and runs a single phase.
 
 Replaces the old inline pipeline (_DefaultMediaBridge + manual phase wiring)
 with orchestrated phase execution.  The same PhaseOrchestrator used by
@@ -23,23 +23,8 @@ from packages.pipeline_services.phase_orchestrator import (
 from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
 
 
-# Phases the worker executes in sequence.
-# Review gates (script_review, tts_review, asset_review) are handled by the
-# control plane; the worker only runs the "action" phases plus final_review
-# (which burns the final video — it is NOT a gating review from the worker's
-# perspective).
-WORKER_PHASES = [
-    "script_generating",
-    "tts_generating",
-    "subtitle_generating",
-    "asset_retrieving",
-    "video_rendering",
-    "final_review",
-]
-
-
 class WorkerLoop:
-    """Pulls a task from *api*, runs all pipeline phases, uploads artifacts."""
+    """Pulls a task from *api*, runs the single requested phase, uploads artifact."""
 
     def __init__(
         self,
@@ -54,7 +39,7 @@ class WorkerLoop:
         self.orchestrator = orchestrator
 
     def run_forever(self) -> None:
-        """常驻循环：poll 任务，idle 时 sleep 5 秒后重试，非 idle 时执行完整流水线。"""
+        """Poll 任务，根据 handler_phase 执行单个 phase，report 后继续轮询。"""
         while True:
             command = self.api.poll()
             if command["command"] == "idle":
@@ -71,6 +56,7 @@ class WorkerLoop:
                 root_dir / self.workspace_root / "projects" / command["project_id"]
             ).resolve()
             job_id = command["job_id"]
+            handler_phase = command.get("handler_phase", "")
 
             # Write job JSON so the orchestrator can read cover_title, music, etc.
             job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
@@ -83,8 +69,9 @@ class WorkerLoop:
                 ("project_id", command["project_id"]),
                 (
                     "product",
-                    command.get("product", os.environ.get("PRODUCT", "荔枝菌")),
+                    command.get("product", os.environ.get("PRODUCT", "")),
                 ),
+                ("brand", command.get("brand", "")),
                 ("platform", command.get("platform", "")),
                 ("cover_title", command.get("cover_title") or {}),
                 ("music_track_path", command.get("music_track_path", "")),
@@ -98,12 +85,14 @@ class WorkerLoop:
             )
 
             # Build PhaseContext
-            product = command.get("product", os.environ.get("PRODUCT", "荔枝菌"))
+            product = command.get("product", os.environ.get("PRODUCT", ""))
+            brand = command.get("brand", "")
             ctx = PhaseContext(
                 job_id=job_id,
                 project_dir=project_dir,
                 root_dir=root_dir,
                 product=product,
+                brand=brand,
                 options={
                     "manual_script": command.get("manual_script", ""),
                     "uploaded_audio_path": command.get("uploaded_audio_path", ""),
@@ -111,30 +100,47 @@ class WorkerLoop:
                 },
             )
 
-            # Execute each phase in sequence and collect artifacts
-            all_artifacts = []
-            for phase in WORKER_PHASES:
-                artifacts = self.orchestrator.run_phase(phase, ctx)
-                all_artifacts.extend(artifacts)
+            # Execute the single requested phase and any parallel phases
+            try:
+                artifacts = self.orchestrator.run_phase(handler_phase, ctx)
+                parallel_phases: list[str] = command.get("parallel_phases", [])
+                for pp in parallel_phases:
+                    pp_artifacts = self.orchestrator.run_phase(pp, ctx)
+                    artifacts.extend(pp_artifacts)
 
-            # Upload artifacts
-            workspace_dir = root_dir / "workspace"
-            uploaded_files = []
-            for art in all_artifacts:
-                if not art.relative_path:
-                    continue
-                abs_path = workspace_dir / art.relative_path
-                if abs_path.exists():
-                    uploaded_files.append(
-                        {
-                            "relative_path": art.relative_path,
-                            "size_bytes": abs_path.stat().st_size,
-                        }
-                    )
-            if uploaded_files:
-                self.api.upload_artifacts(command["task_id"], uploaded_files)
+                # Upload artifacts
+                workspace_dir = root_dir / "workspace"
+                uploaded_files = []
+                for art in artifacts:
+                    if not art.relative_path:
+                        continue
+                    abs_path = workspace_dir / art.relative_path
+                    if abs_path.exists():
+                        uploaded_files.append(
+                            {
+                                "relative_path": art.relative_path,
+                                "size_bytes": abs_path.stat().st_size,
+                            }
+                        )
+                if uploaded_files:
+                    self.api.upload_artifacts(command["task_id"], uploaded_files)
 
-            # Report success
+                # Report success
+                status = "succeeded"
+                logs = "orchestrator completed"
+                error = {}
+            except Exception as e:
+                print(
+                    f"[WORKER] Phase {handler_phase} failed: {type(e).__name__}: {e}",
+                    flush=True,
+                )
+                import traceback
+                traceback.print_exc()
+                status = "failed"
+                logs = f"phase execution error: {e}"
+                error = {"message": str(e), "type": type(e).__name__}
+                uploaded_files = []
+
             finished_at = datetime.now(timezone.utc).isoformat()
             self.api.report(
                 {
@@ -144,13 +150,13 @@ class WorkerLoop:
                     "task_id": command["task_id"],
                     "attempt_id": command["attempt_id"],
                     "lease_id": command["lease_id"],
-                    "status": "succeeded",
+                    "status": status,
                     "started_at": started_at,
                     "finished_at": finished_at,
                     "artifact_manifest": {"files": uploaded_files},
                     "metrics": {},
-                    "logs_summary": "orchestrator completed",
-                    "error": {},
+                    "logs_summary": logs,
+                    "error": error,
                 }
             )
 

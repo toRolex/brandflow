@@ -174,7 +174,7 @@ async def index_assets(request: Request, async_mode: bool = Query(True)):
 
     app_config = AppConfigManager()
     vision_config = app_config.get_vision_config()
-    product = os.environ.get("PRODUCT", "荔枝菌")
+    product = os.environ.get("PRODUCT", "")
     ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
     indexer = AssetIndexer(
         ffmpeg_path=ffmpeg_path,
@@ -220,7 +220,7 @@ async def _run_index_task(
 
         app_config = AppConfigManager()
         vision_config = app_config.get_vision_config()
-        product = os.environ.get("PRODUCT", "荔枝菌")
+        product = os.environ.get("PRODUCT", "")
         ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
         indexer = AssetIndexer(
             ffmpeg_path=ffmpeg_path,

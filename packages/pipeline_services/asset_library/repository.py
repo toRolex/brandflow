@@ -98,7 +98,7 @@ class AssetRepository:
             "SELECT * FROM assets WHERE asset_id = ?", (asset_id,)
         ).fetchone()
         conn.close()
-        return _row_to_record(row) if row else None
+        return row_to_record(row) if row else None
 
     def query_by_category(self, product: str, category: Category) -> list[AssetRecord]:
         conn = sqlite3.connect(str(self.db_path))
@@ -108,7 +108,23 @@ class AssetRepository:
             (product, category.value),
         ).fetchall()
         conn.close()
-        return [_row_to_record(r) for r in rows]
+        return [row_to_record(r) for r in rows]
+
+    def query_by_category_name(
+        self, product: str, category_name: str
+    ) -> list[AssetRecord]:
+        """Query assets by product and category name string.
+
+        This is the preferred query method for configurable (non-enum) categories.
+        """
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM assets WHERE product = ? AND category = ? AND status != 'disabled' ORDER BY usage_count ASC, confidence DESC",
+            (product, category_name),
+        ).fetchall()
+        conn.close()
+        return [row_to_record(r) for r in rows]
 
     def query_all_available(self, product: str) -> list[AssetRecord]:
         conn = sqlite3.connect(str(self.db_path))
@@ -118,7 +134,7 @@ class AssetRepository:
             (product,),
         ).fetchall()
         conn.close()
-        return [_row_to_record(r) for r in rows]
+        return [row_to_record(r) for r in rows]
 
     def get_usage_count(self, asset_id: str) -> int:
         conn = sqlite3.connect(str(self.db_path))
@@ -231,11 +247,17 @@ class AssetRepository:
         pass
 
 
-def _row_to_record(row: sqlite3.Row) -> AssetRecord:
+def row_to_record(row: sqlite3.Row) -> AssetRecord:
+    raw_category = row["category"]
+    try:
+        category = Category(raw_category)
+    except ValueError:
+        # Config-based category name that is not in the legacy enum
+        category = Category.MACRO  # fallback
     return AssetRecord(
         asset_id=row["asset_id"],
         file_path=row["file_path"],
-        category=Category(row["category"]),
+        category=category,
         product=row["product"],
         confidence=row["confidence"],
         duration_seconds=row["duration_seconds"],

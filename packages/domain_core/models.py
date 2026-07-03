@@ -10,12 +10,15 @@ Phase = Literal[
     "queued",
     "script_generating",
     "script_review",
+    "scene_assembling",
     "tts_generating",
     "tts_review",
     "subtitle_generating",
+    "montage_assembling",
     "asset_retrieving",
     "asset_review",
     "video_rendering",
+    "final_rendering",
     "final_review",
     "completed",
     "failed",
@@ -23,6 +26,7 @@ Phase = Literal[
     "paused",
 ]
 
+ProductionMode = Literal["import", "generate"]
 ReviewStatus = Literal["none", "pending", "approved", "rejected", "overridden"]
 
 
@@ -56,7 +60,9 @@ class JobRecord(BaseModel):
     job_id: str
     project_id: str = ""
     product: str = ""
+    brand: str = ""
     name: str = ""  # 用户自定义名称，空则回退到 product
+    mode: ProductionMode = "generate"
     phase: Phase
     review_status: ReviewStatus
     active_attempt_id: str = ""
@@ -73,6 +79,8 @@ class JobRecord(BaseModel):
     music_track_path: str = ""
     music_volume: int = 80
     used_asset_ids: list[str] = []
+    scene_folder_ids: list[str] = Field(default_factory=list)
+    transition_duration_ms: int = 500
 
 
 class WorkerLease(BaseModel):

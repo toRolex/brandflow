@@ -14,7 +14,7 @@ export default function TopicGrid({
 }) {
   if (loading) {
     return (
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {Array.from({ length: 10 }).map((_, i) => (
           <div
             key={i}
@@ -32,7 +32,7 @@ export default function TopicGrid({
   if (topics.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
       {topics.map((t, i) => (
         <div
           key={t.keyword}

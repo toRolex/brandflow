@@ -1,4 +1,4 @@
-# 滋元堂短视频矩阵流水线 3.0
+# Brandflow 短视频自动化系统 3.0
 
 AI 驱动的短视频自动化生产系统，基于 `control-plane + runtime-worker` 架构。工作人员通过 Web 前端完成全流程操作，无需命令行。
 

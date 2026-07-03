@@ -32,6 +32,7 @@ class AssetIndexer:
         repository: AssetRepository,
         vision_config: dict | None = None,
         product: str = "",
+        category_names: list[str] | None = None,
     ) -> None:
         self.ffmpeg_path = _resolve_tool_path(ffmpeg_path)
         ffprobe_path = os.environ.get(
@@ -41,6 +42,7 @@ class AssetIndexer:
         self.repository = repository
         self.vision_config = vision_config or {}
         self.product = product
+        self.category_names = category_names
         self._vision_client: VisionClient | None = None
 
     def _get_vision_client(self) -> VisionClient:
@@ -50,6 +52,7 @@ class AssetIndexer:
                 endpoint=self.vision_config.get("endpoint", ""),
                 model=self.vision_config.get("model", ""),
                 provider=self.vision_config.get("provider", ""),
+                categories=self.category_names,
             )
         return self._vision_client
 
@@ -295,8 +298,12 @@ class AssetIndexer:
         )
         return float(result.stdout.strip())
 
-    @staticmethod
-    def _is_valid_category(name: str) -> bool:
+    def _is_valid_category(self, name: str) -> bool:
+        """Check if *name* is valid — either in the enum or in configured categories."""
+        # First try configured categories
+        if self.category_names:
+            return name in self.category_names
+        # Fall back to legacy Category enum
         try:
             Category(name)
             return True

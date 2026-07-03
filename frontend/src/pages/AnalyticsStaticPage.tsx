@@ -45,7 +45,7 @@ function DeltaCards({ data }: { data: IncrementData | null }) {
   if (!data) return null;
 
   return (
-    <div className="grid grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
       {INCR_CARDS.map((it) => {
         const val = data.summary[it.key];
         const prefix = val >= 0 ? "+" : "";
@@ -126,8 +126,7 @@ function IncrementTrendChart({ data }: { data: DailyIncrement[] }) {
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="text-sm text-gray-500 mb-2">分日增量趋势</div>
+    <div className="rounded-xl border border-gray-200 bg-white p-4 w-full">
       <ReactECharts option={option} style={{ height: 320 }} />
     </div>
   );
@@ -357,7 +356,25 @@ export default function AnalyticsStaticPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 py-4">
+      <nav className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-3 border-b border-gray-200 mb-6">
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e]">
+          项目列表
+        </a>
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e]">
+          系统配置
+        </a>
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e]">
+          TTS 配置
+        </a>
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#59636e]">
+          TTS 监控
+        </a>
+        <a className="px-3 py-2 rounded-xl text-sm font-medium text-[#0969da] bg-[#eff2f5]">
+          数据追踪
+        </a>
+      </nav>
+      <div className="space-y-6">
       {/* Top bar */}
       <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-semibold text-gray-800 mr-auto">
@@ -421,7 +438,7 @@ export default function AnalyticsStaticPage() {
               </p>
             </div>
           ) : incrementLoading ? (
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="rounded-xl border border-gray-200 p-5 animate-pulse">
                   <div className="h-4 bg-gray-200 rounded w-16 mb-3" />
@@ -480,6 +497,7 @@ export default function AnalyticsStaticPage() {
           />
         </>
       )}
+      </div>
     </div>
   );
 }

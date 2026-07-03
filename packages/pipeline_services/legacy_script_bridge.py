@@ -18,6 +18,7 @@ class LegacyScriptBridge:
         mock: bool = False,
         custom_prompt: str = "",
         language: str = "mandarin",
+        brand: str = "",
     ) -> dict[str, Any]:
         from packages.provider_config.app_config import AppConfigManager
 
@@ -32,7 +33,7 @@ class LegacyScriptBridge:
         generator = ScriptGenerator(_Config())
         result = generator.run(
             product=product,
-            brand="滋元堂",
+            brand=brand,
             mock=mock,
             custom_prompt=custom_prompt,
             language=language,
@@ -47,7 +48,7 @@ class LegacyScriptBridge:
             json.dumps(
                 {
                     "product": product,
-                    "brand": "滋元堂",
+                    "brand": brand,
                     "mode": "mock" if mock else "script_service",
                     "language": language,
                     "final_script": result.full_text,

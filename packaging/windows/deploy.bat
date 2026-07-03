@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title 滋元堂 — 部署脚本
+title Brandflow — 部署脚本
 setlocal enabledelayedexpansion
 
 set PROJECT_DIR=%~dp0..\..
@@ -92,13 +92,13 @@ if not exist "%PROJECT_DIR%\.env" (
 
 :: ---- Step 6: 重启服务 ----
 echo [7/8] 重启服务...
-nssm restart ziyuantang-control-plane
+nssm restart brandflow-control-plane
 if %errorlevel% neq 0 (
-    nssm start ziyuantang-control-plane
+    nssm start brandflow-control-plane
 )
-nssm restart ziyuantang-worker
+nssm restart brandflow-worker
 if %errorlevel% neq 0 (
-    nssm start ziyuantang-worker
+    nssm start brandflow-worker
 )
 
 :: ---- Step 7: 健康检查 + 回滚 ----
@@ -119,8 +119,8 @@ if %errorlevel% neq 0 (
         echo   回滚到 !ROLLBACK_TAG! ... >> "%LOG_FILE%"
         git reset --hard !ROLLBACK_TAG!
         uv sync --all-extras --dev >nul
-        nssm restart ziyuantang-control-plane
-        nssm restart ziyuantang-worker
+        nssm restart brandflow-control-plane
+        nssm restart brandflow-worker
         echo [完成] 已回滚到 !ROLLBACK_TAG! >> "%LOG_FILE%"
     ) else (
         echo [错误] 找不到可回滚的标记，请手动处理 >> "%LOG_FILE%"

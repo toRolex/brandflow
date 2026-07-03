@@ -78,31 +78,6 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
 
-    # For final_review, run handler to produce final.mp4 before advancing
-    if record.phase == "final_review":
-        try:
-            root_dir = Path(request.app.state.root_dir)
-            orchestrator = create_orchestrator(root_dir)
-            ctx = PhaseContext(
-                job_id=job_id,
-                project_dir=root_dir / "workspace" / "projects" / project_id,
-                root_dir=root_dir,
-                product=record.product,
-                options={},
-            )
-            artifacts = orchestrator.run_phase("final_review", ctx)
-            existing_kinds = {a.kind for a in record.artifacts}
-            new_ones = [a for a in artifacts if a.kind not in existing_kinds]
-            if new_ones:
-                record = record.model_copy(
-                    update={"artifacts": record.artifacts + new_ones}
-                )
-            logger.info(
-                f"[Review] 终审烧录完成: job={job_id}, kinds={[a.kind for a in artifacts]}"
-            )
-        except Exception as e:
-            logger.error(f"[Review] 终审烧录失败: job={job_id}, error={e}")
-
     try:
         nxt = next_phase(record.phase)
     except ValueError:
@@ -142,8 +117,6 @@ def reject_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
         project_id,
         record.model_copy(update={"phase": reject_target, "review_status": "none"}),
     )
-    dispatcher = request.app.state.dispatcher
-    dispatcher.enqueue_demo_job(project_id, job_id)
     repo.append_review_event(
         project_id,
         {"job_id": job_id, "gate": payload.review_gate, "action": "rejected"},

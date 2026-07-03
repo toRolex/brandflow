@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -99,7 +101,11 @@ class PhaseContext:
     project_dir: Path
     root_dir: Path
     product: str
+    brand: str = ""
     options: dict[str, Any] = field(default_factory=dict)
+    # Import-mode scene fields
+    scene_folder_paths: list[str] = field(default_factory=list)
+    transition_duration_ms: int = 500
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +139,10 @@ class PhaseOrchestrator:
             "subtitle_generating": self._run_subtitle,
             "asset_retrieving": self._run_asset,
             "video_rendering": self._run_video,
+            "final_rendering": self._run_final_rendering,
             "final_review": self._run_final,
+            "scene_assembling": self._run_scene_assembly,
+            "montage_assembling": self._run_montage_assembly,
         }
 
     # -- public interface ---------------------------------------------------
@@ -149,6 +158,38 @@ class PhaseOrchestrator:
                 f"Unknown phase: {phase!r}.  Known: {list(self._handlers)}"
             )
         return handler(ctx)
+
+    def run_phases_parallel(
+        self, phases: list[str], ctx: PhaseContext
+    ) -> dict[str, list[ArtifactPointer]]:
+        """Execute multiple phases concurrently via ``ThreadPoolExecutor``.
+
+        Each phase runs its registered handler.  Errors are caught per-phase
+        so that one failure does not kill the entire batch.
+
+        Returns
+        -------
+        dict[str, list[ArtifactPointer]]
+            Mapping from phase name to its produced artifacts.
+        """
+        results: dict[str, list[ArtifactPointer]] = {}
+
+        with ThreadPoolExecutor(max_workers=len(phases)) as executor:
+            future_map = {
+                executor.submit(self.run_phase, phase, ctx): phase
+                for phase in phases
+            }
+            for future in as_completed(future_map):
+                phase_name = future_map[future]
+                try:
+                    results[phase_name] = future.result()
+                except Exception as e:
+                    print(
+                        f"[PARALLEL] Phase {phase_name} failed: {e}", flush=True
+                    )
+                    results[phase_name] = []
+
+        return results
 
     # -- helpers ------------------------------------------------------------
 
@@ -221,7 +262,7 @@ class PhaseOrchestrator:
 
                     gen = ScriptGenerator(_LLMConfig())
                     manual_script = gen.to_cantonese(
-                        manual_script, ctx.product, "滋元堂"
+                        manual_script, ctx.product, ctx.brand
                     )
                     print("[SCRIPT] Converted manual script to Cantonese", flush=True)
                 except Exception as e:
@@ -252,6 +293,7 @@ class PhaseOrchestrator:
                 output_dir=job_dir,
                 mock=False,
                 language=language,
+                brand=ctx.brand,
             )
 
         # 2. Emit artifact pointers for txt + json
@@ -303,7 +345,7 @@ class PhaseOrchestrator:
                 model = llm_config.get("model", "deepseek-v4-pro")
 
             gen = ScriptGenerator(_CoverConfig())
-            cover_title = gen.generate_cover_title(script_text, ctx.product, "滋元堂")
+            cover_title = gen.generate_cover_title(script_text, ctx.product, ctx.brand)
             job_data["cover_title"] = cover_title
             job_json_path.write_text(
                 json.dumps(job_data, ensure_ascii=False, indent=2) + "\n",
@@ -457,10 +499,17 @@ class PhaseOrchestrator:
         if api_key and api_url:
             if not api_url.endswith("/chat/completions"):
                 api_url = f"{api_url}/chat/completions"
+
+            # Read configurable categories for classification
+            app_cfg = AppConfigManager()
+            categories = app_cfg.get_categories()
+            category_names = [c.name for c in categories] if categories else None
+
             classify_fn = create_classify_fn(
                 api_url=api_url,
                 api_key=api_key,
-                model="deepseek-v4-flash",
+                model=app_cfg.get_category_suggestion_model(),
+                category_names=category_names,
             )
 
         repo = AssetRepository(db_path)
@@ -482,33 +531,35 @@ class PhaseOrchestrator:
     # -- video_rendering handler ---------------------------------------------
 
     def _run_video(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """video_rendering: compose base video from audio + selected clips."""
+        """video_rendering: compose base video for final rendering.
+
+        In import mode:
+          1. Build a clip-based montage video from ``audio.mp3`` and
+             ``selected_clips.json``.
+          2. Concatenate ``assembled.mp4`` (scene segment from
+             ``montage_assembling``) with the clip-based video → ``base.mp4``.
+
+        In generate mode, builds base video from clips directly (no
+        ``assembled.mp4`` expected to exist).
+
+        Falls back gracefully when one or both sources are missing.
+        """
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
         audio_path = job_dir / "audio.mp3"
         clip_list_path = job_dir / "selected_clips.json"
         base_path = job_dir / "base.mp4"
+        assembled_path = job_dir / "assembled.mp4"
 
-        if not audio_path.exists():
-            print(
-                f"[VIDEO WARN] audio.mp3 not found, skipping video composition for {ctx.job_id}",
-                flush=True,
-            )
-        elif not clip_list_path.exists():
-            print(
-                f"[VIDEO WARN] selected_clips.json not found for {ctx.job_id}",
-                flush=True,
-            )
-        else:
+        # -- Step 1: build clip-based montage video ---------------------------
+        clip_base_path = job_dir / "_clip_base.mp4"
+        clip_base_built = False
+
+        if audio_path.exists() and clip_list_path.exists():
             selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
             selected = [item for item in selected if Path(item["file_path"]).exists()]
 
-            if not selected:
-                print(
-                    f"[VIDEO WARN] no valid clips found after filtering for {ctx.job_id}",
-                    flush=True,
-                )
-            else:
+            if selected:
                 self._video_svc.build_base_video(
                     ctx.project_dir,
                     {
@@ -519,18 +570,76 @@ class PhaseOrchestrator:
                         },
                         "sequence": 1,
                     },
-                    base_path,
+                    clip_base_path,
                 )
+                clip_base_built = clip_base_path.exists()
+
+        # -- Step 2: compose final base.mp4 ------------------------------------
+        assembled_exists = assembled_path.exists()
+
+        if assembled_exists and clip_base_built:
+            # Import mode: concat scene segment + montage clips
+            ffmpeg = self._get_ffmpeg_path()
+            subprocess.run(
+                [
+                    ffmpeg, "-y",
+                    "-i", str(assembled_path),
+                    "-i", str(clip_base_path),
+                    "-filter_complex",
+                    "[0:v]settb=AVTB[v0];[1:v]settb=AVTB[v1];"
+                    "[v0][v1]concat=n=2:v=1:a=0",
+                    "-map", "[v]",
+                    "-an",
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",
+                    "-crf", "23",
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    str(base_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            print(
+                f"[VIDEO] Concatenated assembled + clip base for {ctx.job_id}",
+                flush=True,
+            )
+        elif clip_base_built:
+            # Generate mode (or import mode without assembled.mp4 yet)
+            shutil.copy2(clip_base_path, base_path)
+            print(
+                f"[VIDEO] Using clip-based video as base for {ctx.job_id}",
+                flush=True,
+            )
+        elif assembled_exists:
+            # Import mode fallback: scene segment only, no clips available
+            shutil.copy2(assembled_path, base_path)
+            print(
+                f"[VIDEO] Using assembled video as base for {ctx.job_id} (no clips)",
+                flush=True,
+            )
+        else:
+            print(
+                f"[VIDEO WARN] Neither assembled.mp4 nor clip base produced"
+                f" for {ctx.job_id}",
+                flush=True,
+            )
+
+        # Clean up temp clip base
+        if clip_base_path.exists():
+            clip_base_path.unlink()
 
         if base_path.exists():
             return [self._to_artifact("video_base", base_path, workspace_dir)]
         print(f"[VIDEO WARN] base.mp4 not produced for {ctx.job_id}", flush=True)
         return []
 
-    # -- final_review handler ------------------------------------------------
+    # -- final_rendering handler ---------------------------------------------
 
-    def _run_final(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """final_review: burn subtitles, music, cover title into final video.
+    def _run_final_rendering(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """final_rendering: burn subtitles, music, cover title into final video.
 
         Reads settings from the job JSON file (written by the UI) rather than
         ``ctx.options``, since that is where the UI persists them.
@@ -600,6 +709,217 @@ class PhaseOrchestrator:
         print(f"[FINAL] {ctx.job_id}: final.mp4 NOT produced", flush=True)
         return []
 
+    # -- final_review handler (pure gate) ------------------------------------
+
+    def _run_final(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """final_review: pure gate — no handler logic.  Burn happens in final_rendering."""
+        return []
+
+    # -- scene_assembling handler (import mode) --------------------------------
+
+    def _run_scene_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """scene_assembling: build scene segment from scene folders with crossfade transitions.
+
+        Reads scene folder paths from ``ctx.scene_folder_paths`` (populated by
+        the tick service) or falls back to ``AppConfigManager.get_scene_config()``.
+        Picks one random video file from each folder, then uses ffmpeg ``xfade``
+        to create a crossfade scene segment.
+        """
+        import random
+
+        workspace_dir = ctx.root_dir / "workspace"
+        job_dir = self._job_dir(ctx)
+
+        # 1. Resolve scene folder paths
+        folders: list[Path] = []
+        if ctx.scene_folder_paths:
+            for fp in ctx.scene_folder_paths:
+                p = Path(fp)
+                if not p.is_absolute():
+                    p = ctx.root_dir / "workspace" / p
+                folders.append(p)
+        else:
+            # Fallback: read from config
+            app_config = AppConfigManager()
+            scene_config = app_config.get_scene_config()
+            for entry in scene_config.get("folders", []):
+                path_str = entry.get("path", "")
+                if not path_str:
+                    continue
+                p = ctx.root_dir / "workspace" / path_str
+                folders.append(p)
+
+        if not folders:
+            print(f"[SCENE] No scene folders configured for {ctx.job_id}", flush=True)
+            return []
+
+        # 2. Pick one random video from each folder
+        video_ext = {".mp4", ".mov", ".avi"}
+        clips: list[Path] = []
+        for folder in folders:
+            if not folder.exists():
+                print(f"[SCENE] Folder not found: {folder}", flush=True)
+                continue
+            candidates = [
+                p for p in folder.iterdir()
+                if p.is_file() and p.suffix.lower() in video_ext
+            ]
+            if not candidates:
+                print(f"[SCENE] No video files in {folder}", flush=True)
+                continue
+            clips.append(random.choice(candidates))
+
+        if not clips:
+            print(f"[SCENE] No clips found for {ctx.job_id}", flush=True)
+            return []
+
+        print(f"[SCENE] {len(clips)} clips selected for {ctx.job_id}", flush=True)
+        for c in clips:
+            print(f"[SCENE]   {c}", flush=True)
+
+        transition_duration = ctx.transition_duration_ms / 1000.0
+        scene_path = job_dir / "scene_segment.mp4"
+
+        if len(clips) == 1:
+            # Single clip -- copy directly
+            import shutil
+            shutil.copy2(clips[0], scene_path)
+            print(f"[SCENE] Single clip copied to {scene_path}", flush=True)
+        else:
+            # Build ffmpeg xfade chain
+            ffmpeg = self._get_ffmpeg_path()
+            durations = [self._get_media_duration(c) for c in clips]
+
+            # Filter chain: settb on all inputs, then chained xfade
+            filter_parts: list[str] = []
+            accumulated = durations[0]
+            for i in range(1, len(clips)):
+                offset = accumulated - transition_duration
+                prev_label = f"r{i - 1}" if i > 1 else "c0"
+                cur_in_label = f"c{i}"
+                out_label = f"t{i}"
+
+                # Build segments
+                filter_parts.append(f"[{i}:v]settb=AVTB[{cur_in_label}]")
+                filter_parts.append(
+                    f"[{prev_label}][{cur_in_label}]"
+                    f"xfade=transition=fade:duration={transition_duration:.3f}:"
+                    f"offset={offset:.3f}[{out_label}]"
+                )
+                if i < len(clips) - 1:
+                    filter_parts.append(
+                        f"[{out_label}]setpts=PTS-STARTPTS,settb=AVTB[r{i}]"
+                    )
+
+                accumulated += durations[i] - transition_duration
+
+            # First input always needs settb
+            filter_complex = f"[0:v]settb=AVTB[c0];" + ";".join(filter_parts)
+            final_label = f"t{len(clips) - 1}"
+
+            cmd = [ffmpeg, "-y"]
+            for clip in clips:
+                cmd.extend(["-i", str(clip)])
+            cmd.extend([
+                "-filter_complex", filter_complex,
+                "-map", f"[{final_label}]",
+                "-an",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-crf", "23",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                str(scene_path),
+            ])
+
+            print(f"[SCENE] Running ffmpeg xfade for {len(clips)} clips", flush=True)
+            subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
+
+        if scene_path.exists():
+            print(
+                f"[SCENE] scene_segment.mp4 produced ({scene_path.stat().st_size} bytes)",
+                flush=True,
+            )
+            return [self._to_artifact("scene_segment", scene_path, workspace_dir)]
+        return []
+
+    # -- montage_assembling handler (import mode) ------------------------------
+
+    def _run_montage_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """montage_assembling: merge scene segment + base video into assembled video.
+
+        Reads ``scene_segment.mp4`` from the scene_assembling phase and
+        ``base.mp4`` (if present, e.g. from a previous generate-mode run).
+        Concatenates them into ``assembled.mp4`` which ``_run_video`` then uses
+        as the base video in import mode.
+
+        If only one of the two files exists it is used directly; if neither
+        exists the handler returns an empty list.
+        """
+        workspace_dir = ctx.root_dir / "workspace"
+        job_dir = self._job_dir(ctx)
+        scene_path = job_dir / "scene_segment.mp4"
+        base_path = job_dir / "base.mp4"
+        assembled_path = job_dir / "assembled.mp4"
+
+        scene_exists = scene_path.exists()
+        base_exists = base_path.exists()
+
+        if scene_exists and base_exists:
+            print(
+                f"[MONTAGE] Concatenating scene_segment + base for {ctx.job_id}",
+                flush=True,
+            )
+            ffmpeg = self._get_ffmpeg_path()
+            subprocess.run(
+                [
+                    ffmpeg, "-y",
+                    "-i", str(scene_path),
+                    "-i", str(base_path),
+                    "-filter_complex",
+                    "[0:v]settb=AVTB[sv];[1:v]settb=AVTB[bv];"
+                    "[sv][bv]concat=n=2:v=1:a=0",
+                    "-map", "[v]",
+                    "-an",
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",
+                    "-crf", "23",
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    str(assembled_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+        elif scene_exists:
+            print(
+                f"[MONTAGE] Using scene_segment as assembled for {ctx.job_id}",
+                flush=True,
+            )
+            shutil.copy2(scene_path, assembled_path)
+        elif base_exists:
+            print(
+                f"[MONTAGE] Using base as assembled for {ctx.job_id}",
+                flush=True,
+            )
+            shutil.copy2(base_path, assembled_path)
+        else:
+            print(
+                f"[MONTAGE] Neither scene_segment nor base found for {ctx.job_id}",
+                flush=True,
+            )
+            return []
+
+        if assembled_path.exists():
+            print(
+                f"[MONTAGE] assembled.mp4 produced ({assembled_path.stat().st_size} bytes)",
+                flush=True,
+            )
+            return [self._to_artifact("assembled_video", assembled_path, workspace_dir)]
+        return []
+
     @staticmethod
     def _discover_script(job_dir: Path) -> str | None:
         """Return the script text from *口播文案.txt or *口播文案.json, or None."""
@@ -610,3 +930,17 @@ class PhaseOrchestrator:
             text = jdata.get("text", "").strip()
             return text or None
         return None
+
+    # -- ffmpeg helpers (lazy imports) -----------------------------------------
+
+    @staticmethod
+    def _get_ffmpeg_path() -> str:
+        """Resolve ffmpeg path via media_utils."""
+        from packages.pipeline_services.media_utils import get_ffmpeg_path as _gfp
+        return _gfp()
+
+    @staticmethod
+    def _get_media_duration(file_path: Path) -> float:
+        """Get media duration in seconds via ffprobe."""
+        from packages.pipeline_services.media_utils import get_media_duration as _gmd
+        return _gmd(file_path)

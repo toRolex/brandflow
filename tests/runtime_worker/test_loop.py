@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from apps.runtime_worker.http_client import WorkerHttpClient
-from apps.runtime_worker.loop import WORKER_PHASES, WorkerLoop
+from apps.runtime_worker.loop import WorkerLoop
 from packages.pipeline_services.phase_orchestrator import (
     ArtifactPointer,
     PhaseContext,
@@ -60,6 +60,9 @@ class StubApi:
             "heartbeat_url": "/heartbeat",
             "expected_outputs": ["script", "audio", "subtitles", "final_video"],
             "runtime_limits": {"max_seconds": 60},
+            "handler_phase": "script_generating",
+            "product": "羊肚菌",
+            "brand": "滋元堂",
         }
 
     def download_input_bundle(self, bundle_url: str) -> dict:
@@ -105,6 +108,9 @@ class StubApiWithManualInputs:
             "runtime_limits": {"max_seconds": 60},
             "manual_script": self.manual_script,
             "uploaded_audio_path": self.uploaded_audio_path,
+            "handler_phase": "script_generating",
+            "product": "羊肚菌",
+            "brand": "滋元堂",
         }
 
     def download_input_bundle(self, bundle_url: str) -> dict:
@@ -208,7 +214,7 @@ def test_worker_loop_sleeps_and_retries_on_idle(tmp_path: Path) -> None:
     assert api.poll_calls == 2
 
 
-def test_worker_loop_calls_all_phases_in_order(tmp_path: Path, monkeypatch) -> None:
+def test_worker_loop_calls_handler_phase_only(tmp_path: Path, monkeypatch) -> None:
     api = StubApi()
     orch = StubOrchestrator()
     loop = _make_loop(tmp_path, api, orch, monkeypatch)
@@ -216,9 +222,9 @@ def test_worker_loop_calls_all_phases_in_order(tmp_path: Path, monkeypatch) -> N
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # All WORKER_PHASES should be called in order
+    # Only handler_phase should be called, not a batch of all phases
     called = [c["phase"] for c in orch.phase_calls]
-    assert called == WORKER_PHASES
+    assert called == ["script_generating"]
 
 
 def test_worker_loop_passes_product_from_command(tmp_path: Path, monkeypatch) -> None:
@@ -229,9 +235,9 @@ def test_worker_loop_passes_product_from_command(tmp_path: Path, monkeypatch) ->
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # All phases should receive the product from the command (default env)
-    for call in orch.phase_calls:
-        assert call["product"]  # non-empty
+    # The single phase call should receive the product from the command
+    assert len(orch.phase_calls) == 1
+    assert orch.phase_calls[0]["product"]  # non-empty
 
 
 def test_worker_loop_reports_success_and_uploads_artifacts(
@@ -305,9 +311,9 @@ def test_worker_loop_skips_llm_when_manual_script_provided(
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # All phases should still be called
+    # Only handler_phase should be called
     called = [c["phase"] for c in orch.phase_calls]
-    assert called == WORKER_PHASES
+    assert called == ["script_generating"]
 
     # The job JSON should contain the fields needed by final_review
     job_json = (
@@ -338,9 +344,9 @@ def test_worker_loop_skips_tts_when_audio_uploaded(tmp_path: Path, monkeypatch) 
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # All phases should still be called — the orchestrator handles the upload
+    # Only handler_phase should still be called — the orchestrator handles the upload
     called = [c["phase"] for c in orch.phase_calls]
-    assert called == WORKER_PHASES
+    assert called == ["script_generating"]
 
 
 def test_worker_loop_passes_language_in_options(tmp_path: Path, monkeypatch) -> None:
@@ -363,7 +369,7 @@ def test_worker_loop_passes_language_in_options(tmp_path: Path, monkeypatch) -> 
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    assert len(seen_options) == len(WORKER_PHASES)
+    assert len(seen_options) == 1, "Only one phase should be executed"
     assert seen_options[0].get("language") == "mandarin"
 
 
@@ -378,7 +384,108 @@ def test_worker_loop_constructs_project_dir_correctly(
     with pytest.raises(SystemExit):
         loop.run_forever()
 
-    # Verify the orchestrator received the correct job_id
-    assert len(orch.phase_calls) == len(WORKER_PHASES)
-    for call in orch.phase_calls:
-        assert call["job_id"] == "job-001"
+    # Verify the orchestrator received the correct job_id (single call)
+    assert len(orch.phase_calls) == 1
+    assert orch.phase_calls[0]["job_id"] == "job-001"
+
+
+def test_worker_loop_runs_parallel_phases_after_main_phase(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """When the poll response includes parallel_phases, the worker runs them."""
+    api = StubApi()
+    orch = StubOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
+
+    # Override the poll response to return scene_assembling + tts_generating parallel
+    original_poll = api.poll
+
+    def patched_poll():
+        result = original_poll()
+        result["handler_phase"] = "scene_assembling"
+        result["parallel_phases"] = ["tts_generating"]
+        return result
+
+    api.poll = patched_poll
+
+    with pytest.raises(SystemExit):
+        loop.run_forever()
+
+    # Both phases should have been executed
+    called = [c["phase"] for c in orch.phase_calls]
+    assert called == ["scene_assembling", "tts_generating"]
+
+
+def test_worker_loop_includes_parallel_artifacts_in_report(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Artifacts from parallel phases should be included in upload and report."""
+    api = StubApi()
+
+    class ParallelFileOrchestrator(StubOrchestrator):
+        def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
+            artifacts = super().run_phase(phase, ctx)
+            workspace_dir = ctx.root_dir / "workspace"
+            for art in artifacts:
+                abs_path = workspace_dir / art.relative_path
+                abs_path.parent.mkdir(parents=True, exist_ok=True)
+                abs_path.write_bytes(b"\x00" * 64)
+            return artifacts
+
+    orch = ParallelFileOrchestrator()
+    loop = _make_loop(tmp_path, api, orch, monkeypatch)
+
+    original_poll = api.poll
+
+    def patched_poll():
+        result = original_poll()
+        result["handler_phase"] = "scene_assembling"
+        result["parallel_phases"] = ["tts_generating"]
+        return result
+
+    api.poll = patched_poll
+
+    with pytest.raises(SystemExit):
+        loop.run_forever()
+
+    # Verify both phases' artifacts are in the upload
+    assert len(api.uploads) > 0
+    uploaded_files = api.uploads[0][1]
+    uploaded_kinds = {f["relative_path"].split("/")[-1] for f in uploaded_files}
+    assert "scene_assembling.stub" in uploaded_kinds
+    assert "tts_generating.stub" in uploaded_kinds
+
+
+class TestDispatcherParallel:
+    """Dispatcher handles parallel_phases in poll responses."""
+
+    def test_dispatcher_includes_parallel_phases(self, tmp_path: Path) -> None:
+        """Dispatcher poll response includes parallel_phases when the action has them."""
+        from packages.domain_core.models import JobRecord
+        from apps.control_plane.services.dispatch import Dispatcher
+        from packages.file_store.repository import FileStoreRepository
+
+        root_dir = tmp_path
+        repo = FileStoreRepository(root_dir)
+        project_id = "proj-001"
+        project_dir = root_dir / "workspace" / "projects" / project_id
+        project_dir.mkdir(parents=True)
+
+        # Save a job in scene_assembling phase
+        record = JobRecord(
+            job_id="job-001",
+            project_id=project_id,
+            product="test",
+            phase="scene_assembling",
+            mode="import",
+            review_status="none",
+        )
+        repo.save_job(project_id, record)
+
+        dispatcher = Dispatcher(repo)
+        result = dispatcher.poll("worker-001")
+
+        assert result["command"] == "run_task"
+        assert result["handler_phase"] == "scene_assembling"
+        assert "parallel_phases" in result
+        assert "tts_generating" in result["parallel_phases"]

@@ -64,13 +64,13 @@ ssh prod-jump "<命令>"
 |------|--------|-----|------|
 | 测试机 | — | `100.121.152.103:17890` | Tailscale 虚拟 IP，跨网段可用 |
 | 测试机 | — | `192.168.31.158:17890` | 局域网直连 IP |
-| 生产机 | `ziyuantang1` | `192.168.31.222:17890` | 局域网 IP，通过测试机跳板连接 |
+| 生产机 | `brandflow1` | `192.168.31.222:17890` | 局域网 IP，通过测试机跳板连接 |
 
 - 默认只执行只读命令；高风险操作（修改配置、重启、删除）前必须先确认
 
 ## 项目概述
 
-**滋元堂矩阵流水线 3.0** — `control-plane + runtime-worker` 短视频自动化生产系统。
+**Brandflow 短视频自动化系统 3.0** — `control-plane + runtime-worker` 短视频自动化生产系统。
 
 - 控制面：`apps/control_plane/`（FastAPI + Web 看板，任务调度、审核）
 - 执行器：`apps/runtime_worker/`（拉模式 worker，直接调用 `packages/pipeline_services/` 下的独立 service）
@@ -121,7 +121,23 @@ ssh prod-jump "<命令>"
 
 **`load_provider_config()` 已 deprecated**，但前端配置路由（`routes/config.py`）和 `save_provider_config()` 仍在调用，属于半迁移状态。新代码必须用 `AppConfigManager`。
 
-**`config/app_config.json`** 保存非 secret 业务配置（provider / model / voice / thinking），与 `DEFAULTS` 深度合并。`providers.yaml` 是前端系统配置页兼容存储，保存时同步到 `app_config.json` 和 `.env`。
+**`config/app_config.json`** 保存非 secret 业务配置（provider / model / voice / thinking / scene），与 `DEFAULTS` 深度合并。`providers.yaml` 是前端系统配置页兼容存储，保存时同步到 `app_config.json` 和 `.env`。
+
+**Scene 配置（Import 模式）：**
+```json
+{
+  "scene": {
+    "folders": [
+      {"name": "品牌开场", "path": "scene/brand-intro"},
+      {"name": "产品展示", "path": "scene/product-show"}
+    ],
+    "transition_duration_ms": 500
+  }
+}
+```
+- `scene.folders`：场景素材文件夹列表（`path` 相对于 `workspace/` 目录）
+- `scene.transition_duration_ms`：场景片段之间的交叉淡入淡出过渡时长（默认 500ms）
+- 通过 `AppConfigManager.get_scene_config()` 读取
 
 ## 关键命令
 
@@ -194,7 +210,8 @@ uv run pytest tests/ -q --tb=short
 │   │   ├── retrieval_embedding.py    # 向量检索
 │   │   ├── retrieval_keyword.py      # 关键词检索
 │   │   ├── phase_runner.py           # Phase 执行器
-│   │   └── job_tick_service.py       # Job 生命周期 tick 调度
+│   │   ├── phase_orchestrator.py     # PhaseOrchestrator：策略分发，每个 phase 一个 handler（含 scene_assembling / montage_assembling ffmpeg 实现）
+│   │   └── job_tick_service.py       # Job 生命周期 tick 调度（双模式 _compute_transition）
 │   ├── provider_config/              # AppConfigManager + provider 配置桥接
 │   └── runtime_adapters/             # 平台适配（MacLocal / WindowsProd）
 │
@@ -223,14 +240,25 @@ uv run pytest tests/ -q --tb=short
 
 ## 状态机与任务流
 
-### Phase 1 状态机（`packages/domain_core/`）
+### Job 主状态 `phase`（双模式）
 
-**Job 主状态 `phase`：**
 ```
+Generate 模式：
 queued → script_generating → script_review → tts_generating → tts_review → subtitle_generating
-→ asset_retrieving → asset_review → video_rendering → final_review
+→ asset_retrieving → asset_review → video_rendering → final_rendering → final_review
 → completed
+
+Import 模式：
+queued → scene_assembling ←(parallel)── tts_generating
+          ↓
+       montage_assembling → asset_retrieving → asset_review → video_rendering
+       (复用现有 clip → final_rendering → final_review → completed)
 ```
+
+- **Generate 模式**：LLM 生成脚本 → TTS → 素材检索 → 视频合成
+- **Import 模式**：从场景素材文件夹随机选取视频 → scene_assembling（与 TTS 并行）→ montage_assembling 拼接场景段和素材段 → 复用现有渲染流水线
+- Import 模式自动跳过 `script_review` 和 `tts_review` 审核门
+- `mode: "import" | "generate"` 字段在 JobRecord 上，创建时指定
 
 异常出口：`failed` / `cancelled` / `paused`
 
@@ -287,10 +315,12 @@ queued → script_generating → script_review → tts_generating → tts_review
 
 ## 脚本质检硬条件
 - 150-200 字（`compact_len`）
-- 品名出现 1 次、品牌"滋元堂"出现 1 次
-- 包含"充分烹熟"
+- 品名出现 1 次（品名由 Job 的 `product` 字段动态指定，无硬编码默认值）
+- 品牌名出现 1 次（仅在 `brand` 字段非空时检查，`brand` 为空时跳过品牌计数）
+- ~~包含"充分烹熟"~~（已移除，安全短语不再硬编码）
 - 禁 emoji、禁医疗功效词（治疗/治愈/疗效/降血糖/降血压/抗癌/药到病除）
 - 已取消"首句≤20 字、尾句≤20 字"硬条件
+- **粤语版**：宽松规则，品名/品牌仅检查是否出现（不限制次数），无烹熟同义词要求
 
 ## 重要约束
 
@@ -310,8 +340,9 @@ queued → script_generating → script_review → tts_generating → tts_review
   - `tts_provider.py`（TTS 语音合成，含 `synthesize()`）
   - `subtitle_service.py`（SRT 字幕生成）
   - `video_service.py`（视频组装与烧录）
+  - `phase_orchestrator.py`（PhaseOrchestrator：策略分发，覆盖 Generate/Import 双模式，含 scene_assembling ffmpeg xfade 交叉淡入淡出和 montage_assembling concat 拼接）
   - `llm_client.py`（通用 LLM HTTP 客户端）
-  - `job_tick_service.py`（Job 生命周期 tick 调度：_compute_transition 纯函数 + JobTickService）
+  - `job_tick_service.py`（Job 生命周期 tick 调度：_compute_transition 纯函数 + JobTickService，支持 import-mode parallel dispatch）
 - `legacy_script_bridge.py` 保留，已改写为使用 `ScriptGenerator`
 
 ## Agent skills

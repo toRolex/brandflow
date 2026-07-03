@@ -65,8 +65,7 @@ export default function TrendChart({ data }: { data: MetricsOverview | null }) {
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="text-sm text-gray-500 mb-2">趋势图</div>
+    <div className="rounded-xl border border-gray-200 bg-white p-4 w-full">
       <ReactECharts option={option} style={{ height: 320 }} />
     </div>
   );

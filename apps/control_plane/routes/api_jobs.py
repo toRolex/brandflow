@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from packages.domain_core.models import (
@@ -12,6 +13,7 @@ from packages.domain_core.models import (
     CoverTitleStyle,
     JobRecord,
     Language,
+    ProductionMode,
 )
 from packages.file_store.repository import FileStoreRepository
 from apps.control_plane.services.music_library import MusicLibrary
@@ -35,7 +37,9 @@ class CoverTitleRequest(BaseModel):
 
 class CreateJobRequest(BaseModel):
     product: str
+    brand: str = ""
     platforms: list[str]
+    mode: ProductionMode = "generate"
     asset: str | None = None
     manual_script: str = ""
     uploaded_audio_path: str = ""
@@ -52,6 +56,7 @@ class CreateJobRequest(BaseModel):
 class BatchJobItem(BaseModel):
     name: str = ""
     manual_script: str = ""
+    mode: ProductionMode = "generate"
     skip_subtitle: bool = False
     audio_source: AudioSource = "tts"
     language: Language = "mandarin"
@@ -62,7 +67,9 @@ class BatchJobItem(BaseModel):
 
 class BatchCreateRequest(BaseModel):
     product: str
+    brand: str = ""
     platforms: list[str]
+    mode: ProductionMode = "generate"
     auto_approve: bool = False
     jobs: list[BatchJobItem]
 
@@ -93,7 +100,9 @@ def _make_job_response(
         "job_id": record.job_id,
         "project_id": record.project_id,
         "product": record.product,
+        "brand": record.brand,
         "name": record.name or record.product,
+        "mode": record.mode,
         "platforms": platforms,
         "phase": record.phase,
         "review_status": record.review_status,
@@ -113,25 +122,17 @@ def _make_job_response(
 
 @router.post("/api/projects/{project_id}/jobs")
 def create_job(request: Request, project_id: str, payload: CreateJobRequest):
+    if not payload.product.strip():
+        raise HTTPException(status_code=400, detail="product is required")
     job_id = f"job_{payload.product}_{uuid4().hex[:8]}"
-    dispatcher = request.app.state.dispatcher
-    dispatcher.enqueue_demo_job(
-        project_id,
-        job_id,
-        manual_script=payload.manual_script,
-        uploaded_audio_path=payload.uploaded_audio_path,
-        audio_source=payload.audio_source,
-        language=payload.language,
-        cover_title=_cover_title_from_request(payload.cover_title).model_dump(),
-        music_track_path=payload.music_track_path,
-        music_volume=payload.music_volume,
-    )
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
         job_id=job_id,
         project_id=project_id,
         product=payload.product,
+        brand=payload.brand,
         name=payload.name or payload.product,
+        mode=payload.mode,
         phase="queued",
         review_status="none",
         manual_script=payload.manual_script,
@@ -155,30 +156,22 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
 
 @router.post("/api/projects/{project_id}/jobs/batch")
 def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateRequest):
+    if not payload.product.strip():
+        raise HTTPException(status_code=400, detail="product is required")
     repo = FileStoreRepository(request.app.state.root_dir)
-    dispatcher = request.app.state.dispatcher
     existing_count = len(repo.list_jobs(project_id))
 
     results: list[dict] = []
     for i, item in enumerate(payload.jobs):
         job_id = f"job_{payload.product}_{uuid4().hex[:8]}"
         cover_title = _cover_title_from_request(item.cover_title)
-        dispatcher.enqueue_demo_job(
-            project_id,
-            job_id,
-            manual_script=item.manual_script,
-            uploaded_audio_path="",
-            audio_source=item.audio_source,
-            language=item.language,
-            cover_title=cover_title.model_dump(),
-            music_track_path=item.music_track_path,
-            music_volume=item.music_volume,
-        )
         record = JobRecord(
             job_id=job_id,
             project_id=project_id,
             product=payload.product,
+            brand=payload.brand,
             name=item.name or payload.product,
+            mode=item.mode,
             phase="queued",
             review_status="none",
             manual_script=item.manual_script,
@@ -198,6 +191,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
     return {
         "product": payload.product,
         "platforms": payload.platforms,
+        "mode": payload.mode,
         "auto_approve": payload.auto_approve,
         "count": len(results),
         "results": results,
@@ -244,7 +238,6 @@ def retry_job(request: Request, job_id: str):
         project_id,
         record.model_copy(update={"phase": "queued", "review_status": "none"}),
     )
-    dispatcher.enqueue_demo_job(project_id, job_id)
     return {"status": "queued_for_retry", "job_id": job_id}
 
 
@@ -336,6 +329,40 @@ async def upload_job_audio(request: Request, job_id: str, file: UploadFile):
     }
 
 
+@router.get("/api/jobs/{job_id}/export")
+def export_job(request: Request, job_id: str):
+    """Build and download an export bundle ZIP for a completed job."""
+    from packages.pipeline_services.export_service import build_export_bundle
+
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    record = repo.load_job(project_id, job_id)
+    if record.phase != "completed":
+        raise HTTPException(status_code=400, detail="job not yet completed")
+
+    root_dir: Path = request.app.state.root_dir
+    workspace_dir = root_dir / "workspace"
+    project_dir = workspace_dir / "projects" / project_id
+    job_dir = project_dir / "runtime" / "jobs" / job_id
+    export_dir = project_dir / "runtime" / "exports"
+
+    zip_path = build_export_bundle(
+        job_dir=job_dir,
+        workspace_dir=workspace_dir,
+        project_dir=project_dir,
+        export_dir=export_dir,
+    )
+
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=f"export_{job_id}.zip",
+    )
+
+
 def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
     projects_root = repo.root / "workspace" / "projects"
     if not projects_root.exists():
@@ -359,7 +386,7 @@ def list_music(request: Request):
 class GenerateCoverTitleRequest(BaseModel):
     script_text: str
     product: str = ""
-    brand: str = "滋元堂"
+    brand: str = ""
 
 
 _COVER_TITLE_RATE_LIMIT: dict[str, float] = {}

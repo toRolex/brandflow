@@ -13,11 +13,13 @@ from apps.control_plane.routes.api_assets import router as api_assets_router
 from apps.control_plane.routes.api_jobs import router as api_jobs_router
 from apps.control_plane.routes.api_projects import router as api_projects_router
 from apps.control_plane.routes.api_schedule import router as api_schedule_router
+from apps.control_plane.routes.category_suggestion import router as category_suggestion_router
 from apps.control_plane.routes.config import router as config_router
 from apps.control_plane.routes.reviews import router as reviews_router
 from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.routes.metrics import router as metrics_router
+from apps.control_plane.routes.scene import router as scene_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
@@ -60,12 +62,13 @@ async def _auto_tick(root_dir: Path):
                             continue
 
                         product = data.get(
-                            "product", os.environ.get("PRODUCT", "荔枝菌")
+                            "product", os.environ.get("PRODUCT", "")
                         )
                         options = {
                             "manual_script": data.get("manual_script", ""),
                             "uploaded_audio_path": data.get("uploaded_audio_path", ""),
                             "language": data.get("language", "mandarin"),
+                            "mode": data.get("mode", "generate"),
                         }
 
                         summary = tick_svc.tick(
@@ -107,7 +110,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app(root_dir: Path | None = None) -> FastAPI:
-    app = FastAPI(title="Ziyuantang Control Plane", lifespan=lifespan)
+    app = FastAPI(title="Brandflow Control Plane", lifespan=lifespan)
 
     allow_origins_env = os.environ.get(
         "CORS_ALLOWED_ORIGINS",
@@ -122,18 +125,20 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.state.dispatcher = Dispatcher()
     app.state.root_dir = root_dir or Path.cwd()
+    app.state.dispatcher = Dispatcher(FileStoreRepository(app.state.root_dir))
     app.state.orchestrator = create_orchestrator(app.state.root_dir)
     app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)
     app.include_router(api_schedule_router)
+    app.include_router(category_suggestion_router)
     app.include_router(config_router)
     app.include_router(workers_router)
     app.include_router(reviews_router)
     app.include_router(tts_router)
     app.include_router(metrics_router)
+    app.include_router(scene_router)
 
     @app.get("/api/health")
     async def health():
