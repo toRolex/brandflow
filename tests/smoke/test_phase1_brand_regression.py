@@ -30,11 +30,14 @@ EXCLUDE_FILES = [
 ALLOWLIST_PATHS = [
     # asset_library keyword_map is out of scope for Phase 1
     "packages/pipeline_services/asset_library/keyword_map.json",
+    # CONTEXT.md domain vocabulary — uses brand name as an example
+    "CONTEXT.md",
 ]
 
 ALLOWLIST_DIRS = [
     # historical planning documents — snapshots, not living references
     "docs/superpowers/plans/",
+    "docs/prd/",  # Phase 2+ PRDs reference legacy brand for context
 ]
 
 
