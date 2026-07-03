@@ -4,6 +4,8 @@ import type { ScriptCheckResult } from "../types";
 interface Props {
   script: string;
   checks: ScriptCheckResult | null;
+  brand?: string;
+  safetyWarningText?: string;
   onApprove: () => void;
   onReject: () => void;
   onRegenerate: () => void;
@@ -14,6 +16,8 @@ interface Props {
 export default function ScriptPreview({
   script,
   checks,
+  brand,
+  safetyWarningText,
   onApprove,
   onReject,
   onRegenerate,
@@ -80,18 +84,20 @@ export default function ScriptPreview({
           <span className={checks.length >= 150 && checks.length <= 200 ? "text-[#1a7f37]" : "text-[#d1242f]"}>
             字数: {checks.length} {checks.length >= 150 && checks.length <= 200 ? "\u2713" : "\u2717"}
           </span>
-          <span
-            className={checks.brand_name_count >= 1 ? "text-[#1a7f37]" : "text-[#d1242f]"}
-          >
-            品牌"滋元堂": {checks.brand_name_count}次
-          </span>
+          {brand && (
+            <span
+              className={checks.brand_name_count >= 1 ? "text-[#1a7f37]" : "text-[#d1242f]"}
+            >
+              品牌"{brand}": {checks.brand_name_count}次
+            </span>
+          )}
           <span
             className={checks.product_name_count >= 1 ? "text-[#1a7f37]" : "text-[#d1242f]"}
           >
             品名: {checks.product_name_count}次
           </span>
           <span className={checks.has_safety_warning ? "text-[#1a7f37]" : "text-[#d1242f]"}>
-            充分烹熟: {checks.has_safety_warning ? "\u2713" : "\u2717"}
+            {safetyWarningText || "安全提示"}: {checks.has_safety_warning ? "\u2713" : "\u2717"}
           </span>
           <span className={!checks.has_emoji ? "text-[#1a7f37]" : "text-[#d1242f]"}>
             禁emoji: {!checks.has_emoji ? "\u2713" : "\u2717"}

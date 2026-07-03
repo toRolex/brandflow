@@ -17,6 +17,7 @@ export interface Project {
 export interface JobSummary {
   job_id: string;
   product: string;
+  brand?: string;
   name?: string;
   phase: Phase;
   review_status: ReviewStatus;
@@ -104,6 +105,7 @@ export interface JobDetail {
   job_id: string;
   project_id: string;
   product: string;
+  brand?: string;
   name?: string;
   platforms: string[];
   phase: Phase;
@@ -142,6 +144,7 @@ export interface BatchJobItem {
 
 export interface BatchCreateRequest {
   product: string;
+  brand?: string;
   platforms: string[];
   auto_approve?: boolean;
   jobs: BatchJobItem[];

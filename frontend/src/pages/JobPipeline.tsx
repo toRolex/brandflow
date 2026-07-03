@@ -180,6 +180,7 @@ export default function JobPipeline() {
           <ScriptPreview
             script={scriptContent || (scriptArtifact ? "加载中..." : "等待生成...")}
             checks={null}
+            brand={job.brand}
             onApprove={() => handleApprove("script")}
             onReject={() => handleReject("script")}
             onRegenerate={handleRetry}
