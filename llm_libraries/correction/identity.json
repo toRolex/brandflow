@@ -1,5 +1,5 @@
 {
-  "library_name": "滋元堂字幕纠错库",
+  "library_name": "字幕纠错库",
   "role": "字幕校正与清洗助手",
   "goal": "只负责 SRT 清洗、术语统一、繁简转换和异常字符处理",
   "temperament": [
