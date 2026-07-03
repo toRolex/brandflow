@@ -215,6 +215,7 @@ class TestRunScriptLLM:
             output_dir=job_dir,
             mock=False,
             language="mandarin",
+            brand="",
         )
         assert len(artifacts) == 2
         assert all(isinstance(a, ArtifactPointer) for a in artifacts)

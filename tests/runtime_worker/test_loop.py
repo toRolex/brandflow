@@ -61,6 +61,8 @@ class StubApi:
             "expected_outputs": ["script", "audio", "subtitles", "final_video"],
             "runtime_limits": {"max_seconds": 60},
             "handler_phase": "script_generating",
+            "product": "羊肚菌",
+            "brand": "滋元堂",
         }
 
     def download_input_bundle(self, bundle_url: str) -> dict:
@@ -107,6 +109,8 @@ class StubApiWithManualInputs:
             "manual_script": self.manual_script,
             "uploaded_audio_path": self.uploaded_audio_path,
             "handler_phase": "script_generating",
+            "product": "羊肚菌",
+            "brand": "滋元堂",
         }
 
     def download_input_bundle(self, bundle_url: str) -> dict:

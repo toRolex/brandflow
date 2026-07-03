@@ -58,14 +58,19 @@ class TestValidateScript:
         assert result["ok"] is False
         assert any("品牌" in e or "滋元堂" in e for e in result["errors"])
 
-    def test_missing_cook_thoroughly_rejected(self):
+    def test_missing_cook_thoroughly_no_longer_rejected(self):
+        """充分烹熟检查已移除——不含充分烹熟的脚本不再被拒稿。"""
         text = (
-            "今天介绍羊肚菌的做法。滋元堂的产品来自云南深山，口感非常好，推荐大家尝试购买品尝享用。"
-            * 3
+            "羊肚菌是滋元堂的一款精选食材口感鲜嫩营养丰富烹饪时需注意火候掌握"
+            "做熟后即可安心享用今天为大家介绍这款产品的家常做法简单易学味道好"
+            "挑选优质原料用心烹制每一口都是自然的鲜美滋味家庭厨房也能轻松上手"
+            "让餐桌多一道健康美味选择日常烹饪建议搭配清淡调味保留食材原本鲜香"
+            "喜爱美食的朋友千万不要错过这款来自大自然的馈赠让全家人共享鲜美"
+            "菌菇做法多样可炒可炖可煲汤每一种都有独特风味值得一试"
+            "今天就把这份健康带给家人吧"
         )
         result = validate_script(text, "羊肚菌", "滋元堂")
-        assert result["ok"] is False
-        assert any("充分烹熟" in e for e in result["errors"])
+        assert result["ok"] is True
 
     def test_emoji_rejected(self):
         text = (
@@ -211,14 +216,19 @@ class TestValidateCantoneseScript:
         assert result["ok"] is False
         assert any("品牌" in e for e in result["errors"])
 
-    def test_missing_cook_term_rejected(self):
+    def test_missing_cook_term_no_longer_rejected(self):
+        """粤语烹熟检查已移除——不含烹熟同义词的脚本不再被拒稿。"""
         text = (
-            "今日介紹羊肚菌嘅做法。滋元堂嘅產品嚟自雲南深山，口感好正，推薦大家嘗試購買品嚐享用。"
-            * 3
+            "今日介紹羊肚菌嘅做法滋元堂嘅產品嚟自雲南深山口感好正"
+            "推薦大家嘗試購買品嚐享用呢款食材營養價值高適合日常煲湯燉煮"
+            "鍾意食菌嘅朋友千祈唔好錯過羊肚菌嘅獨特香氣令人一試難忘"
+            "無論係炒定係燉湯都好滋味加啲肉片一齊煮味道更加豐富"
+            "鐘意自己煮嘢食嘅朋友一定要試下呢款食材保證你食過返尋味"
+            "簡單幾步就可以煮出餐廳級別嘅美食唔使好複雜嘅技巧都可以做到"
+            "今日就試下為屋企人煮一餐好味嘅羊肚菌啦"
         )
         result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
-        assert result["ok"] is False
-        assert any("烹熟" in e for e in result["errors"])
+        assert result["ok"] is True
 
     def test_cantonese_cook_synonym_accepted(self):
         text = (
@@ -289,7 +299,9 @@ class TestCantonesePromptConstruction:
         )
         system = messages[0]["content"]
         assert "粤语" in system
-        assert "徹底煮熟" in system or "煮到熟透" in system
+        # 充分烹熟/烹熟同义词已从 system prompt 中移除
+        assert "不使用emoji" in system
+        assert "不提及医疗功效" in system
 
 
 class TestScriptGeneratorCantonese:

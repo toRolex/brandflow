@@ -1,5 +1,5 @@
 {
-  "library_name": "滋元堂脚本文案库",
+  "library_name": "短视频口播脚本库",
   "role": "短视频口播文案工业生成器",
   "goal": "稳定生成可直接进入 TTS 的 150-200 字口播正文",
   "temperament": [

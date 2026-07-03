@@ -8,7 +8,6 @@ import SmartAssetLibrary from "./SmartAssetLibrary";
 import BatchScriptUploader from "../components/BatchScriptUploader";
 import { applyScriptSplit, type BatchConfig, defaultBatchConfig } from "../utils/batchScriptSplit";
 
-const PRODUCTS = ["荔枝菌", "羊肚菌", "松茸"];
 const PLATFORMS = [
   { key: "douyin", label: "抖音" },
   { key: "xiaohongshu", label: "小红书" },
@@ -22,7 +21,8 @@ export default function ProjectWorkbench() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
-  const [product, setProduct] = useState(PRODUCTS[0]);
+  const [product, setProduct] = useState("");
+  const [brand, setBrand] = useState("");
   const [platforms, setPlatforms] = useState<string[]>(["douyin", "xiaohongshu"]);
   const [tab, setTab] = useState<"jobs" | "schedule" | "assets">("jobs");
   const [projectName, setProjectName] = useState("");
@@ -108,6 +108,7 @@ export default function ProjectWorkbench() {
     try {
       const job = await api.createJob(id, {
         product,
+        brand: brand || undefined,
         platforms,
         name: jobName || undefined,
         manual_script: scriptMode === "manual" ? manualScript : "",
@@ -135,7 +136,7 @@ export default function ProjectWorkbench() {
     if (!id) return;
     setBatchCreating(true);
     try {
-      await api.batchCreateJobs(id, { product, platforms, auto_approve: autoApprove, jobs: batchConfigs.map((c, i) => ({
+      await api.batchCreateJobs(id, { product, brand: brand || undefined, platforms, auto_approve: autoApprove, jobs: batchConfigs.map((c, i) => ({
         name: c.name || `${product} #${String(i + 1).padStart(3, "0")}`,
         manual_script: c.scriptMode === "manual" ? c.manualScript : "",
         skip_subtitle: c.skipSubtitle,
@@ -279,19 +280,27 @@ export default function ProjectWorkbench() {
           )}
         </div>
 
-        {/* ── 共享设置：产品 + 平台 ── */}
+        {/* ── 共享设置：产品 + 品牌 + 平台 ── */}
         <div className="flex gap-4 flex-wrap items-end">
           <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
-            产品选择
-            <select
+            产品名称
+            <input
+              type="text"
               className="border rounded-lg px-3 py-2 text-sm"
+              placeholder="如：龙井茶"
               value={product}
               onChange={(e) => setProduct(e.target.value)}
-            >
-              {PRODUCTS.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[160px]">
+            品牌（可选）
+            <input
+              type="text"
+              className="border rounded-lg px-3 py-2 text-sm"
+              placeholder="如：您的品牌名"
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+            />
           </label>
           {!batchMode && (
             <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">

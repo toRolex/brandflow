@@ -89,7 +89,7 @@ export default function BatchActionBar({ count, onEnable, onDisable, onDelete, o
               className="border rounded px-2 py-1 text-sm w-40"
               value={editProduct}
               onChange={(e) => setEditProduct(e.target.value)}
-              placeholder="如：荔枝菌"
+              placeholder="如：龙井茶"
             />
           </div>
           <div>

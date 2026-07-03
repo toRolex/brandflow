@@ -69,8 +69,9 @@ class WorkerLoop:
                 ("project_id", command["project_id"]),
                 (
                     "product",
-                    command.get("product", os.environ.get("PRODUCT", "荔枝菌")),
+                    command.get("product", os.environ.get("PRODUCT", "")),
                 ),
+                ("brand", command.get("brand", "")),
                 ("platform", command.get("platform", "")),
                 ("cover_title", command.get("cover_title") or {}),
                 ("music_track_path", command.get("music_track_path", "")),
@@ -84,12 +85,14 @@ class WorkerLoop:
             )
 
             # Build PhaseContext
-            product = command.get("product", os.environ.get("PRODUCT", "荔枝菌"))
+            product = command.get("product", os.environ.get("PRODUCT", ""))
+            brand = command.get("brand", "")
             ctx = PhaseContext(
                 job_id=job_id,
                 project_dir=project_dir,
                 root_dir=root_dir,
                 product=product,
+                brand=brand,
                 options={
                     "manual_script": command.get("manual_script", ""),
                     "uploaded_audio_path": command.get("uploaded_audio_path", ""),
