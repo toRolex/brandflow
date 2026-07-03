@@ -57,6 +57,7 @@ class JobRecord(BaseModel):
     job_id: str
     project_id: str = ""
     product: str = ""
+    brand: str = ""
     name: str = ""  # 用户自定义名称，空则回退到 product
     phase: Phase
     review_status: ReviewStatus

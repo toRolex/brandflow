@@ -35,6 +35,7 @@ class CoverTitleRequest(BaseModel):
 
 class CreateJobRequest(BaseModel):
     product: str
+    brand: str = ""
     platforms: list[str]
     asset: str | None = None
     manual_script: str = ""
@@ -62,6 +63,7 @@ class BatchJobItem(BaseModel):
 
 class BatchCreateRequest(BaseModel):
     product: str
+    brand: str = ""
     platforms: list[str]
     auto_approve: bool = False
     jobs: list[BatchJobItem]
@@ -93,6 +95,7 @@ def _make_job_response(
         "job_id": record.job_id,
         "project_id": record.project_id,
         "product": record.product,
+        "brand": record.brand,
         "name": record.name or record.product,
         "platforms": platforms,
         "phase": record.phase,
@@ -113,12 +116,15 @@ def _make_job_response(
 
 @router.post("/api/projects/{project_id}/jobs")
 def create_job(request: Request, project_id: str, payload: CreateJobRequest):
+    if not payload.product.strip():
+        raise HTTPException(status_code=400, detail="product is required")
     job_id = f"job_{payload.product}_{uuid4().hex[:8]}"
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
         job_id=job_id,
         project_id=project_id,
         product=payload.product,
+        brand=payload.brand,
         name=payload.name or payload.product,
         phase="queued",
         review_status="none",
@@ -143,6 +149,8 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
 
 @router.post("/api/projects/{project_id}/jobs/batch")
 def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateRequest):
+    if not payload.product.strip():
+        raise HTTPException(status_code=400, detail="product is required")
     repo = FileStoreRepository(request.app.state.root_dir)
     existing_count = len(repo.list_jobs(project_id))
 
@@ -154,6 +162,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             job_id=job_id,
             project_id=project_id,
             product=payload.product,
+            brand=payload.brand,
             name=item.name or payload.product,
             phase="queued",
             review_status="none",
@@ -334,7 +343,7 @@ def list_music(request: Request):
 class GenerateCoverTitleRequest(BaseModel):
     script_text: str
     product: str = ""
-    brand: str = "滋元堂"
+    brand: str = ""
 
 
 _COVER_TITLE_RATE_LIMIT: dict[str, float] = {}

@@ -215,7 +215,7 @@ def index_assets(request: Request, project_id: str):
 
         repo = FileStoreRepository(request.app.state.root_dir)
         meta = repo.load_project_meta(project_id)
-        product = meta.get("product", os.environ.get("PRODUCT", "荔枝菌"))
+        product = meta.get("product", os.environ.get("PRODUCT", ""))
 
         indexer = AssetIndexer(
             ffmpeg_path=os.environ.get("FFMPEG_PATH", "ffmpeg"),
