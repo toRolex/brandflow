@@ -397,6 +397,10 @@ export const api = {
       { method: "DELETE" }
     ),
 
+  // Categories
+  listCategories: () =>
+    request<import("../types").CategoryItem[]>("/api/assets/categories"),
+
   // Export download (returns blob)
   downloadExport: async (jobId: string) => {
     const res = await fetch(`/api/jobs/${jobId}/export`);
