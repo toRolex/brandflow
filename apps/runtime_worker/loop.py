@@ -100,33 +100,47 @@ class WorkerLoop:
                 },
             )
 
-            # Execute the single requested phase
-            artifacts = self.orchestrator.run_phase(handler_phase, ctx)
+            # Execute the single requested phase and any parallel phases
+            try:
+                artifacts = self.orchestrator.run_phase(handler_phase, ctx)
+                parallel_phases: list[str] = command.get("parallel_phases", [])
+                for pp in parallel_phases:
+                    pp_artifacts = self.orchestrator.run_phase(pp, ctx)
+                    artifacts.extend(pp_artifacts)
 
-            # Run parallel phases (if any) after the main phase
-            parallel_phases: list[str] = command.get("parallel_phases", [])
-            for pp in parallel_phases:
-                pp_artifacts = self.orchestrator.run_phase(pp, ctx)
-                artifacts.extend(pp_artifacts)
+                # Upload artifacts
+                workspace_dir = root_dir / "workspace"
+                uploaded_files = []
+                for art in artifacts:
+                    if not art.relative_path:
+                        continue
+                    abs_path = workspace_dir / art.relative_path
+                    if abs_path.exists():
+                        uploaded_files.append(
+                            {
+                                "relative_path": art.relative_path,
+                                "size_bytes": abs_path.stat().st_size,
+                            }
+                        )
+                if uploaded_files:
+                    self.api.upload_artifacts(command["task_id"], uploaded_files)
 
-            # Upload artifacts
-            workspace_dir = root_dir / "workspace"
-            uploaded_files = []
-            for art in artifacts:
-                if not art.relative_path:
-                    continue
-                abs_path = workspace_dir / art.relative_path
-                if abs_path.exists():
-                    uploaded_files.append(
-                        {
-                            "relative_path": art.relative_path,
-                            "size_bytes": abs_path.stat().st_size,
-                        }
-                    )
-            if uploaded_files:
-                self.api.upload_artifacts(command["task_id"], uploaded_files)
+                # Report success
+                status = "succeeded"
+                logs = "orchestrator completed"
+                error = {}
+            except Exception as e:
+                print(
+                    f"[WORKER] Phase {handler_phase} failed: {type(e).__name__}: {e}",
+                    flush=True,
+                )
+                import traceback
+                traceback.print_exc()
+                status = "failed"
+                logs = f"phase execution error: {e}"
+                error = {"message": str(e), "type": type(e).__name__}
+                uploaded_files = []
 
-            # Report success
             finished_at = datetime.now(timezone.utc).isoformat()
             self.api.report(
                 {
@@ -136,13 +150,13 @@ class WorkerLoop:
                     "task_id": command["task_id"],
                     "attempt_id": command["attempt_id"],
                     "lease_id": command["lease_id"],
-                    "status": "succeeded",
+                    "status": status,
                     "started_at": started_at,
                     "finished_at": finished_at,
                     "artifact_manifest": {"files": uploaded_files},
                     "metrics": {},
-                    "logs_summary": "orchestrator completed",
-                    "error": {},
+                    "logs_summary": logs,
+                    "error": error,
                 }
             )
 
