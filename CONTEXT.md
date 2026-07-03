@@ -1,4 +1,4 @@
-# CONTEXT.md — 滋元堂矩阵流水线 3.0 领域词汇表
+# CONTEXT.md — Brandflow 短视频自动化系统 3.0 领域词汇表
 
 本文件是项目领域的权威词汇表。所有代码、文档、PR 描述中的术语应与此处定义一致。
 
@@ -14,7 +14,7 @@ Job 生命周期中的一个离散步骤。合法 Phase 值由 `domain_core.mode
 状态机中的 4 个人工审核检查点：`script_review`、`tts_review`、`asset_review`、`final_review`。Job 在审核门处暂停，等待审核员批准（approve）、驳回（reject）或覆盖（override）。`auto_approve=True` 时自动通过。
 
 ### Script（脚本）
-用于短视频口播的文案文本。由 LLM 两段式生成（前半段 4 句 + 后半段 4 句），必须满足质检硬条件：150-200 字、品名出现 1 次、品牌"滋元堂"出现 1 次、包含"充分烹熟"、无 emoji、无医疗功效词。
+用于短视频口播的文案文本。由 LLM 两段式生成（前半段 4 句 + 后半段 4 句），必须满足质检硬条件：150-200 字、品名出现 1 次、无 emoji、无医疗功效词。品牌名称检查仅在 brand 字段非空时生效。
 
 ### Asset（素材）
 已索引的视频片段。原始视频经 ffmpeg 场景切片、Vision 模型分类后，按产品和 Category 归档到 SQLite 索引。素材在 `asset_retrieving` 阶段被检索并匹配到脚本句子。
