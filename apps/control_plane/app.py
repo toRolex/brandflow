@@ -107,7 +107,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app(root_dir: Path | None = None) -> FastAPI:
-    app = FastAPI(title="Ziyuantang Control Plane", lifespan=lifespan)
+    app = FastAPI(title="Brandflow Control Plane", lifespan=lifespan)
 
     allow_origins_env = os.environ.get(
         "CORS_ALLOWED_ORIGINS",
