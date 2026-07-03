@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+import os
+import tempfile
 import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 from packages.knowledge_store.extractor import KnowledgeExtractor
-from packages.knowledge_store.models import KnowledgeDocument
+from packages.knowledge_store.models import KnowledgeDocument, SourceType
+from packages.knowledge_store.parsers import parse_file
 from packages.knowledge_store.store import KnowledgeStore
 from packages.pipeline_services.llm_client import LLMClient
 from packages.provider_config.app_config import AppConfigManager
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
-ALLOWED_EXTENSIONS = {".txt"}
+ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx"}
 
 
 def _get_store(request: Request) -> KnowledgeStore:
@@ -39,12 +42,20 @@ def _make_extractor() -> KnowledgeExtractor | None:
         return None
 
 
+def _bytes_to_tempfile(content: bytes, suffix: str) -> Path:
+    """Write bytes to a temporary file and return its path."""
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    os.write(fd, content)
+    os.close(fd)
+    return Path(path)
+
+
 @router.post("/upload")
 async def upload_knowledge(
     request: Request,
     file: UploadFile = File(...),
 ):
-    """Upload a TXT file, extract knowledge via LLM, store results.
+    """Upload a TXT/PDF/DOCX file, extract knowledge via LLM, store results.
 
     Returns document ID, filename, item count, and extraction summary.
     """
@@ -55,13 +66,34 @@ async def upload_knowledge(
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type '{ext}'. Only TXT files are allowed.",
+            detail=f"Unsupported file type '{ext}'. Allowed: .txt, .pdf, .docx",
         )
 
     content_bytes = await file.read()
-    text = content_bytes.decode("utf-8", errors="replace").strip()
-    if not text:
+    if not content_bytes:
         raise HTTPException(status_code=400, detail="File is empty")
+
+    # Parse text based on file type
+    if ext == ".txt":
+        text = content_bytes.decode("utf-8", errors="replace").strip()
+    else:
+        # PDF or DOCX: write to temp file, parse, then clean up
+        tmp_path = _bytes_to_tempfile(content_bytes, suffix=ext)
+        try:
+            text = parse_file(tmp_path).strip()
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to parse {ext} file: {e}",
+            )
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    if not text:
+        raise HTTPException(status_code=400, detail="Parsed text is empty")
+
+    # Map extension to SourceType
+    source_type = SourceType(ext.lstrip("."))
 
     store = _get_store(request)
 
@@ -70,7 +102,7 @@ async def upload_knowledge(
     doc = KnowledgeDocument(
         id=doc_id,
         filename=file.filename,
-        source_type="txt",
+        source_type=source_type,
         parsed_text=text,
     )
     store.save_document(doc)

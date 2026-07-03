@@ -7,6 +7,14 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class SourceType(str, Enum):
+    """Supported source document types."""
+
+    TXT = "txt"
+    PDF = "pdf"
+    DOCX = "docx"
+
+
 class KnowledgeItemType(str, Enum):
     """Knowledge item types for extracted information."""
 
@@ -22,7 +30,7 @@ class KnowledgeDocument(BaseModel):
 
     id: str
     filename: str
-    source_type: str = "txt"
+    source_type: SourceType = SourceType.TXT
     parsed_text: str = ""
     created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
