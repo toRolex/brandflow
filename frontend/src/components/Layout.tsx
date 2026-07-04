@@ -34,7 +34,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     >
       {/* Left sidebar */}
       <nav
-        className="flex flex-col w-13 border-r py-2 items-center gap-1 shrink-0"
+        className="flex flex-col w-12 border-r py-2 items-center gap-1 shrink-0"
         style={{
           background: "var(--bg-nav)",
           borderColor: "var(--border-default)",
