@@ -479,4 +479,17 @@ export const api = {
     }
     return res.blob();
   },
+
+  // Knowledge Base
+  listDocuments: () =>
+    request<{ documents: { id: string; filename: string; source_type: string; item_count: number }[] }>("/api/knowledge/documents"),
+
+  uploadKnowledge: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return fetch(`${BASE}/api/knowledge/upload`, { method: "POST", body: formData }).then(r => r.json());
+  },
+
+  refreshKnowledge: () =>
+    request<{ message: string }>("/api/knowledge/refresh", { method: "POST" }),
 };
