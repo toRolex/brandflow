@@ -251,6 +251,18 @@ export const PIPELINE_STEPS: PipelineStep[] = [
   { key: "paused", phase: "paused", label: "已暂停", isReview: false },
 ];
 
+export interface ProductConfig {
+  default_name: string;
+  default_brand: string;
+  script: {
+    scene: string;
+    material: string;
+    system_prompt: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export interface MusicTrack {
   filename: string;
   relative_path: string;
