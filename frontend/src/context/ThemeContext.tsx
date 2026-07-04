@@ -19,10 +19,12 @@ const ThemeContext = createContext<ThemeContextValue>({
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    return (localStorage.getItem("bf-theme") as Theme) || "light";
+    const stored = localStorage.getItem("bf-theme");
+    return stored === "light" || stored === "dark" ? stored : "light";
   });
   const [layout, setLayout] = useState<Layout>(() => {
-    return (localStorage.getItem("bf-layout") as Layout) || "normal";
+    const stored = localStorage.getItem("bf-layout");
+    return stored === "normal" || stored === "compact" ? stored : "normal";
   });
 
   useEffect(() => {
