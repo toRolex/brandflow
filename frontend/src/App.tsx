@@ -12,6 +12,8 @@ import CategoryManager from "./pages/CategoryManager";
 import QualityRulesForm from "./pages/QualityRulesForm";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { ProductProvider } from "./ProductContext";
+import ProductSelector from "./components/ProductSelector";
 
 function NavLink({ to, label }: { to: string; label: string }) {
   const location = useLocation();
@@ -30,11 +32,16 @@ function NavLink({ to, label }: { to: string; label: string }) {
   );
 }
 
-export default function App() {
+function AppContent() {
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-4">
       <nav className="flex items-center gap-2 pb-3 border-b border-gray-200 mb-6">
         <NavLink to="/" label="项目列表" />
+        <div className="flex items-center gap-1.5 px-3 py-1.5 border-r border-gray-200">
+          <span className="text-xs text-gray-400">产品</span>
+          <ProductSelector />
+        </div>
         <NavLink to="/config" label="系统配置" />
         <NavLink to="/system/config/product" label="产品配置" />
         <NavLink to="/system/config/templates" label="脚本模板" />
@@ -61,5 +68,13 @@ export default function App() {
         </Routes>
       </ErrorBoundary>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ProductProvider>
+      <AppContent />
+    </ProductProvider>
   );
 }

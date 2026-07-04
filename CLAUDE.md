@@ -102,6 +102,8 @@ ssh prod-jump "<命令>"
 - `get_llm_config()` / `get_tts_config()` / `get_vision_config()` 读取业务配置
 - `get_llm_api_key()` / `get_api_key(provider)` / `get_vision_api_key()` 读取 secret
 - `get_llm_endpoint()` / `get_api_base_url(provider)` / `get_vision_endpoint()` 读取 endpoint override
+- 多产品管理：`switch_product(product_id)` / `list_products()` / `get_product_config(product_id)`
+- 旧版单 product 格式自动迁移到新版 products 列表格式（`products` + `active_product_id`）
 
 **环境变量（`.env`）— API Key 优先级：** provider 专用 → 通用回退 → `config/app_config.json` / `DEFAULTS`
 
@@ -175,6 +177,10 @@ uv run pytest tests/ -q --tb=short
 | `/api/tts/preview` | POST | TTS 预览（支持 voicedesign + optimize_text_preview + voiceclone） |
 | `/workers/poll` | POST | Worker 轮询取任务 |
 | `/workers/tasks/{id}/report` | POST | Worker 上报执行结果 |
+| `/api/products` | GET | 列出所有产品摘要 `[{id, name}]` |
+| `/api/products/{product_id}/switch` | POST | 切换活跃产品，不存在时自动创建 |
+| `/api/products/{product_id}/config` | GET | 读取指定产品的完整配置 |
+| `/api/products/{product_id}/config` | PUT | 更新指定产品的配置 |
 
 ## 目录结构
 
