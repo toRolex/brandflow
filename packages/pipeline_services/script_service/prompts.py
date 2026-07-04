@@ -38,11 +38,14 @@ def build_first_half_messages(
     material: str | None = None,
     custom_prompt: str = "",
     product_config: dict | None = None,
+    knowledge_selling_points: str = "",
 ) -> list[dict[str, str]]:
     """构建前半段（4句）的 LLM messages。"""
     scene, material, system_prompt = _resolve_script_config(
         product_config, scene, material
     )
+    if knowledge_selling_points:
+        system_prompt += f"\n\n核心卖点提示（请在文案中自然融入以下卖点）：\n{knowledge_selling_points}"
     user_content = (
         f"请为「{product}」（品牌：{brand}）撰写短视频口播文案的前半段（前4句）。\n"
         f"场景：{scene}\n"
@@ -77,11 +80,14 @@ def build_second_half_messages(
     first_length: int = 0,
     custom_prompt: str = "",
     product_config: dict | None = None,
+    knowledge_selling_points: str = "",
 ) -> list[dict[str, str]]:
     """构建后半段（4句）的 LLM messages。"""
     scene, material, system_prompt = _resolve_script_config(
         product_config, scene, material
     )
+    if knowledge_selling_points:
+        system_prompt += f"\n\n核心卖点提示（请在文案中自然融入以下卖点）：\n{knowledge_selling_points}"
     user_content = (
         f"这是「{product}」短视频口播文案的前半段（{first_length}字）：\n"
         f"{first_half}\n\n"

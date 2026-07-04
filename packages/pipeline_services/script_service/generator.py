@@ -6,14 +6,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from packages.pipeline_services.llm_client import LLMClient
+from pathlib import Path
+
+from packages.knowledge_store.store import KnowledgeStore
 from packages.pipeline_services.script_service.prompts import (
     build_first_half_messages,
     build_second_half_messages,
     build_cantonese_conversion_messages,
     build_cover_title_messages,
     DEFAULT_BRAND,
-    DEFAULT_SCENE,
-    DEFAULT_MATERIAL,
 )
 from packages.pipeline_services.script_service.quality import (
     compact_len,
@@ -53,17 +54,28 @@ class ScriptGenerator:
         mock: bool = False,
         language: str = "mandarin",
         product_config: dict | None = None,
+        knowledge_config: dict | None = None,
     ) -> ScriptResult:
         if mock:
             return self._mock_result(product, brand, language)
+
+        # Pre-compute knowledge selling points if enabled
+        knowledge_selling_points = self._format_knowledge_selling_points(
+            knowledge_config
+        )
 
         best_text = ""
         best_quality: dict[str, Any] = {}
         for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
             first_half = self._generate_half(
                 build_first_half_messages(
-                    product, brand, scene, material, custom_prompt,
+                    product,
+                    brand,
+                    scene,
+                    material,
+                    custom_prompt,
                     product_config=product_config,
+                    knowledge_selling_points=knowledge_selling_points,
                 )
             )
             first_len = compact_len(first_half)
@@ -78,6 +90,7 @@ class ScriptGenerator:
                     first_len,
                     custom_prompt,
                     product_config=product_config,
+                    knowledge_selling_points=knowledge_selling_points,
                 )
             )
 
@@ -154,6 +167,36 @@ class ScriptGenerator:
             return {"text": product, "highlight_words": [product]}
 
     @staticmethod
+    def _format_knowledge_selling_points(
+        knowledge_config: dict | None,
+    ) -> str:
+        """Format top-K selling points from KnowledgeStore into a prompt string.
+
+        Returns empty string if knowledge_config is None, disabled, or no items found.
+        """
+        if not knowledge_config:
+            return ""
+        if not knowledge_config.get("enabled", True):
+            return ""
+
+        store_dir = knowledge_config.get("store_dir", "")
+        if not store_dir:
+            return ""
+
+        top_k = knowledge_config.get("top_k", 5)
+
+        store = KnowledgeStore(Path(store_dir))
+        items = store.get_top_k_items(item_type="selling_point", k=top_k)
+
+        if not items:
+            return ""
+
+        lines = []
+        for item in items:
+            lines.append(f"- {item.title}：{item.content}")
+        return "\n".join(lines)
+
+    @staticmethod
     def _track_shorter(
         text: str, quality: dict[str, Any], best_text: str, best_quality: dict[str, Any]
     ) -> tuple[str, dict[str, Any]]:
@@ -197,7 +240,9 @@ class ScriptGenerator:
             first = f"雲南深山裡邊藏住一種寶貝，就係鮮嫩嘅{product}，採摘之後即刻送到你手中，今日教大家點樣煮先好食"
             second = f"鑊度落油燒熱落食材，徹底煮熟先至可以安心享用，{brand}嘅品質值得信賴，快啲落單試下啦"
         else:
-            first = f"来自优质产地的{product}，精挑细选后送到你手中，今天教大家怎么做好吃"
+            first = (
+                f"来自优质产地的{product}，精挑细选后送到你手中，今天教大家怎么做好吃"
+            )
             second = f"锅里放油烧热下食材，确保完全煮熟才能安心享用，{brand}的品质值得信赖，赶紧下单尝尝吧"
         full = first + "。" + second + "。"
         if language == "cantonese":
