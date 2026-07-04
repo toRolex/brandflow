@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { ProductProvider } from "./ProductContext";
 import ProjectList from "./pages/ProjectList";
 import ProjectWorkbench from "./pages/ProjectWorkbench";
 import JobPipeline from "./pages/JobPipeline";
@@ -19,24 +20,26 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 export default function App() {
   return (
     <ErrorBoundary>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<ProjectList />} />
-          <Route path="/projects/:id" element={<ProjectWorkbench />} />
-          <Route path="/jobs/:id" element={<JobPipeline />} />
-          <Route path="/assets" element={<SmartAssetLibrary />} />
-          <Route path="/config" element={<ConfigPage />} />
-          <Route path="/system/config/product" element={<ProductConfigForm />} />
-          <Route path="/system/config/templates" element={<ScriptTemplateList />} />
-          <Route path="/system/config/templates/:id" element={<ScriptTemplateEditor />} />
-          <Route path="/system/config/categories" element={<CategoryManager />} />
-          <Route path="/system/config/quality" element={<QualityRulesForm />} />
-          <Route path="/system/config/knowledge" element={<KnowledgeBasePage />} />
-          <Route path="/tts-config" element={<TTSConfig />} />
-          <Route path="/tts-monitor" element={<TTSMonitor />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-        </Routes>
-      </Layout>
+      <ProductProvider>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<ProjectList />} />
+            <Route path="/projects/:id" element={<ProjectWorkbench />} />
+            <Route path="/jobs/:id" element={<JobPipeline />} />
+            <Route path="/assets" element={<SmartAssetLibrary />} />
+            <Route path="/config" element={<ConfigPage />} />
+            <Route path="/system/config/product" element={<ProductConfigForm />} />
+            <Route path="/system/config/templates" element={<ScriptTemplateList />} />
+            <Route path="/system/config/templates/:id" element={<ScriptTemplateEditor />} />
+            <Route path="/system/config/categories" element={<CategoryManager />} />
+            <Route path="/system/config/quality" element={<QualityRulesForm />} />
+            <Route path="/system/config/knowledge" element={<KnowledgeBasePage />} />
+            <Route path="/tts-config" element={<TTSConfig />} />
+            <Route path="/tts-monitor" element={<TTSMonitor />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+          </Routes>
+        </Layout>
+      </ProductProvider>
     </ErrorBoundary>
   );
 }
