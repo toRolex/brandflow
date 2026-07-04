@@ -446,6 +446,12 @@ export const api = {
   listCategories: () =>
     request<import("../types").CategoryItem[]>("/api/assets/categories"),
 
+  suggestCategories: () =>
+    request<{ suggestions: import("../types").SuggestCategory[] }>(
+      "/api/assets/categories/suggest",
+      { method: "POST" }
+    ),
+
   // Export download (returns blob)
   downloadExport: async (jobId: string) => {
     const res = await fetch(`/api/jobs/${jobId}/export`);
