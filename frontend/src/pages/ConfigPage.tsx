@@ -58,7 +58,7 @@ export default function ConfigPage() {
   };
 
   if (!config || !options) {
-    return <div className="text-center py-12 text-gray-400">加载配置中...</div>;
+    return <div className="text-center py-12" style={{ color: "var(--text-secondary)" }}>加载配置中...</div>;
   }
 
   return (
@@ -77,13 +77,13 @@ export default function ConfigPage() {
         const selected = sectionData?.selected || "";
 
         return (
-          <section key={key} className="bg-gray-50 border rounded-xl p-5 mb-6">
+          <section key={key} className="border rounded-xl p-5 mb-6" style={{ background: "var(--bg-page)" }}>
             <h2 className="font-semibold mb-4">{label}</h2>
 
-            <label className="grid gap-1 text-xs text-gray-500 mb-3">
+            <label className="grid gap-1 text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
               Provider
               <select
-                className="border rounded-lg px-3 py-2 text-sm bg-white"
+                className="border rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bg-card)" }}
                 value={selected}
                 onChange={(e) => {
                   const next = structuredClone(config);
@@ -104,11 +104,11 @@ export default function ConfigPage() {
               sectionOpts?.providers[selected] &&
               (sectionOpts.providers[selected] as { fields: ProviderField[] }).fields.map(
                 (field) => (
-                  <label key={field.name} className="grid gap-1 text-xs text-gray-500 mb-3">
+                  <label key={field.name} className="grid gap-1 text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
                     {field.label}
                     {field.kind === "select" ? (
                       <select
-                        className="border rounded-lg px-3 py-2 text-sm bg-white"
+                        className="border rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bg-card)" }}
                         value={
                           ((sectionData?.providers[selected]?.[field.name]) as string) || ""
                         }
@@ -124,7 +124,7 @@ export default function ConfigPage() {
                       </select>
                     ) : (
                       <input
-                        className="border rounded-lg px-3 py-2 text-sm bg-white"
+                        className="border rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bg-card)" }}
                         type={field.secret ? "password" : "text"}
                         value={
                           ((sectionData?.providers[selected]?.[field.name]) as string) || ""
