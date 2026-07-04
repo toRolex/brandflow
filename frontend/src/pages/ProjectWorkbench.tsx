@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobSummary, ScheduleEntry, MusicTrack, ProductionMode } from "../types";
+import type { JobSummary, ScheduleEntry, MusicTrack, ProductionMode, ScriptTemplate } from "../types";
 import JobTable from "../components/JobTable";
 import ScheduleTable from "../components/ScheduleTable";
 import SmartAssetLibrary from "./SmartAssetLibrary";
@@ -44,6 +44,12 @@ export default function ProjectWorkbench() {
   const [coverHighlightWords, setCoverHighlightWords] = useState("");
   const [coverTitleCooldown, setCoverTitleCooldown] = useState(false);
   const [batchCoverCooldown, setBatchCoverCooldown] = useState<Set<number>>(new Set());
+
+  /* ── 脚本模板相关状态 ── */
+  const [templates, setTemplates] = useState<ScriptTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateVariableValues, setTemplateVariableValues] = useState<Record<string, string>>({});
+  const [showTemplateSection, setShowTemplateSection] = useState(false);
 
   /* ── 批量创建相关状态 ── */
   const [batchMode, setBatchMode] = useState(false);
@@ -101,6 +107,7 @@ export default function ProjectWorkbench() {
 
   useEffect(() => {
     api.listMusic().then((data) => setMusicTracks(data.tracks)).catch(() => {});
+    api.listTemplates().then((data) => setTemplates(data)).catch(() => {});
   }, []);
 
   /* ── 单个创建（保持现有流程不变） ── */
@@ -157,6 +164,46 @@ export default function ProjectWorkbench() {
       setError("批量创建失败");
     } finally {
       setBatchCreating(false);
+    }
+  };
+
+  /* ── 模板应用逻辑 ── */
+  const handleApplyTemplate = async () => {
+    if (!selectedTemplateId) return;
+    try {
+      const tmpl = templates.find((t) => t.id === selectedTemplateId);
+      if (!tmpl) return;
+      const slotContents: Record<string, string> = {};
+      tmpl.slots.forEach((slot) => {
+        slotContents[slot.label] = templateVariableValues[`slot_${slot.label}`] || "";
+      });
+      const res = await api.previewTemplate(selectedTemplateId, slotContents, templateVariableValues);
+      setManualScript(res.rendered_script);
+    } catch {
+      setError("应用模板失败");
+    }
+  };
+
+  const handleSelectTemplate = async (tmplId: string) => {
+    setSelectedTemplateId(tmplId);
+    if (!tmplId) return;
+    try {
+      const tmpl = templates.find((t) => t.id === tmplId);
+      if (!tmpl) return;
+      const values: Record<string, string> = {};
+      for (const v of tmpl.variables) {
+        if (v.source === "product_config") {
+          values[v.name] = product || "";
+        } else if (v.source === "manual") {
+          values[v.name] = "";
+        }
+      }
+      for (const slot of tmpl.slots) {
+        values[`slot_${slot.label}`] = "";
+      }
+      setTemplateVariableValues(values);
+    } catch {
+      setError("加载模板失败");
     }
   };
 
@@ -623,12 +670,103 @@ export default function ProjectWorkbench() {
                 </label>
               </div>
               {productionMode === "import" && (
-                <textarea
-                  className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px] placeholder:text-gray-400"
-                  placeholder="请输入文案内容（150-200字）..."
-                  value={manualScript}
-                  onChange={(e) => setManualScript(e.target.value)}
-                />
+                <div>
+                  {/* Script Template Selector */}
+                  <div className="mb-3">
+                    <label className="flex items-center gap-2 text-xs text-[#59636e] mb-2">
+                      <input
+                        type="checkbox"
+                        checked={showTemplateSection}
+                        onChange={(e) => {
+                          setShowTemplateSection(e.target.checked);
+                          if (!e.target.checked) setSelectedTemplateId("");
+                        }}
+                      />
+                      使用脚本模板
+                    </label>
+                    {showTemplateSection && (
+                      <div className="border rounded-lg p-4 bg-gray-50 mb-3 space-y-3">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">选择模板</label>
+                          <select
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                            value={selectedTemplateId}
+                            onChange={(e) => handleSelectTemplate(e.target.value)}
+                          >
+                            <option value="">-- 选择模板 --</option>
+                            {templates.map((t) => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {selectedTemplateId && (() => {
+                          const tmpl = templates.find((t) => t.id === selectedTemplateId);
+                          if (!tmpl) return null;
+                          return (
+                            <>
+                              {tmpl.slots.map((slot, idx) => (
+                                <div key={`slot-${idx}`}>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                    {slot.label || `片段 #${idx + 1}`}
+                                    {slot.required && <span className="text-red-500 ml-1">*</span>}
+                                    <span className="text-gray-400 ml-1">({slot.hint || ""})</span>
+                                  </label>
+                                  <textarea
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                                    rows={2}
+                                    placeholder={slot.hint || `输入${slot.label}内容`}
+                                    value={templateVariableValues[`slot_${slot.label}`] || ""}
+                                    onChange={(e) =>
+                                      setTemplateVariableValues({
+                                        ...templateVariableValues,
+                                        [`slot_${slot.label}`]: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                              ))}
+                              {tmpl.variables.map((v, idx) => (
+                                <div key={`var-${idx}`}>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                    {v.label || v.name}
+                                    <span className="text-gray-400 ml-1">
+                                      ({v.source === "product_config" ? "自动从产品配置填充" : v.source === "manual" ? "手动输入" : "知识库"})
+                                    </span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                    placeholder={`输入${v.label || v.name}`}
+                                    value={templateVariableValues[v.name] || ""}
+                                    onChange={(e) =>
+                                      setTemplateVariableValues({
+                                        ...templateVariableValues,
+                                        [v.name]: e.target.value,
+                                      })
+                                    }
+                                    disabled={v.source === "product_config"}
+                                  />
+                                </div>
+                              ))}
+                              <button
+                                className="px-4 py-2 bg-[#0969da] text-white text-sm rounded-lg hover:brightness-110"
+                                onClick={handleApplyTemplate}
+                              >
+                                应用模板到脚本
+                              </button>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                  <textarea
+                    className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px] placeholder:text-gray-400"
+                    placeholder="请输入文案内容（150-200字）..."
+                    value={manualScript}
+                    onChange={(e) => setManualScript(e.target.value)}
+                  />
+                </div>
               )}
               {productionMode === "generate" && (
                 <p className="text-xs text-gray-400 mt-1">
