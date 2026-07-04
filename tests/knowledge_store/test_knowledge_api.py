@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
+from packages.knowledge_store.models import KnowledgeItem
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -41,7 +42,7 @@ class TestKnowledgeAPI:
         client = _client(tmp_path)
         resp = client.post(
             "/api/knowledge/upload",
-            files={"file": ("test.pdf", b"content")},
+            files={"file": ("test.png", b"content")},
         )
         assert resp.status_code == 400
 
@@ -55,6 +56,157 @@ class TestKnowledgeAPI:
         resp = client.post(
             "/api/knowledge/upload",
             files={"file": ("empty.txt", b"")},
+        )
+        assert resp.status_code == 400
+
+
+class TestKnowledgePDFUpload:
+    """POST /api/knowledge/upload — PDF上传"""
+
+    def _make_test_pdf(self, path: Path, text: str = "test pdf content") -> bytes:
+        import fitz
+
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_htmlbox(
+            fitz.Rect(50, 50, 500, 100),
+            f"<p>{text}</p>",
+        )
+        doc.save(str(path))
+        doc.close()
+        return path.read_bytes()
+
+    def test_upload_pdf_creates_document(self, tmp_path: Path) -> None:
+        """上传PDF文件应返回文档ID"""
+        pdf_bytes = self._make_test_pdf(tmp_path / "test.pdf")
+        client = _client(tmp_path)
+
+        with patch(
+            "apps.control_plane.routes.knowledge._make_extractor"
+        ) as mock_maker:
+            mock_extractor = MagicMock()
+            mock_extractor.extract.return_value = []
+            mock_maker.return_value = mock_extractor
+            resp = client.post(
+                "/api/knowledge/upload",
+                files={"file": ("test.pdf", pdf_bytes, "application/pdf")},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "document_id" in data
+        assert data["filename"] == "test.pdf"
+        assert "summary" in data
+
+    def test_upload_pdf_with_extraction(self, tmp_path: Path) -> None:
+        """上传PDF后，解析文本应进入LLM提取流水线"""
+        pdf_bytes = self._make_test_pdf(
+            tmp_path / "test.pdf", "羊肚菌是一种珍贵的食用菌"
+        )
+        client = _client(tmp_path)
+
+        mock_item = KnowledgeItem(
+            id="item_001",
+            document_id="doc_001",
+            type="selling_point",
+            title="鲜美口感",
+            content="羊肚菌口感鲜嫩",
+            priority=5,
+            tags=["口感"],
+            source_document="test.pdf",
+        )
+        with patch(
+            "apps.control_plane.routes.knowledge._make_extractor"
+        ) as mock_maker:
+            mock_extractor = MagicMock()
+            mock_extractor.extract.return_value = [mock_item]
+            mock_maker.return_value = mock_extractor
+            resp = client.post(
+                "/api/knowledge/upload",
+                files={"file": ("test.pdf", pdf_bytes, "application/pdf")},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["item_count"] == 1
+        assert "selling_point" in data["summary"]
+
+    def test_upload_pdf_empty_file_returns_400(self, tmp_path: Path) -> None:
+        """完全空的PDF文件（0字节）应返回400"""
+        client = _client(tmp_path)
+        resp = client.post(
+            "/api/knowledge/upload",
+            files={"file": ("empty.pdf", b"")},
+        )
+        assert resp.status_code == 400
+
+
+class TestKnowledgeDocxUpload:
+    """POST /api/knowledge/upload — DOCX上传"""
+
+    def _make_test_docx(
+        self, path: Path, text: str = "test docx content"
+    ) -> bytes:
+        from docx import Document
+
+        doc = Document()
+        doc.add_paragraph(text)
+        doc.save(str(path))
+        return path.read_bytes()
+
+    def test_upload_docx_creates_document(self, tmp_path: Path) -> None:
+        """上传DOCX文件应返回文档ID"""
+        docx_bytes = self._make_test_docx(tmp_path / "test.docx")
+        client = _client(tmp_path)
+
+        with patch(
+            "apps.control_plane.routes.knowledge._make_extractor"
+        ) as mock_maker:
+            mock_extractor = MagicMock()
+            mock_extractor.extract.return_value = []
+            mock_maker.return_value = mock_extractor
+            resp = client.post(
+                "/api/knowledge/upload",
+                files={"file": ("test.docx", docx_bytes)},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "document_id" in data
+        assert data["filename"] == "test.docx"
+
+    def test_upload_docx_with_extraction(self, tmp_path: Path) -> None:
+        """上传DOCX后，解析文本应进入LLM提取流水线"""
+        docx_bytes = self._make_test_docx(tmp_path / "test.docx", "羊肚菌产品介绍")
+        client = _client(tmp_path)
+
+        mock_item = KnowledgeItem(
+            id="item_002",
+            document_id="doc_002",
+            type="specification",
+            title="规格",
+            content="500g/包",
+            priority=3,
+            tags=["包装"],
+            source_document="test.docx",
+        )
+        with patch(
+            "apps.control_plane.routes.knowledge._make_extractor"
+        ) as mock_maker:
+            mock_extractor = MagicMock()
+            mock_extractor.extract.return_value = [mock_item]
+            mock_maker.return_value = mock_extractor
+            resp = client.post(
+                "/api/knowledge/upload",
+                files={"file": ("test.docx", docx_bytes)},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["item_count"] == 1
+
+    def test_upload_docx_empty_file_returns_400(self, tmp_path: Path) -> None:
+        """完全空的DOCX文件（0字节）应返回400"""
+        client = _client(tmp_path)
+        resp = client.post(
+            "/api/knowledge/upload",
+            files={"file": ("empty.docx", b"")},
         )
         assert resp.status_code == 400
 
