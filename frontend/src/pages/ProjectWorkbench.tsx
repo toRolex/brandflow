@@ -250,10 +250,10 @@ export default function ProjectWorkbench() {
   return (
     <div>
       <div className="flex items-center gap-2 mb-6">
-        <button className="text-gray-500 hover:text-gray-700 text-sm" onClick={() => navigate("/")}>
+        <button className="text-sm" style={{ color: "var(--text-secondary)" }} onClick={() => navigate("/")}>
           &#8592; 项目列表
         </button>
-        <span className="text-gray-300">|</span>
+        <span style={{ color: "var(--text-secondary)" }}>|</span>
         <h1 className="text-lg font-bold">{projectName || id}</h1>
       </div>
 
@@ -265,12 +265,12 @@ export default function ProjectWorkbench() {
       )}
 
       {/* ── 创建 Job ── */}
-      <section className="border rounded-xl p-5 mb-6 bg-white">
+      <section className="border rounded-xl p-5 mb-6" style={{ background: "var(--bg-card)" }}>
         <h2 className="text-[15px] font-semibold mb-3.5">创建新 Job</h2>
 
         {/* ── 创建模式切换 ── */}
         <div className="flex items-center gap-4 mb-4 pb-4 border-b">
-          <span className="text-xs text-[#59636e] font-medium">创建模式</span>
+          <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>创建模式</span>
           <label className="flex items-center gap-1.5 text-sm cursor-pointer">
             <input
               type="radio"
@@ -332,7 +332,7 @@ export default function ProjectWorkbench() {
 
         {/* ── 共享设置：产品 + 品牌 + 平台 ── */}
         <div className="flex gap-4 flex-wrap items-end">
-          <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
+          <label className="grid gap-1.5 text-xs min-w-[200px]" style={{ color: "var(--text-secondary)" }}>
             产品名称
             <input
               type="text"
@@ -342,7 +342,7 @@ export default function ProjectWorkbench() {
               onChange={(e) => setProduct(e.target.value)}
             />
           </label>
-          <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[160px]">
+          <label className="grid gap-1.5 text-xs min-w-[160px]" style={{ color: "var(--text-secondary)" }}>
             品牌（可选）
             <input
               type="text"
@@ -353,7 +353,7 @@ export default function ProjectWorkbench() {
             />
           </label>
           {!batchMode && (
-            <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
+            <label className="grid gap-1.5 text-xs min-w-[200px]" style={{ color: "var(--text-secondary)" }}>
               任务名称（可选）
               <input
                 type="text"
@@ -364,8 +364,8 @@ export default function ProjectWorkbench() {
               />
             </label>
           )}
-          <div className="grid gap-1 text-xs text-gray-500">
-            <span className="text-xs text-[#59636e]">目标平台</span>
+          <div className="grid gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>目标平台</span>
             <div className="flex gap-3 py-2">
               {PLATFORMS.map((p) => (
                 <label key={p.key} className="flex items-center gap-1 text-sm cursor-pointer">
@@ -386,7 +386,7 @@ export default function ProjectWorkbench() {
           <>
             {/* 创建数量 + 字幕总控 */}
             <div className="mt-4 pt-4 border-t flex items-end gap-4 flex-wrap">
-              <label className="grid gap-1.5 text-xs text-[#59636e] w-32">
+              <label className="grid gap-1.5 text-xs w-32" style={{ color: "var(--text-secondary)" }}>
                 创建数量
                 <input
                   type="number"
@@ -409,7 +409,7 @@ export default function ProjectWorkbench() {
             {batchConfigs.map((c, i) => (
               <div key={i} className="mt-4 pt-4 border-t">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-semibold text-[#0969da]">
+                  <span className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
                     #{String(i + 1).padStart(3, "0")}
                   </span>
                   <input
@@ -441,15 +441,16 @@ export default function ProjectWorkbench() {
 
                 {/* 生产模式 */}
                 <div className="flex items-center gap-4 mb-3">
-                  <span className="text-xs text-[#59636e] font-medium">生产模式</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>生产模式</span>
                   <div className="flex rounded-lg border overflow-hidden">
                     <button
                       type="button"
                       className={`px-3 py-1 text-sm font-medium transition-colors ${
                         c.productionMode === "generate"
                           ? "bg-[#0969da] text-white"
-                          : "bg-white text-[#59636e] hover:bg-gray-50"
+                          : "hover:bg-gray-50"
                       }`}
+                      style={c.productionMode !== "generate" ? { background: "var(--bg-card)", color: "var(--text-secondary)" } : undefined}
                       onClick={() => updateBatchConfig(i, { productionMode: "generate", scriptMode: "auto" })}
                     >
                       智能生成
@@ -459,8 +460,9 @@ export default function ProjectWorkbench() {
                       className={`px-3 py-1 text-sm font-medium transition-colors ${
                         c.productionMode === "import"
                           ? "bg-[#d1242f] text-white"
-                          : "bg-white text-[#59636e] hover:bg-gray-50"
+                          : "hover:bg-gray-50"
                       }`}
+                      style={c.productionMode !== "import" ? { background: "var(--bg-card)", color: "var(--text-secondary)" } : undefined}
                       onClick={() => updateBatchConfig(i, { productionMode: "import", scriptMode: "manual" })}
                     >
                       手动导入
@@ -478,7 +480,7 @@ export default function ProjectWorkbench() {
 
                 {/* 音频来源 */}
                 <div className="flex items-center gap-4 mb-3">
-                  <span className="text-xs text-[#59636e] font-medium">音频来源</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>音频来源</span>
                   <label className="flex items-center gap-1.5 text-sm cursor-pointer">
                     <input
                       type="radio"
@@ -500,7 +502,7 @@ export default function ProjectWorkbench() {
                 </div>
                 {c.audioMode === "upload" && (
                   <div className="flex items-center gap-3">
-                    <label className="border-2 border-dashed border-gray-300 rounded-lg px-6 py-3 text-sm text-gray-500 hover:border-gray-400 cursor-pointer transition-colors">
+                    <label className="border-2 border-dashed rounded-lg px-6 py-3 text-sm cursor-pointer transition-colors" style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}>
                       <input
                         type="file"
                         accept="audio/*"
@@ -519,7 +521,7 @@ export default function ProjectWorkbench() {
 
                 {/* 封面标题（可选） */}
                 <div className="flex items-center gap-4 mb-3 mt-3">
-                  <span className="text-xs text-[#59636e] font-medium">封面标题（可选）</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>封面标题（可选）</span>
                   <button
                     type="button"
                     className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
@@ -560,7 +562,7 @@ export default function ProjectWorkbench() {
 
                 {/* 背景音乐（可选） */}
                 <div className="flex items-center gap-4 mb-3 mt-3">
-                  <span className="text-xs text-[#59636e] font-medium">背景音乐（可选）</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>背景音乐（可选）</span>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap mb-3">
                   <select
@@ -590,11 +592,11 @@ export default function ProjectWorkbench() {
                     🎲 随机
                   </button>
                   {musicTracks.length === 0 && (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                       音乐库为空，请将音频文件放入 workspace/music_library/
                     </span>
                   )}
-                  <label className="flex items-center gap-2 text-xs text-[#59636e] ml-4">
+                  <label className="flex items-center gap-2 text-xs ml-4" style={{ color: "var(--text-secondary)" }}>
                     音量
                     <input
                       type="range"
@@ -627,15 +629,16 @@ export default function ProjectWorkbench() {
             {/* Production Mode Section */}
             <div className="mt-4 pt-4 border-t">
               <div className="flex items-center gap-4 mb-3">
-                <span className="text-xs text-[#59636e] font-medium">生产模式</span>
+                <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>生产模式</span>
                 <div className="flex rounded-lg border overflow-hidden">
                   <button
                     type="button"
                     className={`px-4 py-1.5 text-sm font-medium transition-colors ${
                       productionMode === "generate"
                         ? "bg-[#0969da] text-white"
-                        : "bg-white text-[#59636e] hover:bg-gray-50"
+                        : "hover:bg-gray-50"
                     }`}
+                    style={productionMode !== "generate" ? { background: "var(--bg-card)", color: "var(--text-secondary)" } : undefined}
                     onClick={() => setProductionMode("generate")}
                   >
                     智能生成
@@ -645,8 +648,9 @@ export default function ProjectWorkbench() {
                     className={`px-4 py-1.5 text-sm font-medium transition-colors ${
                       productionMode === "import"
                         ? "bg-[#d1242f] text-white"
-                        : "bg-white text-[#59636e] hover:bg-gray-50"
+                        : "hover:bg-gray-50"
                     }`}
+                    style={productionMode !== "import" ? { background: "var(--bg-card)", color: "var(--text-secondary)" } : undefined}
                     onClick={() => setProductionMode("import")}
                   >
                     手动导入
@@ -673,7 +677,7 @@ export default function ProjectWorkbench() {
                 <div>
                   {/* Script Template Selector */}
                   <div className="mb-3">
-                    <label className="flex items-center gap-2 text-xs text-[#59636e] mb-2">
+                    <label className="flex items-center gap-2 text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
                       <input
                         type="checkbox"
                         checked={showTemplateSection}
@@ -685,11 +689,11 @@ export default function ProjectWorkbench() {
                       使用脚本模板
                     </label>
                     {showTemplateSection && (
-                      <div className="border rounded-lg p-4 bg-gray-50 mb-3 space-y-3">
+                      <div className="border rounded-lg p-4 mb-3 space-y-3" style={{ background: "var(--bg-page)" }}>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">选择模板</label>
+                          <label className="block text-xs mb-1" style={{ color: "var(--text-secondary)" }}>选择模板</label>
                           <select
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                            className="w-full border rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
                             value={selectedTemplateId}
                             onChange={(e) => handleSelectTemplate(e.target.value)}
                           >
@@ -706,13 +710,13 @@ export default function ProjectWorkbench() {
                             <>
                               {tmpl.slots.map((slot, idx) => (
                                 <div key={`slot-${idx}`}>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                  <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
                                     {slot.label || `片段 #${idx + 1}`}
                                     {slot.required && <span className="text-red-500 ml-1">*</span>}
-                                    <span className="text-gray-400 ml-1">({slot.hint || ""})</span>
+                                    <span className="ml-1" style={{ color: "var(--text-secondary)" }}>({slot.hint || ""})</span>
                                   </label>
                                   <textarea
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                                    className="w-full border rounded-lg px-3 py-2 text-sm resize-none" style={{ borderColor: "var(--border-default)" }}
                                     rows={2}
                                     placeholder={slot.hint || `输入${slot.label}内容`}
                                     value={templateVariableValues[`slot_${slot.label}`] || ""}
@@ -727,15 +731,15 @@ export default function ProjectWorkbench() {
                               ))}
                               {tmpl.variables.map((v, idx) => (
                                 <div key={`var-${idx}`}>
-                                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                                  <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
                                     {v.label || v.name}
-                                    <span className="text-gray-400 ml-1">
+                                    <span className="ml-1" style={{ color: "var(--text-secondary)" }}>
                                       ({v.source === "product_config" ? "自动从产品配置填充" : v.source === "manual" ? "手动输入" : "知识库"})
                                     </span>
                                   </label>
                                   <input
                                     type="text"
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                    className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: "var(--border-default)" }}
                                     placeholder={`输入${v.label || v.name}`}
                                     value={templateVariableValues[v.name] || ""}
                                     onChange={(e) =>
@@ -769,7 +773,7 @@ export default function ProjectWorkbench() {
                 </div>
               )}
               {productionMode === "generate" && (
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
                   LLM 将根据产品信息自动生成口播脚本
                 </p>
               )}
@@ -778,7 +782,7 @@ export default function ProjectWorkbench() {
             {/* Audio Upload Section */}
             <div className="mt-4 pt-4 border-t">
               <div className="flex items-center gap-4 mb-3">
-                <span className="text-xs text-[#59636e] font-medium">音频来源</span>
+                <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>音频来源</span>
                 <label className="flex items-center gap-1.5 text-sm cursor-pointer">
                   <input
                     type="radio"
@@ -800,7 +804,7 @@ export default function ProjectWorkbench() {
               </div>
               {audioMode === "upload" && (
                 <div className="flex items-center gap-3">
-                  <label className="border-2 border-dashed border-gray-300 rounded-lg px-6 py-4 text-sm text-gray-500 hover:border-gray-400 cursor-pointer transition-colors">
+                  <label className="border-2 border-dashed rounded-lg px-6 py-4 text-sm cursor-pointer transition-colors" style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}>
                     <input
                       type="file"
                       accept="audio/*"
@@ -819,7 +823,7 @@ export default function ProjectWorkbench() {
             {/* Cover Title Section */}
             <div className="mt-4 pt-4 border-t">
               <div className="flex items-center gap-4 mb-3">
-                <span className="text-xs text-[#59636e] font-medium">封面标题（可选）</span>
+                <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>封面标题（可选）</span>
                 <button
                   type="button"
                   className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
@@ -863,7 +867,7 @@ export default function ProjectWorkbench() {
             {/* Background Music Section (always visible) */}
             <div className="mt-4 pt-4 border-t">
               <div className="flex items-center gap-4 mb-3">
-                <span className="text-xs text-[#59636e] font-medium">背景音乐（可选）</span>
+                <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>背景音乐（可选）</span>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
                 <select
@@ -893,11 +897,11 @@ export default function ProjectWorkbench() {
                   🎲 随机
                 </button>
                 {musicTracks.length === 0 && (
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                     音乐库为空，请将音频文件放入 workspace/music_library/
                   </span>
                 )}
-                <label className="flex items-center gap-2 text-xs text-[#59636e] ml-4">
+                <label className="flex items-center gap-2 text-xs ml-4" style={{ color: "var(--text-secondary)" }}>
                   音量
                   <input
                     type="range"
@@ -929,9 +933,10 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "jobs"
-              ? "border-b-2 border-[#0969da] text-[#0969da]"
-              : "text-gray-500 hover:text-gray-700"
+              ? "border-b-2 border-[#0969da]"
+              : ""
           }`}
+          style={tab === "jobs" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
           onClick={() => setTab("jobs")}
         >
           Job 列表
@@ -939,9 +944,10 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "schedule"
-              ? "border-b-2 border-[#0969da] text-[#0969da]"
-              : "text-gray-500 hover:text-gray-700"
+              ? "border-b-2 border-[#0969da]"
+              : ""
           }`}
+          style={tab === "schedule" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
           onClick={() => setTab("schedule")}
         >
           排期池
@@ -949,9 +955,10 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "assets"
-              ? "border-b-2 border-[#0969da] text-[#0969da]"
-              : "text-gray-500 hover:text-gray-700"
+              ? "border-b-2 border-[#0969da]"
+              : ""
           }`}
+          style={tab === "assets" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
           onClick={() => setTab("assets")}
         >
           智能素材库
@@ -959,9 +966,10 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "scene"
-              ? "border-b-2 border-[#0969da] text-[#0969da]"
-              : "text-gray-500 hover:text-gray-700"
+              ? "border-b-2 border-[#0969da]"
+              : ""
           }`}
+          style={tab === "scene" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
           onClick={() => setTab("scene")}
         >
           场景素材

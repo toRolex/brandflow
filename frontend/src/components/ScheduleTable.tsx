@@ -24,11 +24,11 @@ export default function ScheduleTable({ entries, onExport }: Props) {
         </button>
       </div>
       {entries.length === 0 ? (
-        <p className="text-gray-400 text-sm py-4">暂无排期数据</p>
+        <p className="text-sm py-4" style={{ color: "var(--text-secondary)" }}>暂无排期数据</p>
       ) : (
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b text-left text-gray-500">
+            <tr className="border-b text-left" style={{ color: "var(--text-secondary)" }}>
               <th className="py-2 px-3 font-medium">Job</th>
               <th className="py-2 px-3 font-medium">平台</th>
               <th className="py-2 px-3 font-medium">标题</th>
@@ -46,8 +46,9 @@ export default function ScheduleTable({ entries, onExport }: Props) {
                     className={`px-2 py-0.5 rounded text-xs ${
                       e.status === "published"
                         ? "bg-[#e6f4ea] text-[#1a7f37]"
-                        : "bg-gray-100 text-gray-600"
+                        : ""
                     }`}
+                    style={e.status !== "published" ? { background: "var(--bg-page)", color: "var(--text-secondary)" } : undefined}
                   >
                     {e.status === "published" ? "已发布" : "待发布"}
                   </span>
