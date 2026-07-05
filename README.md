@@ -116,7 +116,20 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 - **auto_approve**：Job 可自动跳过所有审核门，实现全自动流水线
 - **批量模式**：支持一次性创建多个 Job（`POST /api/projects/{id}/jobs/batch`），每个 Job 可独立配置脚本模式和字幕选项
 
-## 目录结构
+## 知识库 API（Issue #28）
+
+上传产品介绍文档，LLM 自动提取结构化知识并注入脚本生成 system prompt。
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/knowledge/upload` | POST | 上传 TXT/PDF/DOCX（上限 20MB），返回文档 ID + 提取摘要 |
+| `/api/knowledge/documents` | GET | 列出已上传文档 |
+| `/api/knowledge/documents/{id}/items` | GET | 查询文档提取结果 |
+| `/api/knowledge/selling-points` | GET | 列出卖点，支持 priority/tag 过滤 |
+| `/api/knowledge/selling-points/{id}` | PUT | 更新卖点 |
+| `/api/knowledge/refresh` | POST | 重新提取所有文档 |
+
+持久化：`workspace/knowledge/documents.json` + `items.json`。
 
 ```
 .
@@ -137,6 +150,7 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 ├── packages/
 │   ├── domain_core/          # 领域模型 + 状态机 + worker 协议
 │   ├── file_store/           # 文件系统轻持久化
+│   ├── knowledge_store/      # 知识库：文档、items、LLM 提取（Issue #28）
 │   ├── pipeline_services/    # 业务能力（独立 service：脚本/TTS/字幕/视频）
 │   ├── provider_config/      # 统一配置入口与 provider 配置桥接
 │   └── runtime_adapters/     # 平台适配（Mac / Windows）

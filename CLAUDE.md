@@ -173,6 +173,12 @@ uv run pytest tests/ -q --tb=short
 |------|------|------|
 | `/api/projects/{id}/jobs` | POST | 创建单个 Job |
 | `/api/projects/{id}/jobs/batch` | POST | 批量创建 Job（`BatchCreateRequest`：product、platforms、auto_approve、jobs 列表） |
+| `/api/knowledge/upload` | POST | 上传 TXT/PDF/DOCX（上限 20MB），LLM 提取结构化知识，返回文档 ID + 提取摘要 |
+| `/api/knowledge/documents` | GET | 列出已上传知识库文档 |
+| `/api/knowledge/documents/{id}/items` | GET | 查询某文档的提取结果（items） |
+| `/api/knowledge/selling-points` | GET | 列出卖点（支持 priority_min/max、tags 过滤） |
+| `/api/knowledge/selling-points/{item_id}` | PUT | 更新卖点字段（title/content/priority/tags） |
+| `/api/knowledge/refresh` | POST | 重新解析所有已上传文档并提取知识条目 |
 | `/api/tts/voice-clone-sample` | POST | 上传音色克隆音频样本（mp3/wav，上限 10MB），自动更新 TTSConfig |
 | `/api/tts/preview` | POST | TTS 预览（支持 voicedesign + optimize_text_preview + voiceclone） |
 | `/workers/poll` | POST | Worker 轮询取任务 |
@@ -181,6 +187,15 @@ uv run pytest tests/ -q --tb=short
 | `/api/products/{product_id}/switch` | POST | 切换活跃产品，不存在时自动创建 |
 | `/api/products/{product_id}/config` | GET | 读取指定产品的完整配置 |
 | `/api/products/{product_id}/config` | PUT | 更新指定产品的配置 |
+
+### 知识库（Issue #28）
+
+- `packages/knowledge_store/`：知识库领域模型 + JSON 持久化 + LLM 提取。
+  - `models.py`：`KnowledgeDocument` / `KnowledgeItem` / `KnowledgeConfig`。
+  - `store.py`：`KnowledgeStore`，数据持久化到 `workspace/knowledge/documents.json` 与 `items.json`。
+  - `extractor.py`：`KnowledgeExtractor`，按 2000 字符分块调用 `LLMClient` 提取卖点/规格/禁用词/品牌调性/使用场景。
+  - `parsers.py`：TXT/PDF/DOCX 文本解析（TXT 直接 UTF-8 读取）。
+- `ScriptGenerator.run(knowledge_config=...)` 启用时从 `KnowledgeStore` 按 priority 召回 top-K 卖点，追加到 system prompt；卖点为空时静默跳过。
 
 ## 目录结构
 
@@ -199,6 +214,11 @@ uv run pytest tests/ -q --tb=short
 ├── packages/
 │   ├── domain_core/                  # 领域模型、状态机、worker 协议
 │   ├── file_store/                   # 文件系统轻持久化
+│   ├── knowledge_store/              # 知识库：文档、items、LLM 提取（Issue #28）
+│   │   ├── models.py                 # KnowledgeDocument / KnowledgeItem / KnowledgeConfig
+│   │   ├── store.py                  # KnowledgeStore（documents.json / items.json）
+│   │   ├── extractor.py              # KnowledgeExtractor（调用 LLMClient）
+│   │   └── parsers.py                # TXT/PDF/DOCX 文本解析
 │   ├── pipeline_services/            # 业务能力（独立 service + phase runner）
 │   │   ├── llm_client.py             # 通用 LLM HTTP 客户端
 │   │   ├── script_service/           # 脚本生成

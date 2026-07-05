@@ -7,7 +7,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
-from packages.knowledge_store.models import KnowledgeItem
+from packages.knowledge_store.models import KnowledgeItem, SourceType, KnowledgeItemType
 from packages.knowledge_store.store import KnowledgeStore
 
 
@@ -20,7 +20,7 @@ def _populate_selling_points(store: KnowledgeStore) -> None:
         KnowledgeItem(
             id="sp_001",
             document_id="doc_001",
-            type="selling_point",
+            type=KnowledgeItemType.SELLING_POINT,
             title="野生生长环境",
             content="生长在云南海拔2000米以上原始森林",
             priority=5,
@@ -30,7 +30,7 @@ def _populate_selling_points(store: KnowledgeStore) -> None:
         KnowledgeItem(
             id="sp_002",
             document_id="doc_001",
-            type="selling_point",
+            type=KnowledgeItemType.SELLING_POINT,
             title="高营养价值",
             content="富含18种氨基酸和多种微量元素",
             priority=4,
@@ -40,7 +40,7 @@ def _populate_selling_points(store: KnowledgeStore) -> None:
         KnowledgeItem(
             id="sp_003",
             document_id="doc_001",
-            type="selling_point",
+            type=KnowledgeItemType.SELLING_POINT,
             title="独特菌菇香气",
             content="烹饪后散发浓郁菌菇香气",
             priority=3,
@@ -50,7 +50,7 @@ def _populate_selling_points(store: KnowledgeStore) -> None:
         KnowledgeItem(
             id="sp_004",
             document_id="doc_002",
-            type="specification",
+            type=KnowledgeItemType.SPECIFICATION,
             title="包装规格",
             content="每包500g真空包装",
             priority=2,
@@ -60,7 +60,7 @@ def _populate_selling_points(store: KnowledgeStore) -> None:
         KnowledgeItem(
             id="sp_005",
             document_id="doc_001",
-            type="selling_point",
+            type=KnowledgeItemType.SELLING_POINT,
             title="农家手工采摘",
             content="每一朵由当地农户手工采摘",
             priority=5,
@@ -228,7 +228,7 @@ class TestRefreshAPI:
         doc = KnowledgeDocument(
             id="doc_001",
             filename="产品介绍.txt",
-            source_type="txt",
+            source_type=SourceType.TXT,
             parsed_text="羊肚菌生长在云南高山中。",
         )
         store.save_document(doc)
@@ -242,7 +242,7 @@ class TestRefreshAPI:
                 KnowledgeItem(
                     id="refreshed_001",
                     document_id="",
-                    type="selling_point",
+                    type=KnowledgeItemType.SELLING_POINT,
                     title="新卖点",
                     content="新内容",
                     priority=5,
@@ -272,7 +272,7 @@ class TestRefreshAPI:
         doc = KnowledgeDocument(
             id="doc_001",
             filename="test.txt",
-            source_type="txt",
+            source_type=SourceType.TXT,
             parsed_text="测试内容",
         )
         store.save_document(doc)

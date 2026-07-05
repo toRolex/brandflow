@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
-from packages.knowledge_store.models import KnowledgeItem
+from packages.knowledge_store.models import KnowledgeItem, SourceType, KnowledgeItemType
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -107,7 +107,7 @@ class TestKnowledgePDFUpload:
         mock_item = KnowledgeItem(
             id="item_001",
             document_id="doc_001",
-            type="selling_point",
+            type=KnowledgeItemType.SELLING_POINT,
             title="鲜美口感",
             content="羊肚菌口感鲜嫩",
             priority=5,
@@ -180,7 +180,7 @@ class TestKnowledgeDocxUpload:
         mock_item = KnowledgeItem(
             id="item_002",
             document_id="doc_002",
-            type="specification",
+            type=KnowledgeItemType.SPECIFICATION,
             title="规格",
             content="500g/包",
             priority=3,

@@ -18,6 +18,7 @@ from packages.provider_config.app_config import AppConfigManager
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx"}
+MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
 
 
 def _get_store(request: Request) -> KnowledgeStore:
@@ -71,6 +72,11 @@ async def upload_knowledge(
         )
 
     content_bytes = await file.read()
+    if len(content_bytes) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds maximum size of {MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB",
+        )
     if not content_bytes:
         raise HTTPException(status_code=400, detail="File is empty")
 

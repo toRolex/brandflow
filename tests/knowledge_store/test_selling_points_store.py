@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from packages.knowledge_store.models import KnowledgeItem
+from packages.knowledge_store.models import KnowledgeItem, SourceType, KnowledgeItemType
 from packages.knowledge_store.store import KnowledgeStore
 
 
@@ -14,7 +14,7 @@ class TestKnowledgeStoreSellingPoints:
             KnowledgeItem(
                 id="sp_001",
                 document_id="doc_001",
-                type="selling_point",
+                type=KnowledgeItemType.SELLING_POINT,
                 title="野生生长环境",
                 content="生长在云南海拔2000米以上原始森林中",
                 priority=5,
@@ -24,7 +24,7 @@ class TestKnowledgeStoreSellingPoints:
             KnowledgeItem(
                 id="sp_002",
                 document_id="doc_001",
-                type="selling_point",
+                type=KnowledgeItemType.SELLING_POINT,
                 title="高营养价值",
                 content="富含18种氨基酸和多种微量元素",
                 priority=4,
@@ -34,7 +34,7 @@ class TestKnowledgeStoreSellingPoints:
             KnowledgeItem(
                 id="sp_003",
                 document_id="doc_001",
-                type="selling_point",
+                type=KnowledgeItemType.SELLING_POINT,
                 title="独特菌菇香气",
                 content="烹饪后散发浓郁菌菇香气",
                 priority=3,
@@ -44,7 +44,7 @@ class TestKnowledgeStoreSellingPoints:
             KnowledgeItem(
                 id="sp_004",
                 document_id="doc_002",
-                type="specification",
+                type=KnowledgeItemType.SPECIFICATION,
                 title="包装规格",
                 content="每包500g",
                 priority=2,
@@ -54,7 +54,7 @@ class TestKnowledgeStoreSellingPoints:
             KnowledgeItem(
                 id="sp_005",
                 document_id="doc_001",
-                type="selling_point",
+                type=KnowledgeItemType.SELLING_POINT,
                 title="农家手工采摘",
                 content="每一朵都是由当地农户手工采摘挑选",
                 priority=5,
@@ -201,13 +201,13 @@ class TestKnowledgeStoreRefresh:
         doc1 = KnowledgeDocument(
             id="doc_001",
             filename="产品介绍.txt",
-            source_type="txt",
+            source_type=SourceType.TXT,
             parsed_text="羊肚菌生长在云南高山中。",
         )
         doc2 = KnowledgeDocument(
             id="doc_002",
             filename="规格说明.txt",
-            source_type="txt",
+            source_type=SourceType.TXT,
             parsed_text="每包500g，真空包装。",
         )
         store.save_document(doc1)
@@ -216,7 +216,7 @@ class TestKnowledgeStoreRefresh:
             KnowledgeItem(
                 id="old_001",
                 document_id="doc_001",
-                type="selling_point",
+                type=KnowledgeItemType.SELLING_POINT,
                 title="旧卖点",
                 content="旧内容",
                 priority=3,
@@ -225,7 +225,7 @@ class TestKnowledgeStoreRefresh:
             KnowledgeItem(
                 id="spec_001",
                 document_id="doc_002",
-                type="specification",
+                type=KnowledgeItemType.SPECIFICATION,
                 title="旧规格",
                 content="旧规格内容",
                 priority=2,
@@ -250,7 +250,7 @@ class TestKnowledgeStoreRefresh:
                     KnowledgeItem(
                         id=f"new_{source_document}",
                         document_id="",
-                        type="selling_point",
+                        type=KnowledgeItemType.SELLING_POINT,
                         title="新卖点",
                         content=f"从{source_document}提取的新内容",
                         priority=5,
@@ -281,7 +281,7 @@ class TestKnowledgeStoreRefresh:
         doc = KnowledgeDocument(
             id="doc_001",
             filename="empty.txt",
-            source_type="txt",
+            source_type=SourceType.TXT,
             parsed_text="",
         )
         store.save_document(doc)
