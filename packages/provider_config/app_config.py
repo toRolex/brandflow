@@ -407,6 +407,24 @@ class AppConfigManager:
 
         self._save(raw)
 
+    def save_product_config(self, product_id: str, values: dict[str, Any]) -> None:
+        """保存指定产品的完整配置，不切换活跃产品。"""
+        raw = self._load()
+        self._ensure_active_product(raw)
+
+        for i, p in enumerate(raw["products"]):
+            if p.get("id") == product_id:
+                existing = raw["products"][i]
+                merged = _deep_merge(existing, values)
+                merged["id"] = product_id
+                raw["products"][i] = merged
+                self._save(raw)
+                return
+
+        # 产品不存在时创建它
+        raw["products"].append({"id": product_id, **values})
+        self._save(raw)
+
     def set_product(self, key: str, value: Any) -> None:
         raw = self._load()
         self._ensure_active_product(raw)
