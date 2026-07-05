@@ -8,7 +8,21 @@ vi.mock("../../api/client", () => ({
     getProductConfig: vi.fn(),
     saveProductConfig: vi.fn(),
     resetProductConfig: vi.fn(),
+    listProducts: vi.fn(),
+    switchProduct: vi.fn(),
   },
+}));
+
+vi.mock("../../ProductContext", () => ({
+  useProducts: () => ({
+    products: [{ id: "test", name: "Test Product" }],
+    activeProductId: "test",
+    activeProductName: "Test Product",
+    loading: false,
+    switchProduct: vi.fn(),
+    refreshProducts: vi.fn(),
+  }),
+  ProductProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const MOCK_CONFIG = {
