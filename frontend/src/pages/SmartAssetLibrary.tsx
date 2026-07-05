@@ -41,7 +41,7 @@ const DEFAULT_FILTERS: AssetFilters = {
 };
 
 interface Props {
-  projectId: string;
+  projectId?: string;
 }
 
 const DEFAULT_STATS: AssetStats = {
