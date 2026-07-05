@@ -252,4 +252,69 @@ describe("CategoryManager", () => {
       expect(screen.getByText("素材分类")).toBeInTheDocument();
     });
   });
+
+  it("编辑分类按钮打开预填表单", async () => {
+    render(<CategoryManager />);
+
+    await waitFor(() => {
+      expect(screen.getByText("产品展示")).toBeInTheDocument();
+    });
+
+    const editButtons = screen.getAllByText("编辑");
+    fireEvent.click(editButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("编辑分类")).toBeInTheDocument();
+    });
+
+    const nameInput = screen.getByPlaceholderText("分类名称") as HTMLInputElement;
+    expect(nameInput.value).toBe("产品展示");
+
+    const descInput = screen.getByPlaceholderText("分类描述") as HTMLInputElement;
+    expect(descInput.value).toBe("产品特写和展示镜头");
+
+    const promptInput = screen.getByPlaceholderText("Vision prompt") as HTMLInputElement;
+    expect(promptInput.value).toBe("product showcase close-up");
+  });
+
+  it("编辑分类后保存更新到配置", async () => {
+    vi.mocked(api.saveProductConfig).mockResolvedValue({
+      ...DEFAULT_CONFIG,
+      categories: [
+        { name: "产品展示编辑", description: "修改后描述", vision_prompt: "modified prompt" },
+        MOCK_CATEGORIES[1],
+        MOCK_CATEGORIES[2],
+      ],
+    });
+
+    render(<CategoryManager />);
+
+    await waitFor(() => {
+      expect(screen.getByText("产品展示")).toBeInTheDocument();
+    });
+
+    const editButtons = screen.getAllByText("编辑");
+    fireEvent.click(editButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("编辑分类")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("分类名称"), {
+      target: { value: "产品展示编辑" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("分类描述"), {
+      target: { value: "修改后描述" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Vision prompt"), {
+      target: { value: "modified prompt" },
+    });
+
+    const confirmBtn = screen.getByText("确认");
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(api.saveProductConfig).toHaveBeenCalledTimes(1);
+    });
+  });
 });
