@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from packages.knowledge_store.models import (, SourceType, KnowledgeItemType
+from packages.knowledge_store.models import (
     KnowledgeConfig,
     KnowledgeDocument,
     KnowledgeItem,
+    KnowledgeItemType,
     SourceType,
 )
 
@@ -111,7 +112,7 @@ class TestKnowledgeItem:
         item = KnowledgeItem(
             id="item_003",
             document_id="doc_001",
-            type="brand_tone",
+            type=KnowledgeItemType.BRAND_TONE,
             title="品牌调性",
             content="高端",
             source_document="test.txt",
@@ -142,7 +143,7 @@ class TestKnowledgeItem:
             KnowledgeItem(
                 id="item_bad",
                 document_id="doc_001",
-                type="invalid_type",
+                type="invalid_type",  # type: ignore
                 title="test",
                 content="test",
                 source_document="test.txt",
