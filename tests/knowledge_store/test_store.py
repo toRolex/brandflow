@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from packages.knowledge_store.models import KnowledgeDocument, KnowledgeItem
@@ -164,3 +165,90 @@ class TestKnowledgeStore:
         store.delete_document("doc_001")
         assert store.get_document("doc_001") is None
         assert store.list_items(document_id="doc_001") == []
+
+
+class TestKnowledgeStoreFlatFiles:
+    """Issue #28 requires flat documents.json / items.json persistence."""
+
+    def test_documents_persisted_to_flat_json(self, tmp_path: Path) -> None:
+        store = KnowledgeStore(tmp_path)
+        doc = KnowledgeDocument(
+            id="doc_001",
+            filename="test.txt",
+            source_type="txt",
+            parsed_text="测试内容",
+        )
+        store.save_document(doc)
+
+        documents_path = tmp_path / "knowledge" / "documents.json"
+        assert documents_path.exists()
+        data = json.loads(documents_path.read_text(encoding="utf-8"))
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["id"] == "doc_001"
+
+    def test_items_persisted_to_flat_json(self, tmp_path: Path) -> None:
+        store = KnowledgeStore(tmp_path)
+        items = [
+            KnowledgeItem(
+                id="item_001",
+                document_id="doc_001",
+                type="selling_point",
+                title="鲜美",
+                content="口感鲜嫩",
+                priority=5,
+                tags=["口感"],
+                source_document="test.txt",
+            ),
+        ]
+        store.save_items(items)
+
+        items_path = tmp_path / "knowledge" / "items.json"
+        assert items_path.exists()
+        data = json.loads(items_path.read_text(encoding="utf-8"))
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["id"] == "item_001"
+
+    def test_multiple_documents_in_one_flat_file(self, tmp_path: Path) -> None:
+        store = KnowledgeStore(tmp_path)
+        store.save_document(
+            KnowledgeDocument(
+                id="doc_001", filename="a.txt", source_type="txt", parsed_text="A"
+            )
+        )
+        store.save_document(
+            KnowledgeDocument(
+                id="doc_002", filename="b.txt", source_type="txt", parsed_text="B"
+            )
+        )
+
+        data = json.loads(
+            (tmp_path / "knowledge" / "documents.json").read_text(encoding="utf-8")
+        )
+        assert {d["id"] for d in data} == {"doc_001", "doc_002"}
+
+    def test_reload_from_flat_files(self, tmp_path: Path) -> None:
+        store = KnowledgeStore(tmp_path)
+        store.save_document(
+            KnowledgeDocument(
+                id="doc_001", filename="a.txt", source_type="txt", parsed_text="A"
+            )
+        )
+        store.save_items(
+            [
+                KnowledgeItem(
+                    id="item_001",
+                    document_id="doc_001",
+                    type="selling_point",
+                    title="卖点",
+                    content="内容",
+                    priority=5,
+                    source_document="a.txt",
+                )
+            ]
+        )
+
+        store2 = KnowledgeStore(tmp_path)
+        assert len(store2.list_documents()) == 1
+        assert len(store2.list_items()) == 1
