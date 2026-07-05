@@ -26,6 +26,7 @@ export default function CategoryManager() {
   const [suggestions, setSuggestions] = useState<SuggestCategory[] | null>(null);
   const [pendingSuggestionNames, setPendingSuggestionNames] = useState<Set<string>>(new Set());
   const [suggestLoading, setSuggestLoading] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -60,26 +61,68 @@ export default function CategoryManager() {
 
     setSaving(true);
     setSaveMsg(null);
-    const newCategory: CategoryConfig = {
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-      vision_prompt: formData.vision_prompt.trim(),
-    };
 
-    try {
-      const updated = await api.saveProductConfig({
-        ...config,
-        categories: [...categories, newCategory],
-      });
-      setConfig(updated);
-      setShowForm(false);
-      setFormData(EMPTY_FORM);
-      setSaveMsg("分类已保存");
-      setTimeout(() => setSaveMsg(null), 3000);
-    } catch {
-      setSaveMsg("保存失败");
+    if (editingIndex !== null) {
+      // Edit existing category
+      const updatedCategories = categories.map((c, i) =>
+        i === editingIndex
+          ? {
+              name: formData.name.trim(),
+              description: formData.description.trim(),
+              vision_prompt: formData.vision_prompt.trim(),
+            }
+          : c
+      );
+
+      try {
+        const updated = await api.saveProductConfig({
+          ...config,
+          categories: updatedCategories,
+        });
+        setConfig(updated);
+        setShowForm(false);
+        setFormData(EMPTY_FORM);
+        setEditingIndex(null);
+        setSaveMsg("分类已更新");
+        setTimeout(() => setSaveMsg(null), 3000);
+      } catch {
+        setSaveMsg("保存失败");
+      }
+    } else {
+      // Add new category
+      const newCategory: CategoryConfig = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        vision_prompt: formData.vision_prompt.trim(),
+      };
+
+      try {
+        const updated = await api.saveProductConfig({
+          ...config,
+          categories: [...categories, newCategory],
+        });
+        setConfig(updated);
+        setShowForm(false);
+        setFormData(EMPTY_FORM);
+        setSaveMsg("分类已保存");
+        setTimeout(() => setSaveMsg(null), 3000);
+      } catch {
+        setSaveMsg("保存失败");
+      }
     }
     setSaving(false);
+  };
+
+  const handleEdit = (index: number) => {
+    const cat = categories[index];
+    setFormData({
+      name: cat.name,
+      description: cat.description,
+      vision_prompt: cat.vision_prompt,
+    });
+    setEditingIndex(index);
+    setFormErrors({});
+    setShowForm(true);
   };
 
   const handleDelete = async (index: number) => {
@@ -270,6 +313,13 @@ export default function CategoryManager() {
                   <td className="px-5 py-4 text-sm text-gray-500 font-mono">{cat.vision_prompt}</td>
                   <td className="px-5 py-4 text-right">
                     <button
+                      className="text-[var(--accent)] hover:underline text-sm mr-3 disabled:opacity-50 transition-colors"
+                      onClick={() => handleEdit(i)}
+                      disabled={saving}
+                    >
+                      编辑
+                    </button>
+                    <button
                       className="text-red-500 hover:text-red-700 text-sm disabled:opacity-50 transition-colors"
                       onClick={() => handleDelete(i)}
                       disabled={saving}
@@ -287,7 +337,7 @@ export default function CategoryManager() {
       {/* Add Button */}
       <button
         className="mt-4 px-4 py-2 bg-[#0969da] text-white font-medium rounded-xl hover:bg-[#0969da] hover:brightness-110 transition-colors text-sm"
-        onClick={() => setShowForm(true)}
+        onClick={() => { setShowForm(true); setEditingIndex(null); setFormData(EMPTY_FORM); }}
       >
         新增分类
       </button>
@@ -296,7 +346,7 @@ export default function CategoryManager() {
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold mb-4">新增分类</h3>
+            <h3 className="text-lg font-semibold mb-4">{editingIndex !== null ? "编辑分类" : "新增分类"}</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -350,6 +400,7 @@ export default function CategoryManager() {
                   setShowForm(false);
                   setFormData(EMPTY_FORM);
                   setFormErrors({});
+                  setEditingIndex(null);
                 }}
               >
                 取消
