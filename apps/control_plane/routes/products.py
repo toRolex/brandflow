@@ -48,7 +48,5 @@ def update_product_config(request: Request, product_id: str, payload: dict) -> d
     if not any(p["id"] == product_id for p in products):
         raise HTTPException(status_code=404, detail="product not found")
 
-    # 切换到目标产品，确保 set_product_config 操作的是该产品
-    cfg.switch_product(product_id)
-    cfg.set_product_config(payload)
+    cfg.save_product_config(product_id, payload)
     return cfg.get_product_config(product_id)
