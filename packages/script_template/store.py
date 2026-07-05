@@ -19,14 +19,15 @@ class ScriptTemplateStore:
         return self.templates_dir / f"{template_id}.json"
 
     def list_templates(self) -> List[ScriptTemplate]:
-        templates: List[ScriptTemplate] = []
-        for f in sorted(self.templates_dir.glob("*.json")):
+        entries: list[tuple[float, ScriptTemplate]] = []
+        for f in self.templates_dir.glob("*.json"):
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
-                templates.append(ScriptTemplate.model_validate(data))
+                entries.append((f.stat().st_mtime, ScriptTemplate.model_validate(data)))
             except (json.JSONDecodeError, Exception):
                 continue
-        return templates
+        entries.sort(key=lambda item: item[0])
+        return [t for _, t in entries]
 
     def get_template(self, template_id: str) -> Optional[ScriptTemplate]:
         path = self._path(template_id)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -115,8 +116,93 @@ class TestScriptTemplateAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) == 2
-        assert data[0]["name"] == "通用带货脚本"
-        assert data[1]["name"] == "第二个模板"
+        names = {item["name"] for item in data}
+        assert names == {"通用带货脚本", "第二个模板"}
+
+
+class TestScriptTemplateJobIntegration:
+    """模板 + Job 创建端到端"""
+
+    TEMPLATE_PAYLOAD = {
+        "name": "带货模板",
+        "description": "描述",
+        "slots": [
+            {"type": "hook", "label": "开头钩子", "required": True, "max_length": 60, "hint": ""},
+            {"type": "selling_point", "label": "核心卖点", "required": True, "max_length": 200, "hint": ""},
+        ],
+        "variables": [
+            {"name": "product_name", "label": "产品名", "source": "product_config"},
+            {"name": "discount", "label": "优惠信息", "source": "manual"},
+        ],
+        "default_config_override": {},
+    }
+
+    def test_create_job_from_template(self, tmp_path: Path) -> None:
+        """选择模板、填充变量、渲染脚本后创建 Import 模式 Job。"""
+        client = _client(tmp_path)
+
+        # 1. 创建模板
+        create_resp = client.post("/api/config/templates", json=self.TEMPLATE_PAYLOAD)
+        assert create_resp.status_code == 200
+        tmpl_id = create_resp.json()["id"]
+
+        # 2. 渲染 preview
+        preview_resp = client.post(
+            f"/api/config/templates/{tmpl_id}/preview",
+            json={
+                "slot_contents": {
+                    "开头钩子": "今天给大家推荐{product_name}！",
+                    "核心卖点": "{product_name}限时{discount}，手慢无。",
+                },
+                "variable_values": {
+                    "product_name": "羊肚菌",
+                    "discount": "买一送一",
+                },
+            },
+        )
+        assert preview_resp.status_code == 200
+        rendered = preview_resp.json()["rendered_script"]
+        assert "羊肚菌" in rendered
+        assert "买一送一" in rendered
+        assert "{product_name}" not in rendered
+
+        # 3. 创建项目
+        project_resp = client.post("/api/projects", json={"name": "模板测试项目"})
+        assert project_resp.status_code == 200
+        project_id = project_resp.json()["id"]
+
+        # 4. 使用渲染后的 manual_script 创建 Import 模式 Job
+        job_resp = client.post(
+            f"/api/projects/{project_id}/jobs",
+            json={
+                "product": "羊肚菌",
+                "brand": "菌王山珍",
+                "platforms": ["douyin"],
+                "mode": "import",
+                "manual_script": rendered,
+                "skip_subtitle": True,
+            },
+        )
+        assert job_resp.status_code == 200
+        job = job_resp.json()
+        assert job["mode"] == "import"
+        assert job["manual_script"] == rendered
+        assert job["product"] == "羊肚菌"
+        assert job["brand"] == "菌王山珍"
+
+        # 5. 磁盘持久化验证
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / project_id
+            / "control"
+            / "jobs"
+            / f"{job['job_id']}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["mode"] == "import"
+        assert raw["manual_script"] == rendered
 
 
 class TestScriptTemplatePreview:

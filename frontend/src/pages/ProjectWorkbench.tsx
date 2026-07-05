@@ -190,10 +190,28 @@ export default function ProjectWorkbench() {
     try {
       const tmpl = templates.find((t) => t.id === tmplId);
       if (!tmpl) return;
+
+      let defaultName = product;
+      let defaultBrand = brand;
+      try {
+        const cfg = await api.getProductConfig();
+        defaultName = (cfg.default_name as string) || product;
+        defaultBrand = (cfg.default_brand as string) || brand;
+      } catch {
+        // 产品配置不可用时回退到当前输入框的值
+      }
+
       const values: Record<string, string> = {};
       for (const v of tmpl.variables) {
         if (v.source === "product_config") {
-          values[v.name] = product || "";
+          const key = v.name.toLowerCase();
+          if (key.includes("brand") || key.includes("品牌")) {
+            values[v.name] = defaultBrand;
+          } else if (key.includes("product") || key.includes("name") || key.includes("产品") || key.includes("名称")) {
+            values[v.name] = defaultName;
+          } else {
+            values[v.name] = defaultName;
+          }
         } else if (v.source === "manual") {
           values[v.name] = "";
         }
