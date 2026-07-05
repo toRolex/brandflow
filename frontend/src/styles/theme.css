@@ -31,6 +31,9 @@
   --metric-color: #0969da;
   --accent: #0969da;
 
+  --danger: #d1242f;
+  --success: #1a7f37;
+
   --spacing-sm: 0.25rem;
   --spacing-md: 0.5rem;
   --spacing-lg: 1rem;
@@ -71,6 +74,9 @@
 
   --metric-color: #58a6ff;
   --accent: #58a6ff;
+
+  --danger: #f85149;
+  --success: #3fb950;
 }
 
 [data-layout="compact"] {

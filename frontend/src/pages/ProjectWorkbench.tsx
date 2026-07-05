@@ -258,9 +258,9 @@ export default function ProjectWorkbench() {
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between" style={{ background: "#f8514922", border: "1px solid var(--danger)", color: "var(--danger)" }}>
           <span>{error}</span>
-          <button onClick={() => setError("")} className="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+          <button onClick={() => setError("")} className="text-lg leading-none" style={{ color: "var(--danger)", opacity: 0.7 }}>&times;</button>
         </div>
       )}
 
@@ -445,24 +445,16 @@ export default function ProjectWorkbench() {
                   <div className="flex rounded-lg border overflow-hidden">
                     <button
                       type="button"
-                      className={`px-3 py-1 text-sm font-medium transition-colors ${
-                        c.productionMode === "generate"
-                          ? "bg-[#0969da] text-white"
-                          : "hover:bg-gray-50"
-                      }`}
-                      style={c.productionMode !== "generate" ? { background: "var(--bg-card)", color: "var(--text-secondary)" } : undefined}
+                      className={`px-3 py-1 text-sm font-medium transition-colors`}
+                      style={c.productionMode === "generate" ? { background: "var(--accent)", color: "#fff" } : { background: "var(--bg-card)", color: "var(--text-secondary)" }}
                       onClick={() => updateBatchConfig(i, { productionMode: "generate", scriptMode: "auto" })}
                     >
                       智能生成
                     </button>
                     <button
                       type="button"
-                      className={`px-3 py-1 text-sm font-medium transition-colors ${
-                        c.productionMode === "import"
-                          ? "bg-[#d1242f] text-white"
-                          : "hover:bg-gray-50"
-                      }`}
-                      style={c.productionMode !== "import" ? { background: "var(--bg-card)", color: "var(--text-secondary)" } : undefined}
+                      className={`px-3 py-1 text-sm font-medium transition-colors`}
+                      style={c.productionMode === "import" ? { background: "var(--danger)", color: "#fff" } : { background: "var(--bg-card)", color: "var(--text-secondary)" }}
                       onClick={() => updateBatchConfig(i, { productionMode: "import", scriptMode: "manual" })}
                     >
                       手动导入
@@ -514,7 +506,7 @@ export default function ProjectWorkbench() {
                       {c.audioFile ? c.audioFile.name : "点击选择音频文件"}
                     </label>
                     {c.audioFile && (
-                      <span className="text-xs text-green-600">&#10003; 已选择</span>
+                      <span className="text-xs" style={{ color: "var(--success)" }}>&#10003; 已选择</span>
                     )}
                   </div>
                 )}
@@ -524,7 +516,8 @@ export default function ProjectWorkbench() {
                   <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>封面标题（可选）</span>
                   <button
                     type="button"
-                    className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
+                    className="text-xs border rounded px-2 py-1.5 disabled:opacity-50"
+                    style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
                     disabled={c.productionMode === "generate" || batchCoverCooldown.has(i)}
                     onClick={async () => {
                       const text = c.productionMode === "import" ? c.manualScript : "";
@@ -582,7 +575,8 @@ export default function ProjectWorkbench() {
                   </select>
                   <button
                     type="button"
-                    className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50"
+                    className="text-xs border rounded px-2 py-1.5"
+                    style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
                     onClick={() => {
                       if (musicTracks.length === 0) return;
                       const pick = musicTracks[Math.floor(Math.random() * musicTracks.length)];
@@ -615,7 +609,8 @@ export default function ProjectWorkbench() {
             {/* 批量创建按钮 */}
             <div className="mt-4 pt-4 border-t flex justify-end">
               <button
-                className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all disabled:opacity-50"
+                className="border-none px-8 py-3 rounded-lg text-[15px] font-semibold transition-all disabled:opacity-50"
+                style={{ background: "var(--danger)", color: "#fff" }}
                 onClick={handleBatchCreate}
                 disabled={batchCreating}
               >
@@ -633,24 +628,16 @@ export default function ProjectWorkbench() {
                 <div className="flex rounded-lg border overflow-hidden">
                   <button
                     type="button"
-                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                      productionMode === "generate"
-                        ? "bg-[#0969da] text-white"
-                        : "hover:bg-gray-50"
-                    }`}
-                    style={productionMode !== "generate" ? { background: "var(--bg-card)", color: "var(--text-secondary)" } : undefined}
+                    className={`px-4 py-1.5 text-sm font-medium transition-colors`}
+                    style={productionMode === "generate" ? { background: "var(--accent)", color: "#fff" } : { background: "var(--bg-card)", color: "var(--text-secondary)" }}
                     onClick={() => setProductionMode("generate")}
                   >
                     智能生成
                   </button>
                   <button
                     type="button"
-                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                      productionMode === "import"
-                        ? "bg-[#d1242f] text-white"
-                        : "hover:bg-gray-50"
-                    }`}
-                    style={productionMode !== "import" ? { background: "var(--bg-card)", color: "var(--text-secondary)" } : undefined}
+                    className={`px-4 py-1.5 text-sm font-medium transition-colors`}
+                    style={productionMode === "import" ? { background: "var(--danger)", color: "#fff" } : { background: "var(--bg-card)", color: "var(--text-secondary)" }}
                     onClick={() => setProductionMode("import")}
                   >
                     手动导入
@@ -753,7 +740,8 @@ export default function ProjectWorkbench() {
                                 </div>
                               ))}
                               <button
-                                className="px-4 py-2 bg-[#0969da] text-white text-sm rounded-lg hover:brightness-110"
+                                className="px-4 py-2 text-white text-sm rounded-lg"
+                                style={{ background: "var(--accent)" }}
                                 onClick={handleApplyTemplate}
                               >
                                 应用模板到脚本
@@ -814,7 +802,7 @@ export default function ProjectWorkbench() {
                     {audioFile ? audioFile.name : "点击选择音频文件"}
                   </label>
                   {audioFile && (
-                    <span className="text-xs text-green-600">&#10003; 已选择</span>
+                    <span className="text-xs" style={{ color: "var(--success)" }}>&#10003; 已选择</span>
                   )}
                 </div>
               )}
@@ -826,7 +814,8 @@ export default function ProjectWorkbench() {
                 <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>封面标题（可选）</span>
                 <button
                   type="button"
-                  className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
+                  className="text-xs border rounded px-2 py-1.5 disabled:opacity-50"
+                  style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
                   disabled={productionMode === "generate" || coverTitleCooldown}
                   onClick={async () => {
                     const text = productionMode === "import" ? manualScript : "";
@@ -887,7 +876,8 @@ export default function ProjectWorkbench() {
                 </select>
                 <button
                   type="button"
-                  className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50"
+                  className="text-xs border rounded px-2 py-1.5"
+                  style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
                   onClick={() => {
                     if (musicTracks.length === 0) return;
                     const pick = musicTracks[Math.floor(Math.random() * musicTracks.length)];
@@ -918,7 +908,8 @@ export default function ProjectWorkbench() {
 
             <div className="mt-4 pt-4 border-t flex justify-end">
               <button
-                className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all"
+                className="border-none px-8 py-3 rounded-lg text-[15px] font-semibold transition-all"
+                style={{ background: "var(--danger)", color: "#fff" }}
                 onClick={handleCreateJob}
               >
                 创建并开始生产
@@ -933,10 +924,10 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "jobs"
-              ? "border-b-2 border-[#0969da]"
+              ? "border-b-2"
               : ""
           }`}
-          style={tab === "jobs" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
+          style={tab === "jobs" ? { color: "var(--accent)", borderColor: "var(--accent)" } : { color: "var(--text-secondary)" }}
           onClick={() => setTab("jobs")}
         >
           Job 列表
@@ -944,10 +935,10 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "schedule"
-              ? "border-b-2 border-[#0969da]"
+              ? "border-b-2"
               : ""
           }`}
-          style={tab === "schedule" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
+          style={tab === "schedule" ? { color: "var(--accent)", borderColor: "var(--accent)" } : { color: "var(--text-secondary)" }}
           onClick={() => setTab("schedule")}
         >
           排期池
@@ -955,10 +946,10 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "assets"
-              ? "border-b-2 border-[#0969da]"
+              ? "border-b-2"
               : ""
           }`}
-          style={tab === "assets" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
+          style={tab === "assets" ? { color: "var(--accent)", borderColor: "var(--accent)" } : { color: "var(--text-secondary)" }}
           onClick={() => setTab("assets")}
         >
           智能素材库
@@ -966,10 +957,10 @@ export default function ProjectWorkbench() {
         <button
           className={`pb-2 text-sm font-medium transition-colors ${
             tab === "scene"
-              ? "border-b-2 border-[#0969da]"
+              ? "border-b-2"
               : ""
           }`}
-          style={tab === "scene" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
+          style={tab === "scene" ? { color: "var(--accent)", borderColor: "var(--accent)" } : { color: "var(--text-secondary)" }}
           onClick={() => setTab("scene")}
         >
           场景素材

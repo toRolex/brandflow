@@ -51,7 +51,7 @@ const DEFAULT_STATS: AssetStats = {
   source_videos: 0,
 };
 
-export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
+export default function SmartAssetLibrary({ projectId }: Props) {
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [stats, setStats] = useState<AssetStats>(DEFAULT_STATS);
   const [filters, setFilters] = useState<AssetFilters>(DEFAULT_FILTERS);
@@ -72,10 +72,15 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadAssets = useCallback(async () => {
-    const res = await api.listIndexedAssetsShared();
+    let res: { assets: AssetRecord[]; stats: AssetStats };
+    if (projectId) {
+      res = await api.listIndexedAssets(projectId);
+    } else {
+      res = await api.listIndexedAssetsShared();
+    }
     setAssets(res.assets);
     setStats(res.stats);
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     void loadAssets();
@@ -220,25 +225,37 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
       try {
         for (const file of files) {
-          await api.uploadAssetShared(file);
+          if (projectId) {
+            await api.uploadAsset(projectId, file);
+          } else {
+            await api.uploadAssetShared(file);
+          }
         }
 
-        const result = await api.indexAssetsSharedAsync();
-
-        // 如果没有新视频需要索引（全部已索引过），直接刷新列表
-        if (!result.task_id) {
+        if (projectId) {
+          await api.indexAssets(projectId);
           await loadAssets();
-          setIndexStatus("idle");
-          return;
+          setIndexStatus("done");
+          setIndexStep("done");
+          setIndexProgress(100);
+          setTimeout(() => setIndexStatus("idle"), 2000);
+        } else {
+          const result = await api.indexAssetsSharedAsync();
+
+          if (!result.task_id) {
+            await loadAssets();
+            setIndexStatus("idle");
+            return;
+          }
+
+          setIndexTaskId(result.task_id);
+
+          pollIntervalRef.current = setInterval(() => {
+            pollIndexProgress(result.task_id);
+          }, 1000);
+
+          await pollIndexProgress(result.task_id);
         }
-
-        setIndexTaskId(result.task_id);
-
-        pollIntervalRef.current = setInterval(() => {
-          pollIndexProgress(result.task_id);
-        }, 1000);
-
-        await pollIndexProgress(result.task_id);
       } catch (error) {
         setIndexStatus("idle");
         if (pollIntervalRef.current) {
@@ -248,7 +265,7 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
         throw error;
       }
     },
-    [pollIndexProgress]
+    [projectId, loadAssets, pollIndexProgress]
   );
 
   useEffect(() => {
@@ -267,14 +284,18 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
       setIsBatchUpdating(true);
       try {
-        await api.updateAssetStatusShared(Array.from(selectedIds), status);
+        if (projectId) {
+          await api.updateAssetStatus(projectId, Array.from(selectedIds), status);
+        } else {
+          await api.updateAssetStatusShared(Array.from(selectedIds), status);
+        }
         setSelectedIds(new Set());
         await loadAssets();
       } finally {
         setIsBatchUpdating(false);
       }
     },
-    [isBatchUpdating, loadAssets, selectedIds]
+    [isBatchUpdating, loadAssets, selectedIds, projectId]
   );
 
   const handleBatchEdit = useCallback(
@@ -301,13 +322,19 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
         return;
       }
       try {
-        await api.deleteAssetShared(assetId);
+        if (projectId) {
+          const asset = assets.find((a) => a.asset_id === assetId);
+          const name = asset?.file_path || assetId;
+          await api.deleteAsset(projectId, name);
+        } else {
+          await api.deleteAssetShared(assetId);
+        }
         await loadAssets();
       } catch (error) {
         console.error("delete asset failed", error);
       }
     },
-    [loadAssets]
+    [loadAssets, projectId, assets]
   );
 
   const handleBatchDelete = useCallback(
@@ -325,7 +352,15 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
       setIsBatchUpdating(true);
       try {
-        await api.batchDeleteAssets(Array.from(selectedIds));
+        if (projectId) {
+          for (const id of selectedIds) {
+            const asset = assets.find((a) => a.asset_id === id);
+            const name = asset?.file_path || id;
+            await api.deleteAsset(projectId, name);
+          }
+        } else {
+          await api.batchDeleteAssets(Array.from(selectedIds));
+        }
         setSelectedIds(new Set());
         await loadAssets();
       } catch (error) {
@@ -334,7 +369,7 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
         setIsBatchUpdating(false);
       }
     },
-    [isBatchUpdating, loadAssets, selectedIds]
+    [isBatchUpdating, loadAssets, selectedIds, projectId, assets]
   );
 
   const handlePreviewStatusToggle = useCallback(
@@ -345,7 +380,11 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
       setIsPreviewUpdating(true);
       try {
-        await api.updateAssetStatusShared([asset.asset_id], nextStatus);
+        if (projectId) {
+          await api.updateAssetStatus(projectId, [asset.asset_id], nextStatus);
+        } else {
+          await api.updateAssetStatusShared([asset.asset_id], nextStatus);
+        }
         await loadAssets();
         setPreviewAsset((prev) => {
           if (!prev || prev.asset_id !== asset.asset_id) {
@@ -357,7 +396,7 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
         setIsPreviewUpdating(false);
       }
     },
-    [isPreviewUpdating, loadAssets]
+    [isPreviewUpdating, loadAssets, projectId]
   );
 
   const handlePreviewFieldsUpdate = useCallback(
@@ -391,14 +430,14 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "总切片", value: stats.total, style: "bg-gray-50 border-gray-200" },
-          { label: "可用", value: stats.available, style: "bg-green-50 border-green-200 text-green-700" },
-          { label: "已禁用", value: stats.disabled, style: "bg-red-50 border-red-200 text-red-700" },
-          { label: "源视频", value: stats.source_videos, style: "bg-gray-50 border-gray-200" },
+          { label: "总切片", value: stats.total, baseStyle: { background: "var(--bg-card)", borderColor: "var(--border-default)" } },
+          { label: "可用", value: stats.available, baseStyle: { background: "var(--bg-tag-green)", borderColor: "var(--text-tag-green)", color: "var(--text-tag-green)" } },
+          { label: "已禁用", value: stats.disabled, baseStyle: { background: "#f8514922", borderColor: "#f85149", color: "#f85149" } },
+          { label: "源视频", value: stats.source_videos, baseStyle: { background: "var(--bg-card)", borderColor: "var(--border-default)" } },
         ].map((item) => (
-          <div key={item.label} className={`rounded-lg border p-3 text-center ${item.style}`}>
+          <div key={item.label} className="rounded-lg border p-3 text-center" style={item.baseStyle}>
             <p className="text-lg font-semibold">{item.value}</p>
-            <p className="text-xs text-[#57606a]">{item.label}</p>
+            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{item.label}</p>
           </div>
         ))}
       </div>
@@ -420,7 +459,8 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2 items-center">
           <select
-            className="border rounded-md px-3 py-2 text-sm bg-white"
+            className="border rounded-md px-3 py-2 text-sm"
+            style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
             value={filters.category}
             onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
           >
@@ -433,7 +473,8 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
           </select>
 
           <select
-            className="border rounded-md px-3 py-2 text-sm bg-white"
+            className="border rounded-md px-3 py-2 text-sm"
+            style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
             value={filters.status}
             onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
           >
@@ -446,11 +487,12 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
           </select>
 
           {durationRange.max > 0 && (
-            <div className="flex items-center gap-1.5 text-sm text-[#57606a]">
+            <div className="flex items-center gap-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>
               <span>时长</span>
               <input
                 type="range"
-                className="w-20 accent-blue-600"
+                className="w-20"
+                style={{ accentColor: "var(--accent)" }}
                 min={durationRange.min}
                 max={durationRange.max}
                 step={0.1}
@@ -466,7 +508,8 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
               <span>~</span>
               <input
                 type="range"
-                className="w-20 accent-blue-600"
+                className="w-20"
+                style={{ accentColor: "var(--accent)" }}
                 min={durationRange.min}
                 max={durationRange.max}
                 step={0.1}
@@ -483,21 +526,23 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
           )}
 
           <button
-            className="text-sm text-blue-600 hover:text-blue-800 px-2 py-1"
+            className="text-sm px-2 py-1"
+            style={{ color: "var(--accent)" }}
             onClick={() => setShowAdvanced((v) => !v)}
           >
             {showAdvanced ? "收起筛选 ▲" : "更多筛选 ▼"}
           </button>
 
           <button
-            className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1 border rounded"
+            className="text-sm px-2 py-1 border rounded"
+            style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
             onClick={() => setFilters(DEFAULT_FILTERS)}
           >
             清除筛选
           </button>
 
           {filteredAssets.length !== assets.length && (
-            <span className="text-xs text-[#57606a] ml-auto">
+            <span className="text-xs ml-auto" style={{ color: "var(--text-secondary)" }}>
               共 {filteredAssets.length} / {assets.length} 条素材
             </span>
           )}
@@ -505,18 +550,20 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
         <input
           className="w-full border rounded-md px-3 py-2 text-sm"
+          style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
           value={filters.keyword}
           onChange={(e) => setFilters((f) => ({ ...f, keyword: e.target.value }))}
           placeholder="搜索 file_path / 标签"
         />
 
         {showAdvanced && (
-          <div className="flex flex-wrap gap-4 items-center text-sm text-[#57606a]">
+          <div className="flex flex-wrap gap-4 items-center text-sm" style={{ color: "var(--text-secondary)" }}>
             <div className="flex items-center gap-1.5">
               <span>置信度</span>
               <input
                 type="number"
                 className="w-16 border rounded px-2 py-1 text-sm"
+                style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
                 min={0}
                 max={1}
                 step={0.1}
@@ -538,6 +585,7 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
               <input
                 type="number"
                 className="w-16 border rounded px-2 py-1 text-sm"
+                style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
                 min={0}
                 max={1}
                 step={0.1}
@@ -562,6 +610,7 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
               <input
                 type="number"
                 className="w-16 border rounded px-2 py-1 text-sm"
+                style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
                 min={0}
                 step={1}
                 value={filters.usageMin}
@@ -573,6 +622,7 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
               <input
                 type="number"
                 className="w-16 border rounded px-2 py-1 text-sm"
+                style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
                 min={0}
                 step={1}
                 value={filters.usageMax === 0 ? usageRange.max : filters.usageMax}
@@ -598,11 +648,12 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4 items-start">
         {filteredAssets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-[#57606a]">
+          <div className="flex flex-col items-center justify-center py-20" style={{ color: "var(--text-secondary)" }}>
             <p className="text-lg mb-2">没有符合筛选条件的素材</p>
             <p className="text-sm mb-4">试试调整筛选条件或清除所有筛选</p>
             <button
-              className="px-4 py-2 text-sm border rounded-md hover:bg-gray-50"
+              className="px-4 py-2 text-sm border rounded-md"
+              style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
               onClick={() => setFilters(DEFAULT_FILTERS)}
             >
               清除筛选

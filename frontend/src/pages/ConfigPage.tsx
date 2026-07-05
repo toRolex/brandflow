@@ -65,9 +65,11 @@ export default function ConfigPage() {
     <div>
       <h1 className="text-xl font-bold mb-6">系统配置</h1>
       {saveMsg && (
-        <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${
-          saveMsg.includes("失败") ? "bg-red-50 border border-red-200 text-red-700" : "bg-green-50 border border-green-200 text-green-700"
-        }`}>
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={
+          saveMsg.includes("失败")
+            ? { background: "#f8514922", border: "1px solid var(--danger)", color: "var(--danger)" }
+            : { background: "var(--bg-tag-green)", border: "1px solid var(--success)", color: "var(--success)" }
+        }>
           {saveMsg}
         </div>
       )}
@@ -139,9 +141,8 @@ export default function ConfigPage() {
               )}
 
             <button
-              className={`mt-3 text-white px-4 py-2 rounded-md text-xs transition-colors ${
-                saving === key ? "bg-gray-400" : "bg-[#0969da] hover:brightness-110"
-              }`}
+              className="mt-3 px-4 py-2 rounded-md text-xs transition-colors"
+              style={saving === key ? { background: "#6e7681", color: "#fff" } : { background: "var(--accent)", color: "#fff" }}
               disabled={saving === key}
               onClick={() => handleSectionSave(key)}
             >
