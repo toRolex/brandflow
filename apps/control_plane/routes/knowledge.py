@@ -19,6 +19,37 @@ router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx"}
 
+_SOURCE_TYPE_BY_MIME = {
+    "text/plain": SourceType.TXT,
+    "application/pdf": SourceType.PDF,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": SourceType.DOCX,
+}
+
+_SOURCE_TYPE_BY_EXT = {
+    ".txt": SourceType.TXT,
+    ".pdf": SourceType.PDF,
+    ".docx": SourceType.DOCX,
+}
+
+_EXT_BY_SOURCE_TYPE = {
+    SourceType.TXT: ".txt",
+    SourceType.PDF: ".pdf",
+    SourceType.DOCX: ".docx",
+}
+
+
+def _detect_source_type(filename: str, content_type: str | None) -> SourceType:
+    """Detect document source type from MIME type, falling back to extension."""
+    if content_type:
+        source_type = _SOURCE_TYPE_BY_MIME.get(content_type.lower())
+        if source_type is not None:
+            return source_type
+    ext = Path(filename).suffix.lower()
+    source_type = _SOURCE_TYPE_BY_EXT.get(ext)
+    if source_type is None:
+        raise ValueError(f"Unsupported file type '{ext}'")
+    return source_type
+
 
 def _get_store(request: Request) -> KnowledgeStore:
     return KnowledgeStore(request.app.state.root_dir)
@@ -63,19 +94,19 @@ async def upload_knowledge(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
 
-    ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type '{ext}'. Allowed: .txt, .pdf, .docx",
-        )
+    try:
+        source_type = _detect_source_type(file.filename, file.content_type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    ext = _EXT_BY_SOURCE_TYPE[source_type]
 
     content_bytes = await file.read()
     if not content_bytes:
         raise HTTPException(status_code=400, detail="File is empty")
 
     # Parse text based on file type
-    if ext == ".txt":
+    if source_type == SourceType.TXT:
         text = content_bytes.decode("utf-8", errors="replace").strip()
     else:
         # PDF or DOCX: write to temp file, parse, then clean up
@@ -92,9 +123,6 @@ async def upload_knowledge(
 
     if not text:
         raise HTTPException(status_code=400, detail="Parsed text is empty")
-
-    # Map extension to SourceType
-    source_type = SourceType(ext.lstrip("."))
 
     store = _get_store(request)
 
