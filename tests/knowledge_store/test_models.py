@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from packages.knowledge_store.models import (
+from packages.knowledge_store.models import (, SourceType, KnowledgeItemType
     KnowledgeConfig,
     KnowledgeDocument,
     KnowledgeItem,
@@ -25,7 +25,7 @@ class TestKnowledgeDocument:
         doc = KnowledgeDocument(
             id="doc_001",
             filename="test.txt",
-            source_type="txt",
+            source_type=SourceType.TXT,
             parsed_text="测试内容",
         )
         assert doc.id == "doc_001"
@@ -38,7 +38,7 @@ class TestKnowledgeDocument:
         doc = KnowledgeDocument(
             id="doc_001",
             filename="test.txt",
-            source_type="txt",
+            source_type=SourceType.TXT,
             parsed_text="测试内容",
         )
         d = doc.to_dict()
@@ -85,7 +85,7 @@ class TestKnowledgeItem:
         item = KnowledgeItem(
             id="item_001",
             document_id="doc_001",
-            type="selling_point",
+            type=KnowledgeItemType.SELLING_POINT,
             title="鲜美口感",
             content="羊肚菌口感鲜嫩，带有独特的菌菇香气",
             priority=5,
@@ -100,7 +100,7 @@ class TestKnowledgeItem:
         item = KnowledgeItem(
             id="item_002",
             document_id="doc_001",
-            type="specification",
+            type=KnowledgeItemType.SPECIFICATION,
             title="规格",
             content="500g/包",
             source_document="test.txt",
@@ -122,7 +122,7 @@ class TestKnowledgeItem:
         item = KnowledgeItem(
             id="item_001",
             document_id="doc_001",
-            type="selling_point",
+            type=KnowledgeItemType.SELLING_POINT,
             title="鲜美口感",
             content="羊肚菌口感鲜嫩",
             priority=5,
