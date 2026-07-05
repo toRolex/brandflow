@@ -51,7 +51,7 @@ const DEFAULT_STATS: AssetStats = {
   source_videos: 0,
 };
 
-export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
+export default function SmartAssetLibrary({ projectId }: Props) {
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [stats, setStats] = useState<AssetStats>(DEFAULT_STATS);
   const [filters, setFilters] = useState<AssetFilters>(DEFAULT_FILTERS);
@@ -72,10 +72,15 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadAssets = useCallback(async () => {
-    const res = await api.listIndexedAssetsShared();
+    let res: { assets: AssetRecord[]; stats: AssetStats };
+    if (projectId) {
+      res = await api.listIndexedAssets(projectId);
+    } else {
+      res = await api.listIndexedAssetsShared();
+    }
     setAssets(res.assets);
     setStats(res.stats);
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     void loadAssets();
@@ -220,25 +225,37 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
       try {
         for (const file of files) {
-          await api.uploadAssetShared(file);
+          if (projectId) {
+            await api.uploadAsset(projectId, file);
+          } else {
+            await api.uploadAssetShared(file);
+          }
         }
 
-        const result = await api.indexAssetsSharedAsync();
-
-        // 如果没有新视频需要索引（全部已索引过），直接刷新列表
-        if (!result.task_id) {
+        if (projectId) {
+          await api.indexAssets(projectId);
           await loadAssets();
-          setIndexStatus("idle");
-          return;
+          setIndexStatus("done");
+          setIndexStep("done");
+          setIndexProgress(100);
+          setTimeout(() => setIndexStatus("idle"), 2000);
+        } else {
+          const result = await api.indexAssetsSharedAsync();
+
+          if (!result.task_id) {
+            await loadAssets();
+            setIndexStatus("idle");
+            return;
+          }
+
+          setIndexTaskId(result.task_id);
+
+          pollIntervalRef.current = setInterval(() => {
+            pollIndexProgress(result.task_id);
+          }, 1000);
+
+          await pollIndexProgress(result.task_id);
         }
-
-        setIndexTaskId(result.task_id);
-
-        pollIntervalRef.current = setInterval(() => {
-          pollIndexProgress(result.task_id);
-        }, 1000);
-
-        await pollIndexProgress(result.task_id);
       } catch (error) {
         setIndexStatus("idle");
         if (pollIntervalRef.current) {
@@ -248,7 +265,7 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
         throw error;
       }
     },
-    [pollIndexProgress]
+    [projectId, loadAssets, pollIndexProgress]
   );
 
   useEffect(() => {
@@ -267,14 +284,18 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
       setIsBatchUpdating(true);
       try {
-        await api.updateAssetStatusShared(Array.from(selectedIds), status);
+        if (projectId) {
+          await api.updateAssetStatus(projectId, Array.from(selectedIds), status);
+        } else {
+          await api.updateAssetStatusShared(Array.from(selectedIds), status);
+        }
         setSelectedIds(new Set());
         await loadAssets();
       } finally {
         setIsBatchUpdating(false);
       }
     },
-    [isBatchUpdating, loadAssets, selectedIds]
+    [isBatchUpdating, loadAssets, selectedIds, projectId]
   );
 
   const handleBatchEdit = useCallback(
@@ -301,13 +322,19 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
         return;
       }
       try {
-        await api.deleteAssetShared(assetId);
+        if (projectId) {
+          const asset = assets.find((a) => a.asset_id === assetId);
+          const name = asset?.file_path || assetId;
+          await api.deleteAsset(projectId, name);
+        } else {
+          await api.deleteAssetShared(assetId);
+        }
         await loadAssets();
       } catch (error) {
         console.error("delete asset failed", error);
       }
     },
-    [loadAssets]
+    [loadAssets, projectId, assets]
   );
 
   const handleBatchDelete = useCallback(
@@ -325,7 +352,15 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
       setIsBatchUpdating(true);
       try {
-        await api.batchDeleteAssets(Array.from(selectedIds));
+        if (projectId) {
+          for (const id of selectedIds) {
+            const asset = assets.find((a) => a.asset_id === id);
+            const name = asset?.file_path || id;
+            await api.deleteAsset(projectId, name);
+          }
+        } else {
+          await api.batchDeleteAssets(Array.from(selectedIds));
+        }
         setSelectedIds(new Set());
         await loadAssets();
       } catch (error) {
@@ -334,7 +369,7 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
         setIsBatchUpdating(false);
       }
     },
-    [isBatchUpdating, loadAssets, selectedIds]
+    [isBatchUpdating, loadAssets, selectedIds, projectId, assets]
   );
 
   const handlePreviewStatusToggle = useCallback(
@@ -345,7 +380,11 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
 
       setIsPreviewUpdating(true);
       try {
-        await api.updateAssetStatusShared([asset.asset_id], nextStatus);
+        if (projectId) {
+          await api.updateAssetStatus(projectId, [asset.asset_id], nextStatus);
+        } else {
+          await api.updateAssetStatusShared([asset.asset_id], nextStatus);
+        }
         await loadAssets();
         setPreviewAsset((prev) => {
           if (!prev || prev.asset_id !== asset.asset_id) {
@@ -357,7 +396,7 @@ export default function SmartAssetLibrary({ projectId: _projectId }: Props) {
         setIsPreviewUpdating(false);
       }
     },
-    [isPreviewUpdating, loadAssets]
+    [isPreviewUpdating, loadAssets, projectId]
   );
 
   const handlePreviewFieldsUpdate = useCallback(
