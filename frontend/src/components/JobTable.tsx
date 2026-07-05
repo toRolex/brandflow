@@ -19,7 +19,7 @@ export default function JobTable({ jobs, onRetry, onDelete, onRename, selectedJo
   const [exporting, setExporting] = useState(false);
 
   if (jobs.length === 0) {
-    return <p className="text-sm text-[#59636e] py-4">暂无 Job，创建一个开始吧</p>;
+    return <p className="text-sm py-4" style={{ color: "var(--text-secondary)" }}>暂无 Job，创建一个开始吧</p>;
   }
 
   const showCheckbox = selectedJobIds !== undefined;
@@ -92,14 +92,14 @@ export default function JobTable({ jobs, onRetry, onDelete, onRename, selectedJo
     <div>
       <table className="w-full border-collapse text-[13px]">
         <thead>
-          <tr className="border-b border-[#393f46] text-left" style={{ color: "var(--text-secondary)" }}>
+          <tr className="border-b text-left" style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}>
             {showCheckbox && (
               <th className="py-2 px-2 font-medium w-8">
                 <input
                   type="checkbox"
                   checked={allCompletedSelected}
                   onChange={toggleSelectAll}
-                  className="accent-[#0969da]"
+                  style={{ accentColor: "var(--accent)" }}
                 />
               </th>
             )}
@@ -141,7 +141,8 @@ export default function JobTable({ jobs, onRetry, onDelete, onRename, selectedJo
             已选 {selectedCompletedCount} 个已完成 Job
           </span>
           <button
-            className="px-3 py-1.5 bg-[#0969da] text-white text-xs rounded-md hover:bg-[#0860c0] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-xs rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "var(--accent)", color: "#fff" }}
             disabled={exporting || selectedCompletedCount === 0}
             onClick={handleExport}
           >
@@ -191,7 +192,7 @@ function NameRow({
   };
 
   return (
-    <tr className="border-b hover:bg-gray-50" style={{ borderColor: "var(--border-default)" }}>
+    <tr className="border-b" style={{ borderColor: "var(--border-default)" }}>
       {showCheckbox && (
         <td className="py-2.5 px-2">
           <input
@@ -199,7 +200,8 @@ function NameRow({
             checked={isSelected ?? false}
             onChange={onToggle}
             disabled={!isCompleted}
-            className="accent-[#0969da] disabled:opacity-30"
+            style={{ accentColor: "var(--accent)" }}
+            className="disabled:opacity-30"
           />
         </td>
       )}
@@ -226,7 +228,8 @@ function NameRow({
           />
         ) : (
           <span
-            className="cursor-pointer hover:text-[#0969da]"
+            className="cursor-pointer"
+            style={{ color: "var(--text-primary)" }}
             title="双击编辑名称"
             onDoubleClick={() => {
               setEditing(true);
@@ -261,7 +264,8 @@ function NameRow({
           </button>
         )}
         <button
-          className="text-[#cf222e] hover:underline text-xs"
+          className="hover:underline text-xs"
+          style={{ color: "var(--danger)" }}
           onClick={() => onDelete(job.job_id)}
         >
           删除
