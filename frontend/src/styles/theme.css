@@ -28,6 +28,13 @@
   --btn-primary-text: #ffffff;
   --btn-primary-hover: #2c974b;
 
+  --danger: #cf222e;
+  --danger-bg: #ffebe9;
+  --danger-border: #ff8182;
+  --success: #1a7f37;
+  --success-bg: #dafbe1;
+  --success-border: #4ac26b;
+
   --metric-color: #0969da;
   --accent: #0969da;
 
@@ -71,6 +78,13 @@
   --btn-primary-bg: #238636;
   --btn-primary-text: #ffffff;
   --btn-primary-hover: #2ea043;
+
+  --danger: #f85149;
+  --danger-bg: #49020233;
+  --danger-border: #f8514944;
+  --success: #3fb950;
+  --success-bg: #1a7f3733;
+  --success-border: #3fb95044;
 
   --metric-color: #58a6ff;
   --accent: #58a6ff;
