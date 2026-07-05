@@ -40,6 +40,20 @@ def _valid_text_no_selling() -> str:
     return "".join(parts)
 
 
+def _valid_text_one_selling() -> str:
+    """Create a text with proper word count but exactly one selling point title."""
+    parts = [
+        "野生生长环境孕育了羊肚菌的独特品质。",
+        "采自云南高山原始森林每一朵都朵大肉厚品质上乘。",
+        "农户手工采摘确保每一朵都完好无损精心挑选。",
+        "烹饪方法简单多样炖汤炒菜都合适家常必备好食材。",
+        "口感鲜嫩爽滑让人回味。",
+        "营养丰富做法多样是家中常备好食材。",
+        "滋元堂精选优质食材品质值得您放心选购。",
+    ]
+    return "".join(parts)
+
+
 class TestQualityKnowledgeRules:
     """Test knowledge_rules in validate_script."""
 
@@ -150,6 +164,27 @@ class TestQualityKnowledgeRules:
         """脚本卖点不足时失败。"""
         self._populate_selling_points(KnowledgeStore(tmp_path))
         text = _valid_text_no_selling()
+        result = validate_script(
+            text,
+            "羊肚菌",
+            "滋元堂",
+            config={
+                "knowledge_rules": {
+                    "min_selling_points_included": 2,
+                    "store_dir": str(tmp_path),
+                    "top_k": 3,
+                }
+            },
+        )
+        assert result["ok"] is False
+        assert any("卖点" in e for e in result["errors"])
+
+    def test_min_selling_points_boundary_one_included_fails(
+        self, tmp_path: Path
+    ) -> None:
+        """脚本只包含 1 个卖点，配置 min=2 时应质检失败。"""
+        self._populate_selling_points(KnowledgeStore(tmp_path))
+        text = _valid_text_one_selling()
         result = validate_script(
             text,
             "羊肚菌",

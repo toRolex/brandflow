@@ -69,7 +69,7 @@ class TestScriptGeneratorWithKnowledge:
         self, mock_call_llm, tmp_path: Path
     ):
         """knowledge_config 启用时，卖点应出现在 system prompt 中"""
-        store = self._populate_store(tmp_path)
+        self._populate_store(tmp_path)
 
         first_json = json.dumps(
             {
@@ -121,8 +121,6 @@ class TestScriptGeneratorWithKnowledge:
         self, mock_call_llm, tmp_path: Path
     ):
         """卖点为空时静默跳过，不影响正常生成"""
-        store = KnowledgeStore(tmp_path)
-        # Store is empty — no items
 
         first_json = json.dumps(
             {
@@ -180,7 +178,7 @@ class TestScriptGeneratorWithKnowledge:
     @patch.object(ScriptGenerator, "_call_llm")
     def test_knowledge_in_both_halves(self, mock_call_llm, tmp_path: Path):
         """knowledge 卖点应同时注入前半段和后半段的 system prompt"""
-        store = self._populate_store(tmp_path)
+        self._populate_store(tmp_path)
 
         first_json = json.dumps(
             {
@@ -220,3 +218,70 @@ class TestScriptGeneratorWithKnowledge:
         # Check second_half system prompt
         second_messages = call_args_list[1][0][0]
         assert "野生生长环境" in second_messages[0]["content"]
+
+    @patch.object(ScriptGenerator, "_call_llm")
+    def test_update_priority_changes_prompt_order(
+        self, mock_call_llm, tmp_path: Path
+    ):
+        """编辑卖点优先级后，高优先级卖点应在提示词中更靠前。"""
+        store = self._populate_store(tmp_path)
+
+        first_json = json.dumps(
+            {
+                "sentence_1": "云南深山里藏着一种宝贝。",
+                "sentence_2": "它就是鲜嫩的羊肚菌。",
+                "sentence_3": "采摘后立刻送到你手中。",
+                "sentence_4": "今天教大家怎么做好吃。",
+            },
+            ensure_ascii=False,
+        )
+        second_json = json.dumps(
+            {
+                "sentence_5": "锅里放油烧热下菌子。",
+                "sentence_6": "充分烹熟才能安心享用。",
+                "sentence_7": "滋元堂的品质值得信赖。",
+                "sentence_8": "赶紧下单尝尝吧。",
+            },
+            ensure_ascii=False,
+        )
+        mock_call_llm.side_effect = [first_json, second_json] * 3
+
+        gen = self._make_generator()
+        gen.run(
+            product="羊肚菌",
+            brand="滋元堂",
+            knowledge_config={
+                "enabled": True,
+                "store_dir": str(tmp_path),
+                "top_k": 2,
+            },
+        )
+        first_call_content = mock_call_llm.call_args_list[0][0][0][0]["content"]
+        # Initially 野生生长环境 (priority 5) should be before 高营养价值 (priority 4)
+        assert first_call_content.index("野生生长环境") < first_call_content.index(
+            "高营养价值"
+        )
+
+        # Lower the priority of 野生生长环境 to 1
+        store.update_item("sp_001", priority=1)
+
+        # Reset mock for the second run
+        mock_call_llm.reset_mock()
+        mock_call_llm.side_effect = [first_json, second_json] * 3
+
+        gen2 = self._make_generator()
+        gen2.run(
+            product="羊肚菌",
+            brand="滋元堂",
+            knowledge_config={
+                "enabled": True,
+                "store_dir": str(tmp_path),
+                "top_k": 2,
+            },
+        )
+        second_call_content = mock_call_llm.call_args_list[0][0][0][0]["content"]
+        # Now top-2 are 高营养价值 (priority 4) and 独特菌菇香气 (priority 3)
+        assert "野生生长环境" not in second_call_content
+        assert second_call_content.index("高营养价值") < second_call_content.index(
+            "独特菌菇香气"
+        )
