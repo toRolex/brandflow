@@ -28,8 +28,8 @@
   --btn-primary-text: #ffffff;
   --btn-primary-hover: #2c974b;
 
-  --danger: #cf222e;
-  --danger-bg: #ffebe9;
+  --danger: oklch(55% 0.21 20);
+  --danger-bg: oklch(55% 0.21 20 / 0.10);
   --danger-border: #ff8182;
   --success: #1a7f37;
   --success-bg: #dafbe1;
@@ -37,9 +37,6 @@
 
   --metric-color: #0969da;
   --accent: #0969da;
-
-  --danger: #d1242f;
-  --success: #1a7f37;
 
   --spacing-sm: 0.25rem;
   --spacing-md: 0.5rem;
@@ -79,8 +76,8 @@
   --btn-primary-text: #ffffff;
   --btn-primary-hover: #2ea043;
 
-  --danger: #f85149;
-  --danger-bg: #49020233;
+  --danger: oklch(60% 0.21 20);
+  --danger-bg: oklch(55% 0.21 20 / 0.12);
   --danger-border: #f8514944;
   --success: #3fb950;
   --success-bg: #1a7f3733;

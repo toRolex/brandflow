@@ -250,9 +250,9 @@ export default function CategoryManager() {
 
       {/* AI Suggestions Panel */}
       {suggestions && (
-        <div className="mb-6 bg-purple-50 border border-purple-200 rounded-xl p-5">
-          <h3 className="font-semibold mb-3 text-purple-800">AI 分类建议</h3>
-          <p className="text-xs text-purple-600 mb-3">勾选需要添加的分类，确认后将合并到现有分类列表</p>
+        <div className="mb-6 border rounded-xl p-5" style={{ background: "var(--bg-tag-blue)", borderColor: "var(--text-tag-blue)" }}>
+          <h3 className="font-semibold mb-3" style={{ color: "var(--text-tag-blue)" }}>AI 分类建议</h3>
+          <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>勾选需要添加的分类，确认后将合并到现有分类列表</p>
           <div className="space-y-2 mb-4">
             {suggestions.map((s) => (
               <label

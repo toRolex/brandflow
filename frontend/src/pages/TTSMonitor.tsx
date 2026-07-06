@@ -87,7 +87,7 @@ export default function TTSMonitorPage() {
       </div>
 
       <div className="grid grid-cols-5 gap-4 mb-6">
-        <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl p-4 text-white">
+        <div className="rounded-xl p-4 text-white" style={{ background: "var(--accent)" }}>
           <p className="text-sm opacity-90">总请求</p>
           <p className="text-3xl font-bold mt-1">{metrics.total_requests.toLocaleString()}</p>
         </div>
