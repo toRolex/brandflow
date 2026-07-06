@@ -44,7 +44,7 @@ export default function ConfirmDialog({
       {/* backdrop */}
       <div
         className="absolute inset-0"
-        style={{ background: "rgba(0,0,0,0.4)" }}
+        style={{ background: "var(--shadow-modal-backdrop)" }}
         onClick={onCancel}
       />
       {/* dialog */}

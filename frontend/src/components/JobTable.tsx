@@ -142,7 +142,7 @@ export default function JobTable({ jobs, onRetry, onDelete, onRename, selectedJo
           </span>
           <button
             className="px-3 py-1.5 text-xs rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: "var(--accent)", color: "#fff" }}
+            style={{ background: "var(--accent)", color: "var(--text-inverse)" }}
             disabled={exporting || selectedCompletedCount === 0}
             onClick={handleExport}
           >

@@ -196,6 +196,9 @@
   --card-padding: 20px;
   --card-radius: var(--radius-lg);
 
+  /* ---- Component: Modal Backdrop ---- */
+  --shadow-modal-backdrop: rgba(0, 0, 0, 0.4);
+
   /* ---- Legacy spacing/radius aliases ---- */
   --spacing-sm: 0.25rem;
   --spacing-md: 0.5rem;
@@ -311,6 +314,9 @@
   --card-bg: var(--color-obsidian);
   --card-border: var(--color-steel);
   --card-shadow: var(--shadow-ambient-low);
+
+  /* ---- Component: Modal Backdrop ---- */
+  --shadow-modal-backdrop: rgba(0, 0, 0, 0.6);
 }
 
 /* --------------------------------------------------------------------------

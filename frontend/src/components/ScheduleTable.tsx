@@ -18,7 +18,7 @@ export default function ScheduleTable({ entries, onExport }: Props) {
       <div className="flex justify-end mb-3">
         <button
           className="px-4 py-1.5 rounded-lg text-sm transition-colors"
-          style={{ background: "var(--success)", color: "#fff" }}
+          style={{ background: "var(--success)", color: "var(--text-inverse)" }}
           onClick={onExport}
         >
           导出 Excel
