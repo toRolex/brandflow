@@ -99,6 +99,7 @@ DEFAULTS: dict[str, Any] = {
             "emoji_forbidden": True,
         },
         "categories": [],
+        "keyword_map": {},
     },
 }
 
@@ -547,6 +548,18 @@ class AppConfigManager:
 
         # Priority 3: default food categories
         return default_categories()
+
+    def get_keyword_map(self) -> dict[str, list[str]]:
+        """Return the keyword-to-category mapping for the active product.
+
+        Reads from the product-level ``keyword_map`` field.  Returns an empty
+        mapping when the product has not configured one — no hardcoded fallback.
+        """
+        product_config = self.get_product_config()
+        raw: dict = product_config.get("keyword_map", {})
+        if not isinstance(raw, dict):
+            return {}
+        return {str(k): list(v) for k, v in raw.items() if isinstance(v, list)}
 
     def get_category_suggestion_model(self) -> str:
         al_config = self.get_asset_library_config()
