@@ -13,13 +13,13 @@ vi.mock("../../api/client", () => ({
 
 const MOCK_CATEGORIES = [
   { name: "产品展示", description: "产品特写和展示镜头", vision_prompt: "product showcase close-up" },
-  { name: "食材准备", description: "食材清洗、切割等准备过程", vision_prompt: "ingredient preparation washing cutting" },
-  { name: "烹饪过程", description: "烹饪翻炒等制作过程", vision_prompt: "cooking frying process" },
+  { name: "前期准备", description: "产品前期的整理、检查等准备过程", vision_prompt: "preparation inspection organization" },
+  { name: "制作过程", description: "产品的加工和制作过程", vision_prompt: "production manufacturing process" },
 ];
 
 const DEFAULT_CONFIG = {
-  default_name: "羊肚菌",
-  default_brand: "菌王山珍",
+  default_name: "示例产品",
+  default_brand: "示例品牌",
   script: { scene: "", material: "", system_prompt: "" },
   categories: MOCK_CATEGORIES,
 };
@@ -37,8 +37,8 @@ describe("CategoryManager", () => {
     await waitFor(() => {
       expect(screen.getByText("产品展示")).toBeInTheDocument();
     });
-    expect(screen.getByText("食材准备")).toBeInTheDocument();
-    expect(screen.getByText("烹饪过程")).toBeInTheDocument();
+    expect(screen.getByText("前期准备")).toBeInTheDocument();
+    expect(screen.getByText("制作过程")).toBeInTheDocument();
   });
 
   it("空分类列表显示空状态提示", async () => {
@@ -164,7 +164,7 @@ describe("CategoryManager", () => {
   it("AI 建议按钮调用 suggest API", async () => {
     vi.mocked(api.suggestCategories).mockResolvedValue({
       suggestions: [
-        { label: "食材展示", description: "食材特写", vision_prompt: "ingredient display" },
+        { label: "产品细节", description: "产品特写", vision_prompt: "product display" },
         { label: "调味过程", description: "加入调料", vision_prompt: "seasoning process" },
       ],
     });
@@ -183,7 +183,7 @@ describe("CategoryManager", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("食材展示")).toBeInTheDocument();
+      expect(screen.getByText("产品细节")).toBeInTheDocument();
     });
     expect(screen.getByText("调味过程")).toBeInTheDocument();
   });
@@ -191,14 +191,14 @@ describe("CategoryManager", () => {
   it("AI 建议可勾选后确认添加", async () => {
     vi.mocked(api.suggestCategories).mockResolvedValue({
       suggestions: [
-        { label: "食材展示", description: "食材特写", vision_prompt: "ingredient display" },
+        { label: "产品细节", description: "产品特写", vision_prompt: "product display" },
         { label: "调味过程", description: "加入调料", vision_prompt: "seasoning process" },
       ],
     });
 
     const updatedCategories = [
       ...MOCK_CATEGORIES,
-      { name: "食材展示", description: "食材特写", vision_prompt: "ingredient display" },
+      { name: "产品细节", description: "产品特写", vision_prompt: "product display" },
       { name: "调味过程", description: "加入调料", vision_prompt: "seasoning process" },
     ];
     vi.mocked(api.saveProductConfig).mockResolvedValue({
@@ -217,7 +217,7 @@ describe("CategoryManager", () => {
 
     // Wait for suggestions to appear
     await waitFor(() => {
-      expect(screen.getByText("食材展示")).toBeInTheDocument();
+      expect(screen.getByText("产品细节")).toBeInTheDocument();
     });
 
     // Click confirm to add all selected suggestions (they should be checked by default)

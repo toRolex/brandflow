@@ -231,7 +231,7 @@ const AUDIO_TAGS = [
 
 export default function TTSConfigPage() {
   const [config, setConfig] = useState<TTSConfig | null>(null);
-  const [previewText, setPreviewText] = useState("见手青是云南最美味的野生菌，口感鲜嫩，营养丰富。");
+  const [previewText, setPreviewText] = useState("这是产品展示的示例语音，用于测试语音合成效果和音色表现。");
   const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -678,7 +678,7 @@ export default function TTSConfigPage() {
                     onChange={(e) => setConfig({ ...config, director_guidance: e.target.value })}
                   />
                   <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                    示例：语速偏快，咬字轻巧，在强调食材时微微加重语气，整体保持兴奋但不做作
+                    示例：语速偏快，咬字轻巧，在强调产品名称时微微加重语气，整体保持兴奋但不做作
                   </p>
                 </div>
               </div>
