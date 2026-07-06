@@ -195,7 +195,7 @@ export default function ProductConfigForm() {
             type="text"
             className="w-full px-4 py-2 rounded-lg text-sm mb-4"
             style={{ ...inputStyle, marginBottom: "16px" }}
-            placeholder="输入产品名称，如：羊肚菌"
+            placeholder="输入产品名称，如：示例产品"
             value={newProductName}
             onChange={(e) => setNewProductName(e.target.value)}
           />
@@ -360,7 +360,7 @@ export default function ProductConfigForm() {
                   onChange={(e) => updateScriptField("scene", e.target.value)}
                 />
                 <p style={hintStyle}>
-                  描述脚本生成的场景方向，如：食材展示、烹饪过程、成品呈现
+                  描述脚本生成的场景方向，如：产品展示、制作过程、成品呈现
                 </p>
               </div>
 
@@ -377,7 +377,7 @@ export default function ProductConfigForm() {
                   onChange={(e) => updateScriptField("material", e.target.value)}
                 />
                 <p style={hintStyle}>
-                  描述素材检索的方向，如：食材近景、清洗处理、烹饪翻炒
+                  描述素材检索的方向，如：产品近景、细节处理、使用场景
                 </p>
               </div>
 

@@ -16,7 +16,7 @@ vi.mock("../../api/client", () => ({
 const EXISTING_TEMPLATE = {
   id: "tmpl_001",
   name: "通用带货脚本",
-  description: "适用于食品类短视频带货",
+  description: "适用于产品类短视频展示",
   slots: [
     { type: "hook" as const, label: "开头钩子", required: true, max_length: 60, hint: "吸引眼球的开头" },
   ],
@@ -88,7 +88,7 @@ describe("ScriptTemplateEditor - Existing Template", () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue("通用带货脚本")).toBeInTheDocument();
     });
-    expect(screen.getByDisplayValue("适用于食品类短视频带货")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("适用于产品类短视频展示")).toBeInTheDocument();
   });
 
   it("显示 slot 信息", async () => {
