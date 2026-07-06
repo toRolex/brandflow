@@ -212,7 +212,7 @@ export default function CategoryManager() {
   };
 
   if (loading) {
-    return <div className="text-center py-12 text-gray-400">加载配置中...</div>;
+    return <div className="text-center py-12 text-[var(--text-tertiary)]">加载配置中...</div>;
   }
 
   return (
@@ -220,7 +220,7 @@ export default function CategoryManager() {
       <h1 className="text-xl font-bold mb-6">素材分类</h1>
 
       {loadError && (
-        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]">
           {loadError}
         </div>
       )}
@@ -229,8 +229,8 @@ export default function CategoryManager() {
         <div
           className={`mb-4 px-4 py-3 rounded-lg text-sm ${
             saveMsg.includes("失败")
-              ? "bg-red-50 border border-red-200 text-red-700"
-              : "bg-green-50 border border-green-200 text-green-700"
+              ? "bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]"
+              : "bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success)]"
           }`}
         >
           {saveMsg}
@@ -240,7 +240,7 @@ export default function CategoryManager() {
       {/* AI Suggestion Button */}
       <div className="mb-6">
         <button
-          className="px-4 py-2 bg-purple-600 text-white font-medium rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+          className="px-4 py-2 bg-[var(--accent)] text-[var(--text-inverse)] font-medium rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
           onClick={handleSuggest}
           disabled={suggestLoading || saving}
         >
@@ -257,7 +257,7 @@ export default function CategoryManager() {
             {suggestions.map((s) => (
               <label
                 key={s.label}
-                className="flex items-start gap-3 p-3 bg-white rounded-lg border border-purple-100 cursor-pointer hover:border-purple-300 transition-colors"
+                className="flex items-start gap-3 p-3 bg-[var(--bg-card)] rounded-lg border border-[var(--border-default)] cursor-pointer hover:border-[var(--accent)] transition-colors"
               >
                 <input
                   type="checkbox"
@@ -267,22 +267,22 @@ export default function CategoryManager() {
                 />
                 <div>
                   <div className="font-medium text-sm">{s.label}</div>
-                  <div className="text-xs text-gray-500">{s.description}</div>
-                  <div className="text-xs text-gray-400 mt-0.5 font-mono">{s.vision_prompt}</div>
+                  <div className="text-xs text-[var(--text-secondary)]">{s.description}</div>
+                  <div className="text-xs text-[var(--text-tertiary)] mt-0.5 font-mono">{s.vision_prompt}</div>
                 </div>
               </label>
             ))}
           </div>
           <div className="flex gap-2">
             <button
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-[var(--accent)] text-[var(--text-inverse)] rounded-lg text-sm hover:brightness-110 disabled:opacity-50 transition-colors"
               onClick={confirmSuggestions}
               disabled={saving || pendingSuggestionNames.size === 0}
             >
               确认添加
             </button>
             <button
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 bg-[var(--bg-table-head)] text-[var(--text-primary)] rounded-lg text-sm hover:brightness-95 transition-colors"
               onClick={cancelSuggestions}
             >
               取消
@@ -292,25 +292,25 @@ export default function CategoryManager() {
       )}
 
       {/* Category List */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] overflow-hidden">
         {categories.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">暂无分类</div>
+          <div className="text-center py-12 text-[var(--text-tertiary)]">暂无分类</div>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">分类名称</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">描述</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Vision Prompt</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">操作</th>
+              <tr className="bg-[var(--bg-table-head)] border-b border-[var(--border-default)]">
+                <th className="text-left px-5 py-3 text-xs font-medium text-[var(--text-tertiary)]">分类名称</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-[var(--text-tertiary)]">描述</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-[var(--text-tertiary)]">Vision Prompt</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-[var(--text-tertiary)]">操作</th>
               </tr>
             </thead>
             <tbody>
               {categories.map((cat, i) => (
-                <tr key={cat.name} className="border-b border-gray-100 last:border-0">
+                <tr key={cat.name} className="border-b border-[var(--border-subtle)] last:border-0">
                   <td className="px-5 py-4 text-sm font-medium">{cat.name}</td>
-                  <td className="px-5 py-4 text-sm text-gray-600">{cat.description}</td>
-                  <td className="px-5 py-4 text-sm text-gray-500 font-mono">{cat.vision_prompt}</td>
+                  <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">{cat.description}</td>
+                  <td className="px-5 py-4 text-sm text-[var(--text-tertiary)] font-mono">{cat.vision_prompt}</td>
                   <td className="px-5 py-4 text-right">
                     <button
                       className="text-[var(--accent)] hover:underline text-sm mr-3 disabled:opacity-50 transition-colors"
@@ -320,7 +320,7 @@ export default function CategoryManager() {
                       编辑
                     </button>
                     <button
-                      className="text-red-500 hover:text-red-700 text-sm disabled:opacity-50 transition-colors"
+                      className="text-[var(--danger)] hover:underline text-sm disabled:opacity-50 transition-colors"
                       onClick={() => handleDelete(i)}
                       disabled={saving}
                     >
@@ -336,7 +336,7 @@ export default function CategoryManager() {
 
       {/* Add Button */}
       <button
-        className="mt-4 px-4 py-2 bg-[#0969da] text-white font-medium rounded-xl hover:bg-[#0969da] hover:brightness-110 transition-colors text-sm"
+        className="mt-4 px-4 py-2 bg-[var(--accent)] text-[var(--text-inverse)] font-medium rounded-xl hover:brightness-110 transition-colors text-sm"
         onClick={() => { setShowForm(true); setEditingIndex(null); setFormData(EMPTY_FORM); }}
       >
         新增分类
@@ -345,17 +345,17 @@ export default function CategoryManager() {
       {/* Add Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
+          <div className="bg-[var(--bg-card)] rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
             <h3 className="text-lg font-semibold mb-4">{editingIndex !== null ? "编辑分类" : "新增分类"}</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  分类名称 <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">
+                  分类名称 <span className="text-[var(--danger)]">*</span>
                 </label>
                 <input
                   type="text"
                   className={`w-full px-4 py-2 border rounded-lg text-sm ${
-                    formErrors.name ? "border-red-300 bg-red-50" : "border-gray-300"
+                    formErrors.name ? "border-[var(--danger-border)] bg-[var(--danger-bg)]" : "border-[var(--border-default)]"
                   }`}
                   placeholder="分类名称"
                   value={formData.name}
@@ -365,14 +365,14 @@ export default function CategoryManager() {
                   }}
                 />
                 {formErrors.name && (
-                  <p className="mt-1 text-xs text-red-600">{formErrors.name}</p>
+                  <p className="mt-1 text-xs text-[var(--danger)]">{formErrors.name}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">描述</label>
                 <input
                   type="text"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-4 py-2 border border-[var(--border-default)] rounded-lg text-sm"
                   placeholder="分类描述"
                   value={formData.description}
                   onChange={(e) =>
@@ -381,10 +381,10 @@ export default function CategoryManager() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Vision Prompt</label>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Vision Prompt</label>
                 <input
                   type="text"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-4 py-2 border border-[var(--border-default)] rounded-lg text-sm"
                   placeholder="Vision prompt"
                   value={formData.vision_prompt}
                   onChange={(e) =>
@@ -395,7 +395,7 @@ export default function CategoryManager() {
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 bg-[var(--bg-table-head)] text-[var(--text-primary)] rounded-lg text-sm hover:brightness-95 transition-colors"
                 onClick={() => {
                   setShowForm(false);
                   setFormData(EMPTY_FORM);
@@ -406,7 +406,7 @@ export default function CategoryManager() {
                 取消
               </button>
               <button
-                className="px-4 py-2 bg-[#0969da] text-white rounded-lg text-sm hover:brightness-110 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 bg-[var(--accent)] text-[var(--text-inverse)] rounded-lg text-sm hover:brightness-110 disabled:opacity-50 transition-colors"
                 onClick={handleAddCategory}
                 disabled={saving}
               >

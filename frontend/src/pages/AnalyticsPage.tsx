@@ -106,7 +106,7 @@ export default function AnalyticsPage() {
     <div className="space-y-6">
       {/* Top bar */}
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-lg font-semibold text-gray-800 mr-auto">
+        <h1 className="text-lg font-semibold text-[var(--text-primary)] mr-auto">
           内容运营数据追踪
         </h1>
 
@@ -118,8 +118,8 @@ export default function AnalyticsPage() {
               onClick={() => setDays(d.value)}
               className={`px-3 py-1 text-sm rounded-lg border transition-colors ${
                 days === d.value
-                  ? "bg-blue-50 border-blue-300 text-blue-700"
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  ? "bg-[var(--bg-nav-active)] border-[var(--accent)] text-[var(--accent)]"
+                  : "border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-table-head)]"
               }`}
             >
               {d.label}
@@ -135,8 +135,8 @@ export default function AnalyticsPage() {
               onClick={() => setPlatform(p.value)}
               className={`px-3 py-1 text-sm rounded-lg border transition-colors ${
                 platform === p.value
-                  ? "bg-blue-50 border-blue-300 text-blue-700"
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  ? "bg-[var(--bg-nav-active)] border-[var(--accent)] text-[var(--accent)]"
+                  : "border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-table-head)]"
               }`}
             >
               {p.label}
@@ -147,11 +147,11 @@ export default function AnalyticsPage() {
         {/* Scan & Upload */}
         <button
           onClick={handleScan}
-          className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+          className="px-3 py-1.5 text-sm rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-table-head)]"
         >
           扫描 data/
         </button>
-        <label className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer">
+        <label className="px-3 py-1.5 text-sm rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-table-head)] cursor-pointer">
           📥 导入数据
           <input
             ref={fileRef}
@@ -171,7 +171,7 @@ export default function AnalyticsPage() {
 
       {/* Topic grid */}
       <div>
-        <div className="text-sm text-gray-500 mb-2">热门话题 Top10</div>
+        <div className="text-sm text-[var(--text-tertiary)] mb-2">热门话题 Top10</div>
         <TopicGrid topics={topics} loading={topicsLoading} />
       </div>
 

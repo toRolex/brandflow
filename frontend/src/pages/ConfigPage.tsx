@@ -142,7 +142,7 @@ export default function ConfigPage() {
 
             <button
               className="mt-3 px-4 py-2 rounded-md text-xs transition-colors"
-              style={saving === key ? { background: "#6e7681", color: "#fff" } : { background: "var(--accent)", color: "#fff" }}
+              style={saving === key ? { background: "var(--text-tertiary)", color: "var(--text-inverse)" } : { background: "var(--accent)", color: "var(--text-inverse)" }}
               disabled={saving === key}
               onClick={() => handleSectionSave(key)}
             >

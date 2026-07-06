@@ -112,34 +112,34 @@ export default function ScriptTemplateEditor() {
   };
 
   if (loading) {
-    return <div className="text-center py-12 text-gray-400">加载模板中...</div>;
+    return <div className="text-center py-12 text-[var(--text-tertiary)]">加载模板中...</div>;
   }
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-6">
         <button
-          className="text-gray-500 hover:text-gray-700 text-sm"
+          className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] text-sm"
           onClick={() => navigate("/system/config/templates")}
         >
           &larr; 返回模板列表
         </button>
-        <span className="text-gray-300">|</span>
+        <span className="text-[var(--text-tertiary)]">|</span>
         <h1 className="text-xl font-bold">
           {isNew ? "新建脚本模板" : "编辑脚本模板"}
         </h1>
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]">
           {error}
         </div>
       )}
       {saveMsg && (
         <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${
           saveMsg.includes("失败")
-            ? "bg-red-50 border border-red-200 text-red-700"
-            : "bg-green-50 border border-green-200 text-green-700"
+            ? "bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]"
+            : "bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success)]"
         }`}>
           {saveMsg}
         </div>
@@ -149,25 +149,25 @@ export default function ScriptTemplateEditor() {
         {/* Left: Metadata */}
         <div className="lg:col-span-2 space-y-6">
           {/* Basic Info */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
             <h2 className="text-lg font-semibold mb-4">基本信息</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  模板名称 <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
+                  模板名称 <span className="text-[var(--danger)]">*</span>
                 </label>
                 <input
                   type="text"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-4 py-2 border border-[var(--border-default)] rounded-lg text-sm"
                   placeholder="输入模板名称"
                   value={template.name}
                   onChange={(e) => setTemplate({ ...template, name: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">描述</label>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">描述</label>
                 <textarea
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none text-sm"
+                  className="w-full px-4 py-3 border border-[var(--border-default)] rounded-lg resize-none text-sm"
                   rows={3}
                   placeholder="模板描述"
                   value={template.description}
@@ -178,11 +178,11 @@ export default function ScriptTemplateEditor() {
           </section>
 
           {/* Slots */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">脚本片段</h2>
               <button
-                className="px-3 py-1.5 bg-[#0969da] text-white text-xs rounded-lg hover:brightness-110"
+                className="px-3 py-1.5 bg-[var(--accent)] text-[var(--text-inverse)] text-xs rounded-lg hover:brightness-110"
                 onClick={() =>
                   setTemplate({
                     ...template,
@@ -195,14 +195,14 @@ export default function ScriptTemplateEditor() {
             </div>
             <div className="space-y-4">
               {template.slots.length === 0 && (
-                <p className="text-gray-400 text-sm">暂无片段，点击"添加片段"创建</p>
+                <p className="text-[var(--text-tertiary)] text-sm">暂无片段，点击"添加片段"创建</p>
               )}
               {template.slots.map((slot, idx) => (
-                <div key={idx} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div key={idx} className="border border-[var(--border-default)] rounded-lg p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400 font-mono">片段 #{idx + 1}</span>
+                    <span className="text-xs text-[var(--text-tertiary)] font-mono">片段 #{idx + 1}</span>
                     <button
-                      className="text-xs text-red-500 hover:text-red-700"
+                      className="text-xs text-[var(--danger)] hover:text-[var(--danger)]"
                       onClick={() => {
                         const slots = template.slots.filter((_, i) => i !== idx);
                         setTemplate({ ...template, slots });
@@ -213,9 +213,9 @@ export default function ScriptTemplateEditor() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">类型</label>
+                      <label className="block text-xs text-[var(--text-tertiary)] mb-1">类型</label>
                       <select
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                        className="w-full border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm bg-[var(--bg-card)]"
                         value={slot.type}
                         onChange={(e) => {
                           const slots = [...template.slots];
@@ -229,10 +229,10 @@ export default function ScriptTemplateEditor() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">标签</label>
+                      <label className="block text-xs text-[var(--text-tertiary)] mb-1">标签</label>
                       <input
                         type="text"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm"
                         placeholder="如：开头钩子"
                         value={slot.label}
                         onChange={(e) => {
@@ -244,7 +244,7 @@ export default function ScriptTemplateEditor() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 text-xs text-gray-500">
+                    <label className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
                       <input
                         type="checkbox"
                         checked={slot.required}
@@ -257,10 +257,10 @@ export default function ScriptTemplateEditor() {
                       必填
                     </label>
                     <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-1">最大字数</label>
+                      <label className="block text-xs text-[var(--text-tertiary)] mb-1">最大字数</label>
                       <input
                         type="number"
-                        className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-24 border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm"
                         value={slot.max_length}
                         onChange={(e) => {
                           const slots = [...template.slots];
@@ -271,10 +271,10 @@ export default function ScriptTemplateEditor() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">提示</label>
+                    <label className="block text-xs text-[var(--text-tertiary)] mb-1">提示</label>
                     <input
                       type="text"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm"
                       placeholder="填写提示"
                       value={slot.hint}
                       onChange={(e) => {
@@ -290,11 +290,11 @@ export default function ScriptTemplateEditor() {
           </section>
 
           {/* Variables */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">变量</h2>
               <button
-                className="px-3 py-1.5 bg-[#0969da] text-white text-xs rounded-lg hover:brightness-110"
+                className="px-3 py-1.5 bg-[var(--accent)] text-[var(--text-inverse)] text-xs rounded-lg hover:brightness-110"
                 onClick={() =>
                   setTemplate({
                     ...template,
@@ -307,14 +307,14 @@ export default function ScriptTemplateEditor() {
             </div>
             <div className="space-y-4">
               {template.variables.length === 0 && (
-                <p className="text-gray-400 text-sm">暂无变量，点击"添加变量"创建</p>
+                <p className="text-[var(--text-tertiary)] text-sm">暂无变量，点击"添加变量"创建</p>
               )}
               {template.variables.map((v, idx) => (
-                <div key={idx} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div key={idx} className="border border-[var(--border-default)] rounded-lg p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400 font-mono">变量 #{idx + 1}</span>
+                    <span className="text-xs text-[var(--text-tertiary)] font-mono">变量 #{idx + 1}</span>
                     <button
-                      className="text-xs text-red-500 hover:text-red-700"
+                      className="text-xs text-[var(--danger)] hover:text-[var(--danger)]"
                       onClick={() => {
                         const variables = template.variables.filter((_, i) => i !== idx);
                         setTemplate({ ...template, variables });
@@ -325,10 +325,10 @@ export default function ScriptTemplateEditor() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">变量名</label>
+                      <label className="block text-xs text-[var(--text-tertiary)] mb-1">变量名</label>
                       <input
                         type="text"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm"
                         placeholder="如：product_name"
                         value={v.name}
                         onChange={(e) => {
@@ -339,10 +339,10 @@ export default function ScriptTemplateEditor() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">标签</label>
+                      <label className="block text-xs text-[var(--text-tertiary)] mb-1">标签</label>
                       <input
                         type="text"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        className="w-full border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm"
                         placeholder="如：产品名"
                         value={v.label}
                         onChange={(e) => {
@@ -354,9 +354,9 @@ export default function ScriptTemplateEditor() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">来源</label>
+                    <label className="block text-xs text-[var(--text-tertiary)] mb-1">来源</label>
                     <select
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                      className="w-full border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm bg-[var(--bg-card)]"
                       value={v.source}
                       onChange={(e) => {
                         const variables = [...template.variables];
@@ -377,20 +377,20 @@ export default function ScriptTemplateEditor() {
 
         {/* Right: Preview */}
         <div className="space-y-6">
-          <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
             <h2 className="text-lg font-semibold mb-4">预览</h2>
             {isNew ? (
-              <p className="text-gray-400 text-sm">保存模板后可预览</p>
+              <p className="text-[var(--text-tertiary)] text-sm">保存模板后可预览</p>
             ) : (
               <div className="space-y-4">
                 {template.slots.map((slot, idx) => (
                   <div key={idx}>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                    <label className="block text-xs font-medium text-[var(--text-tertiary)] mb-1">
                       {slot.label || `片段 #${idx + 1}`}
-                      {slot.required && <span className="text-red-500 ml-1">*</span>}
+                      {slot.required && <span className="text-[var(--danger)] ml-1">*</span>}
                     </label>
                     <textarea
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                      className="w-full border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm resize-none"
                       rows={2}
                       placeholder={slot.hint || `输入${slot.label}内容`}
                       value={previewSlotContents[slot.label] || ""}
@@ -402,15 +402,15 @@ export default function ScriptTemplateEditor() {
                 ))}
                 {template.variables.map((v, idx) => (
                   <div key={idx}>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                    <label className="block text-xs font-medium text-[var(--text-tertiary)] mb-1">
                       {v.label || v.name}
-                      <span className="text-gray-400 ml-1">
+                      <span className="text-[var(--text-tertiary)] ml-1">
                         ({VARIABLE_SOURCE_OPTIONS.find((o) => o.value === v.source)?.label || v.source})
                       </span>
                     </label>
                     <input
                       type="text"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-[var(--border-default)] rounded-lg px-3 py-2 text-sm"
                       placeholder={`输入${v.label || v.name}`}
                       value={previewVariableValues[v.name] || ""}
                       onChange={(e) =>
@@ -420,7 +420,7 @@ export default function ScriptTemplateEditor() {
                   </div>
                 ))}
                 <button
-                  className="w-full px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                  className="w-full px-4 py-2 bg-[var(--bg-page)] text-[var(--text-primary)] text-sm rounded-lg hover:brightness-95 disabled:opacity-50"
                   onClick={handlePreview}
                   disabled={previewLoading}
                 >
@@ -428,8 +428,8 @@ export default function ScriptTemplateEditor() {
                 </button>
                 {previewResult !== null && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">预览结果</label>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm whitespace-pre-wrap">
+                    <label className="block text-xs font-medium text-[var(--text-tertiary)] mb-1">预览结果</label>
+                    <div className="bg-[var(--bg-table-head)] border border-[var(--border-default)] rounded-lg p-4 text-sm whitespace-pre-wrap">
                       {previewResult}
                     </div>
                   </div>
@@ -443,7 +443,7 @@ export default function ScriptTemplateEditor() {
       {/* Save button */}
       <div className="flex items-center gap-4 mt-6">
         <button
-          className="px-6 py-3 bg-[#0969da] text-white font-medium rounded-xl hover:brightness-110 disabled:opacity-50 transition-colors"
+          className="px-6 py-3 bg-[var(--accent)] text-[var(--text-inverse)] font-medium rounded-xl hover:brightness-110 disabled:opacity-50 transition-colors"
           onClick={handleSave}
           disabled={saving}
         >

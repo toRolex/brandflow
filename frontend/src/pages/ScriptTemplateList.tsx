@@ -34,7 +34,7 @@ export default function ScriptTemplateList() {
   };
 
   if (loading) {
-    return <div className="text-center py-12 text-gray-400">加载中...</div>;
+    return <div className="text-center py-12 text-[var(--text-tertiary)]">加载中...</div>;
   }
 
   return (
@@ -43,22 +43,22 @@ export default function ScriptTemplateList() {
         <h1 className="text-xl font-bold">脚本模板</h1>
         <Link
           to="/system/config/templates/new"
-          className="px-4 py-2 bg-[#0969da] text-white text-sm font-medium rounded-xl hover:brightness-110 transition-colors"
+          className="px-4 py-2 bg-[var(--accent)] text-[var(--text-inverse)] text-sm font-medium rounded-xl hover:brightness-110 transition-colors"
         >
           新建模板
         </Link>
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]">
           {error}
         </div>
       )}
 
       {templates.length === 0 ? (
-        <div className="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-gray-400 mb-2">暂无脚本模板</p>
-          <p className="text-gray-400 text-sm">
+        <div className="text-center py-16 bg-[var(--bg-table-head)] rounded-xl border border-[var(--border-default)]">
+          <p className="text-[var(--text-tertiary)] mb-2">暂无脚本模板</p>
+          <p className="text-[var(--text-tertiary)] text-sm">
             点击"新建模板"创建第一个脚本模板
           </p>
         </div>
@@ -67,30 +67,30 @@ export default function ScriptTemplateList() {
           {templates.map((tmpl) => (
             <div
               key={tmpl.id}
-              className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col"
+              className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-5 flex flex-col"
             >
               <Link
                 to={`/system/config/templates/${tmpl.id}`}
-                className="text-lg font-semibold text-[#0969da] hover:underline mb-2"
+                className="text-lg font-semibold text-[var(--text-link)] hover:underline mb-2"
               >
                 {tmpl.name}
               </Link>
-              <p className="text-sm text-gray-500 mb-3 flex-1">
+              <p className="text-sm text-[var(--text-secondary)] mb-3 flex-1">
                 {tmpl.description || "无描述"}
               </p>
-              <div className="flex items-center justify-between text-xs text-gray-400 mb-4">
+              <div className="flex items-center justify-between text-xs text-[var(--text-tertiary)] mb-4">
                 <span>{tmpl.slots.length} 个片段</span>
                 <span>{tmpl.variables.length} 个变量</span>
               </div>
               <div className="flex gap-2">
                 <Link
                   to={`/system/config/templates/${tmpl.id}`}
-                  className="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-3 py-1.5 bg-[var(--bg-table-head)] text-[var(--text-primary)] text-xs rounded-lg hover:brightness-95 transition-colors"
                 >
                   编辑
                 </Link>
                 <button
-                  className="px-3 py-1.5 bg-red-50 text-red-600 text-xs rounded-lg hover:bg-red-100 transition-colors"
+                  className="px-3 py-1.5 bg-[var(--danger-bg)] text-[var(--danger)] text-xs rounded-lg hover:brightness-95 transition-colors"
                   onClick={() => handleDelete(tmpl.id)}
                 >
                   删除

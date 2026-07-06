@@ -143,7 +143,7 @@ export default function QualityRulesForm() {
   };
 
   if (loading) {
-    return <div className="text-center py-12 text-gray-400">加载配置中...</div>;
+    return <div className="text-center py-12 text-[var(--text-tertiary)]">加载配置中...</div>;
   }
 
   const wordCountError = validateWordCount();
@@ -153,7 +153,7 @@ export default function QualityRulesForm() {
       <h1 className="text-xl font-bold mb-6">质检规则</h1>
 
       {loadError && (
-        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700">
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]">
           {loadError}
         </div>
       )}
@@ -162,8 +162,8 @@ export default function QualityRulesForm() {
         <div
           className={`mb-4 px-4 py-3 rounded-lg text-sm ${
             saveMsg.includes("失败") || wordCountError === saveMsg
-              ? "bg-red-50 border border-red-200 text-red-700"
-              : "bg-green-50 border border-green-200 text-green-700"
+              ? "bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]"
+              : "bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success)]"
           }`}
         >
           {saveMsg}
@@ -172,15 +172,15 @@ export default function QualityRulesForm() {
 
       <div className="space-y-6">
         {/* 字数范围 */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
           <h2 className="text-lg font-semibold mb-4">字数范围</h2>
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">最小字数</label>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">最小字数</label>
               <input
                 type="number"
                 className={`w-full px-4 py-2 border rounded-lg text-sm ${
-                  wordCountError ? "border-red-300 bg-red-50" : "border-gray-300"
+                  wordCountError ? "border-[var(--danger-border)] bg-[var(--danger-bg)]" : "border-[var(--border-default)]"
                 }`}
                 value={rules.word_count_min}
                 onChange={(e) => updateRule("word_count_min", parseInt(e.target.value) || 0)}
@@ -188,11 +188,11 @@ export default function QualityRulesForm() {
               />
             </div>
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">最大字数</label>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">最大字数</label>
               <input
                 type="number"
                 className={`w-full px-4 py-2 border rounded-lg text-sm ${
-                  wordCountError ? "border-red-300 bg-red-50" : "border-gray-300"
+                  wordCountError ? "border-[var(--danger-border)] bg-[var(--danger-bg)]" : "border-[var(--border-default)]"
                 }`}
                 value={rules.word_count_max}
                 onChange={(e) => updateRule("word_count_max", parseInt(e.target.value) || 0)}
@@ -201,26 +201,26 @@ export default function QualityRulesForm() {
             </div>
           </div>
           {rules.word_count_min > 0 && rules.word_count_max > 0 && !wordCountError && (
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-[var(--text-tertiary)]">
               字数必须在 {rules.word_count_min}-{rules.word_count_max} 之间
             </p>
           )}
           {wordCountError && (
-            <p className="mt-2 text-xs text-red-600">{wordCountError}</p>
+            <p className="mt-2 text-xs text-[var(--danger)]">{wordCountError}</p>
           )}
         </section>
 
         {/* 强制包含词 */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
           <h2 className="text-lg font-semibold mb-4">强制包含词</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
                 产品名出现次数
               </label>
               <input
                 type="number"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-4 py-2 border border-[var(--border-default)] rounded-lg text-sm"
                 value={rules.product_name_count}
                 onChange={(e) =>
                   updateRule("product_name_count", Math.max(0, parseInt(e.target.value) || 0))
@@ -229,12 +229,12 @@ export default function QualityRulesForm() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
                 品牌名出现次数
               </label>
               <input
                 type="number"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-4 py-2 border border-[var(--border-default)] rounded-lg text-sm"
                 value={rules.brand_name_count}
                 onChange={(e) =>
                   updateRule("brand_name_count", Math.max(0, parseInt(e.target.value) || 0))
@@ -246,17 +246,17 @@ export default function QualityRulesForm() {
         </section>
 
         {/* 禁词管理 */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
           <h2 className="text-lg font-semibold mb-4">禁词管理</h2>
           <div className="flex flex-wrap gap-2 mb-3">
             {rules.forbidden_words.map((word, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 border border-red-200 text-red-700 rounded-full text-sm"
+                className="inline-flex items-center gap-1 px-3 py-1 bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)] rounded-full text-sm"
               >
                 {word}
                 <button
-                  className="text-red-400 hover:text-red-600 ml-1 text-xs"
+                  className="text-[var(--danger)] hover:text-[var(--danger)] ml-1 text-xs"
                   onClick={() => removeForbiddenWord(i)}
                 >
                   ×
@@ -264,7 +264,7 @@ export default function QualityRulesForm() {
               </span>
             ))}
             {rules.forbidden_words.length === 0 && (
-              <span className="text-xs text-gray-400">暂无禁词</span>
+              <span className="text-xs text-[var(--text-tertiary)]">暂无禁词</span>
             )}
           </div>
 
@@ -273,7 +273,7 @@ export default function QualityRulesForm() {
               <input
                 type="text"
                 className={`flex-1 px-3 py-2 border rounded-lg text-sm ${
-                  newWordError ? "border-red-300 bg-red-50" : "border-gray-300"
+                  newWordError ? "border-[var(--danger-border)] bg-[var(--danger-bg)]" : "border-[var(--border-default)]"
                 }`}
                 placeholder="输入禁词"
                 value={newWord}
@@ -287,13 +287,13 @@ export default function QualityRulesForm() {
                 autoFocus
               />
               <button
-                className="px-3 py-2 bg-[#0969da] text-white rounded-lg text-sm hover:brightness-110 transition-colors"
+                className="px-3 py-2 bg-[var(--accent)] text-[var(--text-inverse)] rounded-lg text-sm hover:brightness-110 transition-colors"
                 onClick={addForbiddenWord}
               >
                 确认
               </button>
               <button
-                className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+                className="px-3 py-2 bg-[var(--bg-page)] text-[var(--text-primary)] rounded-lg text-sm hover:bg-[var(--border-subtle)] transition-colors"
                 onClick={() => {
                   setShowNewWordInput(false);
                   setNewWord("");
@@ -305,23 +305,23 @@ export default function QualityRulesForm() {
             </div>
           ) : (
             <button
-              className="text-sm text-[#0969da] hover:text-blue-700 font-medium transition-colors"
+              className="text-sm text-[var(--text-link)] hover:text-[var(--accent)] font-medium transition-colors"
               onClick={() => setShowNewWordInput(true)}
             >
               + 添加
             </button>
           )}
           {newWordError && (
-            <p className="mt-1 text-xs text-red-600">{newWordError}</p>
+            <p className="mt-1 text-xs text-[var(--danger)]">{newWordError}</p>
           )}
         </section>
 
         {/* Emoji 开关 */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">禁止 Emoji</h2>
-              <p className="text-xs text-gray-500 mt-1">开启后脚本中不允许出现 emoji 字符</p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-1">开启后脚本中不允许出现 emoji 字符</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -330,7 +330,7 @@ export default function QualityRulesForm() {
                 checked={rules.emoji_forbidden}
                 onChange={(e) => updateRule("emoji_forbidden", e.target.checked)}
               />
-              <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-[#0969da] peer-focus:outline-none transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
+              <div className="w-11 h-6 bg-[var(--border-subtle)] rounded-full peer peer-checked:bg-[var(--accent)] peer-focus:outline-none transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--bg-card)] after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
             </label>
           </div>
         </section>
@@ -339,14 +339,14 @@ export default function QualityRulesForm() {
       {/* Action Buttons */}
       <div className="flex items-center gap-4 mt-6">
         <button
-          className="px-6 py-3 bg-[#0969da] text-white font-medium rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-6 py-3 bg-[var(--accent)] text-[var(--text-inverse)] font-medium rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={handleSave}
           disabled={saving}
         >
           {saving ? "保存中..." : "保存配置"}
         </button>
         <button
-          className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-6 py-3 bg-[var(--bg-page)] text-[var(--text-primary)] font-medium rounded-xl hover:bg-[var(--border-subtle)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           onClick={handleReset}
           disabled={saving}
         >

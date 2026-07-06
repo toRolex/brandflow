@@ -165,7 +165,7 @@ export default function ProductConfigForm() {
             创建一个产品配置，用于脚本生成和素材检索
           </p>
           <button
-            className="px-6 py-3 text-white font-medium rounded-xl hover:brightness-110 transition-colors"
+            className="px-6 py-3 text-[var(--text-inverse)] font-medium rounded-xl hover:brightness-110 transition-colors"
             style={{ background: "var(--accent)" }}
             onClick={() => setShowNewForm(true)}
           >
@@ -201,7 +201,7 @@ export default function ProductConfigForm() {
           />
           <div className="flex gap-3">
             <button
-              className="px-6 py-3 text-white font-medium rounded-xl hover:brightness-110 disabled:opacity-50 transition-colors"
+              className="px-6 py-3 text-[var(--text-inverse)] font-medium rounded-xl hover:brightness-110 disabled:opacity-50 transition-colors"
               style={{ background: "var(--accent)" }}
               disabled={!newProductName.trim()}
               onClick={async () => {
@@ -405,7 +405,7 @@ export default function ProductConfigForm() {
       {/* Action Buttons */}
       <div className="flex items-center gap-4 mt-6">
         <button
-          className="px-6 py-3 text-white font-medium rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-6 py-3 text-[var(--text-inverse)] font-medium rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           style={{ background: "var(--accent)" }}
           onClick={handleSave}
           disabled={saving}
