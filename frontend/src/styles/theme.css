@@ -55,6 +55,11 @@
   --ease-enter: 200ms ease-out;
   --ease-exit: 150ms ease-in;
 
+  /* ---- Motion Tokens (respects prefers-reduced-motion) ---- */
+  --transition-duration: 150ms;
+  --transition-easing: ease;
+  --transition-duration-slow: 300ms;
+
   /* ---- Border Radius ---- */
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -340,16 +345,21 @@
 }
 
 /* --------------------------------------------------------------------------
-   5. Reduced Motion — Respect user preference
+   5. Reduced Motion — Per-component granular control
+   CSS variables zero out transitions; functional animations preserved.
    -------------------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --ease-standard: 0ms linear;
-    --ease-enter: 0ms linear;
-    --ease-exit: 0ms linear;
+    --transition-duration: 0s;
+    --transition-duration-slow: 0s;
+    --transition-easing: step-start;
+    --ease-standard: 0ms step-start;
+    --ease-enter: 0ms step-start;
+    --ease-exit: 0ms step-start;
   }
 
+  /* Kill transitions on all elements; stop non-functional animations */
   *,
   *::before,
   *::after {
@@ -359,5 +369,17 @@
     animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Preserve functional loading animations (skeleton pulses, spinners) */
+  .animate-pulse,
+  .animate-pulse::before,
+  .animate-pulse::after,
+  .animate-spin,
+  .animate-spin::before,
+  .animate-spin::after {
+    animation-duration: revert !important;
+    animation-delay: revert !important;
+    animation-iteration-count: revert !important;
   }
 }

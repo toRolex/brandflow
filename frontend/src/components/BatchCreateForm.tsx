@@ -362,7 +362,7 @@ function BatchJobCard({
             <span style={{
               display: "inline-block",
               transform: showAdvanced ? "rotate(90deg)" : "rotate(0deg)",
-              transition: "transform 150ms ease",
+              transition: "transform var(--transition-duration) var(--transition-easing)",
             }}>
               &#9654;
             </span>
@@ -377,7 +377,7 @@ function BatchJobCard({
           overflow: "hidden",
           maxHeight: (!isImport || showAdvanced) ? "2000px" : "0px",
           opacity: (!isImport || showAdvanced) ? 1 : 0,
-          transition: "max-height 150ms ease, opacity 150ms ease",
+          transition: "max-height var(--transition-duration) var(--transition-easing), opacity var(--transition-duration) var(--transition-easing)",
         }}
       >
         {/* Audio Source */}
