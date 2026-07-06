@@ -187,6 +187,11 @@ uv run pytest tests/ -q --tb=short
 | `/api/products/{product_id}/switch` | POST | 切换活跃产品，不存在时自动创建 |
 | `/api/products/{product_id}/config` | GET | 读取指定产品的完整配置 |
 | `/api/products/{product_id}/config` | PUT | 更新指定产品的配置 |
+| `/api/config/templates` | GET | 列出所有脚本模板 |
+| `/api/config/templates` | POST | 创建脚本模板 |
+| `/api/config/templates/{id}` | PUT | 更新脚本模板 |
+| `/api/config/templates/{id}` | DELETE | 删除脚本模板 |
+| `/api/config/templates/{id}/preview` | POST | 预览模板 + 变量填充结果 |
 
 ### 知识库（Issue #28）
 
@@ -197,6 +202,29 @@ uv run pytest tests/ -q --tb=short
   - `parsers.py`：TXT/PDF/DOCX 文本解析（TXT 直接 UTF-8 读取）。
 - `ScriptGenerator.run(knowledge_config=...)` 启用时从 `KnowledgeStore` 按 priority 召回 top-K 卖点，追加到 system prompt；卖点为空时静默跳过。
 
+### 脚本模板（Issue #33）
+
+- `packages/script_template/`：脚本模板领域模型 + JSON 文件存储 + 渲染引擎。
+  - `models.py`：`ScriptTemplate` / `TemplateSlot` / `TemplateVariable`。
+  - `store.py`：`ScriptTemplateStore`，每个模板一个 JSON 文件存储在 `config/templates/` 下。
+  - `renderer.py`：模板 + 变量值 → 渲染 `manual_script`。
+- 前端路由：
+  - `/system/config/templates` — 模板列表（CRUD）
+  - `/system/config/templates/:id` — 模板编辑（slots / variables 编辑）
+- Job 创建（Import 模式）：选择模板 → 填写变量 → 自动生成 `manual_script` → 写入 JobRecord。
+
+### 多产品配置（Issue #34）
+
+- `app_config.json` 的 `product` 单一段已扩展为 `products`（复数）+ `active_product_id`。
+- `AppConfigManager`：
+  - `switch_product(product_id)` — 切换当前活跃产品
+  - `list_products()` — 返回所有产品配置摘要 `[{id, name}]`
+  - `get_product_config(product_id=None)` — 取指定/当前产品配置
+  - `save_product_config(product_id, config)` — 保存指定产品配置
+- `POST /api/products/{id}/switch` 切换不存在的产品时会自动创建。
+- 前端导航栏已集成全局产品选择器 dropdown，切换后所有配置页加载对应产品数据。
+- 旧 `product` 单数段格式自动迁移到 `products` 列表格式。
+
 ## 目录结构
 
 ```
@@ -204,7 +232,7 @@ uv run pytest tests/ -q --tb=short
 ├── apps/
 │   ├── control_plane/                # Phase 1 控制面（FastAPI + Web + 任务调度）
 │   │   ├── app.py                    # FastAPI app factory
-│   │   ├── routes/                   # projects, jobs, reviews, workers
+│   │   ├── routes/                   # projects, jobs, reviews, workers, knowledge, products, config, templates
 │   │   ├── services/                 # dispatch.py, reconcile.py
 │   │   └── templates/                # Jinja2 页面
 │   └── runtime_worker/              # Phase 1 执行器（拉模式 worker）
@@ -219,6 +247,10 @@ uv run pytest tests/ -q --tb=short
 │   │   ├── store.py                  # KnowledgeStore（documents.json / items.json）
 │   │   ├── extractor.py              # KnowledgeExtractor（调用 LLMClient）
 │   │   └── parsers.py                # TXT/PDF/DOCX 文本解析
+│   ├── script_template/               # 脚本模板：模型、存储、渲染（Issue #33）
+│   │   ├── models.py                  # ScriptTemplate / TemplateSlot / TemplateVariable
+│   │   ├── store.py                   # ScriptTemplateStore（config/templates/*.json）
+│   │   └── renderer.py               # 模板 + 变量 → manual_script
 │   ├── pipeline_services/            # 业务能力（独立 service + phase runner）
 │   │   ├── llm_client.py             # 通用 LLM HTTP 客户端
 │   │   ├── script_service/           # 脚本生成
@@ -311,6 +343,20 @@ queued → scene_assembling ←(parallel)── tts_generating
 - `auto_approve=True` 时，所有 review gate 自动设 `review_status=approved` 并推进
 - `list_jobs` 按文件 mtime 排序，返回 `display_index`（格式如 `001`、`002`）
 - 可通过环境变量 `DEV_AUTO_TICK=0` 关闭
+
+## 前端系统配置页
+
+Phase 5 新增运营人员配置面板：
+
+| 路由 | 组件 | 说明 |
+|------|------|------|
+| `/system/config/product` | `ProductConfigForm` | 产品名/品牌/场景/素材/系统提示词表单 |
+| `/system/config/templates` | `ScriptTemplateList` | 脚本模板列表（CRUD） |
+| `/system/config/templates/:id` | `ScriptTemplateEditor` | 模板编辑（slots + variables） |
+| `/system/config/categories` | `CategoryManager` | 素材分类管理（新增/编辑/删除/AI 建议） |
+| `/system/config/quality` | `QualityRulesForm` | 质检规则（字数/禁词/emoji/恢复默认） |
+
+所有页面已使用 CSS 变量适配暗色模式。
 
 ## 前端智能素材库筛选
 
