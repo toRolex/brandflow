@@ -131,11 +131,25 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 
 持久化：`workspace/knowledge/documents.json` + `items.json`。
 
+### 脚本模板（Issue #33）
+
+创建可复用的脚本模板，Job 创建（Import 模式）选择模板并填充变量后自动生成 `manual_script`。
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/config/templates` | GET | 列出所有模板 |
+| `/api/config/templates` | POST | 创建模板 |
+| `/api/config/templates/{id}` | PUT | 更新模板 |
+| `/api/config/templates/{id}` | DELETE | 删除模板 |
+| `/api/config/templates/{id}/preview` | POST | 预览模板渲染结果 |
+
+持久化：`config/templates/` 目录下的独立 JSON 文件。
+
 ```
 .
 ├── apps/
 │   ├── control_plane/       # FastAPI 控制面（Web + API + 任务调度）
-│   │   ├── routes/           # API 路由（projects/jobs/reviews/workers）
+│   │   ├── routes/           # API 路由（projects/jobs/reviews/workers/knowledge/products/config/templates）
 │   │   ├── services/         # 调度器、排期存储
 │   │   └── templates/        # 旧 Jinja2 模板（逐步淘汰中）
 │   └── runtime_worker/      # 拉模式 worker（poll → execute → report）
