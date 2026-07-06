@@ -23,21 +23,22 @@ export default function AssetCard({ asset, onDelete, selected = false, onSelect 
     ? `${Math.round(asset.confidence * 100)}%`
     : null;
 
-  const containerClass = selected
-    ? "border-[#0969da] bg-[#ddf4ff]"
+  const containerStyle: React.CSSProperties = selected
+    ? { borderColor: "var(--accent)", background: "var(--bg-nav-active)" }
     : asset.in_use
-      ? "border-[#1a7f37] bg-[#e6f4ea]"
-      : "border-[#d0d7de] bg-white";
+      ? { borderColor: "var(--success)", background: "var(--success-bg)" }
+      : { borderColor: "var(--border-default)", background: "var(--bg-card)" };
 
   const isSelectable = Boolean(onSelect);
   const thumbnailUrl = asset.asset_id ? `/api/assets/${asset.asset_id}/thumbnail` : null;
 
   return (
     <div
-      className={`w-44 text-left border rounded-lg overflow-hidden flex-shrink-0 transition-colors ${containerClass}`}
+      className="w-44 text-left border rounded-lg overflow-hidden flex-shrink-0 transition-colors"
+      style={containerStyle}
       role="group"
     >
-      <div className="h-[124px] bg-[#eff2f5] flex items-center justify-center overflow-hidden">
+      <div className="h-[124px] flex items-center justify-center overflow-hidden" style={{ background: "var(--bg-page)" }}>
         {thumbnailUrl && !imgError ? (
           <img
             src={thumbnailUrl}
@@ -53,19 +54,23 @@ export default function AssetCard({ asset, onDelete, selected = false, onSelect 
       <div className="p-2 text-xs">
         <div className="font-medium truncate" title={asset.name}>{asset.name}</div>
         {asset.category && (
-          <div className="inline-flex mt-1 px-1.5 py-0.5 rounded bg-[#eaeef2] text-[#59636e]">
+          <div
+            className="inline-flex mt-1 px-1.5 py-0.5 rounded"
+            style={{ background: "var(--bg-nav-active)", color: "var(--text-secondary)" }}
+          >
             {asset.category}
           </div>
         )}
-        {seconds > 0 && <div className="text-gray-500 mt-1">{min}:{sec}</div>}
-        {confidence && <div className="text-[#0969da] mt-0.5">置信度 {confidence}</div>}
-        {asset.in_use && <div className="text-green-600 mt-0.5">&#10003; 使用中</div>}
-        {selected && <div className="text-[#0969da] mt-0.5">&#10003; 已选中</div>}
+        {seconds > 0 && <div className="mt-1" style={{ color: "var(--text-secondary)" }}>{min}:{sec}</div>}
+        {confidence && <div className="mt-0.5" style={{ color: "var(--accent)" }}>置信度 {confidence}</div>}
+        {asset.in_use && <div className="mt-0.5" style={{ color: "var(--success)" }}>&#10003; 使用中</div>}
+        {selected && <div className="mt-0.5" style={{ color: "var(--accent)" }}>&#10003; 已选中</div>}
         <div className="mt-1 flex items-center gap-2">
           {isSelectable && (
             <button
               type="button"
-              className="text-[#0969da] hover:underline"
+              className="hover:underline"
+              style={{ color: "var(--accent)" }}
               aria-pressed={selected}
               onClick={(event) => {
                 event.stopPropagation();
@@ -78,7 +83,8 @@ export default function AssetCard({ asset, onDelete, selected = false, onSelect 
           {onDelete && (
             <button
               type="button"
-              className="text-red-500 hover:underline"
+              className="hover:underline"
+              style={{ color: "var(--danger)" }}
               onClick={(event) => {
                 event.stopPropagation();
                 onDelete(asset.name);
