@@ -82,9 +82,9 @@ DEFAULTS: dict[str, Any] = {
         "default_name": "",
         "default_brand": "",
         "script": {
-            "scene": "食材展示、烹饪过程、成品呈现、享用场景",
-            "material": "食材近景、清洗处理、烹饪翻炒、成品摆盘",
-            "system_prompt": "你是一位短视频文案专家，专门为食品产品撰写抖音口播文案。",
+            "scene": "",
+            "material": "",
+            "system_prompt": "你是一位短视频文案专家，撰写抖音口播文案。",
             "enable_qa_check": True,
             "word_count_min": 150,
             "word_count_max": 200,

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 DEFAULT_BRAND = ""
-DEFAULT_SCENE = "食材展示、烹饪过程、成品呈现、享用场景"
-DEFAULT_MATERIAL = "食材近景、清洗处理、烹饪翻炒、成品摆盘"
+DEFAULT_SCENE = ""
+DEFAULT_MATERIAL = ""
 
 _SYSTEM_PROMPT = (
-    "你是一位短视频文案专家，专门为食品产品撰写抖音口播文案。\n"
+    "你是一位短视频文案专家，撰写抖音口播文案。\n"
     "要求：口语化、节奏感强、每句话不超过20字、不使用emoji。\n"
     "品名只能出现1次，品牌只能出现1次。"
 )
@@ -48,9 +48,12 @@ def build_first_half_messages(
         system_prompt += f"\n\n核心卖点提示（请在文案中自然融入以下卖点）：\n{knowledge_selling_points}"
     user_content = (
         f"请为「{product}」（品牌：{brand}）撰写短视频口播文案的前半段（前4句）。\n"
-        f"场景：{scene}\n"
-        f"素材画面：{material}\n"
-        f"要求：\n"
+    )
+    if scene:
+        user_content += f"场景：{scene}\n"
+    if material:
+        user_content += f"素材画面：{material}\n"
+    user_content += (
         f"1. 恰好4句话\n"
         f"2. 口语化，适合抖音口播\n"
         f"3. 品名「{product}」在前半段出现1次\n"

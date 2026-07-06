@@ -7,8 +7,6 @@ from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.script_service.prompts import (
     build_first_half_messages,
     build_second_half_messages,
-    DEFAULT_SCENE,
-    DEFAULT_MATERIAL,
 )
 
 
@@ -87,16 +85,20 @@ class TestBuildMessagesProductConfig:
         user_content = msgs[1]["content"]
         assert "自定义开箱场景" in user_content
         assert "自定义素材描述" in user_content
-        assert DEFAULT_SCENE not in user_content
+        # 旧默认值中的食品术语不应出现
+        assert "食材展示" not in user_content
+        assert "食材近景" not in user_content
 
     def test_first_half_without_product_config_uses_defaults(self):
-        """不传 product_config 时使用 DEFAULT_SCENE"""
+        """不传 product_config 时使用 DEFAULT_SCENE（默认值为空，不生成场景/素材行）"""
         msgs = build_first_half_messages(
             product="零食",
             brand="某品牌",
         )
         user_content = msgs[1]["content"]
-        assert DEFAULT_SCENE in user_content
+        # 默认值为空字符串时，user prompt 不包含场景和素材画面行
+        assert "场景：" not in user_content
+        assert "素材画面：" not in user_content
 
     def test_first_half_uses_product_config_system_prompt(self):
         """product_config 传入时 system_prompt 应替换默认值"""
