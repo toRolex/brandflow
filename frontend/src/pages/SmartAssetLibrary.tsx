@@ -432,7 +432,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
         {[
           { label: "总切片", value: stats.total, baseStyle: { background: "var(--bg-card)", borderColor: "var(--border-default)" } },
           { label: "可用", value: stats.available, baseStyle: { background: "var(--bg-tag-green)", borderColor: "var(--text-tag-green)", color: "var(--text-tag-green)" } },
-          { label: "已禁用", value: stats.disabled, baseStyle: { background: "#f8514922", borderColor: "#f85149", color: "#f85149" } },
+          { label: "已禁用", value: stats.disabled, baseStyle: { background: "var(--danger-bg)", borderColor: "var(--danger)", color: "var(--danger)" } },
           { label: "源视频", value: stats.source_videos, baseStyle: { background: "var(--bg-card)", borderColor: "var(--border-default)" } },
         ].map((item) => (
           <div key={item.label} className="rounded-lg border p-3 text-center" style={item.baseStyle}>

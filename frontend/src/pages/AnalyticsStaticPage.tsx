@@ -106,7 +106,7 @@ function IncrementTrendChart({ data }: { data: DailyIncrement[] }) {
         type: "bar",
         data: plays,
         yAxisIndex: 0,
-        itemStyle: { color: "#3b82f6" },
+        itemStyle: { color: "var(--accent)" },
       },
       {
         name: "点赞增量",

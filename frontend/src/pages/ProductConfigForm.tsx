@@ -22,7 +22,7 @@ const inputStyle = {
   width: "100%",
   padding: "8px 16px",
   border: "1px solid var(--border-default)",
-  borderRadius: "8px",
+  borderRadius: "var(--radius)",
   fontSize: "var(--font-size-base)",
   background: "var(--bg-input, var(--bg-card))",
   color: "var(--text-primary)",
