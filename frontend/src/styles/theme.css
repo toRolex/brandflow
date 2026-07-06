@@ -1,49 +1,202 @@
+/* ==========================================================================
+   Brandflow Design System — CSS Tokens
+   Source of truth: DESIGN.md (OKLCH color palette)
+   Three modes: :root (light), [data-theme="dark"], [data-layout="compact"]
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Design Tokens (Universal — mode-independent)
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* ---- Typography: Font Families ---- */
+  --font-family-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    'Segoe UI', Roboto, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
+  --font-family-title: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+    'Segoe UI', Roboto, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
+  --font-family-label: 'SF Mono', 'JetBrains Mono', 'Cascadia Code',
+    'Fira Code', 'Noto Sans SC', monospace;
+
+  /* ---- Typography: Hierarchy ---- */
+  --font-body: 400 0.875rem/1.5 var(--font-family-body);
+  --font-title: 600 1.125rem/1.35 var(--font-family-title);
+  --font-title-spacing: -0.01em;
+  --font-label: 500 0.75rem/1.3 var(--font-family-label);
+  --font-label-spacing: 0.02em;
+
+  /* ---- Spacing (4px baseline, 6 levels) ---- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* ---- Elevation: Shadows ---- */
+  --shadow-ambient-low: 0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.12),
+    0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.18),
+    0 4px 8px rgba(0, 0, 0, 0.08);
+
+  /* ---- Elevation: Z-Index Scale ---- */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal-backdrop: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  /* ---- Animation Curves ---- */
+  --ease-standard: 150ms ease;
+  --ease-enter: 200ms ease-out;
+  --ease-exit: 150ms ease-in;
+
+  /* ---- Border Radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   2. Light Mode: Color Tokens + Backward-Compat Aliases
+   :root IS the light mode default.
+   -------------------------------------------------------------------------- */
+
 :root,
-[data-theme="light"] {
-  --bg-page: #f6f8fa;
-  --bg-card: #ffffff;
-  --bg-nav: #ffffff;
-  --bg-header: #ffffff;
-  --bg-input: #ffffff;
-  --bg-table-head: #f6f8fa;
-  --bg-nav-active: #0969da10;
-  --bg-tag-green: #dafbe1;
-  --bg-tag-yellow: #fff8c5;
-  --bg-tag-blue: #ddf4ff;
+[data-theme='light'] {
+  /* ---- Primary ---- */
+  --color-electric-blue: oklch(62% 0.19 252);
+  --color-electric-blue-hover: oklch(68% 0.19 252);
+  --color-electric-blue-muted: oklch(62% 0.19 252 / 0.12);
 
-  --text-primary: #24292f;
-  --text-secondary: #656d76;
-  --text-tertiary: #8b949e;
-  --text-inverse: #ffffff;
-  --text-nav-active: #0969da;
-  --text-tag-green: #1a7f37;
-  --text-tag-yellow: #9a6700;
-  --text-tag-blue: #0969da;
-  --text-link: #0969da;
+  /* ---- Neutral: Dark ---- */
+  --color-void: oklch(14% 0.006 258);
+  --color-obsidian: oklch(18% 0.006 258);
+  --color-obsidian-raised: oklch(22% 0.006 258);
+  --color-steel: oklch(28% 0.006 258);
+  --color-steel-strong: oklch(35% 0.006 258);
 
-  --border-default: #d0d7de;
-  --border-subtle: #e8eaed;
+  /* ---- Neutral: Light ---- */
+  --color-chalk: oklch(97% 0.003 258);
+  --color-frost: oklch(100% 0 0);
+  --color-mist: oklch(88% 0.004 258);
+  --color-graphite: oklch(18% 0.004 258);
+  --color-slate: oklch(40% 0.006 258);
+  --color-fog: oklch(55% 0.006 258);
+  --color-white-smoke: oklch(92% 0 0);
 
-  --btn-primary-bg: #2da44e;
-  --btn-primary-text: #ffffff;
-  --btn-primary-hover: #2c974b;
+  /* ---- Semantic ---- */
+  --color-signal-green: oklch(58% 0.17 145);
+  --color-signal-green-muted: oklch(58% 0.17 145 / 0.12);
+  --color-alert-red: oklch(55% 0.21 20);
+  --color-alert-red-muted: oklch(55% 0.21 20 / 0.1);
+  --color-caution-amber: oklch(65% 0.14 75);
+  --color-caution-amber-muted: oklch(65% 0.14 75 / 0.12);
 
-  --danger: oklch(55% 0.21 20);
-  --danger-bg: oklch(55% 0.21 20 / 0.10);
-  --danger-border: #ff8182;
-  --success: #1a7f37;
-  --success-bg: #dafbe1;
-  --success-border: #4ac26b;
+  /* ---- Backward-Compat: Backgrounds ---- */
+  --bg-page: var(--color-chalk);
+  --bg-card: var(--color-frost);
+  --bg-nav: var(--color-frost);
+  --bg-header: var(--color-frost);
+  --bg-input: var(--color-frost);
+  --bg-table-head: var(--color-chalk);
+  --bg-nav-active: var(--color-electric-blue-muted);
+  --bg-tag-green: var(--color-signal-green-muted);
+  --bg-tag-yellow: var(--color-caution-amber-muted);
+  --bg-tag-blue: var(--color-electric-blue-muted);
 
-  --metric-color: #0969da;
-  --accent: #0969da;
+  /* ---- Backward-Compat: Text ---- */
+  --text-primary: var(--color-graphite);
+  --text-secondary: var(--color-slate);
+  --text-tertiary: var(--color-fog);
+  --text-inverse: var(--color-frost);
+  --text-nav-active: var(--color-electric-blue);
+  --text-tag-green: var(--color-signal-green);
+  --text-tag-yellow: var(--color-caution-amber);
+  --text-tag-blue: var(--color-electric-blue);
+  --text-link: var(--color-electric-blue);
 
-  --alert-red: oklch(55% 0.21 20);
-  --alert-red-muted: oklch(55% 0.21 20 / 0.10);
+  /* ---- Backward-Compat: Borders ---- */
+  --border-default: var(--color-mist);
+  --border-subtle: oklch(92% 0.003 258);
 
-  --danger: oklch(55% 0.21 20);
-  --success: #1a7f37;
+  /* ---- Backward-Compat: Legacy semantic aliases ---- */
+  --danger: var(--color-alert-red);
+  --danger-bg: var(--color-alert-red-muted);
+  --danger-border: oklch(55% 0.21 20 / 0.2);
+  --success: var(--color-signal-green);
+  --success-bg: var(--color-signal-green-muted);
+  --success-border: oklch(58% 0.17 145 / 0.3);
 
+  /* ---- Backward-Compat: Misc ---- */
+  --metric-color: var(--color-electric-blue);
+  --accent: var(--color-electric-blue);
+  --alert-red: var(--color-alert-red);
+  --alert-red-muted: var(--color-alert-red-muted);
+
+  /* ---- Component: Button Primary ---- */
+  --btn-primary-bg: var(--color-electric-blue);
+  --btn-primary-text: var(--color-frost);
+  --btn-primary-hover: var(--color-electric-blue-hover);
+  --btn-primary-padding: 8px 20px;
+  --btn-primary-radius: var(--radius-md);
+
+  /* ---- Component: Button Danger ---- */
+  --btn-danger-bg: var(--color-alert-red);
+  --btn-danger-text: var(--color-frost);
+  --btn-danger-hover: oklch(60% 0.21 20);
+  --btn-danger-padding: 8px 20px;
+  --btn-danger-radius: var(--radius-md);
+
+  /* ---- Component: Button Ghost ---- */
+  --btn-ghost-bg: transparent;
+  --btn-ghost-text: var(--color-slate);
+  --btn-ghost-hover-bg: var(--color-electric-blue-muted);
+  --btn-ghost-padding: 6px 14px;
+  --btn-ghost-radius: var(--radius-md);
+
+  /* ---- Component: Badge Default ---- */
+  --badge-default-bg: var(--color-electric-blue-muted);
+  --badge-default-text: var(--color-electric-blue);
+
+  /* ---- Component: Badge Success ---- */
+  --badge-success-bg: var(--color-signal-green-muted);
+  --badge-success-text: var(--color-signal-green);
+
+  /* ---- Component: Badge Warning ---- */
+  --badge-warning-bg: var(--color-caution-amber-muted);
+  --badge-warning-text: var(--color-caution-amber);
+
+  /* ---- Component: Badge Danger ---- */
+  --badge-danger-bg: var(--color-alert-red-muted);
+  --badge-danger-text: var(--color-alert-red);
+
+  /* ---- Component: Badge Common ---- */
+  --badge-padding: 2px 8px;
+  --badge-radius: var(--radius-sm);
+
+  /* ---- Component: Input Field ---- */
+  --input-bg: var(--color-frost);
+  --input-text: var(--color-graphite);
+  --input-border: var(--color-mist);
+  --input-focus-border: var(--color-electric-blue);
+  --input-focus-ring: var(--color-electric-blue-muted);
+  --input-placeholder: var(--color-fog);
+  --input-padding: 8px 12px;
+  --input-radius: var(--radius-md);
+
+  /* ---- Component: Card ---- */
+  --card-bg: var(--color-frost);
+  --card-border: var(--color-mist);
+  --card-shadow: var(--shadow-ambient-low);
+  --card-padding: 20px;
+  --card-radius: var(--radius-lg);
+
+  /* ---- Legacy spacing/radius aliases ---- */
   --spacing-sm: 0.25rem;
   --spacing-md: 0.5rem;
   --spacing-lg: 1rem;
@@ -53,57 +206,141 @@
   --radius: 0.5rem;
 }
 
-[data-theme="dark"] {
-  --bg-page: #0d1117;
-  --bg-card: #161b22;
-  --bg-nav: #161b22;
-  --bg-header: #161b22;
-  --bg-input: #0d1117;
-  --bg-table-head: #161b22;
-  --bg-nav-active: #1f6feb22;
-  --bg-tag-green: #1a7f3733;
-  --bg-tag-yellow: #9a670033;
-  --bg-tag-blue: #0969da33;
+/* --------------------------------------------------------------------------
+   3. Dark Mode — Override color tokens and backward-compat aliases
+   -------------------------------------------------------------------------- */
 
-  --text-primary: #c9d1d9;
-  --text-secondary: #8b949e;
-  --text-tertiary: #6e7681;
-  --text-inverse: #0d1117;
-  --text-nav-active: #58a6ff;
-  --text-tag-green: #3fb950;
-  --text-tag-yellow: #d29922;
-  --text-tag-blue: #58a6ff;
-  --text-link: #58a6ff;
+[data-theme='dark'] {
+  /* ---- Primary ---- */
+  --color-electric-blue: oklch(62% 0.19 252);
+  --color-electric-blue-hover: oklch(68% 0.19 252);
+  --color-electric-blue-muted: oklch(62% 0.19 252 / 0.15);
 
-  --border-default: #30363d;
-  --border-subtle: #21262d;
+  /* ---- Neutral: Light (re-purposed for dark text roles) ---- */
+  --color-chalk: oklch(97% 0.003 258);
+  --color-frost: oklch(100% 0 0);
+  --color-mist: oklch(88% 0.004 258);
+  --color-graphite: oklch(18% 0.004 258);
+  --color-slate: oklch(40% 0.006 258);
+  --color-fog: oklch(55% 0.006 258);
+  --color-white-smoke: oklch(92% 0 0);
 
-  --btn-primary-bg: #238636;
-  --btn-primary-text: #ffffff;
-  --btn-primary-hover: #2ea043;
+  /* ---- Semantic (brighter for dark backgrounds) ---- */
+  --color-signal-green: oklch(68% 0.17 145);
+  --color-signal-green-muted: oklch(68% 0.17 145 / 0.15);
+  --color-alert-red: oklch(60% 0.21 20);
+  --color-alert-red-muted: oklch(60% 0.21 20 / 0.15);
+  --color-caution-amber: oklch(72% 0.14 75);
+  --color-caution-amber-muted: oklch(72% 0.14 75 / 0.15);
 
-  --danger: oklch(60% 0.21 20);
-  --danger-bg: oklch(55% 0.21 20 / 0.12);
-  --danger-border: #f8514944;
-  --success: #3fb950;
-  --success-bg: #1a7f3733;
-  --success-border: #3fb95044;
+  /* ---- Backward-Compat: Backgrounds ---- */
+  --bg-page: var(--color-void);
+  --bg-card: var(--color-obsidian);
+  --bg-nav: var(--color-obsidian);
+  --bg-header: var(--color-obsidian);
+  --bg-input: var(--color-void);
+  --bg-table-head: var(--color-obsidian);
+  --bg-nav-active: var(--color-electric-blue-muted);
+  --bg-tag-green: var(--color-signal-green-muted);
+  --bg-tag-yellow: var(--color-caution-amber-muted);
+  --bg-tag-blue: var(--color-electric-blue-muted);
 
-  --metric-color: #58a6ff;
-  --accent: #58a6ff;
+  /* ---- Backward-Compat: Text ---- */
+  --text-primary: var(--color-white-smoke);
+  --text-secondary: var(--color-fog);
+  --text-tertiary: var(--color-slate);
+  --text-inverse: var(--color-void);
+  --text-nav-active: var(--color-electric-blue);
+  --text-tag-green: var(--color-signal-green);
+  --text-tag-yellow: var(--color-caution-amber);
+  --text-tag-blue: var(--color-electric-blue);
+  --text-link: var(--color-electric-blue);
 
-  --alert-red: oklch(60% 0.21 20);
-  --alert-red-muted: oklch(55% 0.21 20 / 0.12);
+  /* ---- Backward-Compat: Borders ---- */
+  --border-default: var(--color-steel);
+  --border-subtle: var(--color-obsidian-raised);
 
-  --danger: oklch(60% 0.21 20);
-  --success: #3fb950;
+  /* ---- Backward-Compat: Legacy semantic aliases ---- */
+  --danger: var(--color-alert-red);
+  --danger-bg: var(--color-alert-red-muted);
+  --danger-border: oklch(60% 0.21 20 / 0.3);
+  --success: var(--color-signal-green);
+  --success-bg: var(--color-signal-green-muted);
+  --success-border: oklch(68% 0.17 145 / 0.3);
+
+  /* ---- Backward-Compat: Misc ---- */
+  --metric-color: var(--color-electric-blue);
+  --accent: var(--color-electric-blue);
+  --alert-red: var(--color-alert-red);
+  --alert-red-muted: var(--color-alert-red-muted);
+
+  /* ---- Component: Button Primary ---- */
+  --btn-primary-bg: var(--color-electric-blue);
+  --btn-primary-text: var(--color-white-smoke);
+  --btn-primary-hover: var(--color-electric-blue-hover);
+
+  /* ---- Component: Button Danger ---- */
+  --btn-danger-bg: var(--color-alert-red);
+  --btn-danger-text: var(--color-white-smoke);
+  --btn-danger-hover: oklch(66% 0.21 20);
+
+  /* ---- Component: Button Ghost ---- */
+  --btn-ghost-bg: transparent;
+  --btn-ghost-text: var(--color-fog);
+  --btn-ghost-hover-bg: var(--color-electric-blue-muted);
+
+  /* ---- Component: Badge ---- */
+  --badge-default-bg: var(--color-electric-blue-muted);
+  --badge-default-text: var(--color-electric-blue);
+  --badge-success-bg: var(--color-signal-green-muted);
+  --badge-success-text: var(--color-signal-green);
+  --badge-warning-bg: var(--color-caution-amber-muted);
+  --badge-warning-text: var(--color-caution-amber);
+  --badge-danger-bg: var(--color-alert-red-muted);
+  --badge-danger-text: var(--color-alert-red);
+
+  /* ---- Component: Input Field ---- */
+  --input-bg: var(--color-void);
+  --input-text: var(--color-white-smoke);
+  --input-border: var(--color-steel);
+  --input-focus-border: var(--color-electric-blue);
+  --input-focus-ring: var(--color-electric-blue-muted);
+  --input-placeholder: var(--color-slate);
+
+  /* ---- Component: Card ---- */
+  --card-bg: var(--color-obsidian);
+  --card-border: var(--color-steel);
+  --card-shadow: var(--shadow-ambient-low);
 }
 
-[data-layout="compact"] {
+/* --------------------------------------------------------------------------
+   4. Compact Layout — Override spacing and font-size tokens only
+   -------------------------------------------------------------------------- */
+
+[data-layout='compact'] {
+  --space-xs: 2px;
+  --space-sm: 4px;
+  --space-md: 6px;
+  --space-lg: 8px;
+  --space-xl: 12px;
+  --space-2xl: 16px;
+
   --spacing-sm: 0.125rem;
   --spacing-md: 0.25rem;
   --spacing-lg: 0.5rem;
   --font-size-sm: 0.75rem;
   --font-size-base: 0.8125rem;
   --font-size-lg: 0.875rem;
+}
+
+/* --------------------------------------------------------------------------
+   5. Reduced Motion — Respect user preference
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ease-standard: 0ms linear;
+    --ease-enter: 0ms linear;
+    --ease-exit: 0ms linear;
+  }
 }
