@@ -104,14 +104,14 @@ export default function JobPipeline() {
   }, [job, job?.artifacts]);
 
   if (loading) {
-    return <div className="text-center py-12 text-gray-400">加载中...</div>;
+    return <div className="text-center py-12 text-[var(--text-tertiary)]">加载中...</div>;
   }
 
   if (!job) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-400 text-sm mb-2">Job 未找到</p>
-        {error && <p className="text-red-500 text-xs">{error}</p>}
+        <p className="text-[var(--text-tertiary)] text-sm mb-2">Job 未找到</p>
+        {error && <p className="text-[var(--alert-red)] text-xs">{error}</p>}
       </div>
     );
   }
@@ -184,7 +184,7 @@ export default function JobPipeline() {
   const renderDetail = () => {
     switch (activeStepKey) {
       case "queued":
-        return <div className="text-gray-400 text-sm py-4">任务排队中，等待系统调度...</div>;
+        return <div className="text-[var(--text-tertiary)] text-sm py-4">任务排队中，等待系统调度...</div>;
       case "script_gen":
       case "script_review": {
         const scriptArtifact = findArtifact("script");
@@ -216,17 +216,17 @@ export default function JobPipeline() {
         return (
           <div>
             <h3 className="font-semibold text-sm mb-3">TTS 审核</h3>
-            <p className="text-gray-400 text-sm mb-4">请试听TTS配音效果，确认无误后通过</p>
+            <p className="text-[var(--text-tertiary)] text-sm mb-4">请试听TTS配音效果，确认无误后通过</p>
             <MediaPlayer src={audio?.url || ""} kind="audio" />
             <div className="flex gap-2 mt-4">
               <button
-                className="bg-[var(--btn-primary-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
                 onClick={() => handleApprove("tts")}
               >
                 {"\u2713"} 通过
               </button>
               <button
-                className="bg-[var(--btn-danger-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
                 onClick={() => handleReject("tts")}
               >
                 {"\u2717"} 打回重新生成
@@ -242,7 +242,7 @@ export default function JobPipeline() {
             <h3 className="font-semibold text-sm mb-3">转录字幕</h3>
             {subtitleArtifact ? (
               <div>
-                <p className="text-gray-400 text-sm mb-2">字幕文件已生成</p>
+                <p className="text-[var(--text-tertiary)] text-sm mb-2">字幕文件已生成</p>
                 <a 
                   href={subtitleArtifact.url} 
                   target="_blank" 
@@ -253,7 +253,7 @@ export default function JobPipeline() {
                 </a>
               </div>
             ) : (
-              <p className="text-gray-400 text-sm">等待字幕生成...</p>
+              <p className="text-[var(--text-tertiary)] text-sm">等待字幕生成...</p>
             )}
           </div>
         );
@@ -282,7 +282,7 @@ export default function JobPipeline() {
             <h3 className="font-semibold text-sm mb-3">素材检索</h3>
             {clipsArtifact ? (
               <div>
-                <p className="text-gray-400 text-sm mb-4">已检索到 {selectedClips.length} 个匹配素材</p>
+                <p className="text-[var(--text-tertiary)] text-sm mb-4">已检索到 {selectedClips.length} 个匹配素材</p>
                 <div className="max-h-[500px] overflow-y-auto">
                   <AssetGrid
                     assets={assetRecords}
@@ -293,7 +293,7 @@ export default function JobPipeline() {
                 </div>
               </div>
             ) : (
-              <p className="text-gray-400 text-sm">等待素材检索...</p>
+              <p className="text-[var(--text-tertiary)] text-sm">等待素材检索...</p>
             )}
           </div>
         );
@@ -315,7 +315,7 @@ export default function JobPipeline() {
             <h3 className="font-semibold text-sm mb-3">素材审核</h3>
             {clipsArtifact && selectedClips.length > 0 ? (
               <div>
-                <p className="text-gray-400 text-sm mb-4">
+                <p className="text-[var(--text-tertiary)] text-sm mb-4">
                   请审核检索到的 {selectedClips.length} 个素材
                   {rejectedClips.size > 0 && <span className="text-[var(--color-alert-red)]">（已打回 {rejectedClips.size} 个）</span>}
                 </p>
@@ -339,13 +339,13 @@ export default function JobPipeline() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    className="bg-[var(--btn-primary-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                    className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
                     onClick={() => handleApprove("asset")}
                   >
                     {"\u2713"} 全部通过
                   </button>
                   <button
-                    className="bg-[var(--btn-danger-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                    className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
                     onClick={() => handleReject("asset")}
                   >
                     {"\u2717"} 全部打回重新检索
@@ -353,7 +353,7 @@ export default function JobPipeline() {
                 </div>
               </div>
             ) : (
-              <p className="text-gray-400 text-sm">等待素材加载...</p>
+              <p className="text-[var(--text-tertiary)] text-sm">等待素材加载...</p>
             )}
           </div>
         );
@@ -375,13 +375,13 @@ export default function JobPipeline() {
             <MediaPlayer src={finalVideo?.url || ""} kind="video" />
             <div className="flex gap-2 mt-4">
               <button
-                className="bg-[var(--btn-primary-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
                 onClick={() => handleApprove("final")}
               >
                 {"\u2713"} 通过
               </button>
               <button
-                className="bg-[var(--btn-danger-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+                className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
                 onClick={() => handleReject("final")}
               >
                 {"\u2717"} 打回
@@ -396,11 +396,11 @@ export default function JobPipeline() {
           <div className="text-center py-12">
             <div className="text-[var(--color-signal-green)] text-5xl mb-4">{"✓"}</div>
             <h3 className="text-lg font-semibold text-[var(--color-signal-green)] mb-2">生产完成</h3>
-            <p className="text-gray-400 text-sm mb-4">视频已生成并排期发布</p>
+            <p className="text-[var(--text-tertiary)] text-sm mb-4">视频已生成并排期发布</p>
             <MediaPlayer src={finalVideo?.url || ""} kind="video" />
             <div className="flex justify-center gap-3 mt-6">
               <button
-                className="bg-[var(--btn-danger-bg)] text-white border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
+                className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
                 onClick={handleDownloadExport}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -415,9 +415,9 @@ export default function JobPipeline() {
           <div className="text-center py-12">
             <div className="text-[var(--color-alert-red)] text-5xl mb-4">{"✗"}</div>
             <h3 className="text-lg font-semibold text-[var(--color-alert-red)] mb-2">任务失败</h3>
-            <p className="text-gray-400 text-sm">{job.last_error || "未知错误"}</p>
+            <p className="text-[var(--text-tertiary)] text-sm">{job.last_error || "未知错误"}</p>
             <button
-              className="mt-4 bg-[var(--btn-primary-bg)] text-white px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+              className="mt-4 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
               onClick={handleRetry}
             >
               {"↻"} 重试
@@ -427,9 +427,9 @@ export default function JobPipeline() {
       case "cancelled":
         return (
           <div className="text-center py-12">
-            <div className="text-gray-400 text-5xl mb-4">{"⊘"}</div>
-            <h3 className="text-lg font-semibold text-gray-400 mb-2">已取消</h3>
-            <p className="text-gray-400 text-sm">该任务已被人工取消</p>
+            <div className="text-[var(--text-tertiary)] text-5xl mb-4">{"⊘"}</div>
+            <h3 className="text-lg font-semibold text-[var(--text-tertiary)] mb-2">已取消</h3>
+            <p className="text-[var(--text-tertiary)] text-sm">该任务已被人工取消</p>
           </div>
         );
       case "paused":
@@ -437,11 +437,11 @@ export default function JobPipeline() {
           <div className="text-center py-12">
             <div className="text-[var(--text-tag-yellow)] text-5xl mb-4">{"⏸"}</div>
             <h3 className="text-lg font-semibold text-[var(--text-tag-yellow)] mb-2">已暂停</h3>
-            <p className="text-gray-400 text-sm">任务已暂停，可点击"重试当前"继续</p>
+            <p className="text-[var(--text-tertiary)] text-sm">任务已暂停，可点击"重试当前"继续</p>
           </div>
         );
       default:
-        return <div className="text-gray-400 text-sm">未知步骤</div>;
+        return <div className="text-[var(--text-tertiary)] text-sm">未知步骤</div>;
     }
   };
 
@@ -449,24 +449,24 @@ export default function JobPipeline() {
     <div>
       <div className="flex items-center gap-2 mb-4">
         <button
-          className="text-gray-500 hover:text-gray-700 text-sm"
+          className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
           onClick={() => navigate(`/projects/${job.project_id}`)}
         >
           {"\u2190"} 返回工作台
         </button>
-        <span className="text-gray-300">|</span>
+        <span className="text-[var(--text-tertiary)]">|</span>
         <h1 className="text-lg font-bold font-mono">{job.name || job.job_id}</h1>
         {job.product && (
-          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+          <span className="text-xs text-[var(--text-tertiary)] bg-[var(--bg-table-head)] px-2 py-0.5 rounded">
             {job.product}
           </span>
         )}
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+        <div className="mb-4 bg-[var(--alert-red-muted)] border border-[var(--danger-border)] text-[var(--alert-red)] px-4 py-3 rounded-lg text-sm flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError("")} className="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+          <button onClick={() => setError("")} className="text-[var(--text-tertiary)] hover:text-[var(--alert-red)] text-lg leading-none">&times;</button>
         </div>
       )}
 

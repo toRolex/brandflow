@@ -41,7 +41,7 @@ export default function VisionLogs({ taskId, isRunning }: Props) {
   }
 
   return (
-    <div className="mt-2 p-2 bg-gray-900 text-green-400 rounded text-xs font-mono max-h-40 overflow-y-auto">
+    <div className="mt-2 p-2 bg-[var(--color-void)] text-[var(--color-signal-green)] rounded text-xs font-mono max-h-40 overflow-y-auto">
       {logs.map((log, i) => (
         <div key={i}>{log}</div>
       ))}
