@@ -8,19 +8,6 @@ import IndexProgress from "../components/IndexProgress";
 import BatchActionBar from "../components/BatchActionBar";
 import ConfirmDialog from "../components/ConfirmDialog";
 
-const CATEGORIES = [
-  "产地溯源",
-  "筛选分拣",
-  "清洗泡发",
-  "切配处理",
-  "下锅入锅",
-  "烹饪翻炒",
-  "出锅装盘",
-  "成品展示",
-  "试吃品尝",
-  "产品特写",
-] as const;
-
 const STATUS_OPTIONS = ["available", "disabled", "pending_review"] as const;
 
 const STATUS_LABELS: Record<string, string> = {
@@ -471,7 +458,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
             onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
           >
             <option value="">全部分类 ({stats.total})</option>
-            {CATEGORIES.map((item) => (
+            {Array.from(categoryCounts.keys()).sort().map((item) => (
               <option key={item} value={item}>
                 {item} ({categoryCounts.get(item) || 0})
               </option>
@@ -649,6 +636,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
           onDelete={() => void handleBatchDelete()}
           onClear={() => setSelectedIds(new Set())}
           onBatchEdit={handleBatchEdit}
+          categories={Array.from(categoryCounts.keys()).sort()}
         />
       )}
 
@@ -683,6 +671,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
               void handlePreviewStatusToggle(asset, nextStatus);
             }}
             onUpdateFields={handlePreviewFieldsUpdate}
+            categories={Array.from(categoryCounts.keys()).sort()}
           />
         </div>
       </div>

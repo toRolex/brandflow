@@ -14,10 +14,6 @@ THUMBNAIL_WIDTH = 220
 _IS_WINDOWS = platform.system() == "Windows"
 
 _DEFAULT_TOOLS = {
-    "Darwin": {
-        "FFMPEG_PATH": "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg",
-        "FFPROBE_PATH": "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe",
-    },
     "Windows": {
         "FFMPEG_PATH": "tools/bin/ffmpeg.exe",
         "FFPROBE_PATH": "tools/bin/ffprobe.exe",
