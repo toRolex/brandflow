@@ -6,6 +6,7 @@ import AssetPreviewPanel from "../components/AssetPreviewPanel";
 import AssetUploadZone from "../components/AssetUploadZone";
 import IndexProgress from "../components/IndexProgress";
 import BatchActionBar from "../components/BatchActionBar";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const CATEGORIES = [
   "产地溯源",
@@ -68,6 +69,10 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 
   const [isBatchUpdating, setIsBatchUpdating] = useState(false);
   const [isPreviewUpdating, setIsPreviewUpdating] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{
+    assetId?: string;
+    batchCount?: number;
+  } | null>(null);
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -317,10 +322,27 @@ export default function SmartAssetLibrary({ projectId }: Props) {
   );
 
   const handleDelete = useCallback(
-    async (assetId: string) => {
-      if (!window.confirm("确认删除此素材？此操作不可撤销。")) {
+    (assetId: string) => {
+      setConfirmDelete({ assetId });
+    },
+    []
+  );
+
+  const handleBatchDelete = useCallback(
+    () => {
+      if (selectedIds.size === 0 || isBatchUpdating) {
         return;
       }
+      setConfirmDelete({ batchCount: selectedIds.size });
+    },
+    [selectedIds.size, isBatchUpdating]
+  );
+
+  const executeDelete = useCallback(async () => {
+    if (!confirmDelete) return;
+    if (confirmDelete.assetId) {
+      const assetId = confirmDelete.assetId;
+      setConfirmDelete(null);
       try {
         if (projectId) {
           const asset = assets.find((a) => a.asset_id === assetId);
@@ -333,23 +355,8 @@ export default function SmartAssetLibrary({ projectId }: Props) {
       } catch (error) {
         console.error("delete asset failed", error);
       }
-    },
-    [loadAssets, projectId, assets]
-  );
-
-  const handleBatchDelete = useCallback(
-    async () => {
-      if (selectedIds.size === 0 || isBatchUpdating) {
-        return;
-      }
-
-      const confirmed = window.confirm(
-        `确认删除选中的 ${selectedIds.size} 个素材？此操作不可撤销。`
-      );
-      if (!confirmed) {
-        return;
-      }
-
+    } else if (confirmDelete.batchCount) {
+      setConfirmDelete(null);
       setIsBatchUpdating(true);
       try {
         if (projectId) {
@@ -368,9 +375,8 @@ export default function SmartAssetLibrary({ projectId }: Props) {
       } finally {
         setIsBatchUpdating(false);
       }
-    },
-    [isBatchUpdating, loadAssets, selectedIds, projectId, assets]
-  );
+    }
+  }, [confirmDelete, projectId, assets, loadAssets, selectedIds]);
 
   const handlePreviewStatusToggle = useCallback(
     async (asset: AssetRecord, nextStatus: AssetRecord["status"]) => {
@@ -680,6 +686,19 @@ export default function SmartAssetLibrary({ projectId }: Props) {
           />
         </div>
       </div>
+      <ConfirmDialog
+        isOpen={confirmDelete !== null}
+        title="确认删除"
+        message={
+          confirmDelete?.batchCount
+            ? `确认删除选中的 ${confirmDelete.batchCount} 个素材？此操作不可撤销。`
+            : "确认删除此素材？此操作不可撤销。"
+        }
+        danger
+        confirmLabel="删除"
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

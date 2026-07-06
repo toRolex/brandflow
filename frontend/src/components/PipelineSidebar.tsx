@@ -27,11 +27,11 @@ export default function PipelineSidebar({
   onViewLogs,
 }: Props) {
   return (
-    <div className="w-52 bg-[#eff2f5] border-r border-[#393f46] p-3 flex-shrink-0 overflow-y-auto">
+    <div className="w-52 bg-[var(--bg-page)] border-r border-[var(--border-default)] p-3 flex-shrink-0 overflow-y-auto">
       {jobInfo && (
-        <div className="text-xs font-semibold text-[#59636e] mb-3">{jobInfo}</div>
+        <div className="text-xs font-semibold text-[var(--text-secondary)] mb-3">{jobInfo}</div>
       )}
-      <div className="text-xs font-semibold text-[#59636e] uppercase tracking-wide mb-3">
+      <div className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide mb-3">
         流水线步骤
       </div>
       {PIPELINE_STEPS.filter((step) => {
@@ -56,20 +56,20 @@ export default function PipelineSidebar({
             className={`flex items-center gap-1.5 w-full text-left px-1.5 py-1.5 rounded-md mb-0.5 text-xs transition-colors ${
               active
                 ? isReview
-                  ? "bg-[#e8b931] text-[#1e2327] font-semibold"
-                  : "bg-[#0969da] text-white"
+                  ? "bg-[var(--color-caution-amber)] text-[var(--text-primary)] font-semibold"
+                  : "bg-[var(--btn-primary-bg)] text-white"
                 : done
-                ? "bg-[#0969da] text-white"
-                : "text-[#59636e]"
+                ? "bg-[var(--btn-primary-bg)] text-white"
+                : "text-[var(--text-secondary)]"
             }`}
           >
             <span
               className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] flex-shrink-0 ${
                 done
-                  ? "bg-white text-[#0969da] font-bold"
+                  ? "bg-white text-[var(--text-link)] font-bold"
                   : active
-                  ? "bg-white text-[#1e2327] font-bold"
-                  : "border-1.5 border-[#59636e] text-[#59636e]"
+                  ? "bg-white text-[var(--text-primary)] font-bold"
+                  : "border-1.5 border-[var(--border-default)] text-[var(--text-secondary)]"
               }`}
             >
               {done ? "\u2713" : active ? "!" : stepNum}

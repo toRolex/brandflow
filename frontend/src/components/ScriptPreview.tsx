@@ -56,19 +56,19 @@ export default function ScriptPreview({
       {isEditing ? (
         <div className="mb-3">
           <textarea
-            className="w-full bg-white border border-[#393f46] rounded-lg p-4 text-sm leading-relaxed min-h-[120px] focus:outline-none focus:border-[#0969da] resize-y"
+            className="w-full bg-white border border-[var(--border-default)] rounded-lg p-4 text-sm leading-relaxed min-h-[120px] focus:outline-none focus:border-[var(--color-electric-blue)] resize-y"
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
           />
           <div className="flex gap-1.5 mt-2">
             <button
-              className="bg-[#0969da] text-white border-none px-3 py-1.5 rounded-md text-xs hover:brightness-110 transition-all"
+              className="bg-[var(--btn-primary-bg)] text-white border-none px-3 py-1.5 rounded-md text-xs hover:brightness-110 transition-all"
               onClick={handleSaveEdit}
             >
               保存
             </button>
             <button
-              className="bg-white border border-[#393f46] px-3 py-1.5 rounded-md text-xs hover:bg-gray-50 transition-all"
+              className="bg-white border border-[var(--border-default)] px-3 py-1.5 rounded-md text-xs hover:bg-gray-50 transition-all"
               onClick={handleCancelEdit}
             >
               取消
@@ -76,58 +76,58 @@ export default function ScriptPreview({
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-[#393f46] rounded-lg p-4 mb-3 text-sm leading-relaxed min-h-[60px]">
+        <div className="bg-white border border-[var(--border-default)] rounded-lg p-4 mb-3 text-sm leading-relaxed min-h-[60px]">
           {script || "暂无脚本"}
         </div>
       )}
 
       {checks && (
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs mb-4">
-          <span className={checks.length >= 150 && checks.length <= 200 ? "text-[#1a7f37]" : "text-[#d1242f]"}>
+          <span className={checks.length >= 150 && checks.length <= 200 ? "text-[var(--color-signal-green)]" : "text-[var(--color-alert-red)]"}>
             字数: {checks.length} {checks.length >= 150 && checks.length <= 200 ? "✓" : "✗"}
           </span>
           {brand && (
             <span
-              className={checks.brand_name_count >= 1 ? "text-[#1a7f37]" : "text-[#d1242f]"}
+              className={checks.brand_name_count >= 1 ? "text-[var(--color-signal-green)]" : "text-[var(--color-alert-red)]"}
             >
               品牌"{brand}": {checks.brand_name_count}次
             </span>
           )}
           <span
-            className={checks.product_name_count >= 1 ? "text-[#1a7f37]" : "text-[#d1242f]"}
+            className={checks.product_name_count >= 1 ? "text-[var(--color-signal-green)]" : "text-[var(--color-alert-red)]"}
           >
             品名: {checks.product_name_count}次
           </span>
-          <span className={checks.has_safety_warning ? "text-[#1a7f37]" : "text-[#d1242f]"}>
+          <span className={checks.has_safety_warning ? "text-[var(--color-signal-green)]" : "text-[var(--color-alert-red)]"}>
             {safetyWarningText || "安全提示"}: {checks.has_safety_warning ? "✓" : "✗"}
           </span>
-          <span className={!checks.has_emoji ? "text-[#1a7f37]" : "text-[#d1242f]"}>
+          <span className={!checks.has_emoji ? "text-[var(--color-signal-green)]" : "text-[var(--color-alert-red)]"}>
             禁emoji: {!checks.has_emoji ? "✓" : "✗"}
           </span>
           {checks.forbidden_terms.length > 0 && (
-            <span className="text-[#d1242f]">禁词: {checks.forbidden_terms.join(", ")}</span>
+            <span className="text-[var(--color-alert-red)]">禁词: {checks.forbidden_terms.join(", ")}</span>
           )}
         </div>
       )}
 
       {showPromptInput && (
-        <div className="mb-3 p-3 bg-gray-50 border border-[#393f46] rounded-lg">
+        <div className="mb-3 p-3 bg-gray-50 border border-[var(--border-default)] rounded-lg">
           <div className="text-xs text-gray-500 mb-2">输入提示词，指导 LLM 重新生成脚本：</div>
           <textarea
-            className="w-full bg-white border border-[#d0d7de] rounded p-2 text-sm min-h-[60px] focus:outline-none focus:border-[#0969da] resize-y"
+            className="w-full bg-white border border-[var(--border-default)] rounded p-2 text-sm min-h-[60px] focus:outline-none focus:border-[var(--color-electric-blue)] resize-y"
             placeholder="例如：语气更活泼一些，加入更多互动感..."
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
           />
           <div className="flex gap-1.5 mt-2">
             <button
-              className="bg-[#0969da] text-white border-none px-3 py-1.5 rounded-md text-xs hover:brightness-110 transition-all"
+              className="bg-[var(--btn-primary-bg)] text-white border-none px-3 py-1.5 rounded-md text-xs hover:brightness-110 transition-all"
               onClick={handleRegenerateWithPrompt}
             >
               生成
             </button>
             <button
-              className="bg-white border border-[#393f46] px-3 py-1.5 rounded-md text-xs hover:bg-gray-50 transition-all"
+              className="bg-white border border-[var(--border-default)] px-3 py-1.5 rounded-md text-xs hover:bg-gray-50 transition-all"
               onClick={() => setShowPromptInput(false)}
             >
               取消
@@ -143,25 +143,25 @@ export default function ScriptPreview({
       ) : (
         <div className="flex gap-1.5 flex-wrap">
           <button
-            className="bg-[#0969da] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+            className="bg-[var(--btn-primary-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
             onClick={onApprove}
           >
             {"✓"} 通过
           </button>
           <button
-            className="bg-[#d1242f] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+            className="bg-[var(--btn-danger-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
             onClick={onReject}
           >
             {"✗"} 打回
           </button>
           <button
-            className="bg-white border border-[#393f46] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
+            className="bg-white border border-[var(--border-default)] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
             onClick={onRegenerate}
           >
             {"🔄"} 重生成脚本
           </button>
           <button
-            className="bg-white border border-[#393f46] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
+            className="bg-white border border-[var(--border-default)] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
             onClick={() => {
               setIsEditing(true);
               setEditText(script);
@@ -170,7 +170,7 @@ export default function ScriptPreview({
             {"✏️"} 手动编辑
           </button>
           <button
-            className="bg-white border border-[#393f46] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
+            className="bg-white border border-[var(--border-default)] px-4 py-2 rounded-md text-xs hover:bg-gray-50 transition-all"
             onClick={() => setShowPromptInput(!showPromptInput)}
           >
             {"📝"} 提示词重生成

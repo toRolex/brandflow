@@ -343,4 +343,15 @@
     --ease-enter: 0ms linear;
     --ease-exit: 0ms linear;
   }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }
