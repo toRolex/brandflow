@@ -353,17 +353,6 @@ async def batch_update_fields(request: Request):
     if not new_product and not new_category:
         return {"updated": 0}
 
-    if new_category:
-        from packages.pipeline_services.asset_library.models import Category
-
-        try:
-            Category(new_category)
-        except ValueError:
-            valid = [c.value for c in Category]
-            raise HTTPException(
-                status_code=400, detail=f"invalid category, must be one of: {valid}"
-            )
-
     root_dir: Path = request.app.state.root_dir
     db_path = shared_asset_db_path(root_dir)
     if not db_path.exists():
@@ -456,19 +445,8 @@ async def patch_asset_fields(request: Request, asset_id: str):
     if not new_product and not new_category:
         return {"updated": 0}
 
-    if new_category:
-        from packages.pipeline_services.asset_library.models import Category
-
-        try:
-            Category(new_category)
-        except ValueError:
-            valid = [c.value for c in Category]
-            raise HTTPException(
-                status_code=400, detail=f"invalid category, must be one of: {valid}"
-            )
-
     product = new_product or record.product
-    category = new_category or record.category.value
+    category = new_category or record.category
 
     indexed_dir = shared_indexed_dir(root_dir)
     new_dir = indexed_dir / product / category

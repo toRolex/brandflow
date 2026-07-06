@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from packages.pipeline_services.asset_library import (
     Category,
@@ -86,7 +85,9 @@ class TestAppConfigCategories:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "app_config.json"
             config_path.write_text(
-                json.dumps({"asset_library": {"categories": custom_cats}}, ensure_ascii=False),
+                json.dumps(
+                    {"asset_library": {"categories": custom_cats}}, ensure_ascii=False
+                ),
                 encoding="utf-8",
             )
             manager = AppConfigManager(config_dir=tmpdir)
@@ -407,7 +408,8 @@ class TestOldCategoryBackwardCompat:
             product="荔枝菌",
         )
         assert record.category_name() == "切配处理"
-        assert isinstance(record.category, Category)
+        assert record.category == "切配处理"
+        assert isinstance(record.category, str)
 
     def test_category_name_method(self) -> None:
         from packages.pipeline_services.asset_library import AssetRecord
@@ -439,13 +441,17 @@ class TestPackageExports:
 
     def test_old_import_still_works(self) -> None:
         """Old imports like ``from ...models import Category`` still work."""
-        from packages.pipeline_services.asset_library.models import Category as OldCategory
+        from packages.pipeline_services.asset_library.models import (
+            Category as OldCategory,
+        )
 
         assert OldCategory is Category
 
     def test_new_import_works(self) -> None:
         """New imports like ``from ...category_config import CategoryConfig`` work."""
-        from packages.pipeline_services.asset_library.category_config import CategoryConfig
+        from packages.pipeline_services.asset_library.category_config import (
+            CategoryConfig,
+        )
 
         assert CategoryConfig is not None
 

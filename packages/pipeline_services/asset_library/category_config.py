@@ -6,7 +6,7 @@ Old code may continue using ``Category`` for backward compatibility.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -32,5 +32,20 @@ class CategoryConfig:
 
 
 def default_categories() -> list[CategoryConfig]:
-    """Return default categories. Returns empty list — categories should come from product config."""
-    return []
+    """Return legacy food categories for backward compatibility.
+
+    These match the deprecated ``Category`` enum and are used as a fallback when
+    no instance- or product-level categories are configured.
+    """
+    return [
+        CategoryConfig(id="origin", name="产地溯源"),
+        CategoryConfig(id="sorting", name="筛选分拣"),
+        CategoryConfig(id="washing", name="清洗泡发"),
+        CategoryConfig(id="cutting", name="切配处理"),
+        CategoryConfig(id="into_wok", name="下锅入锅"),
+        CategoryConfig(id="stir_fry", name="烹饪翻炒"),
+        CategoryConfig(id="plating", name="出锅装盘"),
+        CategoryConfig(id="finished", name="成品展示"),
+        CategoryConfig(id="tasting", name="试吃品尝"),
+        CategoryConfig(id="macro", name="产品特写"),
+    ]

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
-from packages.pipeline_services.asset_library.models import AssetRecord, Category
+from packages.pipeline_services.asset_library.models import AssetRecord
 from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_library.thumbnail import _resolve_tool_path
 from packages.pipeline_services.asset_library.vision_client import VisionClient
@@ -98,11 +98,11 @@ class AssetIndexer:
                     log(f"[Indexer] 帧提取失败，使用默认分类: {clip_path.name}")
 
                 target_category = (
-                    Category(category_name)
+                    category_name
                     if self._is_valid_category(category_name)
-                    else Category.MACRO
+                    else "产品特写"
                 )
-                target_dir = output_base / self.product / target_category.value
+                target_dir = output_base / self.product / target_category
                 target_dir.mkdir(parents=True, exist_ok=True)
 
                 prefix = video_path.stem
@@ -131,7 +131,7 @@ class AssetIndexer:
                 self.repository.insert(record)
                 records.append(record)
                 log(
-                    f"[Indexer] 片段 {i + 1}/{len(clips)}: {clip_path.name} → {target_category.value} (置信度: {confidence:.2f})"
+                    f"[Indexer] 片段 {i + 1}/{len(clips)}: {clip_path.name} → {target_category} (置信度: {confidence:.2f})"
                 )
 
             log(f"[Indexer] 视频处理完成: {video_path.name} → {len(records)} 条记录")
@@ -299,13 +299,23 @@ class AssetIndexer:
         return float(result.stdout.strip())
 
     def _is_valid_category(self, name: str) -> bool:
-        """Check if *name* is valid — either in the enum or in configured categories."""
-        # First try configured categories
+        """Check if *name* is valid — either in configured categories or legacy defaults."""
         if self.category_names:
             return name in self.category_names
-        # Fall back to legacy Category enum
-        try:
-            Category(name)
-            return True
-        except ValueError:
-            return False
+        # Legacy food categories retained for old data migration.
+        return name in _LEGACY_CATEGORY_NAMES
+
+
+#: Legacy food category names retained for backward compatibility.
+_LEGACY_CATEGORY_NAMES = {
+    "产地溯源",
+    "筛选分拣",
+    "清洗泡发",
+    "切配处理",
+    "下锅入锅",
+    "烹饪翻炒",
+    "出锅装盘",
+    "成品展示",
+    "试吃品尝",
+    "产品特写",
+}

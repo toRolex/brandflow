@@ -18,19 +18,39 @@ class TestAssetRecord:
         record = AssetRecord(
             asset_id="clip_001",
             file_path="/data/荔枝菌/切配处理/clip_001.mp4",
-            category=Category.CUTTING,
+            category="切配处理",
             product="荔枝菌",
         )
         assert record.status == "available"
         assert record.usage_count == 0
         assert record.confidence == 0.0
 
+    def test_category_accepts_arbitrary_string(self):
+        record = AssetRecord(
+            asset_id="clip_002",
+            file_path="/data/clip.mp4",
+            category="自定义分类",
+            product="测试产品",
+        )
+        assert record.category == "自定义分类"
+        assert isinstance(record.category, str)
+
+    def test_legacy_enum_value_is_coerced_to_string(self):
+        record = AssetRecord(
+            asset_id="clip_003",
+            file_path="/data/clip.mp4",
+            category=Category.CUTTING,
+            product="荔枝菌",
+        )
+        assert record.category == "切配处理"
+        assert isinstance(record.category, str)
+
     def test_confidence_bounds(self):
         with pytest.raises(Exception):
             AssetRecord(
                 asset_id="bad",
                 file_path="/x.mp4",
-                category=Category.MACRO,
+                category="产品特写",
                 confidence=1.5,
             )
 
