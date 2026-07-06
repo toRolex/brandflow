@@ -38,6 +38,12 @@
   --metric-color: #0969da;
   --accent: #0969da;
 
+  --alert-red: oklch(55% 0.21 20);
+  --alert-red-muted: oklch(55% 0.21 20 / 0.10);
+
+  --danger: oklch(55% 0.21 20);
+  --success: #1a7f37;
+
   --spacing-sm: 0.25rem;
   --spacing-md: 0.5rem;
   --spacing-lg: 1rem;
@@ -86,7 +92,10 @@
   --metric-color: #58a6ff;
   --accent: #58a6ff;
 
-  --danger: #f85149;
+  --alert-red: oklch(60% 0.21 20);
+  --alert-red-muted: oklch(55% 0.21 20 / 0.12);
+
+  --danger: oklch(60% 0.21 20);
   --success: #3fb950;
 }
 

@@ -67,7 +67,7 @@ export default function ConfigPage() {
       {saveMsg && (
         <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={
           saveMsg.includes("失败")
-            ? { background: "var(--danger-bg)", border: "1px solid var(--danger)", color: "var(--danger)" }
+            ? { background: "var(--alert-red-muted)", border: "1px solid var(--danger)", color: "var(--danger)" }
             : { background: "var(--bg-tag-green)", border: "1px solid var(--success)", color: "var(--success)" }
         }>
           {saveMsg}
@@ -142,7 +142,7 @@ export default function ConfigPage() {
 
             <button
               className="mt-3 px-4 py-2 rounded-md text-xs transition-colors"
-              style={saving === key ? { background: "var(--text-tertiary)", color: "#fff" } : { background: "var(--accent)", color: "#fff" }}
+              style={saving === key ? { background: "#6e7681", color: "#fff" } : { background: "var(--accent)", color: "#fff" }}
               disabled={saving === key}
               onClick={() => handleSectionSave(key)}
             >

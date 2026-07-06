@@ -276,7 +276,7 @@ export default function ProjectWorkbench() {
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between" style={{ background: "var(--danger-bg)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between" style={{ background: "var(--alert-red-muted)", border: "1px solid var(--danger)", color: "var(--danger)" }}>
           <span>{error}</span>
           <button onClick={() => setError("")} className="text-lg leading-none" style={{ color: "var(--danger)", opacity: 0.7 }}>&times;</button>
         </div>
