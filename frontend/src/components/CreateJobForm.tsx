@@ -1,13 +1,7 @@
 import { useState } from "react";
 import type { ProductionMode, MusicTrack, ScriptTemplate } from "../types";
 import { api } from "../api/client";
-
-const PLATFORMS = [
-  { key: "douyin", label: "抖音" },
-  { key: "xiaohongshu", label: "小红书" },
-  { key: "shipinhao", label: "视频号" },
-  { key: "kuaishou", label: "快手" },
-];
+import { PLATFORMS } from "../constants/platforms";
 
 interface CreateJobFormProps {
   product: string;

@@ -3,13 +3,7 @@ import type { MusicTrack } from "../types";
 import { api } from "../api/client";
 import { type BatchConfig, defaultBatchConfig } from "../utils/batchScriptSplit";
 import BatchScriptUploader from "./BatchScriptUploader";
-
-const PLATFORMS = [
-  { key: "douyin", label: "抖音" },
-  { key: "xiaohongshu", label: "小红书" },
-  { key: "shipinhao", label: "视频号" },
-  { key: "kuaishou", label: "快手" },
-];
+import { PLATFORMS } from "../constants/platforms";
 
 interface BatchCreateFormProps {
   product: string;
