@@ -1,12 +1,16 @@
 """LLM-based sentence classification for asset category matching.
 
 Provides a factory function that creates a callable for classifying sentences
-into asset categories. Categories can come from the legacy ``Category`` enum
-or configurable ``CategoryConfig``.
+into asset categories.  Category names should be passed from the caller
+(typically from product config via ``AppConfigManager.get_categories()``).
+
+When ``category_names`` is ``None`` or empty the classifier runs in *adaptive
+mode*: the LLM is asked to generate a concise Chinese category name freely,
+without being constrained to a predefined list.
 
 Usage::
 
-    fn = create_classify_fn(api_url, api_key, model)
+    fn = create_classify_fn(api_url, api_key, model, category_names=[...])
     category_name = fn("翻炒均匀后出锅装盘。")
 """
 
@@ -19,21 +23,6 @@ import urllib.request
 
 logger = logging.getLogger(__name__)
 
-#: Legacy food category names retained for old data migration.
-#: New code should obtain category names from ``CategoryConfig`` / product config.
-FOOD_CATEGORY_NAMES = [
-    "产地溯源",
-    "筛选分拣",
-    "清洗泡发",
-    "切配处理",
-    "下锅入锅",
-    "烹饪翻炒",
-    "出锅装盘",
-    "成品展示",
-    "试吃品尝",
-    "产品特写",
-]
-
 
 def build_classify_prompt(category_names: list[str] | None = None) -> str:
     """Build the LLM system prompt for sentence classification.
@@ -41,8 +30,9 @@ def build_classify_prompt(category_names: list[str] | None = None) -> str:
     Parameters
     ----------
     category_names:
-        List of valid category names.  Falls back to the legacy food categories
-        when ``None`` or empty.
+        List of valid category names.  When non-empty the LLM is constrained
+        to pick one of them.  When ``None`` or empty the prompt uses adaptive
+        mode (free-form category generation).
 
     Returns
     -------
@@ -50,17 +40,28 @@ def build_classify_prompt(category_names: list[str] | None = None) -> str:
         The formatted system prompt.
     """
     names = _resolve_category_names(category_names)
-    return (
-        "你是视频素材分类助手。根据文案句子的语义，从以下分类中选择最匹配的一个：\n"
-        + ", ".join(names)
-        + '\n\n严格只返回一个JSON对象，不要有任何其他文字：{"category": "分类名"}'
-    )
+    if names:
+        return (
+            "你是视频素材分类助手。根据文案句子的语义，从以下分类中选择最匹配的一个：\n"
+            + ", ".join(names)
+            + '\n\n严格只返回一个JSON对象，不要有任何其他文字：{"category": "分类名"}'
+        )
+    else:
+        return (
+            "你是视频素材分类助手。根据文案句子的语义，给出一个简洁的中文分类名称。\n\n"
+            '严格只返回一个JSON对象，不要有任何其他文字：{"category": "分类名"}'
+        )
 
 
 def _resolve_category_names(category_names: list[str] | None) -> list[str]:
+    """Resolve the effective category names list.
+
+    Returns the input list when non-empty, otherwise an empty list.
+    No hardcoded fallback — callers must supply categories explicitly.
+    """
     if category_names:
         return category_names
-    return FOOD_CATEGORY_NAMES
+    return []
 
 
 def create_classify_fn(
@@ -75,13 +76,15 @@ def create_classify_fn(
         api_url: LLM API 端点。
         api_key: API 密钥。
         model: 模型名称。
-        category_names: 可选的有效分类名列表。默认使用旧版食物分类名。
+        category_names: 可选的有效分类名列表。传入时 LLM 必须从中选择；
+                       不传或为空时使用自适应模式（自由生成分类名）。
 
     Returns:
         可调用对象 (sentence) -> 分类名或 None。
     """
     prompt = build_classify_prompt(category_names)
     valid_names = _resolve_category_names(category_names)
+    adaptive = not valid_names  # True when no predefined categories
 
     def classify_sentence(sentence: str) -> str | None:
         payload = {
@@ -118,7 +121,11 @@ def create_classify_fn(
                     try:
                         parsed = json.loads(json_match.group())
                         cat_name = parsed.get("category", "")
-                        if cat_name in valid_names:
+                        if adaptive:
+                            # Accept any non-empty category name
+                            if cat_name:
+                                return cat_name
+                        elif cat_name in valid_names:
                             return cat_name
                         logger.warning(
                             "LLM 返回无效分类名 (attempt %d): %s", attempt + 1, cat_name
