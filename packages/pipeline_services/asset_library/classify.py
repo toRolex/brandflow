@@ -17,11 +17,22 @@ import logging
 import re
 import urllib.request
 
-from packages.pipeline_services.asset_library.models import Category
-
 logger = logging.getLogger(__name__)
 
-FOOD_CATEGORY_NAMES = [c.value for c in Category]
+#: Legacy food category names retained for old data migration.
+#: New code should obtain category names from ``CategoryConfig`` / product config.
+FOOD_CATEGORY_NAMES = [
+    "产地溯源",
+    "筛选分拣",
+    "清洗泡发",
+    "切配处理",
+    "下锅入锅",
+    "烹饪翻炒",
+    "出锅装盘",
+    "成品展示",
+    "试吃品尝",
+    "产品特写",
+]
 
 
 def build_classify_prompt(category_names: list[str] | None = None) -> str:

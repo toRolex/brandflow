@@ -345,7 +345,6 @@ def suggest_categories(
             "SELECT * FROM assets WHERE status != 'disabled' ORDER BY usage_count ASC"
         ).fetchall()
         conn.close()
-        from packages.pipeline_services.asset_library.models import AssetRecord
 
         from packages.pipeline_services.asset_library.repository import (
             row_to_record,
@@ -449,5 +448,3 @@ def suggest_categories(
         "descriptions": descriptions,
         "errors": errors,
     }
-
-

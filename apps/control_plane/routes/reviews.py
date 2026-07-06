@@ -8,10 +8,6 @@ from pydantic import BaseModel
 
 from packages.domain_core.state import next_phase
 from packages.file_store.repository import FileStoreRepository
-from packages.pipeline_services.phase_orchestrator import (
-    PhaseContext,
-    create_orchestrator,
-)
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 
 logger = logging.getLogger(__name__)
@@ -276,43 +272,29 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         repo = AssetRepository(db_path)
         _ = AssetRetriever(repo)
 
-        from packages.pipeline_services.asset_library.models import Category
-
-        category_enum = None
-        for cat in Category:
-            if cat.value == category:
-                category_enum = cat
-                break
-
-        if category_enum:
-            candidates = repo.query_by_category(product, category_enum)
-            candidates = [
-                c
-                for c in candidates
-                if c.asset_id != rejected_asset_id and c.usage_count < 2
-            ]
-            if candidates:
-                chosen = random.choice(candidates)
-                clips[payload.clip_index] = {
-                    "sentence": sentence,
-                    "category": category,
-                    "file_path": chosen.file_path,
-                    "asset_id": chosen.asset_id,
-                    "method": "rejected_replaced",
-                }
-                repo.decrement_usage(rejected_asset_id)
-                repo.increment_usage(chosen.asset_id)
-                logger.info(
-                    f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}"
-                )
-            else:
-                clips[payload.clip_index]["method"] = "rejected_no_alternative"
-                logger.warning(
-                    f"[Review] 无替代素材: sentence={sentence[:30]}..., category={category}"
-                )
+        candidates = repo.query_by_category(product, category)
+        candidates = [
+            c
+            for c in candidates
+            if c.asset_id != rejected_asset_id and c.usage_count < 2
+        ]
+        if candidates:
+            chosen = random.choice(candidates)
+            clips[payload.clip_index] = {
+                "sentence": sentence,
+                "category": category,
+                "file_path": chosen.file_path,
+                "asset_id": chosen.asset_id,
+                "method": "rejected_replaced",
+            }
+            repo.decrement_usage(rejected_asset_id)
+            repo.increment_usage(chosen.asset_id)
+            logger.info(f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}")
         else:
-            clips[payload.clip_index]["method"] = "rejected_unknown_category"
-            logger.warning(f"[Review] 未知分类: {category}")
+            clips[payload.clip_index]["method"] = "rejected_no_alternative"
+            logger.warning(
+                f"[Review] 无替代素材: sentence={sentence[:30]}..., category={category}"
+            )
 
         clips_path.write_text(
             json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"

@@ -16,15 +16,29 @@ def test_insert_and_query(repo):
     record = AssetRecord(
         asset_id="test_001",
         file_path="/data/test.mp4",
-        category=Category.CUTTING,
+        category="切配处理",
         product="荔枝菌",
         confidence=0.9,
     )
     repo.insert(record)
 
-    results = repo.query_by_category("荔枝菌", Category.CUTTING)
+    results = repo.query_by_category("荔枝菌", "切配处理")
     assert len(results) == 1
     assert results[0].asset_id == "test_001"
+
+
+def test_query_by_category_accepts_arbitrary_string(repo):
+    record = AssetRecord(
+        asset_id="test_custom",
+        file_path="/data/test.mp4",
+        category="自定义分类",
+        product="荔枝菌",
+    )
+    repo.insert(record)
+
+    results = repo.query_by_category("荔枝菌", "自定义分类")
+    assert len(results) == 1
+    assert results[0].category == "自定义分类"
 
 
 def test_query_returns_empty_for_wrong_product(repo):

@@ -34,7 +34,7 @@ AssetStatus = Literal["pending_review", "available", "disabled"]
 class AssetRecord(BaseModel):
     asset_id: str
     file_path: str
-    category: Category
+    category: str
     product: str = ""
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     duration_seconds: float = 0.0
@@ -48,10 +48,9 @@ class AssetRecord(BaseModel):
     def category_name(self) -> str:
         """Return the category value as a plain string.
 
-        Works with both deprecated ``Category`` enum and config-based string categories.
+        Kept for backward compatibility with code that called this method when
+        ``category`` was still a ``Category`` enum.
         """
-        if isinstance(self.category, Category):
-            return self.category.value
         return str(self.category)
 
 

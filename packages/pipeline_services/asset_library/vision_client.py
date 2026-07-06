@@ -6,7 +6,7 @@ import logging
 import os
 from pathlib import Path
 
-# AppConfigManager imported lazily in resolve_vision_config to break circular import
+from packages.pipeline_services.asset_library.category_config import default_categories
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +23,13 @@ def build_vision_prompt(category_names: list[str] | None = None) -> str:
     Parameters
     ----------
     category_names:
-        Category names to include in the prompt. Returns a generic prompt
-        when ``None`` or empty.
+        Category names to include in the prompt. Falls back to the legacy
+        default categories when ``None`` or empty.
     """
     if category_names:
         cats = ", ".join(category_names)
     else:
-        cats = "（请根据图片内容自行判断合适的类别）"
+        cats = ", ".join(c.name for c in default_categories())
     return _VISION_PROMPT.format(categories=cats)
 
 
