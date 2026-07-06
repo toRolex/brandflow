@@ -1,7 +1,7 @@
 # 项目级规范
 
 github 项目地址：
-https://github.com/toRolex/ai-video-pipeline
+https://github.com/toRolex/brandflow
 
 **Windows 服务器：**
 | 环境 | 用户 | 项目路径 |
