@@ -17,12 +17,12 @@ const PLATFORM_OPTIONS = [
 function platformTag(p: string) {
   if (p === "weixin")
     return (
-      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-green-50 text-green-700 border border-green-200">
+      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-[var(--bg-tag-green)] text-[var(--text-tag-green)] border border-[var(--success-border)]">
         视频号
       </span>
     );
   return (
-    <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-red-50 text-red-700 border border-red-200">
+    <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-[var(--alert-red-muted)] text-[var(--alert-red)] border border-[var(--danger-border)]">
       小红书
     </span>
   );
@@ -55,22 +55,22 @@ export default function VideoTable({
   onAssetClick,
 }: Props) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white">
+    <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)]">
       {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b border-gray-100 flex-wrap">
-        <span className="text-sm font-medium text-gray-800">
+      <div className="flex items-center gap-3 p-4 border-b border-[var(--border-subtle)] flex-wrap">
+        <span className="text-sm font-medium text-[var(--text-primary)]">
           视频列表
-          <span className="ml-2 text-xs text-gray-400">({total})</span>
+          <span className="ml-2 text-xs text-[var(--text-tertiary)]">({total})</span>
         </span>
         <input
           type="text"
           placeholder="搜索标题..."
           onChange={(e) => onSearchChange(e.target.value)}
-          className="ml-auto w-full sm:w-auto px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
+          className="ml-auto w-full sm:w-auto px-3 py-1.5 text-sm border border-[var(--border-default)] rounded-lg focus:outline-none focus:border-[var(--color-electric-blue)]"
         />
         <select
           onChange={(e) => onPlatformChange(e.target.value)}
-          className="px-2 py-1.5 text-sm border border-gray-200 rounded-lg"
+          className="px-2 py-1.5 text-sm border border-[var(--border-default)] rounded-lg"
         >
           {PLATFORM_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -81,7 +81,7 @@ export default function VideoTable({
         <select
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value)}
-          className="px-2 py-1.5 text-sm border border-gray-200 rounded-lg"
+          className="px-2 py-1.5 text-sm border border-[var(--border-default)] rounded-lg"
         >
           {SORT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -94,7 +94,7 @@ export default function VideoTable({
       {/* Table */}
       <div className="overflow-auto max-h-[600px]">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-gray-50 text-gray-500 text-xs uppercase">
+          <thead className="sticky top-0 bg-[var(--bg-table-head)] text-[var(--text-secondary)] text-xs uppercase">
             <tr>
               <th className="px-3 py-2 text-left w-10">#</th>
               <th className="px-3 py-2 text-left">标题</th>
@@ -112,13 +112,13 @@ export default function VideoTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={11} className="p-8 text-center text-gray-400">
+                <td colSpan={11} className="p-8 text-center text-[var(--text-tertiary)]">
                   加载中...
                 </td>
               </tr>
             ) : videos.length === 0 ? (
               <tr>
-                <td colSpan={11} className="p-8 text-center text-gray-400">
+                <td colSpan={11} className="p-8 text-center text-[var(--text-tertiary)]">
                   暂无数据
                 </td>
               </tr>
@@ -126,10 +126,10 @@ export default function VideoTable({
               videos.map((v, i) => (
                 <tr
                   key={v.id}
-                  className="border-t border-gray-50 hover:bg-gray-50/50"
+                  className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-nav-active)]"
                 >
-                  <td className="px-3 py-2 text-gray-400">{i + 1}</td>
-                  <td className="px-3 py-2 max-w-[220px] truncate text-gray-800">
+                  <td className="px-3 py-2 text-[var(--text-tertiary)]">{i + 1}</td>
+                  <td className="px-3 py-2 max-w-[220px] truncate text-[var(--text-primary)]">
                     {v.title}
                   </td>
                   <td className="px-3 py-2">{platformTag(v.platform)}</td>
@@ -148,29 +148,29 @@ export default function VideoTable({
                   <td className="px-3 py-2">
                     {v.completion_rate != null ? (
                       <div className="flex items-center gap-1 justify-center">
-                        <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="w-16 h-1.5 bg-[var(--bg-table-head)] rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-blue-500 rounded-full"
+                            className="h-full bg-[var(--color-electric-blue)] rounded-full"
                             style={{
                               width: `${Math.min(v.completion_rate, 100)}%`,
                             }}
                           />
                         </div>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-[var(--text-secondary)]">
                           {v.completion_rate.toFixed(0)}%
                         </span>
                       </div>
                     ) : (
-                      <span className="text-xs text-gray-300">-</span>
+                      <span className="text-xs text-[var(--text-tertiary)]">-</span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">
                     {v.followers_gained > 0 ? (
-                      <span className="text-green-600">
+                      <span className="text-[var(--color-signal-green)]">
                         +{v.followers_gained}
                       </span>
                     ) : (
-                      <span className="text-gray-400">
+                      <span className="text-[var(--text-tertiary)]">
                         {v.followers_gained}
                       </span>
                     )}
@@ -179,15 +179,15 @@ export default function VideoTable({
                     {v.used_asset_ids.length > 0 ? (
                       <button
                         onClick={() => onAssetClick(v)}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border border-green-300 text-green-700 hover:bg-green-50 cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border border-[var(--success-border)] text-[var(--text-tag-green)] hover:bg-[var(--bg-tag-green)] cursor-pointer"
                       >
                         {v.used_asset_ids.length} 个 ▸
                       </button>
                     ) : (
-                      <span className="text-xs text-gray-300">未关联</span>
+                      <span className="text-xs text-[var(--text-tertiary)]">未关联</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-gray-500">
+                  <td className="px-3 py-2 text-[var(--text-secondary)]">
                     {v.publish_date}
                   </td>
                 </tr>

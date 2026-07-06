@@ -54,7 +54,7 @@ export default function BatchActionBar({ count, onEnable, onDisable, onDelete, o
             </button>
           )}
           <button
-            className="px-3 py-1 text-xs rounded-md bg-red-600 text-white hover:bg-red-700"
+            className="px-3 py-1 text-xs rounded-md bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] hover:bg-[var(--btn-danger-hover)]"
             onClick={onDisable}
           >
             批量禁用

@@ -11,6 +11,7 @@ from packages.provider_config import (
     provider_options_payload,
     save_provider_config,
 )
+from packages.provider_config.app_config import AppConfigManager
 from packages.provider_config.store import CLEAR_SECRET_SENTINEL
 
 router = APIRouter(tags=["config"])
@@ -95,3 +96,25 @@ def _normalize_payload(payload: dict) -> dict:
                         status_code=400, detail="invalid json field"
                     ) from exc
     return normalized
+
+
+def _app_config(request: Request) -> AppConfigManager:
+    return AppConfigManager(config_dir=str(request.app.state.root_dir / "config"))
+
+
+@router.get("/api/config/product")
+def get_product_config(request: Request) -> dict:
+    return _app_config(request).get_product_config()
+
+
+@router.put("/api/config/product")
+def put_product_config(request: Request, payload: dict) -> dict:
+    cfg = _app_config(request)
+    cfg.set_product_config(payload)
+    return cfg.get_product_config()
+
+
+@router.delete("/api/config/product")
+def delete_product_config(request: Request) -> dict:
+    _app_config(request).reset_product_config()
+    return {"status": "ok"}

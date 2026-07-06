@@ -22,13 +22,13 @@ export default function SubtitleEditor({ text, onSave }: Props) {
       />
       <div className="flex gap-2 mt-2">
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+          className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] px-4 py-2 rounded-lg text-sm hover:bg-[var(--btn-primary-hover)] transition-colors"
           onClick={() => onSave(value)}
         >
           保存字幕
         </button>
         <button
-          className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+          className="border px-4 py-2 rounded-lg text-sm hover:bg-[var(--bg-nav-active)] transition-colors"
           onClick={() => setValue(text)}
         >
           撤销

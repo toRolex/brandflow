@@ -25,22 +25,22 @@ export default function ClipReviewCard({ clip, index, onReject, rejected = false
   const hasDowngradeInfo = isFallback && clip.requested_category && clip.requested_category !== clip.category;
 
   return (
-    <div className={`border rounded-lg overflow-hidden transition-colors max-w-full ${rejected ? "border-[#d1242f] bg-[#ffebe9]" : "border-[#d0d7de] bg-white"}`}>
-      <div className="p-3 bg-[#f6f8fa] border-b border-[#d0d7de]">
+    <div className={`border rounded-lg overflow-hidden transition-colors max-w-full ${rejected ? "border-[var(--danger-border)] bg-[var(--danger-bg)]" : "border-[var(--border-default)] bg-white"}`}>
+      <div className="p-3 bg-[var(--bg-table-head)] border-b border-[var(--border-default)]">
         <div className="flex items-start gap-2">
-          <span className="text-[#57606a] text-xs font-mono shrink-0">#{index + 1}</span>
-          <p className="text-sm text-[#1f2328] leading-relaxed break-words">{clip.sentence}</p>
+          <span className="text-[var(--text-tertiary)] text-xs font-mono shrink-0">#{index + 1}</span>
+          <p className="text-sm text-[var(--text-primary)] leading-relaxed break-words">{clip.sentence}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-2">
-          <span className="inline-flex px-1.5 py-0.5 rounded text-xs bg-[#eaeef2] text-[#59636e]">
+          <span className="inline-flex px-1.5 py-0.5 rounded text-xs bg-[var(--badge-default-bg)] text-[var(--text-secondary)]">
             {clip.category}
           </span>
           {hasDowngradeInfo ? (
-            <span className="text-xs text-[#9a6700]">
+            <span className="text-xs text-[var(--text-tag-yellow)]">
               想匹配：{clip.requested_category} → 降级为：{clip.category}
             </span>
           ) : (
-            <span className={`text-xs ${clip.method === "llm_match" ? "text-[#1a7f37]" : "text-[#9a6700]"}`}>
+            <span className={`text-xs ${clip.method === "llm_match" ? "text-[var(--color-signal-green)]" : "text-[var(--text-tag-yellow)]"}`}>
               {clip.method === "llm_match" ? "LLM 匹配" : "降级匹配"}
             </span>
           )}
@@ -48,7 +48,7 @@ export default function ClipReviewCard({ clip, index, onReject, rejected = false
       </div>
       <div className="p-3">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-20 h-14 bg-[#eff2f5] rounded overflow-hidden flex-shrink-0">
+          <div className="w-20 h-14 bg-[var(--bg-page)] rounded overflow-hidden flex-shrink-0">
             {thumbnailUrl && !imgError ? (
               <img
                 src={thumbnailUrl}
@@ -67,7 +67,7 @@ export default function ClipReviewCard({ clip, index, onReject, rejected = false
         </div>
         <button
           type="button"
-          className="w-full px-3 py-1.5 rounded text-xs font-medium transition-colors bg-[#d1242f] text-white hover:bg-[#b6232d]"
+          className="w-full px-3 py-1.5 rounded text-xs font-medium transition-colors bg-[var(--btn-danger-bg)] text-white hover:bg-[var(--btn-danger-hover)]"
           onClick={() => onReject(index)}
         >
           打回检索

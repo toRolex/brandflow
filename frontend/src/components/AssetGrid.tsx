@@ -29,7 +29,7 @@ export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPrevi
 
   if (assets.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-[#d0d7de] bg-[#f6f8fa] py-12 text-center text-sm text-[#57606a]">
+      <div className="rounded-lg border border-dashed border-[var(--border-default)] bg-[var(--bg-table-head)] py-12 text-center text-sm text-[var(--text-tertiary)]">
         暂无素材，请先上传视频并索引
       </div>
     );

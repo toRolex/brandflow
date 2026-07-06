@@ -58,16 +58,18 @@ export default function ConfigPage() {
   };
 
   if (!config || !options) {
-    return <div className="text-center py-12 text-gray-400">加载配置中...</div>;
+    return <div className="text-center py-12" style={{ color: "var(--text-secondary)" }}>加载配置中...</div>;
   }
 
   return (
     <div>
       <h1 className="text-xl font-bold mb-6">系统配置</h1>
       {saveMsg && (
-        <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${
-          saveMsg.includes("失败") ? "bg-red-50 border border-red-200 text-red-700" : "bg-green-50 border border-green-200 text-green-700"
-        }`}>
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={
+          saveMsg.includes("失败")
+            ? { background: "var(--alert-red-muted)", border: "1px solid var(--danger)", color: "var(--danger)" }
+            : { background: "var(--bg-tag-green)", border: "1px solid var(--success)", color: "var(--success)" }
+        }>
           {saveMsg}
         </div>
       )}
@@ -77,13 +79,13 @@ export default function ConfigPage() {
         const selected = sectionData?.selected || "";
 
         return (
-          <section key={key} className="bg-gray-50 border rounded-xl p-5 mb-6">
+          <section key={key} className="border rounded-xl p-5 mb-6" style={{ background: "var(--bg-page)" }}>
             <h2 className="font-semibold mb-4">{label}</h2>
 
-            <label className="grid gap-1 text-xs text-gray-500 mb-3">
+            <label className="grid gap-1 text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
               Provider
               <select
-                className="border rounded-lg px-3 py-2 text-sm bg-white"
+                className="border rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bg-card)" }}
                 value={selected}
                 onChange={(e) => {
                   const next = structuredClone(config);
@@ -104,11 +106,11 @@ export default function ConfigPage() {
               sectionOpts?.providers[selected] &&
               (sectionOpts.providers[selected] as { fields: ProviderField[] }).fields.map(
                 (field) => (
-                  <label key={field.name} className="grid gap-1 text-xs text-gray-500 mb-3">
+                  <label key={field.name} className="grid gap-1 text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
                     {field.label}
                     {field.kind === "select" ? (
                       <select
-                        className="border rounded-lg px-3 py-2 text-sm bg-white"
+                        className="border rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bg-card)" }}
                         value={
                           ((sectionData?.providers[selected]?.[field.name]) as string) || ""
                         }
@@ -124,7 +126,7 @@ export default function ConfigPage() {
                       </select>
                     ) : (
                       <input
-                        className="border rounded-lg px-3 py-2 text-sm bg-white"
+                        className="border rounded-lg px-3 py-2 text-sm" style={{ background: "var(--bg-card)" }}
                         type={field.secret ? "password" : "text"}
                         value={
                           ((sectionData?.providers[selected]?.[field.name]) as string) || ""
@@ -139,9 +141,8 @@ export default function ConfigPage() {
               )}
 
             <button
-              className={`mt-3 text-white px-4 py-2 rounded-md text-xs transition-colors ${
-                saving === key ? "bg-gray-400" : "bg-[#0969da] hover:brightness-110"
-              }`}
+              className="mt-3 px-4 py-2 rounded-md text-xs transition-colors"
+              style={saving === key ? { background: "var(--text-tertiary)", color: "var(--text-inverse)" } : { background: "var(--accent)", color: "var(--text-inverse)" }}
               disabled={saving === key}
               onClick={() => handleSectionSave(key)}
             >

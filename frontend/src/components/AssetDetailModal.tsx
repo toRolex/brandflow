@@ -34,23 +34,23 @@ export default function AssetDetailModal({ video, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-xl w-[560px] max-h-[80vh] overflow-auto"
+        className="bg-[var(--bg-card)] rounded-xl shadow-xl w-[560px] max-h-[80vh] overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+        <div className="flex items-center justify-between p-5 border-b border-[var(--border-subtle)]">
           <div>
-            <h3 className="text-base font-semibold text-gray-800 truncate max-w-[400px]">
+            <h3 className="text-base font-semibold text-[var(--text-primary)] truncate max-w-[400px]">
               {video.title}
             </h3>
-            <div className="text-xs text-gray-500 mt-0.5">
+            <div className="text-xs text-[var(--text-secondary)] mt-0.5">
               {video.platform === "weixin" ? "视频号" : "小红书"} ·{" "}
               {video.publish_date} · 播放 {video.plays.toLocaleString()}
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none px-2"
+            className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] text-xl leading-none px-2"
           >
             ×
           </button>
@@ -59,9 +59,9 @@ export default function AssetDetailModal({ video, onClose }: Props) {
         {/* Body */}
         <div className="p-5">
           {loading ? (
-            <div className="text-center text-gray-400 py-6">加载中...</div>
+            <div className="text-center text-[var(--text-tertiary)] py-6">加载中...</div>
           ) : assets.length === 0 ? (
-            <div className="text-center text-gray-400 py-6">
+            <div className="text-center text-[var(--text-tertiary)] py-6">
               未找到关联素材
             </div>
           ) : (
@@ -69,17 +69,17 @@ export default function AssetDetailModal({ video, onClose }: Props) {
               {assets.map((a) => (
                 <div
                   key={a.asset_id}
-                  className="rounded-lg border border-gray-200 p-3"
+                  className="rounded-lg border border-[var(--border-default)] p-3"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-800">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">
                       {a.category}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-[var(--text-secondary)]">
                       {a.product}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                  <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)] mb-2">
                     <span>
                       置信度 {(a.confidence * 100).toFixed(0)}%
                     </span>
@@ -90,7 +90,7 @@ export default function AssetDetailModal({ video, onClose }: Props) {
                       {a.tags.map((t) => (
                         <span
                           key={t}
-                          className="px-1.5 py-0.5 text-[11px] rounded bg-gray-100 text-gray-600"
+                          className="px-1.5 py-0.5 text-[11px] rounded bg-[var(--bg-table-head)] text-[var(--text-secondary)]"
                         >
                           {t}
                         </span>

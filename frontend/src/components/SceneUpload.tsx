@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { SceneFolder, SceneFolderFile } from "../types";
+import ConfirmDialog from "./ConfirmDialog";
 
 export default function SceneUpload() {
   const [folders, setFolders] = useState<SceneFolder[]>([]);
@@ -9,6 +10,10 @@ export default function SceneUpload() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<{
+    folderName: string;
+    fileName: string;
+  } | null>(null);
 
   const loadFolders = async () => {
     try {
@@ -68,7 +73,13 @@ export default function SceneUpload() {
   };
 
   const handleDelete = async (folderName: string, fileName: string) => {
-    if (!window.confirm(`确认删除 ${fileName}？此操作不可撤销。`)) return;
+    setConfirmDelete({ folderName, fileName });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete) return;
+    const { folderName, fileName } = confirmDelete;
+    setConfirmDelete(null);
     try {
       await api.deleteSceneFile(folderName, fileName);
       await loadFolderFiles(folderName);
@@ -132,7 +143,7 @@ export default function SceneUpload() {
                       height="18"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#59636e"
+                      stroke="var(--text-secondary)"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -146,7 +157,7 @@ export default function SceneUpload() {
                       height="20"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#d1242f"
+                      stroke="var(--color-alert-red)"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -159,7 +170,7 @@ export default function SceneUpload() {
                     </span>
                   </div>
                   <button
-                    className="text-xs bg-[#d1242f] text-white px-3 py-1.5 rounded-md hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                    className="text-xs bg-[var(--btn-danger-bg)] text-white px-3 py-1.5 rounded-md hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-1.5"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleUpload(folder.name);
@@ -186,14 +197,14 @@ export default function SceneUpload() {
                             className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50"
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#59636e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                               <span className="text-sm truncate">{file.name}</span>
                               <span className="text-xs text-gray-400 flex-shrink-0">
                                 {formatSize(file.size_bytes)}
                               </span>
                             </div>
                             <button
-                              className="text-xs text-[#d1242f] hover:underline flex-shrink-0 ml-4"
+                              className="text-xs text-[var(--color-alert-red)] hover:underline flex-shrink-0 ml-4"
                               onClick={() => handleDelete(folder.name, file.name)}
                             >
                               删除
@@ -209,6 +220,15 @@ export default function SceneUpload() {
           })}
         </div>
       )}
+      <ConfirmDialog
+        isOpen={confirmDelete !== null}
+        title="确认删除"
+        message={`确认删除 ${confirmDelete?.fileName ?? ""}？此操作不可撤销。`}
+        danger
+        confirmLabel="删除"
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

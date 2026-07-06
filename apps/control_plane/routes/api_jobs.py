@@ -16,9 +16,23 @@ from packages.domain_core.models import (
     ProductionMode,
 )
 from packages.file_store.repository import FileStoreRepository
+from packages.provider_config.app_config import AppConfigManager
 from apps.control_plane.services.music_library import MusicLibrary
 
 router = APIRouter(tags=["api-jobs"])
+
+
+def _resolve_product_defaults(
+    product: str, brand: str, root_dir: Path | str
+) -> tuple[str, str]:
+    """当 product/brand 同时为空时从 product config 读取默认值."""
+    if product.strip():
+        return product, brand
+    cfg = AppConfigManager(config_dir=str(Path(root_dir) / "config")).get_product_config()
+    default_name = cfg.get("default_name", "")
+    if not default_name:
+        return product, brand
+    return default_name, cfg.get("default_brand", brand)
 
 
 class CoverTitleStyleRequest(BaseModel):
@@ -122,16 +136,19 @@ def _make_job_response(
 
 @router.post("/api/projects/{project_id}/jobs")
 def create_job(request: Request, project_id: str, payload: CreateJobRequest):
-    if not payload.product.strip():
+    product, brand = _resolve_product_defaults(
+        payload.product, payload.brand, request.app.state.root_dir
+    )
+    if not product.strip():
         raise HTTPException(status_code=400, detail="product is required")
-    job_id = f"job_{payload.product}_{uuid4().hex[:8]}"
+    job_id = f"job_{product}_{uuid4().hex[:8]}"
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
         job_id=job_id,
         project_id=project_id,
-        product=payload.product,
-        brand=payload.brand,
-        name=payload.name or payload.product,
+        product=product,
+        brand=brand,
+        name=payload.name or product,
         mode=payload.mode,
         phase="queued",
         review_status="none",
@@ -156,21 +173,24 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
 
 @router.post("/api/projects/{project_id}/jobs/batch")
 def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateRequest):
-    if not payload.product.strip():
+    product, brand = _resolve_product_defaults(
+        payload.product, payload.brand, request.app.state.root_dir
+    )
+    if not product.strip():
         raise HTTPException(status_code=400, detail="product is required")
     repo = FileStoreRepository(request.app.state.root_dir)
     existing_count = len(repo.list_jobs(project_id))
 
     results: list[dict] = []
     for i, item in enumerate(payload.jobs):
-        job_id = f"job_{payload.product}_{uuid4().hex[:8]}"
+        job_id = f"job_{product}_{uuid4().hex[:8]}"
         cover_title = _cover_title_from_request(item.cover_title)
         record = JobRecord(
             job_id=job_id,
             project_id=project_id,
-            product=payload.product,
-            brand=payload.brand,
-            name=item.name or payload.product,
+            product=product,
+            brand=brand,
+            name=item.name or product,
             mode=item.mode,
             phase="queued",
             review_status="none",
@@ -189,7 +209,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
         results.append(_make_job_response(record, display_index, payload.platforms))
 
     return {
-        "product": payload.product,
+        "product": product,
         "platforms": payload.platforms,
         "mode": payload.mode,
         "auto_approve": payload.auto_approve,

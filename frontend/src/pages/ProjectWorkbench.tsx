@@ -1,75 +1,57 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobSummary, ScheduleEntry, MusicTrack, ProductionMode } from "../types";
-import JobTable from "../components/JobTable";
-import ScheduleTable from "../components/ScheduleTable";
-import SmartAssetLibrary from "./SmartAssetLibrary";
-import BatchScriptUploader from "../components/BatchScriptUploader";
-import SceneUpload from "../components/SceneUpload";
-import { applyScriptSplit, type BatchConfig, defaultBatchConfig } from "../utils/batchScriptSplit";
+import type { JobSummary, ScheduleEntry, MusicTrack, ProductionMode, ScriptTemplate } from "../types";
+import type { SingleJobFormData } from "../components/CreateJobForm";
+import type { BatchConfig } from "../utils/batchScriptSplit";
+import WorkbenchShell from "../components/WorkbenchShell";
+import CreateJobForm from "../components/CreateJobForm";
+import BatchCreateForm from "../components/BatchCreateForm";
+import ProjectTabs from "../components/ProjectTabs";
+import ConfirmDialog from "../components/ConfirmDialog";
 
-const PLATFORMS = [
-  { key: "douyin", label: "抖音" },
-  { key: "xiaohongshu", label: "小红书" },
-  { key: "shipinhao", label: "视频号" },
-  { key: "kuaishou", label: "快手" },
-];
-
+type TabKey = "jobs" | "schedule" | "assets" | "scene";
 
 export default function ProjectWorkbench() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+  /* ── 共享状态 ── */
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
+  const [projectName, setProjectName] = useState("");
+  const [error, setError] = useState("");
+  const [tab, setTab] = useState<TabKey>("jobs");
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+  const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
+  const [templates, setTemplates] = useState<ScriptTemplate[]>([]);
+
+  /* ── 创建表单共享状态 ── */
   const [product, setProduct] = useState("");
   const [brand, setBrand] = useState("");
   const [platforms, setPlatforms] = useState<string[]>(["douyin", "xiaohongshu"]);
-  const [tab, setTab] = useState<"jobs" | "schedule" | "assets" | "scene">("jobs");
-  const [projectName, setProjectName] = useState("");
-  const [error, setError] = useState("");
-  const [manualScript, setManualScript] = useState("");
   const [jobName, setJobName] = useState("");
   const [productionMode, setProductionMode] = useState<ProductionMode>("generate");
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioMode, setAudioMode] = useState<"tts" | "upload">("tts");
-  const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
-  const [selectedMusic, setSelectedMusic] = useState("");
-  const [musicVolume, setMusicVolume] = useState(80);
   const [language, setLanguage] = useState<"mandarin" | "cantonese">("mandarin");
   const [skipSubtitle, setSkipSubtitle] = useState(false);
-  const [batchLanguage, setBatchLanguage] = useState(false);
-  const [batchSkipSubtitle, setBatchSkipSubtitle] = useState(false);
+  const [manualScript, setManualScript] = useState("");
+  const [audioMode, setAudioMode] = useState<"tts" | "upload">("tts");
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [selectedMusic, setSelectedMusic] = useState("");
+  const [musicVolume, setMusicVolume] = useState(80);
   const [coverTitleText, setCoverTitleText] = useState("");
   const [coverHighlightWords, setCoverHighlightWords] = useState("");
-  const [coverTitleCooldown, setCoverTitleCooldown] = useState(false);
-  const [batchCoverCooldown, setBatchCoverCooldown] = useState<Set<number>>(new Set());
-
-  /* ── 批量创建相关状态 ── */
   const [batchMode, setBatchMode] = useState(false);
-  const [batchCount, setBatchCount] = useState(2);
-  const [batchConfigs, setBatchConfigs] = useState<BatchConfig[]>(() =>
-    Array.from({ length: 2 }, () => defaultBatchConfig()),
-  );
-  const [autoApprove, setAutoApprove] = useState(false);
-  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
-  const [batchCreating, setBatchCreating] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateVariableValues, setTemplateVariableValues] = useState<Record<string, string>>({});
+  const [showTemplateSection, setShowTemplateSection] = useState(false);
 
-  /* 批量数量变化时同步 batchConfigs 长度 */
-  useEffect(() => {
-    setBatchConfigs((prev) => {
-      if (prev.length === batchCount) return prev;
-      if (prev.length < batchCount) {
-        const added = Array.from(
-          { length: batchCount - prev.length },
-          () => defaultBatchConfig(),
-        );
-        return [...prev, ...added];
-      }
-      return prev.slice(0, batchCount);
-    });
-  }, [batchCount]);
+  /* ── ConfirmDialog 状态 ── */
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState("");
+  const [confirmTarget, setConfirmTarget] = useState<string>("");
 
+  /* ── 数据加载 ── */
   const load = useCallback(async () => {
     if (!id) return;
     try {
@@ -86,12 +68,12 @@ export default function ProjectWorkbench() {
       setSchedule(sched);
     } catch (e) {
       console.error("load schedule failed", e);
+      setError("加载排期数据失败");
     }
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Poll job list every 5s while any job is not in a terminal state
   useEffect(() => {
     const terminal = new Set(["completed", "failed", "cancelled", "paused"]);
     if (jobs.length === 0 || jobs.every((j) => terminal.has(j.phase))) return;
@@ -100,31 +82,89 @@ export default function ProjectWorkbench() {
   }, [jobs, load]);
 
   useEffect(() => {
-    api.listMusic().then((data) => setMusicTracks(data.tracks)).catch(() => {});
+    api.listMusic().then((data) => setMusicTracks(data.tracks)).catch(() => {
+      setError("加载音乐库失败");
+    });
+    api.listTemplates().then((data) => setTemplates(data)).catch(() => {
+      setError("加载模板列表失败");
+    });
   }, []);
 
-  /* ── 单个创建（保持现有流程不变） ── */
-  const handleCreateJob = async () => {
+  /* ── 平台切换 ── */
+  const togglePlatform = (p: string) => {
+    setPlatforms((prev) =>
+      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
+    );
+  };
+
+  /* ── 模板操作 ── */
+  const handleSelectTemplate = async (tmplId: string) => {
+    setSelectedTemplateId(tmplId);
+    if (!tmplId) return;
+    try {
+      const tmpl = templates.find((t) => t.id === tmplId);
+      if (!tmpl) return;
+
+      let defaultName = product;
+      let defaultBrand = brand;
+      try {
+        const cfg = await api.getProductConfig();
+        defaultName = (cfg.default_name as string) || product;
+        defaultBrand = (cfg.default_brand as string) || brand;
+      } catch {
+        // 产品配置不可用时回退到当前输入框的值
+      }
+
+      const values: Record<string, string> = {};
+      for (const v of tmpl.variables) {
+        if (v.source === "product_config") {
+          const key = v.name.toLowerCase();
+          if (key.includes("brand") || key.includes("品牌")) {
+            values[v.name] = defaultBrand;
+          } else if (key.includes("product") || key.includes("name") || key.includes("产品") || key.includes("名称")) {
+            values[v.name] = defaultName;
+          } else {
+            values[v.name] = defaultName;
+          }
+        } else if (v.source === "manual") {
+          values[v.name] = "";
+        }
+      }
+      for (const slot of tmpl.slots) {
+        values[`slot_${slot.label}`] = "";
+      }
+      setTemplateVariableValues(values);
+    } catch {
+      setError("加载模板失败");
+    }
+  };
+
+  /* ── 创建 Job（单） ── */
+  const handleCreateJob = async (form: SingleJobFormData) => {
     if (!id) return;
     try {
       const job = await api.createJob(id, {
-        product,
-        brand: brand || undefined,
-        platforms,
-        name: jobName || undefined,
-        mode: productionMode,
-        manual_script: productionMode === "import" ? manualScript : "",
-        audio_source: audioMode,
-        music_track_path: selectedMusic,
-        music_volume: musicVolume,
-        language: language,
-        skip_subtitle: skipSubtitle,
-        cover_title: coverTitleText.trim()
-          ? { text: coverTitleText.trim(), highlight_words: coverHighlightWords.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
+        product: form.product,
+        brand: form.brand || undefined,
+        platforms: form.platforms,
+        name: form.name || undefined,
+        mode: form.mode,
+        manual_script: form.manual_script,
+        audio_source: form.audio_source,
+        music_track_path: form.music_track_path,
+        music_volume: form.music_volume,
+        language: form.language,
+        skip_subtitle: form.skip_subtitle,
+        cover_title: form.cover_title_text
+          ? { text: form.cover_title_text, highlight_words: form.cover_highlight_words.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
           : undefined,
       });
-      if (audioMode === "upload" && audioFile) {
-        await api.uploadJobAudio(job.job_id, audioFile);
+      if (form.audio_source === "upload" && form.audioFile) {
+        try {
+          await api.uploadJobAudio(job.job_id, form.audioFile);
+        } catch {
+          setError("音频上传失败");
+        }
       }
       navigate(`/jobs/${job.job_id}`);
     } catch (e) {
@@ -134,97 +174,109 @@ export default function ProjectWorkbench() {
   };
 
   /* ── 批量创建 ── */
-  const handleBatchCreate = async () => {
+  const handleBatchCreate = async (payload: {
+    product: string;
+    brand?: string;
+    platforms: string[];
+    autoApprove: boolean;
+    jobs: BatchConfig[];
+  }) => {
     if (!id) return;
-    setBatchCreating(true);
     try {
-      await api.batchCreateJobs(id, { product, brand: brand || undefined, platforms, auto_approve: autoApprove, jobs: batchConfigs.map((c, i) => ({
-        name: c.name || `${product} #${String(i + 1).padStart(3, "0")}`,
-        mode: c.productionMode,
-        manual_script: c.productionMode === "import" ? c.manualScript : "",
-        skip_subtitle: c.skipSubtitle,
-        audio_source: c.audioMode,
-        music_track_path: c.musicPath,
-        music_volume: c.musicVolume,
-        language: c.language,
-        cover_title: c.coverTitleText.trim()
-          ? { text: c.coverTitleText.trim(), highlight_words: c.coverHighlightWords.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
-          : undefined,
-      })) });
+      await api.batchCreateJobs(id, {
+        product: payload.product,
+        brand: payload.brand || undefined,
+        platforms: payload.platforms,
+        auto_approve: payload.autoApprove,
+        jobs: payload.jobs.map((c, i) => ({
+          name: c.name || `${payload.product} #${String(i + 1).padStart(3, "0")}`,
+          mode: c.productionMode,
+          manual_script: c.productionMode === "import" ? c.manualScript : "",
+          skip_subtitle: c.skipSubtitle,
+          audio_source: c.audioMode,
+          music_track_path: c.musicPath,
+          music_volume: c.musicVolume,
+          language: c.language,
+          cover_title: c.coverTitleText.trim()
+            ? { text: c.coverTitleText.trim(), highlight_words: c.coverHighlightWords.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
+            : undefined,
+        })),
+      });
       load();
     } catch (e) {
       console.error("batch create failed", e);
       setError("批量创建失败");
-    } finally {
-      setBatchCreating(false);
     }
   };
 
-  function updateBatchConfig(index: number, partial: Partial<BatchConfig>) {
-    setBatchConfigs((prev) =>
-      prev.map((c, i) => (i === index ? { ...c, ...partial } : c)),
-    );
-  }
-
-  function handleScriptsUpload(scripts: string[]) {
-    setBatchConfigs((prev) => {
-      const merged = applyScriptSplit(scripts, prev);
-      setBatchCount(merged.length);
-      return merged;
-    });
-  }
-
+  /* ── Job 操作 ── */
   const handleRetry = async (jobId: string) => {
-    await api.retryJob(jobId);
-    load();
+    try {
+      await api.retryJob(jobId);
+      load();
+    } catch {
+      setError("重试 Job 失败");
+    }
   };
 
-  const handleDeleteJob = async (jobId: string) => {
-    if (!window.confirm(`确认删除 Job ${jobId}？此操作不可撤销。`)) return;
+  const handleDeleteJob = (jobId: string) => {
+    setConfirmTarget(jobId);
+    setConfirmMessage(`确认删除 Job ${jobId}？此操作不可撤销。`);
+    setConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
     try {
-      await api.deleteJob(jobId);
+      await api.deleteJob(confirmTarget);
       load();
     } catch (e) {
       console.error("delete job failed", e);
       setError("删除 Job 失败");
+    } finally {
+      setConfirmOpen(false);
     }
   };
 
   const handleRenameJob = async (jobId: string, name: string) => {
-    await api.renameJob(jobId, name);
+    try {
+      await api.renameJob(jobId, name);
+    } catch {
+      setError("重命名 Job 失败");
+    }
   };
 
-  const togglePlatform = (p: string) => {
-    setPlatforms((prev) =>
-      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
-    );
+  const handleExportSchedule = async () => {
+    try {
+      await api.exportSchedule();
+    } catch {
+      setError("导出排期失败");
+    }
   };
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-6">
-        <button className="text-gray-500 hover:text-gray-700 text-sm" onClick={() => navigate("/")}>
-          &#8592; 项目列表
-        </button>
-        <span className="text-gray-300">|</span>
-        <h1 className="text-lg font-bold">{projectName || id}</h1>
-      </div>
-
-      {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError("")} className="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
-        </div>
-      )}
-
+    <WorkbenchShell
+      projectName={projectName}
+      projectId={id!}
+      error={error}
+      onDismissError={() => setError("")}
+      onBack={() => navigate("/")}
+    >
       {/* ── 创建 Job ── */}
-      <section className="border rounded-xl p-5 mb-6 bg-white">
-        <h2 className="text-[15px] font-semibold mb-3.5">创建新 Job</h2>
+      <section
+        className="border rounded-xl p-5 mb-6"
+        style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
+      >
+        <h2 className="text-[15px] font-semibold mb-3.5" style={{ color: "var(--text-primary)" }}>
+          创建新 Job
+        </h2>
 
-        {/* ── 创建模式切换 ── */}
-        <div className="flex items-center gap-4 mb-4 pb-4 border-b">
-          <span className="text-xs text-[#59636e] font-medium">创建模式</span>
-          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+        {/* 创建模式切换 */}
+        <div
+          className="flex items-center gap-4 mb-4 pb-4 border-b"
+          style={{ borderColor: "var(--border-default)" }}
+        >
+          <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>创建模式</span>
+          <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: "var(--text-primary)" }}>
             <input
               type="radio"
               name="createMode"
@@ -233,7 +285,7 @@ export default function ProjectWorkbench() {
             />
             单个创建
           </label>
-          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+          <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: "var(--text-primary)" }}>
             <input
               type="radio"
               name="createMode"
@@ -242,613 +294,90 @@ export default function ProjectWorkbench() {
             />
             批量创建
           </label>
-          {batchMode && (
-            <>
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
-                <input
-                  type="checkbox"
-                  checked={autoApprove}
-                  onChange={(e) => setAutoApprove(e.target.checked)}
-                />
-                全自动（跳过审核）
-              </label>
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-2">
-                <input
-                  type="checkbox"
-                  checked={batchLanguage}
-                  onChange={(e) => {
-                    setBatchLanguage(e.target.checked);
-                    const lang = e.target.checked ? "cantonese" : "mandarin";
-                    setBatchConfigs((prev) =>
-                      prev.map((c) => ({ ...c, language: lang as "mandarin" | "cantonese" })),
-                    );
-                  }}
-                />
-                粤语版
-              </label>
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-2">
-                <input
-                  type="checkbox"
-                  checked={batchSkipSubtitle}
-                  onChange={(e) => {
-                    setBatchSkipSubtitle(e.target.checked);
-                    setBatchConfigs((prev) =>
-                      prev.map((c) => ({ ...c, skipSubtitle: e.target.checked })),
-                    );
-                  }}
-                />
-                全部跳过字幕
-              </label>
-            </>
-          )}
         </div>
 
-        {/* ── 共享设置：产品 + 品牌 + 平台 ── */}
-        <div className="flex gap-4 flex-wrap items-end">
-          <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
-            产品名称
-            <input
-              type="text"
-              className="border rounded-lg px-3 py-2 text-sm"
-              placeholder="如：龙井茶"
-              value={product}
-              onChange={(e) => setProduct(e.target.value)}
-            />
-          </label>
-          <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[160px]">
-            品牌（可选）
-            <input
-              type="text"
-              className="border rounded-lg px-3 py-2 text-sm"
-              placeholder="如：您的品牌名"
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-            />
-          </label>
-          {!batchMode && (
-            <label className="grid gap-1.5 text-xs text-[#59636e] min-w-[200px]">
-              任务名称（可选）
-              <input
-                type="text"
-                className="border rounded-lg px-3 py-2 text-sm"
-                placeholder="默认使用产品名"
-                value={jobName}
-                onChange={(e) => setJobName(e.target.value)}
-              />
-            </label>
-          )}
-          <div className="grid gap-1 text-xs text-gray-500">
-            <span className="text-xs text-[#59636e]">目标平台</span>
-            <div className="flex gap-3 py-2">
-              {PLATFORMS.map((p) => (
-                <label key={p.key} className="flex items-center gap-1 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={platforms.includes(p.key)}
-                    onChange={() => togglePlatform(p.key)}
-                  />
-                  {p.label}
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── 批量模式 UI ── */}
         {batchMode ? (
-          <>
-            {/* 创建数量 + 字幕总控 */}
-            <div className="mt-4 pt-4 border-t flex items-end gap-4 flex-wrap">
-              <label className="grid gap-1.5 text-xs text-[#59636e] w-32">
-                创建数量
-                <input
-                  type="number"
-                  min={2}
-                  max={20}
-                  value={batchCount}
-                  onChange={(e) => {
-                    const v = Math.max(2, Math.min(20, Number(e.target.value) || 2));
-                    setBatchCount(v);
-                  }}
-                  className="border rounded-lg px-3 py-2 text-sm"
-                />
-              </label>
-              <div className="flex items-end pb-1">
-                <BatchScriptUploader onScripts={handleScriptsUpload} />
-              </div>
-            </div>
-
-            {/* 每个 Job 的独立配置卡片 */}
-            {batchConfigs.map((c, i) => (
-              <div key={i} className="mt-4 pt-4 border-t">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-semibold text-[#0969da]">
-                    #{String(i + 1).padStart(3, "0")}
-                  </span>
-                  <input
-                    type="text"
-                    placeholder={`${product} 任务`}
-                    value={c.name}
-                    onChange={(e) => updateBatchConfig(i, { name: e.target.value })}
-                    className="border rounded-lg px-3 py-1.5 text-sm flex-1 max-w-xs"
-                  />
-                  <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
-                    <input
-                      type="checkbox"
-                      checked={c.skipSubtitle}
-                      onChange={(e) => updateBatchConfig(i, { skipSubtitle: e.target.checked })}
-                    />
-                    跳过字幕
-                  </label>
-                  <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-2">
-                    <input
-                      type="checkbox"
-                      checked={c.language === "cantonese"}
-                      onChange={(e) =>
-                        updateBatchConfig(i, { language: e.target.checked ? "cantonese" : "mandarin" })
-                      }
-                    />
-                    粤语
-                  </label>
-                </div>
-
-                {/* 生产模式 */}
-                <div className="flex items-center gap-4 mb-3">
-                  <span className="text-xs text-[#59636e] font-medium">生产模式</span>
-                  <div className="flex rounded-lg border overflow-hidden">
-                    <button
-                      type="button"
-                      className={`px-3 py-1 text-sm font-medium transition-colors ${
-                        c.productionMode === "generate"
-                          ? "bg-[#0969da] text-white"
-                          : "bg-white text-[#59636e] hover:bg-gray-50"
-                      }`}
-                      onClick={() => updateBatchConfig(i, { productionMode: "generate", scriptMode: "auto" })}
-                    >
-                      智能生成
-                    </button>
-                    <button
-                      type="button"
-                      className={`px-3 py-1 text-sm font-medium transition-colors ${
-                        c.productionMode === "import"
-                          ? "bg-[#d1242f] text-white"
-                          : "bg-white text-[#59636e] hover:bg-gray-50"
-                      }`}
-                      onClick={() => updateBatchConfig(i, { productionMode: "import", scriptMode: "manual" })}
-                    >
-                      手动导入
-                    </button>
-                  </div>
-                </div>
-                {c.productionMode === "import" && (
-                  <textarea
-                    className="w-full border rounded-lg px-3 py-2 text-sm min-h-[80px] mb-3 placeholder:text-gray-400"
-                    placeholder="请输入文案内容（150-200字）..."
-                    value={c.manualScript}
-                    onChange={(e) => updateBatchConfig(i, { manualScript: e.target.value })}
-                  />
-                )}
-
-                {/* 音频来源 */}
-                <div className="flex items-center gap-4 mb-3">
-                  <span className="text-xs text-[#59636e] font-medium">音频来源</span>
-                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      name={`batchAudioMode-${i}`}
-                      checked={c.audioMode === "tts"}
-                      onChange={() => updateBatchConfig(i, { audioMode: "tts" })}
-                    />
-                    TTS 生成
-                  </label>
-                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      name={`batchAudioMode-${i}`}
-                      checked={c.audioMode === "upload"}
-                      onChange={() => updateBatchConfig(i, { audioMode: "upload" })}
-                    />
-                    上传音频
-                  </label>
-                </div>
-                {c.audioMode === "upload" && (
-                  <div className="flex items-center gap-3">
-                    <label className="border-2 border-dashed border-gray-300 rounded-lg px-6 py-3 text-sm text-gray-500 hover:border-gray-400 cursor-pointer transition-colors">
-                      <input
-                        type="file"
-                        accept="audio/*"
-                        className="hidden"
-                        onChange={(e) =>
-                          updateBatchConfig(i, { audioFile: e.target.files?.[0] || null })
-                        }
-                      />
-                      {c.audioFile ? c.audioFile.name : "点击选择音频文件"}
-                    </label>
-                    {c.audioFile && (
-                      <span className="text-xs text-green-600">&#10003; 已选择</span>
-                    )}
-                  </div>
-                )}
-
-                {/* 封面标题（可选） */}
-                <div className="flex items-center gap-4 mb-3 mt-3">
-                  <span className="text-xs text-[#59636e] font-medium">封面标题（可选）</span>
-                  <button
-                    type="button"
-                    className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
-                    disabled={c.productionMode === "generate" || batchCoverCooldown.has(i)}
-                    onClick={async () => {
-                      const text = c.productionMode === "import" ? c.manualScript : "";
-                      if (!text.trim()) return;
-                      setBatchCoverCooldown((prev) => new Set(prev).add(i));
-                      try {
-                        const res = await api.generateCoverTitle({ script_text: text, product });
-                        updateBatchConfig(i, { coverTitleText: res.text, coverHighlightWords: res.highlight_words.join("，") });
-                      } catch (e) {
-                        console.error("generate cover title failed", e);
-                      } finally {
-                        setTimeout(() => setBatchCoverCooldown((prev) => { const next = new Set(prev); next.delete(i); return next; }), 5000);
-                      }
-                    }}
-                  >
-                    {batchCoverCooldown.has(i) ? "冷却中（5s）..." : c.productionMode === "generate" ? "需先输入文案才能生成" : "自动生成标题"}
-                  </button>
-                </div>
-                <div className="flex items-center gap-3 flex-wrap mb-3">
-                  <input
-                    type="text"
-                    className="border rounded-lg px-3 py-2 text-sm min-w-[220px] flex-1 max-w-xs"
-                    placeholder="输入封面标题（留空则不显示）"
-                    value={c.coverTitleText}
-                    onChange={(e) => updateBatchConfig(i, { coverTitleText: e.target.value })}
-                  />
-                  <input
-                    type="text"
-                    className="border rounded-lg px-3 py-2 text-sm min-w-[180px]"
-                    placeholder="高亮关键词，用逗号分隔"
-                    value={c.coverHighlightWords}
-                    onChange={(e) => updateBatchConfig(i, { coverHighlightWords: e.target.value })}
-                  />
-                </div>
-
-                {/* 背景音乐（可选） */}
-                <div className="flex items-center gap-4 mb-3 mt-3">
-                  <span className="text-xs text-[#59636e] font-medium">背景音乐（可选）</span>
-                </div>
-                <div className="flex items-center gap-3 flex-wrap mb-3">
-                  <select
-                    className="border rounded-lg px-3 py-1.5 text-sm min-w-[200px]"
-                    value={c.musicPath}
-                    onChange={(e) => updateBatchConfig(i, { musicPath: e.target.value })}
-                  >
-                    <option value="">-- 选择背景音乐 --</option>
-                    {musicTracks.map((t) => (
-                      <option key={t.relative_path} value={t.relative_path}>
-                        {t.filename}
-                        {t.duration_seconds != null
-                          ? ` (${Math.floor(t.duration_seconds)}s)`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50"
-                    onClick={() => {
-                      if (musicTracks.length === 0) return;
-                      const pick = musicTracks[Math.floor(Math.random() * musicTracks.length)];
-                      updateBatchConfig(i, { musicPath: pick.relative_path });
-                    }}
-                  >
-                    🎲 随机
-                  </button>
-                  {musicTracks.length === 0 && (
-                    <span className="text-xs text-gray-400">
-                      音乐库为空，请将音频文件放入 workspace/music_library/
-                    </span>
-                  )}
-                  <label className="flex items-center gap-2 text-xs text-[#59636e] ml-4">
-                    音量
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={c.musicVolume}
-                      onChange={(e) => updateBatchConfig(i, { musicVolume: Number(e.target.value) })}
-                      className="w-24"
-                    />
-                    <span className="w-8 text-right">{c.musicVolume}%</span>
-                  </label>
-                </div>
-              </div>
-            ))}
-
-            {/* 批量创建按钮 */}
-            <div className="mt-4 pt-4 border-t flex justify-end">
-              <button
-                className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all disabled:opacity-50"
-                onClick={handleBatchCreate}
-                disabled={batchCreating}
-              >
-                {batchCreating ? "创建中…" : `批量创建 ${batchCount} 个 Job`}
-              </button>
-            </div>
-          </>
+          <BatchCreateForm
+            product={product}
+            setProduct={setProduct}
+            brand={brand}
+            setBrand={setBrand}
+            platforms={platforms}
+            togglePlatform={togglePlatform}
+            musicTracks={musicTracks}
+            onBatchCreate={handleBatchCreate}
+            onError={setError}
+          />
         ) : (
-          /* ── 单个创建 UI（保持现有流程不变） ── */
-          <>
-            {/* Production Mode Section */}
-            <div className="mt-4 pt-4 border-t">
-              <div className="flex items-center gap-4 mb-3">
-                <span className="text-xs text-[#59636e] font-medium">生产模式</span>
-                <div className="flex rounded-lg border overflow-hidden">
-                  <button
-                    type="button"
-                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                      productionMode === "generate"
-                        ? "bg-[#0969da] text-white"
-                        : "bg-white text-[#59636e] hover:bg-gray-50"
-                    }`}
-                    onClick={() => setProductionMode("generate")}
-                  >
-                    智能生成
-                  </button>
-                  <button
-                    type="button"
-                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                      productionMode === "import"
-                        ? "bg-[#d1242f] text-white"
-                        : "bg-white text-[#59636e] hover:bg-gray-50"
-                    }`}
-                    onClick={() => setProductionMode("import")}
-                  >
-                    手动导入
-                  </button>
-                </div>
-                <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
-                  <input
-                    type="checkbox"
-                    checked={language === "cantonese"}
-                    onChange={(e) => setLanguage(e.target.checked ? "cantonese" : "mandarin")}
-                  />
-                  粤语版
-                </label>
-                <label className="flex items-center gap-1.5 text-sm cursor-pointer ml-4">
-                  <input
-                    type="checkbox"
-                    checked={skipSubtitle}
-                    onChange={(e) => setSkipSubtitle(e.target.checked)}
-                  />
-                  跳过字幕
-                </label>
-              </div>
-              {productionMode === "import" && (
-                <textarea
-                  className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px] placeholder:text-gray-400"
-                  placeholder="请输入文案内容（150-200字）..."
-                  value={manualScript}
-                  onChange={(e) => setManualScript(e.target.value)}
-                />
-              )}
-              {productionMode === "generate" && (
-                <p className="text-xs text-gray-400 mt-1">
-                  LLM 将根据产品信息自动生成口播脚本
-                </p>
-              )}
-            </div>
-
-            {/* Audio Upload Section */}
-            <div className="mt-4 pt-4 border-t">
-              <div className="flex items-center gap-4 mb-3">
-                <span className="text-xs text-[#59636e] font-medium">音频来源</span>
-                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="audioMode"
-                    checked={audioMode === "tts"}
-                    onChange={() => setAudioMode("tts")}
-                  />
-                  TTS 生成
-                </label>
-                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="audioMode"
-                    checked={audioMode === "upload"}
-                    onChange={() => setAudioMode("upload")}
-                  />
-                  上传音频
-                </label>
-              </div>
-              {audioMode === "upload" && (
-                <div className="flex items-center gap-3">
-                  <label className="border-2 border-dashed border-gray-300 rounded-lg px-6 py-4 text-sm text-gray-500 hover:border-gray-400 cursor-pointer transition-colors">
-                    <input
-                      type="file"
-                      accept="audio/*"
-                      className="hidden"
-                      onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
-                    />
-                    {audioFile ? audioFile.name : "点击选择音频文件"}
-                  </label>
-                  {audioFile && (
-                    <span className="text-xs text-green-600">&#10003; 已选择</span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Cover Title Section */}
-            <div className="mt-4 pt-4 border-t">
-              <div className="flex items-center gap-4 mb-3">
-                <span className="text-xs text-[#59636e] font-medium">封面标题（可选）</span>
-                <button
-                  type="button"
-                  className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50 disabled:opacity-50"
-                  disabled={productionMode === "generate" || coverTitleCooldown}
-                  onClick={async () => {
-                    const text = productionMode === "import" ? manualScript : "";
-                    if (!text.trim()) return;
-                    setCoverTitleCooldown(true);
-                    try {
-                      const res = await api.generateCoverTitle({ script_text: text, product });
-                      setCoverTitleText(res.text);
-                      setCoverHighlightWords(res.highlight_words.join("，"));
-                    } catch (e) {
-                      console.error("generate cover title failed", e);
-                    } finally {
-                      setTimeout(() => setCoverTitleCooldown(false), 5000);
-                    }
-                  }}
-                >
-                  {coverTitleCooldown ? "冷却中（5s）..." : productionMode === "generate" ? "需先输入文案才能生成" : "自动生成标题"}
-                </button>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <input
-                  type="text"
-                  className="border rounded-lg px-3 py-2 text-sm min-w-[260px] flex-1 max-w-md"
-                  placeholder="输入封面标题（留空则不显示）"
-                  value={coverTitleText}
-                  onChange={(e) => setCoverTitleText(e.target.value)}
-                />
-                <input
-                  type="text"
-                  className="border rounded-lg px-3 py-2 text-sm min-w-[200px]"
-                  placeholder="高亮关键词，用逗号分隔"
-                  value={coverHighlightWords}
-                  onChange={(e) => setCoverHighlightWords(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Background Music Section (always visible) */}
-            <div className="mt-4 pt-4 border-t">
-              <div className="flex items-center gap-4 mb-3">
-                <span className="text-xs text-[#59636e] font-medium">背景音乐（可选）</span>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <select
-                  className="border rounded-lg px-3 py-1.5 text-sm min-w-[200px]"
-                  value={selectedMusic}
-                  onChange={(e) => setSelectedMusic(e.target.value)}
-                >
-                  <option value="">-- 选择背景音乐 --</option>
-                  {musicTracks.map((t) => (
-                    <option key={t.relative_path} value={t.relative_path}>
-                      {t.filename}
-                      {t.duration_seconds != null
-                        ? ` (${Math.floor(t.duration_seconds)}s)`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="text-xs border rounded px-2 py-1.5 hover:bg-gray-50"
-                  onClick={() => {
-                    if (musicTracks.length === 0) return;
-                    const pick = musicTracks[Math.floor(Math.random() * musicTracks.length)];
-                    setSelectedMusic(pick.relative_path);
-                  }}
-                >
-                  🎲 随机
-                </button>
-                {musicTracks.length === 0 && (
-                  <span className="text-xs text-gray-400">
-                    音乐库为空，请将音频文件放入 workspace/music_library/
-                  </span>
-                )}
-                <label className="flex items-center gap-2 text-xs text-[#59636e] ml-4">
-                  音量
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={musicVolume}
-                    onChange={(e) => setMusicVolume(Number(e.target.value))}
-                    className="w-24"
-                  />
-                  <span className="w-8 text-right">{musicVolume}%</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-4 border-t flex justify-end">
-              <button
-                className="bg-[#d1242f] text-white border-none px-8 py-3 rounded-lg text-[15px] font-semibold hover:brightness-110 transition-all"
-                onClick={handleCreateJob}
-              >
-                创建并开始生产
-              </button>
-            </div>
-          </>
+          <CreateJobForm
+            product={product}
+            setProduct={setProduct}
+            brand={brand}
+            setBrand={setBrand}
+            platforms={platforms}
+            togglePlatform={togglePlatform}
+            jobName={jobName}
+            setJobName={setJobName}
+            productionMode={productionMode}
+            setProductionMode={setProductionMode}
+            language={language}
+            setLanguage={setLanguage}
+            skipSubtitle={skipSubtitle}
+            setSkipSubtitle={setSkipSubtitle}
+            manualScript={manualScript}
+            setManualScript={setManualScript}
+            audioMode={audioMode}
+            setAudioMode={setAudioMode}
+            audioFile={audioFile}
+            setAudioFile={setAudioFile}
+            musicTracks={musicTracks}
+            selectedMusic={selectedMusic}
+            setSelectedMusic={setSelectedMusic}
+            musicVolume={musicVolume}
+            setMusicVolume={setMusicVolume}
+            coverTitleText={coverTitleText}
+            setCoverTitleText={setCoverTitleText}
+            coverHighlightWords={coverHighlightWords}
+            setCoverHighlightWords={setCoverHighlightWords}
+            templates={templates}
+            selectedTemplateId={selectedTemplateId}
+            setSelectedTemplateId={setSelectedTemplateId}
+            templateVariableValues={templateVariableValues}
+            setTemplateVariableValues={setTemplateVariableValues}
+            showTemplateSection={showTemplateSection}
+            setShowTemplateSection={setShowTemplateSection}
+            handleSelectTemplate={handleSelectTemplate}
+            onCreateJob={handleCreateJob}
+            onError={setError}
+          />
         )}
       </section>
 
-      {/* Tab: Jobs / Schedule / Assets / Scene */}
-      <div className="flex gap-4 border-b mb-4">
-        <button
-          className={`pb-2 text-sm font-medium transition-colors ${
-            tab === "jobs"
-              ? "border-b-2 border-[#0969da] text-[#0969da]"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-          onClick={() => setTab("jobs")}
-        >
-          Job 列表
-        </button>
-        <button
-          className={`pb-2 text-sm font-medium transition-colors ${
-            tab === "schedule"
-              ? "border-b-2 border-[#0969da] text-[#0969da]"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-          onClick={() => setTab("schedule")}
-        >
-          排期池
-        </button>
-        <button
-          className={`pb-2 text-sm font-medium transition-colors ${
-            tab === "assets"
-              ? "border-b-2 border-[#0969da] text-[#0969da]"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-          onClick={() => setTab("assets")}
-        >
-          智能素材库
-        </button>
-        <button
-          className={`pb-2 text-sm font-medium transition-colors ${
-            tab === "scene"
-              ? "border-b-2 border-[#0969da] text-[#0969da]"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-          onClick={() => setTab("scene")}
-        >
-          场景素材
-        </button>
-      </div>
+      {/* ── Tabs ── */}
+      <ProjectTabs
+        tab={tab}
+        onTabChange={setTab}
+        jobs={jobs}
+        schedule={schedule}
+        projectId={id!}
+        selectedJobIds={selectedJobIds}
+        onSelectionChange={setSelectedJobIds}
+        onRetry={handleRetry}
+        onDeleteJob={handleDeleteJob}
+        onRenameJob={handleRenameJob}
+        onExportSchedule={handleExportSchedule}
+      />
 
-      {tab === "jobs" ? (
-        <JobTable
-          jobs={jobs}
-          onRetry={handleRetry}
-          onDelete={handleDeleteJob}
-          onRename={handleRenameJob}
-          selectedJobIds={selectedJobIds}
-          onSelectionChange={setSelectedJobIds}
-        />
-      ) : tab === "schedule" ? (
-        <ScheduleTable
-          entries={schedule}
-          onExport={() => api.exportSchedule()}
-        />
-      ) : tab === "scene" ? (
-        <SceneUpload />
-      ) : (
-        <SmartAssetLibrary projectId={id!} />
-      )}
-    </div>
+      {/* ── ConfirmDialog ── */}
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title="确认删除"
+        message={confirmMessage}
+        confirmLabel="删除"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </WorkbenchShell>
   );
 }

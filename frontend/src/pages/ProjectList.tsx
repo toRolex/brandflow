@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { Project } from "../types";
@@ -7,6 +7,7 @@ export default function ProjectList() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [newName, setNewName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   const load = () => {
@@ -39,21 +40,43 @@ export default function ProjectList() {
     }
   };
 
+  const focusInput = () => {
+    inputRef.current?.focus();
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold">项目列表</h1>
+        <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
+          项目列表
+        </h1>
         <div className="flex gap-2">
           <input
-            className="border rounded-lg px-3 py-2 text-sm w-48"
+            ref={inputRef}
+            className="rounded-lg px-3 py-2 text-sm w-48 border"
+            style={{
+              background: "var(--input-bg)",
+              color: "var(--input-text)",
+              borderColor: "var(--input-border)",
+            }}
             placeholder="新项目名称"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && create()}
           />
           <button
-            className="bg-[#d1242f] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:brightness-110 transition-all"
+            className="text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style={{
+              background: "var(--btn-primary-bg)",
+              color: "var(--btn-primary-text)",
+            }}
             onClick={create}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--btn-primary-hover)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--btn-primary-bg)";
+            }}
           >
             创建项目
           </button>
@@ -61,15 +84,51 @@ export default function ProjectList() {
       </div>
 
       {projects.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <div className="text-5xl mb-4">📂</div>
-          <p>暂无项目，创建一个开始吧</p>
+        <div className="text-center py-16">
+          <p
+            className="text-lg font-semibold mb-2"
+            style={{ color: "var(--text-primary)" }}
+          >
+            开始你的第一个项目
+          </p>
+          <p
+            className="text-sm mb-6"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            创建项目后，即可批量生产短视频内容
+          </p>
+          <button
+            className="text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all"
+            style={{
+              background: "var(--btn-primary-bg)",
+              color: "var(--btn-primary-text)",
+            }}
+            onClick={focusInput}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--btn-primary-hover)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--btn-primary-bg)";
+            }}
+          >
+            新建项目
+          </button>
         </div>
       ) : (
-        <div className="border rounded-xl overflow-hidden">
+        <div
+          className="rounded-xl overflow-hidden border"
+          style={{ borderColor: "var(--border-default)" }}
+        >
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-[#393f46] text-left text-[#59636e]">
+              <tr
+                className="border-b text-left"
+                style={{
+                  background: "var(--bg-table-head)",
+                  borderColor: "var(--border-default)",
+                  color: "var(--text-secondary)",
+                }}
+              >
                 <th className="py-3 px-4 font-medium">项目名称</th>
                 <th className="py-3 px-4 font-medium">状态</th>
                 <th className="py-3 px-4 font-medium">Jobs</th>
@@ -78,21 +137,60 @@ export default function ProjectList() {
             </thead>
             <tbody>
               {projects.map((p) => (
-                <tr key={p.id} className="border-b hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4 font-medium">{p.name || p.id}</td>
-                  <td className="py-3 px-4 text-gray-500">{p.status}</td>
-                  <td className="py-3 px-4 text-gray-500">{p.job_count}</td>
+                <tr
+                  key={p.id}
+                  className="border-b transition-colors"
+                  style={{ borderColor: "var(--border-default)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "var(--bg-nav-active)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "";
+                  }}
+                >
+                  <td
+                    className="py-3 px-4 font-medium"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {p.name || p.id}
+                  </td>
+                  <td
+                    className="py-3 px-4"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {p.status}
+                  </td>
+                  <td
+                    className="py-3 px-4"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {p.job_count}
+                  </td>
                   <td className="py-3 px-4">
                     <div className="flex gap-2">
                       <button
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        className="text-sm font-medium transition-colors"
+                        style={{ color: "var(--text-link)" }}
                         onClick={() => navigate(`/projects/${p.id}`)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = "0.8";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = "";
+                        }}
                       >
                         打开 →
                       </button>
                       <button
-                        className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        className="text-sm font-medium transition-colors"
+                        style={{ color: "var(--danger)" }}
                         onClick={() => setDeleteTarget(p)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = "0.8";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = "";
+                        }}
                       >
                         删除
                       </button>
@@ -106,24 +204,66 @@ export default function ProjectList() {
       )}
 
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-bold mb-2">确认删除</h3>
-            <p className="text-gray-600 mb-6">
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{
+            background: "rgba(0, 0, 0, 0.5)",
+            zIndex: "var(--z-modal-backdrop)",
+          }}
+        >
+          <div
+            className="max-w-sm w-full mx-4 p-6 border"
+            style={{
+              background: "var(--bg-card)",
+              borderColor: "var(--border-default)",
+              borderRadius: "var(--radius-lg)",
+              boxShadow: "var(--shadow-modal)",
+            }}
+          >
+            <h3
+              className="text-lg font-bold mb-2"
+              style={{ color: "var(--text-primary)" }}
+            >
+              确认删除
+            </h3>
+            <p
+              className="mb-6 text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            >
               确定要删除项目「{deleteTarget.name || deleteTarget.id}」吗？此操作不可撤销。
             </p>
             <div className="flex justify-end gap-3">
               <button
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+                style={{
+                  background: "var(--btn-ghost-bg)",
+                  color: "var(--btn-ghost-text)",
+                }}
                 onClick={() => setDeleteTarget(null)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "var(--btn-ghost-hover-bg)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "var(--btn-ghost-bg)";
+                }}
               >
                 取消
               </button>
               <button
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                className="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+                style={{
+                  background: "var(--btn-danger-bg)",
+                  color: "var(--btn-danger-text)",
+                }}
                 onClick={confirmDelete}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "var(--btn-danger-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "var(--btn-danger-bg)";
+                }}
               >
-                删除
+                确认删除
               </button>
             </div>
           </div>

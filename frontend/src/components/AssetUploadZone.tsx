@@ -68,12 +68,13 @@ export default function AssetUploadZone({
   };
 
   return (
-    <section className="border rounded-xl p-4 bg-white">
+    <section className="border rounded-xl p-4" style={{ background: "var(--bg-card)" }}>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold">素材批量上传</h3>
         <button
           type="button"
-          className="text-sm text-[#0969da] hover:underline disabled:text-gray-400 disabled:no-underline"
+          className="text-sm hover:underline disabled:text-[var(--text-tertiary)] disabled:no-underline"
+          style={{ color: "var(--accent)" }}
           onClick={() => inputRef.current?.click()}
           disabled={disabled || isConfirming}
         >
@@ -82,7 +83,8 @@ export default function AssetUploadZone({
       </div>
 
       <div
-        className="border-2 border-dashed border-[#d0d7de] rounded-lg p-6 text-center text-sm text-[#59636e] bg-[#f6f8fa]"
+        className="border-2 border-dashed rounded-lg p-6 text-center text-sm"
+        style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)", background: "var(--bg-page)" }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
@@ -99,13 +101,13 @@ export default function AssetUploadZone({
       />
 
       <div className="mt-4">
-        <div className="flex items-center justify-between text-xs text-[#59636e] mb-2">
+        <div className="flex items-center justify-between text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
           <span>待入库列表（{pendingFiles.length}）</span>
           <span>总大小：{formatSize(totalSize)}</span>
         </div>
 
         {pendingFiles.length === 0 ? (
-          <div className="text-xs text-gray-400 border rounded-lg px-3 py-2">暂无待入库素材</div>
+          <div className="text-xs border rounded-lg px-3 py-2" style={{ color: "var(--text-tertiary)" }}>暂无待入库素材</div>
         ) : (
           <ul className="border rounded-lg divide-y max-h-48 overflow-auto">
             {pendingFiles.map((file) => {
@@ -114,11 +116,12 @@ export default function AssetUploadZone({
                 <li key={key} className="px-3 py-2 flex items-center justify-between text-sm">
                   <div className="min-w-0">
                     <p className="truncate" title={file.name}>{file.name}</p>
-                    <p className="text-xs text-gray-500">{formatSize(file.size)}</p>
+                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{formatSize(file.size)}</p>
                   </div>
                   <button
                     type="button"
-                    className="text-xs text-red-500 hover:underline ml-3"
+                    className="text-xs hover:underline ml-3"
+                    style={{ color: "var(--danger)" }}
                     onClick={() => removePendingFile(key)}
                     disabled={disabled || isConfirming}
                   >
@@ -134,7 +137,8 @@ export default function AssetUploadZone({
       <div className="mt-4 flex justify-end">
         <button
           type="button"
-          className="bg-[#0969da] text-white px-4 py-2 rounded-lg text-sm font-medium disabled:bg-[#8c959f]"
+          className="text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+          style={{ background: "var(--btn-primary-bg)" }}
           onClick={handleConfirm}
           disabled={disabled || isConfirming || pendingFiles.length === 0}
         >

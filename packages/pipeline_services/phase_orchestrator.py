@@ -800,7 +800,7 @@ class PhaseOrchestrator:
                 out_label = f"t{i}"
 
                 # Build segments
-                filter_parts.append(f"[{i}:v]settb=AVTB[{cur_in_label}]")
+                filter_parts.append(f"[{i}:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[{cur_in_label}]")
                 filter_parts.append(
                     f"[{prev_label}][{cur_in_label}]"
                     f"xfade=transition=fade:duration={transition_duration:.3f}:"
@@ -808,13 +808,13 @@ class PhaseOrchestrator:
                 )
                 if i < len(clips) - 1:
                     filter_parts.append(
-                        f"[{out_label}]setpts=PTS-STARTPTS,settb=AVTB[r{i}]"
+                        f"[{out_label}]setpts=PTS-STARTPTS,fps=30[r{i}]"
                     )
 
                 accumulated += durations[i] - transition_duration
 
-            # First input always needs settb
-            filter_complex = f"[0:v]settb=AVTB[c0];" + ";".join(filter_parts)
+            # First input always needs settb + fps + scale normalization
+            filter_complex = f"[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[c0];" + ";".join(filter_parts)
             final_label = f"t{len(clips) - 1}"
 
             cmd = [ffmpeg, "-y"]

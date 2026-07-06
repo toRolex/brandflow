@@ -91,8 +91,11 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
 
   if (!asset) {
     return (
-      <section className="bg-white border border-[#d0d7de] rounded-lg p-6">
-        <div className="text-sm text-gray-500">请选择素材以查看预览和元数据</div>
+      <section
+        className="border rounded-lg p-6"
+        style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
+      >
+        <div className="text-sm" style={{ color: "var(--text-secondary)" }}>请选择素材以查看预览和元数据</div>
       </section>
     );
   }
@@ -127,20 +130,27 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
   };
 
   return (
-    <section className="bg-white border border-[#d0d7de] rounded-lg p-4 space-y-4">
+    <section
+      className="border rounded-lg p-4 space-y-4"
+      style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
+    >
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-gray-900 truncate" title={asset.asset_id}>
+          <h3
+            className="text-base font-semibold truncate"
+            title={asset.asset_id}
+            style={{ color: "var(--text-primary)" }}
+          >
             素材预览
           </h3>
-          <p className="text-xs text-gray-500 mt-1 break-all">{asset.file_path}</p>
+          <p className="text-xs mt-1 break-all" style={{ color: "var(--text-secondary)" }}>{asset.file_path}</p>
         </div>
         <div className="flex gap-2">
           {isEditing ? (
             <>
               <button
                 type="button"
-                className="text-xs px-3 py-1.5 rounded border border-[#1a7f37] text-[#1a7f37] hover:bg-[#dafbe1] disabled:opacity-50"
+                className="text-xs px-3 py-1.5 rounded border border-[var(--success)] text-[var(--success)] hover:bg-[var(--success-bg)] disabled:opacity-50"
                 onClick={handleSaveEdit}
                 disabled={isSaving}
               >
@@ -148,7 +158,7 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
               </button>
               <button
                 type="button"
-                className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                className="text-xs px-3 py-1.5 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-nav-active)]"
                 onClick={handleCancelEdit}
                 disabled={isSaving}
               >
@@ -159,7 +169,7 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
             <>
               <button
                 type="button"
-                className="text-xs px-3 py-1.5 rounded border border-[#0969da] text-[#0969da] hover:bg-[#ddf4ff]"
+                className="text-xs px-3 py-1.5 rounded border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--bg-nav-active)]"
                 onClick={handleStartEdit}
                 disabled={!onUpdateFields}
               >
@@ -169,8 +179,8 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
                 type="button"
                 className={`text-xs px-3 py-1.5 rounded border transition-colors ${
                   isAvailable
-                    ? "border-[#d1242f] text-[#d1242f] hover:bg-[#ffebe9]"
-                    : "border-[#1a7f37] text-[#1a7f37] hover:bg-[#dafbe1]"
+                    ? "border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger-bg)]"
+                    : "border-[var(--success)] text-[var(--success)] hover:bg-[var(--success-bg)]"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                 onClick={() => onToggleStatus?.(asset, nextStatus)}
                 disabled={isUpdating || !onToggleStatus}
@@ -190,7 +200,7 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div className="text-gray-500">分类</div>
+        <div style={{ color: "var(--text-secondary)" }}>分类</div>
         <div>
           {isEditing ? (
             <select
@@ -207,7 +217,7 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
           )}
         </div>
 
-        <div className="text-gray-500">产品</div>
+        <div style={{ color: "var(--text-secondary)" }}>产品</div>
         <div>
           {isEditing ? (
             <input
@@ -222,47 +232,58 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
           )}
         </div>
 
-        <div className="text-gray-500">置信度</div>
+        <div style={{ color: "var(--text-secondary)" }}>置信度</div>
         <div>{formatConfidence(asset.confidence)}</div>
 
-        <div className="text-gray-500">时长</div>
+        <div style={{ color: "var(--text-secondary)" }}>时长</div>
         <div>{formatDuration(asset.duration_seconds)}</div>
 
-        <div className="text-gray-500">状态</div>
+        <div style={{ color: "var(--text-secondary)" }}>状态</div>
         <div>
           <span
             className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
-              isAvailable ? "bg-[#e6f4ea] text-[#1a7f37]" : "bg-[#ffe0e0] text-[#d1242f]"
+              isAvailable
+                ? "badge-success"
+                : "badge-danger"
             }`}
+            style={
+              isAvailable
+                ? { background: "var(--badge-success-bg)", color: "var(--badge-success-text)" }
+                : { background: "var(--badge-danger-bg)", color: "var(--badge-danger-text)" }
+            }
           >
             {isAvailable ? "可用" : "已禁用"}
           </span>
         </div>
 
-        <div className="text-gray-500">使用次数</div>
+        <div style={{ color: "var(--text-secondary)" }}>使用次数</div>
         <div>{asset.usage_count}</div>
 
-        <div className="text-gray-500">来源视频</div>
+        <div style={{ color: "var(--text-secondary)" }}>来源视频</div>
         <div className="break-all">{asset.source_video}</div>
 
-        <div className="text-gray-500">创建时间</div>
+        <div style={{ color: "var(--text-secondary)" }}>创建时间</div>
         <div>{formatDate(asset.created_at)}</div>
 
-        <div className="text-gray-500">最近使用</div>
+        <div style={{ color: "var(--text-secondary)" }}>最近使用</div>
         <div>{formatDate(asset.last_used_at)}</div>
       </div>
 
       <div>
-        <div className="text-xs text-gray-500 mb-2">标签</div>
+        <div className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>标签</div>
         <div className="flex flex-wrap gap-2">
           {tags.length > 0 ? (
             tags.map((tag) => (
-              <span key={tag} className="px-2 py-0.5 rounded-full bg-[#ddf4ff] text-[#0969da] text-xs">
+              <span
+                key={tag}
+                className="px-2 py-0.5 rounded-full text-xs"
+                style={{ background: "var(--badge-default-bg)", color: "var(--badge-default-text)" }}
+              >
                 {tag}
               </span>
             ))
           ) : (
-            <span className="text-sm text-gray-400">暂无标签</span>
+            <span className="text-sm" style={{ color: "var(--text-tertiary)" }}>暂无标签</span>
           )}
         </div>
       </div>

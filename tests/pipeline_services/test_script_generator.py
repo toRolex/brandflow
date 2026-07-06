@@ -376,3 +376,139 @@ class TestScriptGeneratorCantonese:
         assert result.mock is True
         assert "徹底煮熟" in result.full_text
         assert "嘅" in result.full_text
+
+
+class TestValidateScriptWithConfig:
+    """validate_script 当 config 参数传入时从配置读取质检规则。"""
+
+    def test_config_overrides_word_count(self):
+        """配置中的 word_count_min/max 应替代硬编码 150-200。"""
+        # 紧凑字数约 94（优质食材重复 11 次=44，加 羊肚菌 3 + 再重复 11 次=44，加 滋元堂 3）
+        text = ("优质食材。" * 11) + "羊肚菌。" + ("优质食材。" * 11) + "滋元堂。"
+        config = {"script": {"word_count_min": 50, "word_count_max": 100}}
+        result = validate_script(text, "羊肚菌", "滋元堂", config=config)
+        assert result["ok"] is True, f"errors: {result['errors']}"
+
+    def test_config_word_count_rejects_outside_range(self):
+        """配置的区间生效后，超出区间应报错。"""
+        text = "短。" * 3
+        config = {"script": {"word_count_min": 100, "word_count_max": 200}}
+        result = validate_script(text, "羊肚菌", "滋元堂", config=config)
+        assert result["ok"] is False
+        assert any("字数不足" in e for e in result["errors"])
+
+    def test_config_custom_forbidden_words(self):
+        """配置的 forbidden_words 应替换硬编码禁词列表。"""
+        # 填充字数到 150-200，产品/品牌各出现 1 次，"治疗"在文本中
+        padding = "今天给大家介绍一款非常好吃的美食。" * 9
+        text = padding + "滋元堂今天介绍羊肚菌的做法这种食材来自云南深山可以治疗疾病口感非常好推荐大家尝试购买品尝。"
+        config = {"script": {"forbidden_words": ["养生"]}}  # only "养生" is forbidden
+        result = validate_script(text, "羊肚菌", "滋元堂", config=config)
+        # "治疗" is NOT in the custom forbidden list, so it should pass
+        assert result["ok"] is True, f"errors: {result['errors']}"
+
+    def test_config_custom_forbidden_words_catches_its_own(self):
+        """自定义禁词列表中的词应被检出。"""
+        text = (
+            "今天介绍羊肚菌的做法。滋元堂的产品非常养生，充分烹熟后口感非常好。推荐购买。"
+            * 3
+        )
+        config = {"script": {"forbidden_words": ["养生"]}}
+        result = validate_script(text, "羊肚菌", "滋元堂", config=config)
+        assert result["ok"] is False
+        assert any("养生" in e for e in result["errors"])
+
+    def test_config_required_word_count_product(self):
+        """配置 required_word_count.product 控制品名出现次数。"""
+        padding = "今天给大家介绍一款非常好吃的美食。" * 9  # compact_len=144
+        # "羊肚菌" 不出现，但 product=0 表示不要求品名出现
+        text = padding + "滋元堂这款产品来自优质产地口感鲜美营养丰富值得推荐。"  # compact_len=25
+        config = {"script": {"required_word_count": {"product": 0}}}
+        result = validate_script(text, "羊肚菌", "滋元堂", config=config)
+        # total compact_len ≈ 169, within 150-200
+        assert result["ok"] is True, f"errors: {result['errors']}"
+
+    def test_config_emoji_allowed(self):
+        """配置 emoji_forbidden=False 时 emoji 不应被拒。"""
+        padding = "今天给大家介绍一款非常好吃的美食。" * 9  # compact_len=144
+        text = padding + "羊肚菌是来自云南的美味食材滋元堂精心挑选口感鲜美😊推荐购买。"  # compact_len≈28
+        config = {"script": {"emoji_forbidden": False}}
+        result = validate_script(text, "羊肚菌", "滋元堂", config=config)
+        assert result["ok"] is True, f"errors: {result['errors']}"
+
+    def test_config_emoji_still_checked_when_true(self):
+        """配置 emoji_forbidden=True 时 emoji 仍应被拒。"""
+        padding = "今天给大家介绍一款非常好吃的美食。" * 9
+        text = padding + "羊肚菌是来自云南的美味食材滋元堂精心挑选口感鲜美😊推荐购买。"
+        config = {"script": {"emoji_forbidden": True}}
+        result = validate_script(text, "羊肚菌", "滋元堂", config=config)
+        assert result["ok"] is False
+        assert any("emoji" in e.lower() or "表情" in e for e in result["errors"])
+
+    def test_config_max_sentence_length(self):
+        """配置 max_sentence_length 应检查每句紧凑字数。"""
+        # 单句超长（"非常长的一个句子"*10 紧凑字数=80），产品/品牌各出现一次
+        text = "今天介绍羊肚菌的做法。" + "非常长的一个句子" * 10 + "。滋元堂的产品值得信赖。"
+        config = {"script": {"max_sentence_length": 30}}
+        result = validate_script(text, "羊肚菌", "滋元堂", config=config)
+        assert result["ok"] is False
+        assert any("超长" in e for e in result["errors"])
+
+    def test_config_no_config_unchanged(self):
+        """不传 config 时行为与修改前完全一致。"""
+        text = (
+            "今天给大家介绍一种美味食材。" * 11
+            + "滋元堂的羊肚菌来自云南深山，充分烹熟后口感鲜美，营养丰富。"
+        )
+        result = validate_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is True
+        assert result["errors"] == []
+
+    def test_config_empty_dict_no_crash(self):
+        """config={} 或 config= {"script": {}} 不应崩溃，应回退到默认。"""
+        text = (
+            "今天给大家介绍一种美味食材。" * 11
+            + "滋元堂的羊肚菌来自云南深山，充分烹熟后口感鲜美，营养丰富。"
+        )
+        result = validate_script(text, "羊肚菌", "滋元堂", config={})
+        assert result["ok"] is True
+        result2 = validate_script(text, "羊肚菌", "滋元堂", config={"script": {}})
+        assert result2["ok"] is True
+
+
+class TestValidateCantoneseScriptWithConfig:
+    """validate_cantonese_script 当 config 参数传入时从配置读取质检规则。"""
+
+    def test_config_overrides_word_count(self):
+        """配置中的 word_count_min/max 应替代硬编码。"""
+        text = ("優質食材。" * 11) + "羊肚菌。" + ("優質食材。" * 11) + "滋元堂。"
+        config = {"script": {"word_count_min": 50, "word_count_max": 100}}
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂", config=config)
+        assert result["ok"] is True, f"errors: {result['errors']}"
+
+    def test_config_custom_forbidden_words(self):
+        """自定义禁词列表应替换硬编码列表。"""
+        padding = "今日介紹一款非常美味嘅食材。" * 10  # compact_len=130
+        text = padding + "羊肚菌係一種美味食材滋元堂品質值得信賴可以治療疾病口感好正。"  # compact_len=29
+        config = {"script": {"forbidden_words": ["养生"]}}
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂", config=config)
+        # total ≈ 159, within 150-200; "治療" not in custom list
+        assert result["ok"] is True, f"errors: {result['errors']}"
+
+    def test_config_emoji_allowed(self):
+        """配置 emoji_forbidden=False 时 emoji 不应被拒。"""
+        padding = "今日介紹一款非常美味嘅食材。" * 11  # compact_len=143
+        text = padding + "羊肚菌係美味食材滋元堂品質值得信賴口感好正😊推薦購買。"  # compact_len≈25
+        config = {"script": {"emoji_forbidden": False}}
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂", config=config)
+        assert result["ok"] is True, f"errors: {result['errors']}"
+
+    def test_config_no_config_unchanged(self):
+        """不传 config 时行为与修改前完全一致。"""
+        text = (
+            "今日同大家介紹一種美味食材。" * 11
+            + "滋元堂嘅羊肚菌嚟自雲南深山，徹底煮熟之後口感好正，營養豐富。"
+        )
+        result = validate_cantonese_script(text, "羊肚菌", "滋元堂")
+        assert result["ok"] is True
+        assert result["errors"] == []

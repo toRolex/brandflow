@@ -5,6 +5,7 @@ export type Phase =
   | "tts_generating" | "tts_review" | "subtitle_generating" | "asset_retrieving"
   | "asset_review"
   | "video_rendering" | "final_review"
+  | "schedule_writing" | "scene_assembling" | "montage_assembling"
   | "completed" | "failed" | "cancelled" | "paused";
 
 export type ReviewStatus = "none" | "pending" | "approved" | "rejected" | "overridden";
@@ -251,6 +252,37 @@ export const PIPELINE_STEPS: PipelineStep[] = [
   { key: "paused", phase: "paused", label: "已暂停", isReview: false },
 ];
 
+export interface ProductConfig {
+  default_name: string;
+  default_brand: string;
+  script: {
+    scene: string;
+    material: string;
+    system_prompt: string;
+    word_count_min?: number;
+    word_count_max?: number;
+    forbidden_words?: string[];
+    emoji_forbidden?: boolean;
+    product_name_count?: number;
+    brand_name_count?: number;
+    [key: string]: unknown;
+  };
+  categories?: CategoryConfig[];
+  [key: string]: unknown;
+}
+
+export interface CategoryConfig {
+  name: string;
+  description: string;
+  vision_prompt: string;
+}
+
+export interface SuggestCategory {
+  label: string;
+  description: string;
+  vision_prompt: string;
+}
+
 export interface MusicTrack {
   filename: string;
   relative_path: string;
@@ -278,7 +310,37 @@ export interface SceneFolderFilesResponse {
   files: SceneFolderFile[];
 }
 
-// ── Analytics / Metrics ──────────────────────────────────
+// ── Script Template ────────────────────────────────
+
+export type SlotType = "hook" | "selling_point" | "usage_scene" | "call_to_action";
+export type VariableSource = "manual" | "product_config" | "knowledge_base";
+
+export interface TemplateSlot {
+  type: SlotType;
+  label: string;
+  required: boolean;
+  max_length: number;
+  hint: string;
+}
+
+export interface TemplateVariable {
+  name: string;
+  label: string;
+  source: VariableSource;
+}
+
+export interface ScriptTemplate {
+  id: string;
+  name: string;
+  description: string;
+  slots: TemplateSlot[];
+  variables: TemplateVariable[];
+  default_config_override: Record<string, unknown>;
+}
+
+export interface PreviewResponse {
+  rendered_script: string;
+}
 
 export interface MetricsOverview {
   total_plays: number;
@@ -346,39 +408,3 @@ export interface ScanResult {
   updated: number;
 }
 
-// ── Increment / Analytics ──────────────────────────────
-
-export interface IncrementData {
-  snapshot_date: string;
-  previous_snapshot: string;
-  summary: {
-    plays_delta: number;
-    likes_delta: number;
-    followers_delta: number;
-    shares_delta: number;
-    comments_delta: number;
-    new_videos: number;
-    updated_videos: number;
-    disappeared_videos: number;
-  };
-  top_gainers: VideoIncrement[];
-  daily_trend: DailyIncrement[];
-}
-
-export interface VideoIncrement {
-  title: string;
-  platform: string;
-  publish_date: string;
-  plays_delta: number;
-  likes_delta: number;
-  followers_delta: number;
-  shares_delta: number;
-  comments_delta: number;
-}
-
-export interface DailyIncrement {
-  date: string;
-  plays_delta: number;
-  likes_delta: number;
-  followers_delta: number;
-}

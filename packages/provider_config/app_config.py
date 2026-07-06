@@ -23,12 +23,12 @@ DEFAULTS: dict[str, Any] = {
         "thinking": "disabled",
     },
     "tts": {
-        "provider": "mimo",
-        "model": "mimo-v2.5-tts",
-        "voice": "Mia",
-        "fallback_voice": "Dean",
+        "provider": "qwen",
+        "model": "qwen-tts",
+        "voice": "Cherry",
+        "fallback_voice": "Stella",
         "randomize_voice": True,
-        "random_voices": ["Mia", "Dean"],
+        "random_voices": ["Cherry", "Stella"],
         "style_prompt": "自然 清晰 适合短视频带货口播",
         "voice_design_prompt": "",
         "style_control_mode": "simple",
@@ -77,6 +77,28 @@ DEFAULTS: dict[str, Any] = {
     "scene": {
         "folders": [],
         "transition_duration_ms": 500,
+    },
+    "product": {
+        "default_name": "",
+        "default_brand": "",
+        "script": {
+            "scene": "食材展示、烹饪过程、成品呈现、享用场景",
+            "material": "食材近景、清洗处理、烹饪翻炒、成品摆盘",
+            "system_prompt": "你是一位短视频文案专家，专门为食品产品撰写抖音口播文案。",
+            "enable_qa_check": True,
+            "word_count_min": 150,
+            "word_count_max": 200,
+            "max_sentence_length": 20,
+            "forbidden_words": [
+                "治疗", "治愈", "疗效", "降血糖", "降血压", "抗癌", "药到病除",
+            ],
+            "required_word_count": {
+                "product": 1,
+                "brand": 1,
+            },
+            "emoji_forbidden": True,
+        },
+        "categories": [],
     },
 }
 
@@ -163,8 +185,23 @@ class AppConfigManager:
     def _load(self) -> dict[str, Any]:
         if self.config_path.exists():
             with open(self.config_path, encoding="utf-8") as f:
-                return json.load(f)
+                raw = json.load(f)
+            return self._migrate_if_needed(raw)
         return {}
+
+    def _migrate_if_needed(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """自动迁移旧版 product 格式到新版 products 列表格式。"""
+        if "product" in raw and "products" not in raw:
+            old_product = raw.pop("product", {})
+            raw["products"] = [
+                {
+                    "id": "default",
+                    **old_product,
+                }
+            ]
+            raw["active_product_id"] = "default"
+            self._save(raw)
+        return raw
 
     def _save(self, config: dict[str, Any]) -> None:
         with open(self.config_path, "w", encoding="utf-8") as f:
@@ -317,6 +354,155 @@ class AppConfigManager:
         defaults = DEFAULTS["scene"]
         return _deep_merge(defaults, scene)
 
+    def get_product_config(self, product_id: str | None = None) -> dict[str, Any]:
+        """获取产品配置。
+
+        Args:
+            product_id: 指定产品 ID。为 None 时返回活跃产品配置。
+        """
+        raw = self._load()
+        defaults = DEFAULTS["product"]
+        products = raw.get("products", [])
+
+        if product_id:
+            # 查找指定产品
+            for p in products:
+                if p.get("id") == product_id:
+                    merged = _deep_merge(defaults, p)
+                    merged.setdefault("id", product_id)
+                    merged.setdefault("name", merged.get("default_name", ""))
+                    return merged
+            # 未找到时返回 DEFAULTS
+            merged = deepcopy(defaults)
+            merged["id"] = product_id
+            merged["name"] = ""
+            return merged
+
+        # 无参时返回活跃产品配置
+        if not products:
+            return deepcopy(defaults)
+
+        active_id = raw.get("active_product_id", "")
+        for p in products:
+            if p.get("id") == active_id:
+                merged = _deep_merge(defaults, p)
+                merged.setdefault("id", active_id)
+                merged.setdefault("name", merged.get("default_name", ""))
+                return merged
+
+        # 活跃产品未找到时返回 DEFAULTS
+        return deepcopy(defaults)
+
+    def set_product_config(self, values: dict[str, Any]) -> None:
+        raw = self._load()
+        self._ensure_active_product(raw)
+        active_id = raw.get("active_product_id", "")
+
+        for i, p in enumerate(raw["products"]):
+            if p.get("id") == active_id:
+                existing = raw["products"][i]
+                merged = _deep_merge(existing, values)
+                raw["products"][i] = merged
+                break
+
+        self._save(raw)
+
+    def save_product_config(self, product_id: str, values: dict[str, Any]) -> None:
+        """保存指定产品的完整配置，不切换活跃产品。"""
+        raw = self._load()
+        self._ensure_active_product(raw)
+
+        for i, p in enumerate(raw["products"]):
+            if p.get("id") == product_id:
+                existing = raw["products"][i]
+                merged = _deep_merge(existing, values)
+                merged["id"] = product_id
+                raw["products"][i] = merged
+                self._save(raw)
+                return
+
+        # 产品不存在时创建它
+        raw["products"].append({"id": product_id, **values})
+        self._save(raw)
+
+    def set_product(self, key: str, value: Any) -> None:
+        raw = self._load()
+        self._ensure_active_product(raw)
+        active_id = raw.get("active_product_id", "")
+
+        for i, p in enumerate(raw["products"]):
+            if p.get("id") == active_id:
+                _set_nested(raw["products"][i], key, value)
+                break
+
+        self._save(raw)
+
+    def reset_product_config(self) -> None:
+        raw = self._load()
+        active_id = raw.get("active_product_id", "")
+
+        # 移除活跃产品
+        products = raw.get("products", [])
+        for i, p in enumerate(products):
+            if p.get("id") == active_id:
+                products.pop(i)
+                break
+
+        # 重置活跃索引
+        if products:
+            raw["active_product_id"] = products[0]["id"]
+        else:
+            raw["active_product_id"] = ""
+
+        self._save(raw)
+
+    def get_product_value(self, key: str, default: Any = None) -> Any:
+        config = self.get_product_config()
+        return _get_nested(config, key, default)
+
+    def _ensure_active_product(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """确保 products 列表和活跃产品存在，用于写入操作。"""
+        if "products" not in raw:
+            raw["products"] = []
+        if "active_product_id" not in raw:
+            raw["active_product_id"] = ""
+
+        # 有产品但无活跃 ID 时选择第一个
+        if not raw["active_product_id"] and raw["products"]:
+            raw["active_product_id"] = raw["products"][0]["id"]
+
+        # 无任何产品时创建默认
+        if not raw["products"]:
+            raw["products"] = [{"id": "default"}]
+            raw["active_product_id"] = "default"
+
+        return raw
+
+    def switch_product(self, product_id: str) -> None:
+        """切换到指定产品，不存在时自动创建。"""
+        raw = self._load()
+        if "products" not in raw:
+            raw["products"] = []
+
+        found = any(p.get("id") == product_id for p in raw["products"])
+        if not found:
+            raw["products"].append({"id": product_id})
+
+        raw["active_product_id"] = product_id
+        self._save(raw)
+
+    def list_products(self) -> list[dict[str, str]]:
+        """返回所有产品的 id + name 摘要。"""
+        raw = self._load()
+        products = raw.get("products", [])
+        return [
+            {
+                "id": p.get("id", ""),
+                "name": p.get("default_name", "") or p.get("name", "") or "",
+            }
+            for p in products
+        ]
+
     def get_asset_library_config(self) -> dict[str, Any]:
         config = self._load()
         al = config.get("asset_library", {})
@@ -326,23 +512,41 @@ class AppConfigManager:
     def get_categories(self) -> list[CategoryConfig]:
         """Return the configured asset categories.
 
-        Reads from ``asset_library.categories`` in ``app_config.json``.
-        Falls back to the default food categories (matching the legacy ``Category`` enum)
-        when the list is empty.
+        Priority chain:
+        1. ``product.categories`` (product-level override)
+        2. ``asset_library.categories`` (instance-level, backward compatible)
+        3. ``default_categories()`` (food fallback)
         """
+        # Priority 1: product-level categories
+        product_config = self.get_product_config()
+        product_cats: list[dict] = product_config.get("categories", [])
+        if product_cats:
+            return [
+                CategoryConfig(
+                    id=c.get("id", ""),
+                    name=c.get("name", ""),
+                    description=c.get("description", ""),
+                    vision_prompt=c.get("vision_prompt", ""),
+                )
+                for c in product_cats
+            ]
+
+        # Priority 2: asset_library categories (backward compatible)
         al_config = self.get_asset_library_config()
         raw: list[dict] = al_config.get("categories", [])
-        if not raw:
-            return default_categories()
-        return [
-            CategoryConfig(
-                id=c.get("id", ""),
-                name=c.get("name", ""),
-                description=c.get("description", ""),
-                vision_prompt=c.get("vision_prompt", ""),
-            )
-            for c in raw
-        ]
+        if raw:
+            return [
+                CategoryConfig(
+                    id=c.get("id", ""),
+                    name=c.get("name", ""),
+                    description=c.get("description", ""),
+                    vision_prompt=c.get("vision_prompt", ""),
+                )
+                for c in raw
+            ]
+
+        # Priority 3: default food categories
+        return default_categories()
 
     def get_category_suggestion_model(self) -> str:
         al_config = self.get_asset_library_config()

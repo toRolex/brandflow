@@ -328,10 +328,11 @@ def _transition_after_artifacts(
     if artifacts:
         next_p = _safe_next(phase)
         if next_p in REVIEW_PHASES:
+            review_status = "none" if record.auto_approve else "pending"
             return TickAction(
                 new_phase=next_p,
-                new_review_status="pending",
-                message=f"{phase} produced artifacts, advancing to {next_p} (pending review)",
+                new_review_status=review_status,
+                message=f"{phase} produced artifacts, advancing to {next_p} ({review_status} review)",
             )
         return TickAction(
             new_phase=next_p,
@@ -450,13 +451,21 @@ class JobTickService:
             transition_duration_ms: int = 500
             if record.mode == "import":
                 app_cfg = AppConfigManager()
-                scene_cfg = app_cfg.get_scene_config()
+                product_cfg = app_cfg.get_product_config()
+                scene_cfg = product_cfg.get("scene", {})
                 scene_folder_paths = [
                     entry.get("path", "")
                     for entry in scene_cfg.get("folders", [])
                     if entry.get("path")
                 ]
                 transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
+
+                # Write manual_script so TTS handler can discover it in import mode
+                if record.manual_script:
+                    job_dir = project_dir / "runtime" / "jobs" / job_id
+                    job_dir.mkdir(parents=True, exist_ok=True)
+                    script_path = job_dir / f"{record.product}口播文案.txt"
+                    script_path.write_text(record.manual_script, encoding="utf-8")
 
             ctx = PhaseContext(
                 job_id=job_id,

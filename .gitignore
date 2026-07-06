@@ -45,3 +45,4 @@ frontend/package-lock.json
 !.github/workflows/*.yml
 skills-lock.json
 node_modules
+data/*.db

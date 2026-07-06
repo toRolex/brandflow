@@ -19,7 +19,7 @@ export default function JobTable({ jobs, onRetry, onDelete, onRename, selectedJo
   const [exporting, setExporting] = useState(false);
 
   if (jobs.length === 0) {
-    return <p className="text-sm text-[#59636e] py-4">暂无 Job，创建一个开始吧</p>;
+    return <p className="text-sm py-4" style={{ color: "var(--text-secondary)" }}>暂无 Job，创建一个开始吧</p>;
   }
 
   const showCheckbox = selectedJobIds !== undefined;
@@ -92,14 +92,14 @@ export default function JobTable({ jobs, onRetry, onDelete, onRename, selectedJo
     <div>
       <table className="w-full border-collapse text-[13px]">
         <thead>
-          <tr className="border-b border-[#393f46] text-left text-[#59636e]">
+          <tr className="border-b text-left" style={{ borderColor: "var(--border-default)", color: "var(--text-secondary)" }}>
             {showCheckbox && (
               <th className="py-2 px-2 font-medium w-8">
                 <input
                   type="checkbox"
                   checked={allCompletedSelected}
                   onChange={toggleSelectAll}
-                  className="accent-[#0969da]"
+                  style={{ accentColor: "var(--accent)" }}
                 />
               </th>
             )}
@@ -136,12 +136,13 @@ export default function JobTable({ jobs, onRetry, onDelete, onRename, selectedJo
       </table>
 
       {showCheckbox && selectedJobIds!.size > 0 && (
-        <div className="flex items-center justify-between mt-3 px-3 py-2 bg-[#f6f8fa] border border-[#d0d7de] rounded-md">
-          <span className="text-sm text-[#59636e]">
+        <div className="flex items-center justify-between mt-3 px-3 py-2 border rounded-md" style={{ background: "var(--bg-page)", borderColor: "var(--border-default)" }}>
+          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
             已选 {selectedCompletedCount} 个已完成 Job
           </span>
           <button
-            className="px-3 py-1.5 bg-[#0969da] text-white text-xs rounded-md hover:bg-[#0860c0] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-xs rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "var(--accent)", color: "var(--text-inverse)" }}
             disabled={exporting || selectedCompletedCount === 0}
             onClick={handleExport}
           >
@@ -191,7 +192,7 @@ function NameRow({
   };
 
   return (
-    <tr className="border-b border-[#eff2f5] hover:bg-gray-50">
+    <tr className="border-b" style={{ borderColor: "var(--border-default)" }}>
       {showCheckbox && (
         <td className="py-2.5 px-2">
           <input
@@ -199,11 +200,12 @@ function NameRow({
             checked={isSelected ?? false}
             onChange={onToggle}
             disabled={!isCompleted}
-            className="accent-[#0969da] disabled:opacity-30"
+            style={{ accentColor: "var(--accent)" }}
+            className="disabled:opacity-30"
           />
         </td>
       )}
-      <td className="py-2.5 px-2 font-mono text-[#0969da] text-xs">
+      <td className="py-2.5 px-2 font-mono text-xs" style={{ color: "var(--accent)" }}>
         {displayIndex != null ? displayIndex : "—"}
       </td>
       <td className="py-2.5 px-2 font-mono text-xs">{job.job_id}</td>
@@ -226,7 +228,8 @@ function NameRow({
           />
         ) : (
           <span
-            className="cursor-pointer hover:text-[#0969da]"
+            className="cursor-pointer"
+            style={{ color: "var(--text-primary)" }}
             title="双击编辑名称"
             onDoubleClick={() => {
               setEditing(true);
@@ -241,27 +244,28 @@ function NameRow({
       <td className="py-2.5 px-2">
         <StatusBadge phase={job.phase} />
       </td>
-      <td className="py-2.5 px-2 text-[#59636e]">
+      <td className="py-2.5 px-2" style={{ color: "var(--text-secondary)" }}>
         {job.phase_index > 0 ? `${job.phase_index}/${job.phase_total}` : "—"}
       </td>
       <td className="py-2.5 px-2 flex gap-2 items-center">
         {job.phase === "failed" ? (
           <button
-            className="text-[#0969da] hover:underline text-xs"
+            className="hover:underline text-xs" style={{ color: "var(--accent)" }}
             onClick={() => onRetry(job.job_id)}
           >
             重试 &#8634;
           </button>
         ) : (
           <button
-            className="text-[#0969da] hover:underline text-xs"
+            className="hover:underline text-xs" style={{ color: "var(--accent)" }}
             onClick={() => navigate(`/jobs/${job.job_id}`)}
           >
             查看 &rarr;
           </button>
         )}
         <button
-          className="text-[#cf222e] hover:underline text-xs"
+          className="hover:underline text-xs"
+          style={{ color: "var(--danger)" }}
           onClick={() => onDelete(job.job_id)}
         >
           删除
