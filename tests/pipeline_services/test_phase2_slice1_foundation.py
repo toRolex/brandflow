@@ -171,7 +171,7 @@ class TestImportModeSceneAssembling:
         assert action.run_handler is True
         assert action.handler_phase == "scene_assembling"
         assert action.parallel_phases == ["tts_generating"]
-        assert action.new_phase == "montage_assembling"
+        assert action.new_phase == "subtitle_generating"
 
     def test_scene_assembling_generate_mode(self) -> None:
         """scene_assembling + generate mode is handled normally."""
@@ -182,21 +182,21 @@ class TestImportModeSceneAssembling:
 
 
 class TestImportModeMontageAssembling:
-    def test_montage_assembling_advances_to_asset_retrieving(self) -> None:
-        """montage_assembling → handler then advance to asset_retrieving."""
+    def test_montage_assembling_advances_to_video_rendering(self) -> None:
+        """montage_assembling → handler then advance to video_rendering."""
         action = _compute_transition(
             make_record(phase="montage_assembling", mode="import"), ()
         )
-        assert action.new_phase == "asset_retrieving"
+        assert action.new_phase == "video_rendering"
         assert action.run_handler is True
         assert action.handler_phase == "montage_assembling"
 
     def test_montage_assembling_generate_mode(self) -> None:
-        """montage_assembling + generate mode routes to asset_retrieving."""
+        """montage_assembling + generate mode routes to video_rendering."""
         action = _compute_transition(
             make_record(phase="montage_assembling", mode="generate"), ()
         )
-        assert action.new_phase == "asset_retrieving"
+        assert action.new_phase == "video_rendering"
 
 
 # ---------------------------------------------------------------------------
@@ -387,11 +387,10 @@ class TestImportModeFullFlow:
         # Build sequence of transitions in import mode
         sequence = [
             ("queued", "scene_assembling"),  # first transition
-            ("scene_assembling", "montage_assembling"),  # after parallel dispatch
-            ("montage_assembling", "asset_retrieving"),  # explicit route
-            ("asset_retrieving", "asset_review"),  # standard flow resumes
-            ("asset_review", "video_rendering"),
-            ("video_rendering", "final_rendering"),
+            ("scene_assembling", "subtitle_generating"),  # after parallel dispatch
+            ("subtitle_generating", "montage_assembling"),  # import mode route
+            ("montage_assembling", "video_rendering"),  # explicit route
+            ("video_rendering", "final_rendering"),  # standard flow resumes
             ("final_rendering", "final_review"),
             ("final_review", "completed"),
         ]
@@ -403,21 +402,22 @@ class TestImportModeFullFlow:
                 assert action.new_phase == to_phase, f"{from_phase} → {to_phase}"
             elif from_phase == "scene_assembling":
                 assert action.run_handler is True
-                assert action.new_phase == "montage_assembling"
+                assert action.new_phase == "subtitle_generating"
+            elif from_phase == "subtitle_generating":
+                # subtitle_generating: run handler if not skipped
+                assert action.run_handler is True
+                assert action.new_phase is None
             elif from_phase == "montage_assembling":
                 assert action.new_phase == to_phase, f"{from_phase} → {to_phase}"
-            elif from_phase == "asset_retrieving":
-                # At asset_retrieving, empty artifacts → auto-advance
-                pass  # handled by _transition_after_artifacts
-            elif from_phase == "asset_review":
-                # No artifacts and pending review → wait
-                assert action.new_phase is None
-            elif from_phase == "final_review":
-                # No artifacts and pending review → wait
-                assert action.new_phase is None
             elif from_phase == "video_rendering":
                 # No artifacts → retry logic
                 assert action.run_handler is True
+            elif from_phase == "final_rendering":
+                # No artifacts → fallthrough runs handler
+                assert action.run_handler is True
+            elif from_phase == "final_review":
+                # No artifacts and pending review → wait
+                assert action.new_phase is None
 
     def test_import_mode_with_auto_approve_advances_through_gates(self) -> None:
         """Import mode with auto_approve=True advances through review gates."""
