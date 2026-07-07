@@ -242,3 +242,105 @@ def test_get_llm_api_key_empty_when_not_set(monkeypatch) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = AppConfigManager(config_dir=tmpdir)
         assert manager.get_llm_api_key() == ""
+
+
+# --- Scene config tests (#59) ---
+
+
+def test_get_scene_config_default() -> None:
+    """无 scene 配置时返回 DEFAULTS。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        config = manager.get_scene_config()
+        assert config["folders"] == []
+        assert config["transition_duration_ms"] == 500
+
+
+def test_get_scene_config_from_product_level() -> None:
+    """产品级 scene 配置优先于顶级 scene 配置。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.switch_product("prod_001")
+        manager.save_product_config("prod_001", {
+            "scene": {
+                "folders": [
+                    {"name": "品牌开场", "path": "scene/brand-intro"},
+                    {"name": "产品展示", "path": "scene/product-show"},
+                ],
+                "transition_duration_ms": 800,
+            }
+        })
+        config = manager.get_scene_config()
+        assert len(config["folders"]) == 2
+        assert config["folders"][0]["name"] == "品牌开场"
+        assert config["folders"][0]["path"] == "scene/brand-intro"
+        assert config["folders"][1]["name"] == "产品展示"
+        assert config["folders"][1]["path"] == "scene/product-show"
+        assert config["transition_duration_ms"] == 800
+
+
+def test_get_scene_config_product_overrides_top_level() -> None:
+    """产品级 scene 配置应覆盖顶级 scene 配置。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        # 写入顶级 scene（模拟旧格式）
+        raw = manager._load()
+        raw["scene"] = {
+            "folders": [{"name": "旧文件夹", "path": "scene/old"}],
+            "transition_duration_ms": 300,
+        }
+        manager._save(raw)
+
+        # 写入产品级 scene（模拟新产品格式）
+        manager.switch_product("prod_001")
+        manager.save_product_config("prod_001", {
+            "scene": {
+                "folders": [{"name": "新文件夹", "path": "scene/new"}],
+                "transition_duration_ms": 600,
+            }
+        })
+
+        config = manager.get_scene_config()
+        # 产品级优先
+        assert len(config["folders"]) == 1
+        assert config["folders"][0]["name"] == "新文件夹"
+        assert config["transition_duration_ms"] == 600
+
+
+def test_get_scene_config_falls_back_to_top_level() -> None:
+    """产品级无 scene 配置时回退到顶级 scene 配置。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        # 写入顶级 scene
+        raw = manager._load()
+        raw["scene"] = {
+            "folders": [{"name": "回退文件夹", "path": "scene/fallback"}],
+            "transition_duration_ms": 400,
+        }
+        manager._save(raw)
+
+        # 创建产品但不设置 scene
+        manager.switch_product("prod_001")
+
+        config = manager.get_scene_config()
+        assert len(config["folders"]) == 1
+        assert config["folders"][0]["name"] == "回退文件夹"
+        assert config["transition_duration_ms"] == 400
+
+
+def test_get_scene_config_product_scene_partial_merge() -> None:
+    """产品级 scene 仅部分字段时，其余字段回退到 DEFAULTS。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.switch_product("prod_001")
+        manager.save_product_config("prod_001", {
+            "scene": {
+                "folders": [{"name": "单文件夹", "path": "scene/only"}],
+                # transition_duration_ms 未设置
+            }
+        })
+        config = manager.get_scene_config()
+        assert len(config["folders"]) == 1
+        assert config["folders"][0]["name"] == "单文件夹"
+        # 未设置的字段从 DEFAULTS 合并
+        assert config["transition_duration_ms"] == 500

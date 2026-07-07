@@ -361,9 +361,24 @@ class AppConfigManager:
         return _get_nested(config, key, default)
 
     def get_scene_config(self) -> dict[str, Any]:
+        """Return scene config, preferring product-level overrides.
+
+        Priority chain:
+        1. ``product.scene`` (active product-level override)
+        2. ``scene`` (top-level, backward compatible)
+        3. ``DEFAULTS["scene"]``
+        """
+        defaults = DEFAULTS["scene"]
+
+        # Priority 1: product-level scene config
+        product_config = self.get_product_config()
+        scene = product_config.get("scene")
+        if isinstance(scene, dict) and scene:
+            return _deep_merge(defaults, scene)
+
+        # Priority 2: top-level scene config (backward compatible)
         config = self._load()
         scene = config.get("scene", {})
-        defaults = DEFAULTS["scene"]
         return _deep_merge(defaults, scene)
 
     def get_product_config(self, product_id: str | None = None) -> dict[str, Any]:
