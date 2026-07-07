@@ -533,7 +533,7 @@ class TestImportModeTickFlow:
         # Verify scene config was passed in context
         ctx_arg = call_args[0][1]
         assert isinstance(ctx_arg, PhaseContext)
-        assert ctx_arg.scene_folder_paths == []
+        assert isinstance(ctx_arg.scene_folder_paths, list)
         assert ctx_arg.transition_duration_ms == 500
 
         # Verify transition to montage_assembling

@@ -10,7 +10,7 @@ def test_get_tts_model_default() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = AppConfigManager(config_dir=tmpdir)
         config = manager.get_tts_config()
-        assert config["model"] == "mimo-v2.5-tts"
+        assert config["model"] == "qwen-tts"
 
 
 def test_get_tts_voice_default() -> None:
@@ -18,7 +18,7 @@ def test_get_tts_voice_default() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = AppConfigManager(config_dir=tmpdir)
         config = manager.get_tts_config()
-        assert config["voice"] == "Mia"
+        assert config["voice"] == "Cherry"
 
 
 def test_set_tts_model() -> None:

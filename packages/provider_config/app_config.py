@@ -227,6 +227,16 @@ class AppConfigManager:
 
     def set_tts(self, key: str, value: Any) -> None:
         config = self._load()
+        # 优先写入活跃产品的 product-level tts，与 get_tts_config() 读取路径一致
+        active_id = config.get("active_product_id", "")
+        if active_id:
+            for i, p in enumerate(config.get("products", [])):
+                if p.get("id") == active_id:
+                    if "tts" not in p:
+                        config["products"][i]["tts"] = {}
+                    _set_nested(config["products"][i]["tts"], key, value)
+                    self._save(config)
+                    return
         if "tts" not in config:
             config["tts"] = {}
         _set_nested(config["tts"], key, value)
@@ -299,6 +309,16 @@ class AppConfigManager:
 
     def set_vision(self, key: str, value: Any) -> None:
         config = self._load()
+        # 优先写入活跃产品的 product-level vision，与 get_vision_config() 读取路径一致
+        active_id = config.get("active_product_id", "")
+        if active_id:
+            for i, p in enumerate(config.get("products", [])):
+                if p.get("id") == active_id:
+                    if "vision" not in p:
+                        config["products"][i]["vision"] = {}
+                    _set_nested(config["products"][i]["vision"], key, value)
+                    self._save(config)
+                    return
         if "vision" not in config:
             config["vision"] = {}
         _set_nested(config["vision"], key, value)
