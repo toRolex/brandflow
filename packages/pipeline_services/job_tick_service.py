@@ -220,16 +220,29 @@ def _compute_transition(
             run_handler=True,
             handler_phase="scene_assembling",
             parallel_phases=["tts_generating"],
-            new_phase="montage_assembling",
-            message="scene_assembling + tts_generating (parallel) → montage_assembling",
+            new_phase="subtitle_generating",
+            message="scene_assembling + tts_generating (parallel) → subtitle_generating",
         )
+
+    if phase == "subtitle_generating" and record.mode == "import":
+        if record.skip_subtitle:
+            return TickAction(
+                new_phase="montage_assembling",
+                message="skip subtitle_generating (import mode) → montage_assembling",
+            )
+        if artifacts:
+            return TickAction(
+                new_phase="montage_assembling",
+                message="subtitle_generating → montage_assembling (import mode)",
+            )
+        # fall through: no artifacts, not skipping → run subtitle handler
 
     if phase == "montage_assembling":
         return TickAction(
             run_handler=True,
             handler_phase="montage_assembling",
-            new_phase="asset_retrieving",
-            message="montage_assembling → asset_retrieving",
+            new_phase="video_rendering",
+            message="montage_assembling → video_rendering",
         )
 
     # ------------------------------------------------------------------
@@ -323,6 +336,13 @@ def _transition_after_artifacts(
     isolated for testing.
     """
     phase = record.phase
+
+    # Import mode: subtitle_generating → montage_assembling (not asset_retrieving)
+    if record.mode == "import" and phase == "subtitle_generating" and artifacts:
+        return TickAction(
+            new_phase="montage_assembling",
+            message="subtitle_generating → montage_assembling (import mode)",
+        )
 
     # 1. Artifacts produced → advance
     if artifacts:
