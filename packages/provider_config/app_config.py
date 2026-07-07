@@ -208,11 +208,22 @@ class AppConfigManager:
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
 
+    def _get_active_product_section(self, section: str) -> dict[str, Any]:
+        """返回活跃产品中指定 section 的配置（如 tts/llm/vision），无则返回空 dict。"""
+        raw = self._load()
+        active_id = raw.get("active_product_id", "")
+        if not active_id:
+            return {}
+        for p in raw.get("products", []):
+            if p.get("id") == active_id:
+                return p.get(section, {}) if isinstance(p.get(section), dict) else {}
+        return {}
+
     def get_tts_config(self) -> dict[str, Any]:
         config = self._load()
-        tts = config.get("tts", {})
-        defaults = DEFAULTS["tts"]
-        return _deep_merge(defaults, tts)
+        root_tts = config.get("tts", {})
+        product_tts = self._get_active_product_section("tts")
+        return _deep_merge(DEFAULTS["tts"], _deep_merge(root_tts, product_tts))
 
     def set_tts(self, key: str, value: Any) -> None:
         config = self._load()
@@ -227,9 +238,9 @@ class AppConfigManager:
 
     def get_llm_config(self) -> dict[str, Any]:
         config = self._load()
-        llm = config.get("llm", {})
-        defaults = DEFAULTS["llm"]
-        return _deep_merge(defaults, llm)
+        root_llm = config.get("llm", {})
+        product_llm = self._get_active_product_section("llm")
+        return _deep_merge(DEFAULTS["llm"], _deep_merge(root_llm, product_llm))
 
     def get_api_key(self, provider: str) -> str:
         import os
@@ -282,9 +293,9 @@ class AppConfigManager:
 
     def get_vision_config(self) -> dict[str, Any]:
         config = self._load()
-        vision = config.get("vision", {})
-        defaults = DEFAULTS["vision"]
-        return _deep_merge(defaults, vision)
+        root_vision = config.get("vision", {})
+        product_vision = self._get_active_product_section("vision")
+        return _deep_merge(DEFAULTS["vision"], _deep_merge(root_vision, product_vision))
 
     def set_vision(self, key: str, value: Any) -> None:
         config = self._load()
