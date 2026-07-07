@@ -579,6 +579,9 @@ class PhaseOrchestrator:
 
         if assembled_exists and clip_base_built:
             # Import mode: concat scene segment + montage clips
+            # ponytail: normalize both inputs before concat to ensure matching
+            # resolution/fps/pix_fmt (assembled.mp4 is 720x1280 from scene_assembling,
+            # _clip_base.mp4 is 1080x1920 from normalize_clip_to_vertical).
             ffmpeg = self._get_ffmpeg_path()
             subprocess.run(
                 [
@@ -586,7 +589,10 @@ class PhaseOrchestrator:
                     "-i", str(assembled_path),
                     "-i", str(clip_base_path),
                     "-filter_complex",
-                    "[0:v]settb=AVTB[v0];[1:v]settb=AVTB[v1];"
+                    "[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
+                    "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v0];"
+                    "[1:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
+                    "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v1];"
                     "[v0][v1]concat=n=2:v=1:a=0",
                     "-map", "[v]",
                     "-an",
