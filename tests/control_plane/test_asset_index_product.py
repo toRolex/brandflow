@@ -1,0 +1,157 @@
+"""Test POST /api/assets/index product resolution (issue #58)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from apps.control_plane.app import create_app
+from packages.pipeline_services.asset_library.models import AssetRecord
+
+
+def _client(tmp_path: Path) -> TestClient:
+    return TestClient(create_app(tmp_path))
+
+
+def _setup_source_videos(tmp_path: Path) -> Path:
+    source_dir = tmp_path / "workspace" / "shared_assets" / "source"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    (source_dir / "test.mp4").write_bytes(b"fake video data")
+    return source_dir
+
+
+def test_index_uses_explicit_product_param(tmp_path: Path, monkeypatch) -> None:
+    """参数显式传入 product="零食测试" 时，AssetIndexer 使用该值。"""
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    captured_product: list[str] = []
+
+    def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
+        captured_product.append(self.product)
+        return []
+
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        _fake_ingest_one,
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": False, "product": "零食测试"})
+
+    assert resp.status_code == 200
+    assert captured_product == ["零食测试"]
+
+
+def test_index_falls_back_to_active_product(tmp_path: Path, monkeypatch) -> None:
+    """未传 product 时，从 AppConfigManager 活跃产品名读取。"""
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    captured_product: list[str] = []
+
+    def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
+        captured_product.append(self.product)
+        return []
+
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        _fake_ingest_one,
+    )
+
+    # Mock AppConfigManager.get_product_config to return active product with name
+    def _fake_get_product_config(self, product_id=None):
+        return {"name": "测试产品", "id": "test-product", "default_name": "测试产品"}
+
+    monkeypatch.setattr(
+        "packages.provider_config.app_config.AppConfigManager.get_product_config",
+        _fake_get_product_config,
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": False})
+
+    assert resp.status_code == 200
+    assert captured_product == ["测试产品"]
+
+
+def test_index_explicit_product_wins_over_config(tmp_path: Path, monkeypatch) -> None:
+    """显式传入 product 时，忽略 AppConfigManager 的值。"""
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    captured_product: list[str] = []
+
+    def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
+        captured_product.append(self.product)
+        return []
+
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        _fake_ingest_one,
+    )
+
+    def _fake_get_product_config(self, product_id=None):
+        return {"name": "配置中的产品", "id": "config-product"}
+
+    monkeypatch.setattr(
+        "packages.provider_config.app_config.AppConfigManager.get_product_config",
+        _fake_get_product_config,
+    )
+
+    resp = client.post(
+        "/api/assets/index",
+        params={"async_mode": False, "product": "显式传入"},
+    )
+
+    assert resp.status_code == 200
+    assert captured_product == ["显式传入"]
+
+
+def test_indexed_asset_has_non_empty_product(tmp_path: Path, monkeypatch) -> None:
+    """索引后的素材 product 字段非空，可被 AssetRetriever 匹配。"""
+    from packages.pipeline_services.asset_library.repository import AssetRepository
+    from packages.file_store.paths import shared_asset_db_path
+
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
+        from datetime import datetime, timezone
+
+        repo = self.repository
+        now = datetime.now(timezone.utc).isoformat()
+        record = AssetRecord(
+            asset_id="asset_test_001",
+            file_path=str(output_base / self.product / "产品特写" / "test_001.mp4"),
+            category="产品特写",
+            product=self.product,
+            confidence=0.85,
+            source_video=str(video_path.resolve()),
+            created_at=now,
+        )
+        repo.insert(record)
+        return [record]
+
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        _fake_ingest_one,
+    )
+
+    resp = client.post(
+        "/api/assets/index",
+        params={"async_mode": False, "product": "零食测试"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["indexed"] == 1
+
+    # 验证 DB 中素材 product 字段为 "零食测试"
+    db_path = shared_asset_db_path(tmp_path)
+    repo = AssetRepository(db_path)
+    results = repo.query_all_available("零食测试")
+    assert len(results) == 1
+    assert results[0].product == "零食测试"
+
+    # 验证用错误 product 查不到
+    empty = repo.query_all_available("其他产品")
+    assert len(empty) == 0
