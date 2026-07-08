@@ -10,6 +10,8 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
+
+from packages.provider_config.app_config import AppConfigManager
 from fastapi.responses import FileResponse, StreamingResponse
 
 from apps.control_plane.index_tasks import index_task_manager, TaskStatus
@@ -35,6 +37,28 @@ _background_tasks: set[asyncio.Task] = set()
 
 def _sanitize_filename(filename: str) -> str:
     return Path(filename).name
+
+
+def _get_valid_category_names(root_dir: Path) -> set[str]:
+    """Return the set of category names that are currently valid.
+
+    Uses AppConfigManager so it respects product-config -> instance-config
+    -> default-food-categories priority chain.
+    """
+    manager = AppConfigManager(config_dir=root_dir / "config")
+    return {c.name for c in manager.get_categories()}
+
+
+def _validate_category(category: str | None, root_dir: Path) -> None:
+    """Raise 400 if *category* is not None and not in the allowed set."""
+    if category is None:
+        return
+    allowed = _get_valid_category_names(root_dir)
+    if category not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"无效分类: '{category}'，当前允许的分类: {', '.join(sorted(allowed))}",
+        )
 
 
 @router.post("/upload")
@@ -361,6 +385,8 @@ async def batch_update_fields(request: Request):
         return {"updated": 0}
 
     root_dir: Path = request.app.state.root_dir
+    _validate_category(new_category, root_dir)
+
     db_path = shared_asset_db_path(root_dir)
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
@@ -448,6 +474,8 @@ async def patch_asset_fields(request: Request, asset_id: str):
 
     new_product = body.get("product")
     new_category = body.get("category")
+
+    _validate_category(new_category, root_dir)
 
     if not new_product and not new_category:
         return {"updated": 0}
