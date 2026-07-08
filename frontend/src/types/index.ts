@@ -272,6 +272,7 @@ export interface ProductConfig {
 }
 
 export interface CategoryConfig {
+  id: string;
   name: string;
   description: string;
   vision_prompt: string;

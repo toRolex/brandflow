@@ -178,6 +178,134 @@ class TestAppConfigCategories:
             assert len(cats) == 10  # fallback to defaults
             assert cats[0].name == "产地溯源"
 
+    # ── S1: products[] list format with active_product_id ──
+
+    def test_get_categories_from_products_list_format(self) -> None:
+        """Product-level categories via new products[] list + active_product_id format."""
+        product_cats = [
+            {"id": "harvest", "name": "采收采集", "description": "野外采收"},
+            {"id": "drying", "name": "晾晒干燥", "description": "自然晾晒"},
+        ]
+        config = {
+            "products": [
+                {
+                    "id": "snack_001",
+                    "default_name": "零食产品",
+                    "categories": product_cats,
+                },
+            ],
+            "active_product_id": "snack_001",
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "app_config.json"
+            config_path.write_text(
+                json.dumps(config, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            manager = AppConfigManager(config_dir=tmpdir)
+            cats = manager.get_categories()
+            assert len(cats) == 2
+            assert cats[0].id == "harvest"
+            assert cats[0].name == "采收采集"
+            assert cats[0].description == "野外采收"
+            assert cats[1].id == "drying"
+            assert cats[1].name == "晾晒干燥"
+            assert cats[1].description == "自然晾晒"
+
+    def test_get_categories_products_list_no_categories_falls_back(self) -> None:
+        """Product has no categories field -> fall back to asset_library or defaults."""
+        config = {
+            "products": [
+                {
+                    "id": "snack_002",
+                    "default_name": "无分类产品",
+                },
+            ],
+            "active_product_id": "snack_002",
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "app_config.json"
+            config_path.write_text(
+                json.dumps(config, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            manager = AppConfigManager(config_dir=tmpdir)
+            cats = manager.get_categories()
+            # Should fall back to default food categories (10)
+            assert len(cats) == 10
+            assert cats[0].name == "产地溯源"
+
+    def test_get_categories_products_list_empty_categories_falls_back(self) -> None:
+        """Product has empty categories list -> fall back to asset_library or defaults."""
+        config = {
+            "products": [
+                {
+                    "id": "snack_003",
+                    "default_name": "空分类产品",
+                    "categories": [],
+                },
+            ],
+            "active_product_id": "snack_003",
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "app_config.json"
+            config_path.write_text(
+                json.dumps(config, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            manager = AppConfigManager(config_dir=tmpdir)
+            cats = manager.get_categories()
+            assert len(cats) == 10  # fallback to defaults
+            assert cats[0].name == "产地溯源"
+
+    # ── S2: save_product_config() persists categories ──
+
+    def test_save_product_config_persists_categories(self) -> None:
+        """save_product_config() should persist categories and they are readable."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AppConfigManager(config_dir=tmpdir)
+            manager.switch_product("prod_cat")
+            manager.save_product_config(
+                "prod_cat",
+                {
+                    "categories": [
+                        {"id": "origin", "name": "产地溯源", "description": "原产地场景"},
+                        {"id": "sorting", "name": "筛选分拣", "description": ""},
+                    ],
+                },
+            )
+            cats = manager.get_categories()
+            assert len(cats) == 2
+            assert cats[0].id == "origin"
+            assert cats[0].name == "产地溯源"
+            assert cats[0].description == "原产地场景"
+            assert cats[1].id == "sorting"
+            assert cats[1].name == "筛选分拣"
+            assert cats[1].description == ""
+
+    def test_save_product_config_categories_roundtrip(self) -> None:
+        """Categories saved via save_product_config() survive reload from disk."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager1 = AppConfigManager(config_dir=tmpdir)
+            manager1.switch_product("prod_roundtrip")
+            manager1.save_product_config(
+                "prod_roundtrip",
+                {
+                    "categories": [
+                        {"id": "test_cat", "name": "测试分类", "description": "往返测试"},
+                    ],
+                },
+            )
+            # Reload from disk
+            manager2 = AppConfigManager(config_dir=tmpdir)
+            # Switch to same product so get_product_config finds it
+            manager2.switch_product("prod_roundtrip")
+            cats = manager2.get_categories()
+            assert len(cats) == 1
+            assert cats[0].id == "test_cat"
+            assert cats[0].name == "测试分类"
+            assert cats[0].description == "往返测试"
+
     def test_get_category_suggestion_model_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AppConfigManager(config_dir=tmpdir)
