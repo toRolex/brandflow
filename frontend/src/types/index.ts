@@ -63,6 +63,7 @@ export interface AssetRecord {
 }
 
 export interface AssetFilters {
+  product: string;
   category: string;
   status: string;
   keyword: string;

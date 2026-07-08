@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { AssetCategory, AssetFilters, AssetRecord, AssetStats, IndexStatus } from "../types";
+import type { AssetCategory, AssetFilters, AssetRecord, AssetStats, CategoryItem, IndexStatus } from "../types";
+import { useProducts } from "../ProductContext";
 import AssetGrid from "../components/AssetGrid";
 import AssetPreviewPanel from "../components/AssetPreviewPanel";
 import AssetUploadZone from "../components/AssetUploadZone";
@@ -17,6 +18,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const DEFAULT_FILTERS: AssetFilters = {
+  product: "",
   category: "",
   status: "",
   keyword: "",
@@ -63,28 +65,64 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const { products, activeProductId, activeProductName } = useProducts();
+
+  const [configuredCategories, setConfiguredCategories] = useState<CategoryItem[]>([]);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const cats = await api.listCategories();
+      setConfiguredCategories(cats);
+    } catch {
+      setConfiguredCategories([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
+
   const loadAssets = useCallback(async () => {
     let res: { assets: AssetRecord[]; stats: AssetStats };
+    const params: { product?: string } = {};
+    if (filters.product) params.product = filters.product;
     if (projectId) {
-      res = await api.listIndexedAssets(projectId);
+      res = await api.listIndexedAssets(projectId, params);
     } else {
-      res = await api.listIndexedAssetsShared();
+      res = await api.listIndexedAssetsShared(params);
     }
     setAssets(res.assets);
     setStats(res.stats);
-  }, [projectId]);
+  }, [projectId, filters.product]);
 
   useEffect(() => {
     void loadAssets();
   }, [loadAssets]);
 
+  // Initialize product filter from active product context
+  useEffect(() => {
+    if (activeProductName && !filters.product) {
+      setFilters((f) => ({ ...f, product: activeProductName }));
+    }
+  }, [activeProductName, filters.product]);
+
+  const productFilteredAssets = useMemo(() => {
+    if (!filters.product) return assets;
+    return assets.filter((a) => a.product === filters.product);
+  }, [assets, filters.product]);
+
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const asset of assets) {
+    // Initialize all configured categories with 0
+    for (const cat of configuredCategories) {
+      counts.set(cat.name, 0);
+    }
+    // Count from product-filtered assets
+    for (const asset of productFilteredAssets) {
       counts.set(asset.category, (counts.get(asset.category) || 0) + 1);
     }
     return counts;
-  }, [assets]);
+  }, [productFilteredAssets, configuredCategories]);
 
   const durationRange = useMemo(() => {
     if (assets.length === 0) return { min: 0, max: 0 };
@@ -105,6 +143,10 @@ export default function SmartAssetLibrary({ projectId }: Props) {
     const keywordLower = filters.keyword.trim().toLowerCase();
 
     return assets.filter((asset) => {
+      if (filters.product && asset.product !== filters.product) {
+        return false;
+      }
+
       if (filters.category && asset.category !== filters.category) {
         return false;
       }
@@ -454,13 +496,27 @@ export default function SmartAssetLibrary({ projectId }: Props) {
           <select
             className="border rounded-md px-3 py-2 text-sm"
             style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
+            value={filters.product}
+            onChange={(e) => setFilters((f) => ({ ...f, product: e.target.value, category: "" }))}
+          >
+            <option value="">全部产品</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.name || p.id}>
+                {p.name || p.id}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="border rounded-md px-3 py-2 text-sm"
+            style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
             value={filters.category}
             onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
           >
             <option value="">全部分类 ({stats.total})</option>
-            {Array.from(categoryCounts.keys()).sort().map((item) => (
-              <option key={item} value={item}>
-                {item} ({categoryCounts.get(item) || 0})
+            {configuredCategories.map((cat) => (
+              <option key={cat.id} value={cat.name}>
+                {cat.name} ({categoryCounts.get(cat.name) ?? 0})
               </option>
             ))}
           </select>
@@ -636,7 +692,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
           onDelete={() => void handleBatchDelete()}
           onClear={() => setSelectedIds(new Set())}
           onBatchEdit={handleBatchEdit}
-          categories={Array.from(categoryCounts.keys()).sort()}
+          categories={configuredCategories.map((c) => c.name)}
         />
       )}
 
@@ -671,7 +727,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
               void handlePreviewStatusToggle(asset, nextStatus);
             }}
             onUpdateFields={handlePreviewFieldsUpdate}
-            categories={Array.from(categoryCounts.keys()).sort()}
+            categories={configuredCategories.map((c) => c.name)}
           />
         </div>
       </div>

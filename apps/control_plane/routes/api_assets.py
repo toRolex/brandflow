@@ -69,6 +69,7 @@ def get_indexed_assets(
     request: Request,
     category: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    product: str | None = Query(default=None),
 ):
     root_dir: Path = request.app.state.root_dir
     db_path = shared_asset_db_path(root_dir)
@@ -96,6 +97,9 @@ def get_indexed_assets(
         conditions.append("(file_path LIKE ? OR source_video LIKE ? OR tags LIKE ?)")
         like_q = f"%{q}%"
         params.extend([like_q, like_q, like_q])
+    if product:
+        conditions.append("product = ?")
+        params.append(product)
 
     if conditions:
         base_query += " WHERE " + " AND ".join(conditions)
