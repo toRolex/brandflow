@@ -61,6 +61,8 @@ export default function SmartAssetLibrary({ projectId }: Props) {
     batchCount?: number;
   } | null>(null);
 
+  const [configCategories, setConfigCategories] = useState<string[]>([]);
+
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadAssets = useCallback(async () => {
@@ -78,6 +80,14 @@ export default function SmartAssetLibrary({ projectId }: Props) {
     void loadAssets();
   }, [loadAssets]);
 
+  useEffect(() => {
+    api.listCategories().then((cats) => {
+      setConfigCategories(cats.map((c) => c.name));
+    }).catch(() => {
+      // non-critical — dropdowns will fall back to asset-derived categories
+    });
+  }, []);
+
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const asset of assets) {
@@ -85,6 +95,14 @@ export default function SmartAssetLibrary({ projectId }: Props) {
     }
     return counts;
   }, [assets]);
+
+  const combinedCategories = useMemo(() => {
+    const merged = new Set(configCategories);
+    for (const cat of categoryCounts.keys()) {
+      merged.add(cat);
+    }
+    return Array.from(merged).sort();
+  }, [configCategories, categoryCounts]);
 
   const durationRange = useMemo(() => {
     if (assets.length === 0) return { min: 0, max: 0 };
@@ -458,7 +476,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
             onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
           >
             <option value="">全部分类 ({stats.total})</option>
-            {Array.from(categoryCounts.keys()).sort().map((item) => (
+            {combinedCategories.map((item) => (
               <option key={item} value={item}>
                 {item} ({categoryCounts.get(item) || 0})
               </option>
@@ -636,7 +654,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
           onDelete={() => void handleBatchDelete()}
           onClear={() => setSelectedIds(new Set())}
           onBatchEdit={handleBatchEdit}
-          categories={Array.from(categoryCounts.keys()).sort()}
+          categories={combinedCategories}
         />
       )}
 
@@ -671,7 +689,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
               void handlePreviewStatusToggle(asset, nextStatus);
             }}
             onUpdateFields={handlePreviewFieldsUpdate}
-            categories={Array.from(categoryCounts.keys()).sort()}
+            categories={combinedCategories}
           />
         </div>
       </div>
