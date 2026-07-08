@@ -292,6 +292,23 @@ export const api = {
   listProducts: () =>
     request<Array<{ id: string; name: string }>>("/api/products"),
 
+  createProduct: (name: string) =>
+    request<{ id: string; name: string }>("/api/products", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+
+  renameProduct: (productId: string, name: string) =>
+    request<{ id: string; name: string }>(`/api/products/${productId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteProduct: (productId: string) =>
+    request<{ status: string; active_product_id: string }>(`/api/products/${productId}`, {
+      method: "DELETE",
+    }),
+
   switchProduct: (productId: string) =>
     request<{ active_product_id: string }>(`/api/products/${productId}/switch`, {
       method: "POST",

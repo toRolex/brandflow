@@ -525,6 +525,73 @@ class AppConfigManager:
 
         return raw
 
+    def create_product(self, name: str) -> dict[str, str]:
+        """创建新产品。name 同时作为产品 ID，不可为空。"""
+        trimmed = name.strip()
+        if not trimmed:
+            raise ValueError("product name cannot be empty")
+
+        raw = self._load()
+        if "products" not in raw:
+            raw["products"] = []
+
+        # 产品已存在时直接返回
+        for p in raw["products"]:
+            if p.get("id") == trimmed:
+                return {"id": trimmed, "name": trimmed}
+
+        raw["products"].append({"id": trimmed, "default_name": trimmed})
+        if "active_product_id" not in raw or not raw["active_product_id"]:
+            raw["active_product_id"] = trimmed
+
+        self._save(raw)
+        return {"id": trimmed, "name": trimmed}
+
+    def rename_product(self, product_id: str, name: str) -> dict[str, str]:
+        """重命名产品。只改变显示名称，不改变产品 ID。"""
+        trimmed = name.strip()
+        if not trimmed:
+            raise ValueError("product name cannot be empty")
+
+        raw = self._load()
+        for i, p in enumerate(raw.get("products", [])):
+            if p.get("id") == product_id:
+                raw["products"][i]["default_name"] = trimmed
+                self._save(raw)
+                return {"id": product_id, "name": trimmed}
+
+        raise ValueError("product not found")
+
+    def delete_product(self, product_id: str) -> dict[str, str | None]:
+        """删除产品。删除活跃产品时自动选择第一个剩余产品。"""
+        raw = self._load()
+        products = raw.get("products", [])
+
+        # 查找要删除的产品
+        index = None
+        for i, p in enumerate(products):
+            if p.get("id") == product_id:
+                index = i
+                break
+
+        if index is None:
+            raise ValueError("product not found")
+
+        was_active = raw.get("active_product_id") == product_id
+        products.pop(index)
+
+        # 如果删除的是活跃产品，重置活跃产品
+        new_active = raw.get("active_product_id")
+        if was_active:
+            if products:
+                new_active = products[0]["id"]
+            else:
+                new_active = ""
+            raw["active_product_id"] = new_active
+
+        self._save(raw)
+        return {"status": "deleted", "active_product_id": new_active}
+
     def switch_product(self, product_id: str) -> None:
         """切换到指定产品，不存在时自动创建。"""
         raw = self._load()
