@@ -27,6 +27,9 @@ vi.mock("../api/client", () => ({
     saveProductConfigById: vi.fn(),
     resetProductConfig: vi.fn(),
     switchProduct: vi.fn(),
+    createProduct: vi.fn(),
+    renameProduct: vi.fn(),
+    deleteProduct: vi.fn(),
   },
 }));
 
@@ -82,7 +85,6 @@ describe("ProductConfigForm - product list sidebar", () => {
     renderForm();
 
     await waitFor(() => {
-      // 表单中应显示活跃产品的配置
       const nameInput = screen.getByDisplayValue("产品 A") as HTMLInputElement;
       expect(nameInput).toBeInTheDocument();
     });
@@ -107,7 +109,6 @@ describe("ProductConfigForm - product list sidebar", () => {
       expect(screen.getByText("产品 B")).toBeInTheDocument();
     });
 
-    // 活跃产品应有特殊标记（active badge）
     const activeBadge = screen.getByText("当前活跃");
     expect(activeBadge).toBeInTheDocument();
   });
@@ -141,14 +142,12 @@ describe("ProductConfigForm - select and edit non-active product", () => {
       expect(screen.getByText("产品 B")).toBeInTheDocument();
     });
 
-    // 点击产品 B
     fireEvent.click(screen.getByText("产品 B"));
 
     await waitFor(() => {
       expect(api.getProductConfigById).toHaveBeenCalledWith("prod_b");
     });
 
-    // 表单应更新为产品 B 的配置
     await waitFor(() => {
       const brandInput = screen.getByDisplayValue("品牌 B") as HTMLInputElement;
       expect(brandInput).toBeInTheDocument();
@@ -177,18 +176,15 @@ describe("ProductConfigForm - select and edit non-active product", () => {
       expect(screen.getByText("产品 B")).toBeInTheDocument();
     });
 
-    // 点击产品 B 切换到编辑它
     fireEvent.click(screen.getByText("产品 B"));
 
     await waitFor(() => {
       expect(api.getProductConfigById).toHaveBeenCalledWith("prod_b");
     });
 
-    // 修改产品名
     const nameInput = await screen.findByDisplayValue("产品 B");
     fireEvent.change(nameInput, { target: { value: "产品 B 已修改" } });
 
-    // 点击保存
     const saveBtn = screen.getByText("保存配置");
     fireEvent.click(saveBtn);
 
@@ -199,7 +195,6 @@ describe("ProductConfigForm - select and edit non-active product", () => {
       );
     });
 
-    // 不应调用无参的 saveProductConfig
     expect(api.saveProductConfig).not.toHaveBeenCalled();
   });
 });
@@ -221,5 +216,209 @@ describe("ProductConfigForm - empty state", () => {
       expect(screen.getByText("暂无产品配置")).toBeInTheDocument();
     });
     expect(screen.getByText("新建产品")).toBeInTheDocument();
+  });
+});
+
+describe("ProductConfigForm - create product", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { reload: vi.fn() },
+    });
+  });
+
+  it("新建产品调用 createProduct API", async () => {
+    vi.mocked(api.listProducts).mockResolvedValue([
+      { id: "prod_a", name: "产品 A" },
+    ]);
+    vi.mocked(api.getProductConfig).mockResolvedValue(
+      mockProductConfig({ id: "prod_a", default_name: "产品 A" })
+    );
+    vi.mocked(api.getProductConfigById).mockResolvedValue(
+      mockProductConfig({ id: "prod_a", default_name: "产品 A" })
+    );
+    vi.mocked(api.createProduct).mockResolvedValue({ id: "羊肚菌", name: "羊肚菌" });
+
+    renderForm();
+
+    await waitFor(() => {
+      expect(screen.getByText("产品 A")).toBeInTheDocument();
+    });
+
+    // Click "+ 新建产品"
+    fireEvent.click(screen.getByText("+ 新建产品"));
+
+    // Type product name
+    const nameInput = screen.getByPlaceholderText("输入产品名称，如：示例产品");
+    fireEvent.change(nameInput, { target: { value: "羊肚菌" } });
+
+    // Click "创建并编辑"
+    fireEvent.click(screen.getByText("创建并编辑"));
+
+    await waitFor(() => {
+      expect(api.createProduct).toHaveBeenCalledWith("羊肚菌");
+    });
+  });
+});
+
+describe("ProductConfigForm - rename product", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { reload: vi.fn() },
+    });
+  });
+
+  it("重命名产品调用 renameProduct API", async () => {
+    vi.mocked(api.listProducts).mockResolvedValue([
+      { id: "prod_a", name: "产品 A" },
+      { id: "prod_b", name: "产品 B" },
+    ]);
+    vi.mocked(api.getProductConfig).mockResolvedValue(
+      mockProductConfig({ id: "prod_a", default_name: "产品 A" })
+    );
+    vi.mocked(api.getProductConfigById).mockImplementation(async (id: string) => {
+      if (id === "prod_a") return mockProductConfig({ id: "prod_a", default_name: "产品 A" });
+      return mockProductConfig({ id: "prod_b", default_name: "产品 B", default_brand: "品牌 B" });
+    });
+    vi.mocked(api.renameProduct).mockResolvedValue({ id: "prod_b", name: "产品 B 重命名" });
+
+    renderForm();
+
+    await waitFor(() => {
+      expect(screen.getByText("产品 B")).toBeInTheDocument();
+    });
+
+    // Find and click rename button for prod_b (the non-active product)
+    const renameButtons = screen.getAllByTitle("重命名");
+    // prod_b is the second product (index 1), the non-active one
+    const renameBtn = renameButtons[1];
+    fireEvent.click(renameBtn);
+
+    // Type new name and confirm
+    await waitFor(() => {
+      const input = screen.getByDisplayValue("产品 B") as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "产品 B 重命名" } });
+    });
+
+    // Click confirm (checkmark)
+    const confirmBtn = screen.getByTitle("确认");
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(api.renameProduct).toHaveBeenCalledWith("prod_b", "产品 B 重命名");
+    });
+  });
+});
+
+describe("ProductConfigForm - delete product", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { reload: vi.fn() },
+    });
+  });
+
+  it("删除产品前显示确认对话框", async () => {
+    vi.mocked(api.listProducts).mockResolvedValue([
+      { id: "prod_a", name: "产品 A" },
+      { id: "prod_b", name: "产品 B" },
+    ]);
+    vi.mocked(api.getProductConfig).mockResolvedValue(
+      mockProductConfig({ id: "prod_a", default_name: "产品 A" })
+    );
+    vi.mocked(api.getProductConfigById).mockImplementation(async (id: string) => {
+      if (id === "prod_a") return mockProductConfig({ id: "prod_a", default_name: "产品 A" });
+      return mockProductConfig({ id: "prod_b", default_name: "产品 B", default_brand: "品牌 B" });
+    });
+
+    renderForm();
+
+    await waitFor(() => {
+      expect(screen.getByText("产品 B")).toBeInTheDocument();
+    });
+
+    // Click delete button for prod_b (non-active product)
+    const deleteButtons = screen.getAllByTitle("删除");
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("确认删除产品")).toBeInTheDocument();
+    });
+  });
+
+  it("确认删除后调用 deleteProduct API", async () => {
+    vi.mocked(api.listProducts).mockResolvedValue([
+      { id: "prod_a", name: "产品 A" },
+      { id: "prod_b", name: "产品 B" },
+    ]);
+    vi.mocked(api.getProductConfig).mockResolvedValue(
+      mockProductConfig({ id: "prod_a", default_name: "产品 A" })
+    );
+    vi.mocked(api.getProductConfigById).mockImplementation(async (id: string) => {
+      if (id === "prod_a") return mockProductConfig({ id: "prod_a", default_name: "产品 A" });
+      return mockProductConfig({ id: "prod_b", default_name: "产品 B", default_brand: "品牌 B" });
+    });
+    vi.mocked(api.deleteProduct).mockResolvedValue({ status: "deleted", active_product_id: "prod_a" });
+
+    renderForm();
+
+    await waitFor(() => {
+      expect(screen.getByText("产品 B")).toBeInTheDocument();
+    });
+
+    // Click delete button
+    const deleteButtons = screen.getAllByTitle("删除");
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("确认删除产品")).toBeInTheDocument();
+    });
+
+    // Click confirm
+    fireEvent.click(screen.getByText("确认删除"));
+
+    await waitFor(() => {
+      expect(api.deleteProduct).toHaveBeenCalledWith("prod_b");
+    });
+  });
+
+  it("取消删除不调用 API", async () => {
+    vi.mocked(api.listProducts).mockResolvedValue([
+      { id: "prod_a", name: "产品 A" },
+      { id: "prod_b", name: "产品 B" },
+    ]);
+    vi.mocked(api.getProductConfig).mockResolvedValue(
+      mockProductConfig({ id: "prod_a", default_name: "产品 A" })
+    );
+    vi.mocked(api.getProductConfigById).mockImplementation(async (id: string) => {
+      if (id === "prod_a") return mockProductConfig({ id: "prod_a", default_name: "产品 A" });
+      return mockProductConfig({ id: "prod_b", default_name: "产品 B", default_brand: "品牌 B" });
+    });
+
+    renderForm();
+
+    await waitFor(() => {
+      expect(screen.getByText("产品 B")).toBeInTheDocument();
+    });
+
+    const deleteButtons = screen.getAllByTitle("删除");
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("确认删除产品")).toBeInTheDocument();
+    });
+
+    // Click cancel
+    fireEvent.click(screen.getByText("取消"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("确认删除产品")).not.toBeInTheDocument();
+    });
+
+    expect(api.deleteProduct).not.toHaveBeenCalled();
   });
 });

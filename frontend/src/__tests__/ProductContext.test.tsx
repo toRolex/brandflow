@@ -22,6 +22,9 @@ vi.mock("../api/client", () => ({
     listProducts: vi.fn(),
     getProductConfig: vi.fn(),
     switchProduct: vi.fn(),
+    createProduct: vi.fn(),
+    renameProduct: vi.fn(),
+    deleteProduct: vi.fn(),
   },
 }));
 
@@ -104,6 +107,91 @@ describe("ProductProvider", () => {
 
     await waitFor(() => {
       expect(api.switchProduct).toHaveBeenCalledWith("prod_b");
+    });
+    expect(api.listProducts).toHaveBeenCalledTimes(2);
+  });
+
+  it("createProduct 调用 API 并刷新列表", async () => {
+    vi.mocked(api.listProducts).mockResolvedValue([
+      { id: "prod_a", name: "产品 A" },
+    ]);
+    vi.mocked(api.getProductConfig).mockResolvedValue(
+      mockConfig({ default_name: "产品 A" })
+    );
+    vi.mocked(api.createProduct).mockResolvedValue({ id: "羊肚菌", name: "羊肚菌" });
+
+    function Creator() {
+      const { createProduct } = useProducts();
+      return <button onClick={() => createProduct("羊肚菌")}>新建</button>;
+    }
+
+    render(
+      <ProductProvider>
+        <Creator />
+      </ProductProvider>
+    );
+
+    fireEvent.click(screen.getByText("新建"));
+
+    await waitFor(() => {
+      expect(api.createProduct).toHaveBeenCalledWith("羊肚菌");
+    });
+    expect(api.listProducts).toHaveBeenCalledTimes(2);
+  });
+
+  it("renameProduct 调用 API 并刷新列表", async () => {
+    vi.mocked(api.listProducts).mockResolvedValue([
+      { id: "prod_a", name: "产品 A" },
+    ]);
+    vi.mocked(api.getProductConfig).mockResolvedValue(
+      mockConfig({ default_name: "产品 A" })
+    );
+    vi.mocked(api.renameProduct).mockResolvedValue({ id: "prod_a", name: "新名称" });
+
+    function Renamer() {
+      const { renameProduct } = useProducts();
+      return <button onClick={() => renameProduct("prod_a", "新名称")}>重命名</button>;
+    }
+
+    render(
+      <ProductProvider>
+        <Renamer />
+      </ProductProvider>
+    );
+
+    fireEvent.click(screen.getByText("重命名"));
+
+    await waitFor(() => {
+      expect(api.renameProduct).toHaveBeenCalledWith("prod_a", "新名称");
+    });
+    expect(api.listProducts).toHaveBeenCalledTimes(2);
+  });
+
+  it("deleteProduct 调用 API 并刷新列表", async () => {
+    vi.mocked(api.listProducts).mockResolvedValue([
+      { id: "prod_a", name: "产品 A" },
+      { id: "prod_b", name: "产品 B" },
+    ]);
+    vi.mocked(api.getProductConfig).mockResolvedValue(
+      mockConfig({ default_name: "产品 A" })
+    );
+    vi.mocked(api.deleteProduct).mockResolvedValue({ status: "deleted", active_product_id: "prod_a" });
+
+    function Deleter() {
+      const { deleteProduct } = useProducts();
+      return <button onClick={() => deleteProduct("prod_b")}>删除</button>;
+    }
+
+    render(
+      <ProductProvider>
+        <Deleter />
+      </ProductProvider>
+    );
+
+    fireEvent.click(screen.getByText("删除"));
+
+    await waitFor(() => {
+      expect(api.deleteProduct).toHaveBeenCalledWith("prod_b");
     });
     expect(api.listProducts).toHaveBeenCalledTimes(2);
   });

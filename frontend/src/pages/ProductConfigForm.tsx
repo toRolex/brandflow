@@ -55,7 +55,7 @@ const errorTextStyle = {
 } as React.CSSProperties;
 
 export default function ProductConfigForm() {
-  const { products, activeProductId, activeProductName, switchProduct, refreshProducts } = useProducts();
+  const { products, activeProductId, activeProductName, switchProduct, refreshProducts, createProduct, renameProduct, deleteProduct } = useProducts();
   const [config, setConfig] = useState<ProductConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -65,6 +65,9 @@ export default function ProductConfigForm() {
   const [showNewForm, setShowNewForm] = useState(false);
   const [newProductName, setNewProductName] = useState("");
   const [editingProductId, setEditingProductId] = useState<string>("");
+  const [renamingProductId, setRenamingProductId] = useState<string>("");
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string>("");
 
   const loadConfig = useCallback(async (productId?: string) => {
     setLoading(true);
@@ -223,12 +226,10 @@ export default function ProductConfigForm() {
               style={{ background: "var(--accent)" }}
               disabled={!newProductName.trim()}
               onClick={async () => {
-                const id = newProductName.trim().toLowerCase().replace(/\s+/g, "_");
-                await api.switchProduct(id);
-                await switchProduct(id);
+                await createProduct(newProductName.trim());
                 await refreshProducts();
-                await loadConfig();
                 setShowNewForm(false);
+                setNewProductName("");
               }}
             >
               创建并编辑
@@ -315,29 +316,117 @@ export default function ProductConfigForm() {
               {products.map((p) => {
                 const isActive = p.id === activeProductId;
                 const isSelected = p.id === editingProductId;
+                const isRenaming = p.id === renamingProductId;
                 return (
-                  <button
-                    key={p.id}
-                    className="w-full text-left px-4 py-2.5 text-sm flex items-center justify-between hover:brightness-95 transition-colors"
-                    style={{
-                      background: isSelected ? "var(--bg-nav-active)" : "transparent",
-                      color: isSelected ? "var(--text-nav-active)" : "var(--text-primary)",
-                    }}
-                    onClick={() => handleSelectProduct(p.id)}
-                  >
-                    <span className="truncate">{p.name || p.id}</span>
-                    {isActive && (
-                      <span
-                        className="ml-2 text-xs px-1.5 py-0.5 rounded"
-                        style={{
-                          background: "var(--accent)",
-                          color: "var(--text-inverse)",
-                        }}
-                      >
-                        当前活跃
-                      </span>
-                    )}
-                  </button>
+                  <div key={p.id}>
+                    <div
+                      className="w-full text-left px-4 py-2.5 text-sm flex items-center justify-between hover:brightness-95 transition-colors"
+                      style={{
+                        background: isSelected ? "var(--bg-nav-active)" : "transparent",
+                        color: isSelected ? "var(--text-nav-active)" : "var(--text-primary)",
+                      }}
+                    >
+                      {isRenaming ? (
+                        <div className="flex items-center gap-1 flex-1 min-w-0">
+                          <input
+                            type="text"
+                            className="flex-1 min-w-0 px-1 py-0.5 text-sm rounded border"
+                            style={{
+                              borderColor: "var(--border-default)",
+                              background: "var(--bg-input)",
+                              color: "var(--text-primary)",
+                            }}
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === "Enter" && renameValue.trim()) {
+                                await renameProduct(p.id, renameValue.trim());
+                                setRenamingProductId("");
+                                setRenameValue("");
+                              }
+                              if (e.key === "Escape") {
+                                setRenamingProductId("");
+                                setRenameValue("");
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            className="text-xs px-1 hover:brightness-90"
+                            style={{ color: "var(--success)" }}
+                            onClick={async () => {
+                              if (renameValue.trim()) {
+                                await renameProduct(p.id, renameValue.trim());
+                                setRenamingProductId("");
+                                setRenameValue("");
+                              }
+                            }}
+                            title="确认"
+                          >
+                            &#10003;
+                          </button>
+                          <button
+                            className="text-xs px-1 hover:brightness-90"
+                            style={{ color: "var(--text-tertiary)" }}
+                            onClick={() => {
+                              setRenamingProductId("");
+                              setRenameValue("");
+                            }}
+                            title="取消"
+                          >
+                            &#10005;
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            className="truncate text-left flex-1 min-w-0"
+                            style={{ color: "inherit" }}
+                            onClick={() => handleSelectProduct(p.id)}
+                          >
+                            {p.name || p.id}
+                          </button>
+                          <span className="flex items-center gap-1 ml-1 shrink-0">
+                            <button
+                              className="text-xs opacity-50 hover:opacity-100 transition-opacity px-0.5"
+                              style={{ color: "var(--text-tertiary)" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingProductId(p.id);
+                                setRenameValue(p.name || p.id);
+                              }}
+                              title="重命名"
+                            >
+                              &#9998;
+                            </button>
+                            {isActive ? (
+                              <span
+                                className="text-xs px-1.5 py-0.5 rounded"
+                                style={{
+                                  background: "var(--accent)",
+                                  color: "var(--text-inverse)",
+                                }}
+                              >
+                                当前活跃
+                              </span>
+                            ) : (
+                              <button
+                                className="text-xs opacity-50 hover:opacity-100 hover:text-[var(--danger)] transition-all px-0.5"
+                                style={{ color: "var(--text-tertiary)" }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteConfirmId(p.id);
+                                }}
+                                title="删除"
+                              >
+                                &#128465;
+                              </button>
+                            )}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -506,6 +595,53 @@ export default function ProductConfigForm() {
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      {deleteConfirmId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.4)" }}
+          onClick={() => setDeleteConfirmId("")}
+        >
+          <div
+            className="rounded-xl border p-6 max-w-sm w-full mx-4"
+            style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
+              确认删除产品
+            </h3>
+            <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
+              删除后该产品的配置将被移除，但素材文件不会受影响。
+              {deleteConfirmId === activeProductId && " 当前活跃产品将被删除，系统将自动切换到下一个产品。"}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 text-sm font-medium rounded-lg hover:brightness-95 transition-colors"
+                style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}
+                onClick={() => setDeleteConfirmId("")}
+              >
+                取消
+              </button>
+              <button
+                className="px-4 py-2 text-sm font-medium rounded-lg hover:brightness-110 transition-colors"
+                style={{ background: "var(--danger)", color: "#fff" }}
+                onClick={async () => {
+                  await deleteProduct(deleteConfirmId);
+                  // If the deleted product was being edited, reload config
+                  if (editingProductId === deleteConfirmId) {
+                    setEditingProductId("");
+                    setConfig(DEFAULT_CONFIG);
+                  }
+                  setDeleteConfirmId("");
+                }}
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
