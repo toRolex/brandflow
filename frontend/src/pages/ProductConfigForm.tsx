@@ -55,7 +55,7 @@ const errorTextStyle = {
 } as React.CSSProperties;
 
 export default function ProductConfigForm() {
-  const { products, activeProductId, activeProductName, switchProduct } = useProducts();
+  const { products, activeProductId, activeProductName, switchProduct, refreshProducts } = useProducts();
   const [config, setConfig] = useState<ProductConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -64,22 +64,35 @@ export default function ProductConfigForm() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [newProductName, setNewProductName] = useState("");
+  const [editingProductId, setEditingProductId] = useState<string>("");
 
-  const loadConfig = useCallback(async () => {
+  const loadConfig = useCallback(async (productId?: string) => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await api.getProductConfig();
+      let data: ProductConfig;
+      if (productId) {
+        data = await api.getProductConfigById(productId);
+        setEditingProductId(productId);
+      } else {
+        data = await api.getProductConfig();
+        const id = (data as Record<string, unknown>).id as string || activeProductId;
+        setEditingProductId(id);
+      }
       setConfig(data);
     } catch {
       setLoadError("加载产品配置失败");
     }
     setLoading(false);
-  }, []);
+  }, [activeProductId]);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  const handleSelectProduct = async (productId: string) => {
+    await loadConfig(productId);
+  };
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
@@ -105,7 +118,12 @@ export default function ProductConfigForm() {
     setSaving(true);
     setSaveMsg(null);
     try {
-      const result = await api.saveProductConfig(config);
+      let result: ProductConfig;
+      if (editingProductId && editingProductId !== activeProductId) {
+        result = await api.saveProductConfigById(editingProductId, config);
+      } else {
+        result = await api.saveProductConfig(config);
+      }
       setConfig(result);
       setSaveMsg("配置已保存");
       setTimeout(() => setSaveMsg(null), 3000);
@@ -208,6 +226,7 @@ export default function ProductConfigForm() {
                 const id = newProductName.trim().toLowerCase().replace(/\s+/g, "_");
                 await api.switchProduct(id);
                 await switchProduct(id);
+                await refreshProducts();
                 await loadConfig();
                 setShowNewForm(false);
               }}
@@ -227,6 +246,8 @@ export default function ProductConfigForm() {
     );
   }
 
+  const isEditingActive = editingProductId === activeProductId;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -234,12 +255,12 @@ export default function ProductConfigForm() {
           产品配置
           {activeProductName && (
             <span className="ml-2 text-base font-normal" style={{ color: "var(--text-secondary)" }}>
-              — {activeProductName}
+              — 活跃：{activeProductName}
             </span>
           )}
         </h1>
         <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-          ID: {activeProductId}
+          活跃产品 ID: {activeProductId}
         </div>
       </div>
 
@@ -277,149 +298,213 @@ export default function ProductConfigForm() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-6">
-          {/* 基本信息 */}
-          <section
-            className="rounded-xl border p-6"
+      <div className="flex gap-6">
+        {/* Product list sidebar */}
+        <div className="w-56 shrink-0">
+          <div
+            className="rounded-xl border"
             style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
           >
-            <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>基本信息</h2>
-            <div className="space-y-4">
-              <div>
-                <label style={labelStyle}>
-                  产品名 <span style={{ color: "var(--danger)" }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-4 py-2 rounded-lg text-sm"
-                  style={{
-                    ...inputStyle,
-                    ...(errors.default_name
-                      ? { borderColor: "var(--danger-border)", background: "var(--danger-bg)" }
-                      : {}),
-                  }}
-                  placeholder="输入产品名称"
-                  value={config.default_name}
-                  onChange={(e) => updateField("default_name", e.target.value)}
-                />
-                {errors.default_name && (
-                  <p style={errorTextStyle}>{errors.default_name}</p>
-                )}
-                <p style={hintStyle}>
-                  用于脚本生成和素材检索的默认产品名
-                </p>
-              </div>
-
-              <div>
-                <label style={labelStyle}>
-                  品牌名 <span style={{ color: "var(--danger)" }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-4 py-2 rounded-lg text-sm"
-                  style={{
-                    ...inputStyle,
-                    ...(errors.default_brand
-                      ? { borderColor: "var(--danger-border)", background: "var(--danger-bg)" }
-                      : {}),
-                  }}
-                  placeholder="输入品牌名称"
-                  value={config.default_brand}
-                  onChange={(e) => updateField("default_brand", e.target.value)}
-                />
-                {errors.default_brand && (
-                  <p style={errorTextStyle}>{errors.default_brand}</p>
-                )}
-                <p style={hintStyle}>
-                  品牌名，用于脚本生成
-                </p>
-              </div>
+            <div
+              className="px-4 py-3 text-sm font-semibold border-b"
+              style={{ borderColor: "var(--border-default)", color: "var(--text-primary)" }}
+            >
+              产品列表
             </div>
-          </section>
+            <div className="py-1">
+              {products.map((p) => {
+                const isActive = p.id === activeProductId;
+                const isSelected = p.id === editingProductId;
+                return (
+                  <button
+                    key={p.id}
+                    className="w-full text-left px-4 py-2.5 text-sm flex items-center justify-between hover:brightness-95 transition-colors"
+                    style={{
+                      background: isSelected ? "var(--bg-nav-active)" : "transparent",
+                      color: isSelected ? "var(--text-nav-active)" : "var(--text-primary)",
+                    }}
+                    onClick={() => handleSelectProduct(p.id)}
+                  >
+                    <span className="truncate">{p.name || p.id}</span>
+                    {isActive && (
+                      <span
+                        className="ml-2 text-xs px-1.5 py-0.5 rounded"
+                        style={{
+                          background: "var(--accent)",
+                          color: "var(--text-inverse)",
+                        }}
+                      >
+                        当前活跃
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div
+              className="px-4 py-2 border-t"
+              style={{ borderColor: "var(--border-default)" }}
+            >
+              <button
+                className="text-xs w-full text-center py-1 rounded hover:brightness-95 transition-colors"
+                style={{ color: "var(--accent)" }}
+                onClick={() => setShowNewForm(true)}
+              >
+                + 新建产品
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-6">
-          {/* 内容配置 */}
-          <section
-            className="rounded-xl border p-6"
-            style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
-          >
-            <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>内容配置</h2>
-            <div className="space-y-4">
-              <div>
-                <label style={labelStyle}>
-                  场景描述
-                </label>
-                <textarea
-                  className="w-full px-4 py-3 rounded-lg text-sm"
-                  style={{ ...textareaStyle, resize: "none" }}
-                  rows={3}
-                  placeholder="描述视频场景内容"
-                  value={config.script.scene}
-                  onChange={(e) => updateScriptField("scene", e.target.value)}
-                />
-                <p style={hintStyle}>
-                  描述脚本生成的场景方向，如：产品展示、制作过程、成品呈现
-                </p>
-              </div>
+        {/* Config form */}
+        <div className="flex-1 min-w-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              {/* 基本信息 */}
+              <section
+                className="rounded-xl border p-6"
+                style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
+              >
+                <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>基本信息</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label style={labelStyle}>
+                      产品名 <span style={{ color: "var(--danger)" }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2 rounded-lg text-sm"
+                      style={{
+                        ...inputStyle,
+                        ...(errors.default_name
+                          ? { borderColor: "var(--danger-border)", background: "var(--danger-bg)" }
+                          : {}),
+                      }}
+                      placeholder="输入产品名称"
+                      value={config.default_name}
+                      onChange={(e) => updateField("default_name", e.target.value)}
+                    />
+                    {errors.default_name && (
+                      <p style={errorTextStyle}>{errors.default_name}</p>
+                    )}
+                    <p style={hintStyle}>
+                      用于脚本生成和素材检索的默认产品名
+                    </p>
+                  </div>
 
-              <div>
-                <label style={labelStyle}>
-                  素材描述
-                </label>
-                <textarea
-                  className="w-full px-4 py-3 rounded-lg text-sm"
-                  style={{ ...textareaStyle, resize: "none" }}
-                  rows={3}
-                  placeholder="描述所需素材内容"
-                  value={config.script.material}
-                  onChange={(e) => updateScriptField("material", e.target.value)}
-                />
-                <p style={hintStyle}>
-                  描述素材检索的方向，如：产品近景、细节处理、使用场景
-                </p>
-              </div>
-
-              <div>
-                <label style={labelStyle}>
-                  系统提示词
-                </label>
-                <textarea
-                  className="w-full px-4 py-3 rounded-lg text-sm"
-                  style={{ ...textareaStyle, resize: "none" }}
-                  rows={4}
-                  placeholder="系统提示词，LLM 生成脚本时的角色设定"
-                  value={config.script.system_prompt}
-                  onChange={(e) => updateScriptField("system_prompt", e.target.value)}
-                />
-                <p style={hintStyle}>
-                  LLM 生成脚本时的角色设定和约束。不填则使用系统默认值。
-                </p>
-              </div>
+                  <div>
+                    <label style={labelStyle}>
+                      品牌名 <span style={{ color: "var(--danger)" }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2 rounded-lg text-sm"
+                      style={{
+                        ...inputStyle,
+                        ...(errors.default_brand
+                          ? { borderColor: "var(--danger-border)", background: "var(--danger-bg)" }
+                          : {}),
+                      }}
+                      placeholder="输入品牌名称"
+                      value={config.default_brand}
+                      onChange={(e) => updateField("default_brand", e.target.value)}
+                    />
+                    {errors.default_brand && (
+                      <p style={errorTextStyle}>{errors.default_brand}</p>
+                    )}
+                    <p style={hintStyle}>
+                      品牌名，用于脚本生成
+                    </p>
+                  </div>
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center gap-4 mt-6">
-        <button
-          className="px-6 py-3 text-[var(--text-inverse)] font-medium rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          style={{ background: "var(--accent)" }}
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? "保存中..." : "保存配置"}
-        </button>
-        <button
-          className="px-6 py-3 font-medium rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}
-          onClick={handleReset}
-          disabled={saving}
-        >
-          重置为默认值
-        </button>
+            <div className="space-y-6">
+              {/* 内容配置 */}
+              <section
+                className="rounded-xl border p-6"
+                style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
+              >
+                <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>内容配置</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label style={labelStyle}>
+                      场景描述
+                    </label>
+                    <textarea
+                      className="w-full px-4 py-3 rounded-lg text-sm"
+                      style={{ ...textareaStyle, resize: "none" }}
+                      rows={3}
+                      placeholder="描述视频场景内容"
+                      value={config.script.scene}
+                      onChange={(e) => updateScriptField("scene", e.target.value)}
+                    />
+                    <p style={hintStyle}>
+                      描述脚本生成的场景方向，如：产品展示、制作过程、成品呈现
+                    </p>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>
+                      素材描述
+                    </label>
+                    <textarea
+                      className="w-full px-4 py-3 rounded-lg text-sm"
+                      style={{ ...textareaStyle, resize: "none" }}
+                      rows={3}
+                      placeholder="描述所需素材内容"
+                      value={config.script.material}
+                      onChange={(e) => updateScriptField("material", e.target.value)}
+                    />
+                    <p style={hintStyle}>
+                      描述素材检索的方向，如：产品近景、细节处理、使用场景
+                    </p>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>
+                      系统提示词
+                    </label>
+                    <textarea
+                      className="w-full px-4 py-3 rounded-lg text-sm"
+                      style={{ ...textareaStyle, resize: "none" }}
+                      rows={4}
+                      placeholder="系统提示词，LLM 生成脚本时的角色设定"
+                      value={config.script.system_prompt}
+                      onChange={(e) => updateScriptField("system_prompt", e.target.value)}
+                    />
+                    <p style={hintStyle}>
+                      LLM 生成脚本时的角色设定和约束。不填则使用系统默认值。
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-4 mt-6">
+            <button
+              className="px-6 py-3 text-[var(--text-inverse)] font-medium rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ background: "var(--accent)" }}
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? "保存中..." : "保存配置"}
+            </button>
+            {isEditingActive && (
+              <button
+                className="px-6 py-3 font-medium rounded-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}
+                onClick={handleReset}
+                disabled={saving}
+              >
+                重置为默认值
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
