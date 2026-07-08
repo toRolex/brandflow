@@ -57,7 +57,7 @@
 
   /* ---- Motion Tokens (respects prefers-reduced-motion) ---- */
   --transition-duration: 150ms;
-  --transition-easing: ease;
+  --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
   --transition-duration-slow: 300ms;
 
   /* ---- Border Radius ---- */
@@ -346,8 +346,20 @@
 
 /* --------------------------------------------------------------------------
    5. Reduced Motion — Per-component granular control
-   CSS variables zero out transitions; functional animations preserved.
+   Transition durations use --transition-duration (zeroed in reduce mode).
+   Non-functional animations are stopped; functional animations preserved.
    -------------------------------------------------------------------------- */
+
+/* Global: transition-duration driven by CSS variable.
+   When --transition-duration is 150ms normally, transitions animate.
+   When @media (prefers-reduced-motion: reduce) sets it to 0s, transitions become instant.
+   Unlayered stylesheet beats @layer utilities, so this overrides Tailwind defaults. */
+*,
+*::before,
+*::after {
+  transition-duration: var(--transition-duration);
+  transition-timing-function: var(--transition-easing);
+}
 
 @media (prefers-reduced-motion: reduce) {
   :root {
@@ -359,12 +371,10 @@
     --ease-exit: 0ms step-start;
   }
 
-  /* Kill transitions on all elements; stop non-functional animations */
+  /* Stop non-functional animations (transition is already handled by variables) */
   *,
   *::before,
   *::after {
-    transition-duration: 0s !important;
-    transition-delay: 0s !important;
     animation-duration: 0s !important;
     animation-delay: 0s !important;
     animation-iteration-count: 1 !important;

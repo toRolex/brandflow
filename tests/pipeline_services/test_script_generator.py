@@ -374,7 +374,7 @@ class TestScriptGeneratorCantonese:
 
         assert isinstance(result, ScriptResult)
         assert result.mock is True
-        assert "徹底煮熟" in result.full_text
+        assert "而家" in result.full_text
         assert "嘅" in result.full_text
 
 

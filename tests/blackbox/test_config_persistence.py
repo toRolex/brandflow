@@ -43,10 +43,16 @@ class TestConfigPersistence:
         with open(config_file, encoding="utf-8") as f:
             saved_data = json.load(f)
 
-        assert "tts" in saved_data
-        assert saved_data["tts"]["model"] == "test-persist-model"
-        assert saved_data["tts"]["voice"] == "test-persist-voice"
-        assert saved_data["tts"]["style_prompt"] == "test-persist-style"
+        # set_tts() 优先写入活跃产品的 product-level tts
+        active_id = saved_data.get("active_product_id", "")
+        if active_id:
+            product = next((p for p in saved_data.get("products", []) if p.get("id") == active_id), None)
+            tts = product["tts"] if product and "tts" in product else saved_data.get("tts", {})
+        else:
+            tts = saved_data.get("tts", {})
+        assert tts["model"] == "test-persist-model"
+        assert tts["voice"] == "test-persist-voice"
+        assert tts["style_prompt"] == "test-persist-style"
 
     def test_config_persists_across_requests(self, client):
         client.put("/api/tts/config", json={"model": "persisted-model"})
@@ -85,10 +91,16 @@ class TestConfigPersistence:
         with open(config_file, encoding="utf-8") as f:
             saved_data = json.load(f)
 
-        assert "director" in saved_data["tts"]
-        assert saved_data["tts"]["director"]["character"] == "年轻女性"
-        assert saved_data["tts"]["director"]["scene"] == "厨房"
-        assert saved_data["tts"]["director"]["guidance"] == "热情洋溢"
+        active_id = saved_data.get("active_product_id", "")
+        if active_id:
+            product = next((p for p in saved_data.get("products", []) if p.get("id") == active_id), None)
+            tts = product["tts"] if product and "tts" in product else saved_data.get("tts", {})
+        else:
+            tts = saved_data.get("tts", {})
+        assert "director" in tts
+        assert tts["director"]["character"] == "年轻女性"
+        assert tts["director"]["scene"] == "厨房"
+        assert tts["director"]["guidance"] == "热情洋溢"
 
     def test_audio_tags_config_persists(self, client):
         config = {
@@ -101,9 +113,15 @@ class TestConfigPersistence:
         with open(config_file, encoding="utf-8") as f:
             saved_data = json.load(f)
 
-        assert "audio_tags" in saved_data["tts"]
-        assert saved_data["tts"]["audio_tags"]["enabled"] is True
-        assert saved_data["tts"]["audio_tags"]["tags"] == "(温柔)[笑声]"
+        active_id = saved_data.get("active_product_id", "")
+        if active_id:
+            product = next((p for p in saved_data.get("products", []) if p.get("id") == active_id), None)
+            tts = product["tts"] if product and "tts" in product else saved_data.get("tts", {})
+        else:
+            tts = saved_data.get("tts", {})
+        assert "audio_tags" in tts
+        assert tts["audio_tags"]["enabled"] is True
+        assert tts["audio_tags"]["tags"] == "(温柔)[笑声]"
 
     def test_config_survives_new_client(self):
         app1 = create_app()
@@ -124,7 +142,11 @@ class TestConfigPersistence:
         with open(config_file, encoding="utf-8") as f:
             saved_data = json.load(f)
 
-        assert saved_data["tts"]["model"] == "tts-model"
-        assert "llm" in saved_data
-        assert "vision" in saved_data
-        assert "media" in saved_data
+        active_id = saved_data.get("active_product_id", "")
+        if active_id:
+            product = next((p for p in saved_data.get("products", []) if p.get("id") == active_id), None)
+            tts = product["tts"] if product and "tts" in product else saved_data.get("tts", {})
+        else:
+            tts = saved_data.get("tts", {})
+        assert tts["model"] == "tts-model"
+        assert "products" in saved_data

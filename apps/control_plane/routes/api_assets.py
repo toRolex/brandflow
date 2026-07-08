@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import shutil
 import sqlite3
 
@@ -132,7 +131,11 @@ def get_indexed_assets(
 
 
 @router.post("/index")
-async def index_assets(request: Request, async_mode: bool = Query(True)):
+async def index_assets(
+    request: Request,
+    async_mode: bool = Query(True),
+    product: str | None = Query(None),
+):
     root_dir: Path = request.app.state.root_dir
     source_dir = shared_source_dir(root_dir)
     source_dir.mkdir(parents=True, exist_ok=True)
@@ -159,28 +162,29 @@ async def index_assets(request: Request, async_mode: bool = Query(True)):
             conn.close()
         return {"indexed": 0, "skipped": len(videos), "total_clips": total_clips}
 
+    from packages.provider_config.app_config import AppConfigManager
+
+    app_config = AppConfigManager()
+    product_value = product or app_config.get_product_config().get("name", "")
+
     if async_mode:
         task = index_task_manager.create_task(len(new_videos))
         print(f"[INDEX] 创建异步任务: {task.task_id}, 待处理 {len(new_videos)} 个视频")
         bg_task = asyncio.create_task(
-            _run_index_task(task.task_id, root_dir, new_videos, db_path)
+            _run_index_task(task.task_id, root_dir, new_videos, db_path, product_value)
         )
         _background_tasks.add(bg_task)
         bg_task.add_done_callback(_background_tasks.discard)
         return {"task_id": task.task_id, "total_videos": len(new_videos)}
 
     repository = AssetRepository(db_path)
-    from packages.provider_config.app_config import AppConfigManager
-
-    app_config = AppConfigManager()
     vision_config = app_config.get_vision_config()
-    product = os.environ.get("PRODUCT", "")
     ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
     indexer = AssetIndexer(
         ffmpeg_path=ffmpeg_path,
         repository=repository,
         vision_config=vision_config,
-        product=product,
+        product=product_value,
     )
     output_base = shared_indexed_dir(root_dir)
     for video in new_videos:
@@ -204,7 +208,7 @@ async def index_assets(request: Request, async_mode: bool = Query(True)):
 
 
 async def _run_index_task(
-    task_id: str, root_dir: Path, videos: list[Path], db_path: Path
+    task_id: str, root_dir: Path, videos: list[Path], db_path: Path, product: str
 ):
     task = index_task_manager.get_task(task_id)
     if not task:
@@ -212,7 +216,7 @@ async def _run_index_task(
 
     task.status = TaskStatus.RUNNING
     index_task_manager.add_log(task_id, f"开始处理 {len(videos)} 个视频")
-    print(f"[INDEX] 任务开始: {task_id}, 共 {len(videos)} 个视频")
+    print(f"[INDEX] 任务开始: {task_id}, 共 {len(videos)} 个视频, product={product}")
 
     try:
         repository = AssetRepository(db_path)
@@ -220,7 +224,6 @@ async def _run_index_task(
 
         app_config = AppConfigManager()
         vision_config = app_config.get_vision_config()
-        product = os.environ.get("PRODUCT", "")
         ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
         indexer = AssetIndexer(
             ffmpeg_path=ffmpeg_path,
@@ -353,17 +356,6 @@ async def batch_update_fields(request: Request):
     if not new_product and not new_category:
         return {"updated": 0}
 
-    if new_category:
-        from packages.pipeline_services.asset_library.models import Category
-
-        try:
-            Category(new_category)
-        except ValueError:
-            valid = [c.value for c in Category]
-            raise HTTPException(
-                status_code=400, detail=f"invalid category, must be one of: {valid}"
-            )
-
     root_dir: Path = request.app.state.root_dir
     db_path = shared_asset_db_path(root_dir)
     if not db_path.exists():
@@ -456,19 +448,8 @@ async def patch_asset_fields(request: Request, asset_id: str):
     if not new_product and not new_category:
         return {"updated": 0}
 
-    if new_category:
-        from packages.pipeline_services.asset_library.models import Category
-
-        try:
-            Category(new_category)
-        except ValueError:
-            valid = [c.value for c in Category]
-            raise HTTPException(
-                status_code=400, detail=f"invalid category, must be one of: {valid}"
-            )
-
     product = new_product or record.product
-    category = new_category or record.category.value
+    category = new_category or record.category
 
     indexed_dir = shared_indexed_dir(root_dir)
     new_dir = indexed_dir / product / category

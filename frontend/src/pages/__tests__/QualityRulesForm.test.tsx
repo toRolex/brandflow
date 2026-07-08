@@ -12,11 +12,11 @@ vi.mock("../../api/client", () => ({
 }));
 
 const MOCK_CONFIG = {
-  default_name: "羊肚菌",
-  default_brand: "菌王山珍",
+  default_name: "示例产品",
+  default_brand: "示例品牌",
   script: {
-    scene: "食材展示、烹饪过程、成品呈现",
-    material: "食材近景、清洗处理、烹饪翻炒",
+    scene: "产品展示、制作过程、成品呈现",
+    material: "产品近景、细节处理、使用场景",
     system_prompt: "你是一位美食短视频文案专家。",
     word_count_min: 150,
     word_count_max: 200,

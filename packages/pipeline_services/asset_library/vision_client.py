@@ -6,15 +6,15 @@ import logging
 import os
 from pathlib import Path
 
-# AppConfigManager imported lazily in resolve_vision_config to break circular import
+from packages.pipeline_services.asset_library.category_config import default_categories
 
 logger = logging.getLogger(__name__)
 
-_VISION_PROMPT = """你是一个菌菇视频素材分类助手。请识别这张图片属于以下哪个类别，只返回一个类别名称：
+_VISION_PROMPT = """你是一个视频素材分类助手。请识别这张图片属于以下哪个类别，只返回一个类别名称：
 
-可选类别：产地溯源, 筛选分拣, 清洗泡发, 切配处理, 下锅入锅, 烹饪翻炒, 出锅装盘, 成品展示, 试吃品尝, 产品特写
+可选类别：{categories}
 
-返回格式：{"category": "类别名", "confidence": 0.0-1.0}"""
+返回格式：{{"category": "类别名", "confidence": 0.0-1.0}}"""
 
 
 def build_vision_prompt(category_names: list[str] | None = None) -> str:
@@ -24,30 +24,13 @@ def build_vision_prompt(category_names: list[str] | None = None) -> str:
     ----------
     category_names:
         Category names to include in the prompt. Falls back to the legacy
-        food categories when ``None`` or empty.
-
-    Returns
-    -------
-    str
-        A formatted vision classification prompt.
+        default categories when ``None`` or empty.
     """
-    names = category_names or [
-        "产地溯源",
-        "筛选分拣",
-        "清洗泡发",
-        "切配处理",
-        "下锅入锅",
-        "烹饪翻炒",
-        "出锅装盘",
-        "成品展示",
-        "试吃品尝",
-        "产品特写",
-    ]
-    return (
-        "你是一个视频素材分类助手。请识别这张图片属于以下哪个类别，只返回一个类别名称：\n\n"
-        f"可选类别：{', '.join(names)}\n\n"
-        '返回格式：{"category": "类别名", "confidence": 0.0-1.0}'
-    )
+    if category_names:
+        cats = ", ".join(category_names)
+    else:
+        cats = ", ".join(c.name for c in default_categories())
+    return _VISION_PROMPT.format(categories=cats)
 
 
 class VisionClient:

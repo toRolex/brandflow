@@ -1,24 +1,12 @@
 import { useState } from "react";
 import type { AssetRecord } from "../types";
 
-const CATEGORIES = [
-  "产地溯源",
-  "筛选分拣",
-  "清洗泡发",
-  "切配处理",
-  "下锅入锅",
-  "烹饪翻炒",
-  "出锅装盘",
-  "成品展示",
-  "试吃品尝",
-  "产品特写",
-];
-
 interface Props {
   asset: AssetRecord | null;
   isUpdating?: boolean;
   onToggleStatus?: (asset: AssetRecord, nextStatus: AssetRecord["status"]) => void;
   onUpdateFields?: (asset: AssetRecord, fields: { product?: string; category?: string }) => Promise<void>;
+  categories?: string[];
 }
 
 function formatDuration(seconds: number) {
@@ -83,7 +71,7 @@ function parseAssetTags(rawTags: unknown) {
   return [];
 }
 
-export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleStatus, onUpdateFields }: Props) {
+export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleStatus, onUpdateFields, categories = [] }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editProduct, setEditProduct] = useState("");
   const [editCategory, setEditCategory] = useState("");
@@ -208,7 +196,7 @@ export default function AssetPreviewPanel({ asset, isUpdating = false, onToggleS
               value={editCategory}
               onChange={(e) => setEditCategory(e.target.value)}
             >
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>

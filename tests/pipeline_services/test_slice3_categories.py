@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from packages.pipeline_services.asset_library import (
     Category,
@@ -19,7 +18,6 @@ from packages.pipeline_services.asset_library.category_config import (
 from packages.pipeline_services.asset_library.classify import (
     build_classify_prompt,
     create_classify_fn,
-    FOOD_CATEGORY_NAMES,
 )
 from packages.pipeline_services.asset_library.vision_client import (
     build_vision_prompt,
@@ -86,7 +84,9 @@ class TestAppConfigCategories:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "app_config.json"
             config_path.write_text(
-                json.dumps({"asset_library": {"categories": custom_cats}}, ensure_ascii=False),
+                json.dumps(
+                    {"asset_library": {"categories": custom_cats}}, ensure_ascii=False
+                ),
                 encoding="utf-8",
             )
             manager = AppConfigManager(config_dir=tmpdir)
@@ -218,9 +218,10 @@ class TestAppConfigCategories:
 
 class TestClassifyPrompt:
     def test_build_prompt_default(self) -> None:
+        """Default prompt (no categories) should use adaptive mode."""
         prompt = build_classify_prompt()
-        for name in FOOD_CATEGORY_NAMES:
-            assert name in prompt, f"Missing {name} in default prompt"
+        assert "给出一个简洁的中文分类名称" in prompt
+        assert "产地溯源" not in prompt
 
     def test_build_prompt_custom(self) -> None:
         prompt = build_classify_prompt(["采收采集", "加工处理"])
@@ -229,15 +230,16 @@ class TestClassifyPrompt:
         assert "产地溯源" not in prompt
 
     def test_build_prompt_empty_fallback(self) -> None:
-        """Empty list should fall back to default food categories."""
+        """Empty list should use adaptive prompt (no food fallback)."""
         prompt = build_classify_prompt([])
-        for name in FOOD_CATEGORY_NAMES:
-            assert name in prompt, f"Missing {name} in fallback prompt"
+        assert "给出一个简洁的中文分类名称" in prompt
+        assert "产地溯源" not in prompt
 
     def test_build_prompt_none_fallback(self) -> None:
+        """None should use adaptive prompt (no food fallback)."""
         prompt = build_classify_prompt(None)
-        for name in FOOD_CATEGORY_NAMES:
-            assert name in prompt, f"Missing {name} in fallback prompt"
+        assert "给出一个简洁的中文分类名称" in prompt
+        assert "产地溯源" not in prompt
 
 
 class TestCreateClassifyFnWithCategories:
@@ -287,10 +289,10 @@ class TestCreateClassifyFnWithCategories:
 
 
 class TestClassifyFnBackwardCompat:
-    """Test that create_classify_fn still works without category_names."""
+    """Test that create_classify_fn works in adaptive mode without category_names."""
 
-    def test_old_classify_still_works(self) -> None:
-        """Without category_names, should use legacy food categories."""
+    def test_adaptive_classify_accepts_any_category(self) -> None:
+        """Without category_names, adaptive mode accepts any category from LLM."""
         from unittest.mock import Mock
 
         mock_resp = Mock()
@@ -407,7 +409,8 @@ class TestOldCategoryBackwardCompat:
             product="荔枝菌",
         )
         assert record.category_name() == "切配处理"
-        assert isinstance(record.category, Category)
+        assert record.category == "切配处理"
+        assert isinstance(record.category, str)
 
     def test_category_name_method(self) -> None:
         from packages.pipeline_services.asset_library import AssetRecord
@@ -439,13 +442,17 @@ class TestPackageExports:
 
     def test_old_import_still_works(self) -> None:
         """Old imports like ``from ...models import Category`` still work."""
-        from packages.pipeline_services.asset_library.models import Category as OldCategory
+        from packages.pipeline_services.asset_library.models import (
+            Category as OldCategory,
+        )
 
         assert OldCategory is Category
 
     def test_new_import_works(self) -> None:
         """New imports like ``from ...category_config import CategoryConfig`` work."""
-        from packages.pipeline_services.asset_library.category_config import CategoryConfig
+        from packages.pipeline_services.asset_library.category_config import (
+            CategoryConfig,
+        )
 
         assert CategoryConfig is not None
 
@@ -456,8 +463,8 @@ class TestPackageExports:
 
 
 class TestEmptyCategories:
-    def test_empty_categories_does_not_crash_classify(self) -> None:
-        """Empty categories list should not crash create_classify_fn."""
+    def test_empty_categories_uses_adaptive_mode(self) -> None:
+        """Empty categories list should use adaptive mode — accept any category name."""
         from unittest.mock import Mock
 
         mock_resp = Mock()
@@ -473,9 +480,9 @@ class TestEmptyCategories:
                 model="deepseek-v4-pro",
                 category_names=[],
             )
-            # Empty list falls back to FOOD_CATEGORY_NAMES, so "no_match" is not valid
+            # Adaptive mode accepts any non-empty category name
             result = fn("测试。")
-        assert result is None
+        assert result == "no_match"
 
     def test_empty_categories_does_not_crash_vision(self) -> None:
         """Empty categories list should not crash VisionClient."""

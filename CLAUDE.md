@@ -1,12 +1,12 @@
 # 项目级规范
 
 github 项目地址：
-https://github.com/toRolex/ai-video-pipeline
+https://github.com/toRolex/brandflow
 
 **Windows 服务器：**
 | 环境 | 用户 | 项目路径 |
 |------|------|----------|
-| 测试机（`100.121.152.103`） | `ziyua` | `C:\Users\ziyua\Documents\Code\ai-video-pipeline` |
+| 测试机（`100.121.152.103`） | `ziyua` | `C:\Users\ziyua\Documents\Code\brandflow` |
 | 生产机（`192.168.31.222`） | `zyt18` | 尚未部署（GitHub Actions 推 `main` 自动部署） |
 
 ## 项目上下文维护
@@ -53,7 +53,7 @@ Host prod-jump
 **快捷连接：**
 ```bash
 # 测试机（直连，密钥认证）
-ssh zyt@100.121.152.103 "cmd /c \"cd /d C:\Users\ziyua\Documents\Code\ai-video-pipeline && <命令>\""
+ssh zyt@100.121.152.103 "cmd /c \"cd /d C:\Users\ziyua\Documents\Code\brandflow && <命令>\""
 
 # 生产机（跳板，密钥认证）
 ssh prod-jump "<命令>"
@@ -76,7 +76,7 @@ ssh prod-jump "<命令>"
 - 执行器：`apps/runtime_worker/`（拉模式 worker，直接调用 `packages/pipeline_services/` 下的独立 service）
 - 目标平台：抖音、小红书、视频号、快手
 - 默认 LLM：DeepSeek `deepseek-v4-pro`
-- 默认 TTS：Xiaomi MiMo（4 种模型，详见下方「LLM / TTS / Vision 架构」）
+- 默认 TTS：Qwen（百炼 DashScope `qwen-tts`，详见下方「LLM / TTS / Vision 架构」）
 - 默认 Vision：Xiaomi `mimo-v2.5`
 
 ## 技术栈
@@ -111,6 +111,7 @@ ssh prod-jump "<命令>"
 |----------|----------|----------|---------------|----------|
 | deepseek | `DEEPSEEK_API_KEY` | `LLM_API_KEY` | `DEEPSEEK_API_URL` | `LLM_API_URL` |
 | kimi | `KIMI_API_KEY` | `LLM_API_KEY` | `KIMI_API_URL` | `LLM_API_URL` |
+| qwen | `DASHSCOPE_API_KEY` | `TTS_API_KEY` | `DASHSCOPE_API_URL` | `TTS_API_URL` |
 | mimo | `MIMO_API_KEY` | `TTS_API_KEY` | `MIMO_API_BASE_URL` | `TTS_API_URL` |
 | minimax | `MINIMAX_API_KEY` | `TTS_API_KEY` | `MINIMAX_TTS_URL` | `TTS_API_URL` |
 | xiaomi | `XIAOMI_VISION_API_KEY` | `VISION_API_KEY` | `XIAOMI_VISION_API_URL` | `VISION_API_URL` |
@@ -155,7 +156,7 @@ uv run python -m apps.control_plane
 uv run python -m apps.runtime_worker
 
 # 指定产品
-PRODUCT=羊肚菌 uv run python -m apps.runtime_worker
+PRODUCT=零食测试 uv run python -m apps.runtime_worker
 
 # Windows 生产
 packaging\windows\start_worker.bat
@@ -192,6 +193,20 @@ uv run pytest tests/ -q --tb=short
 | `/api/config/templates/{id}` | PUT | 更新脚本模板 |
 | `/api/config/templates/{id}` | DELETE | 删除脚本模板 |
 | `/api/config/templates/{id}/preview` | POST | 预览模板 + 变量填充结果 |
+| `/api/assets/upload` | POST | 上传素材视频到共享素材库 |
+| `/api/assets/indexed` | GET | 列出已索引素材（支持 category、q 过滤） |
+| `/api/assets/index` | POST | 触发素材索引（支持异步模式） |
+| `/api/assets/index/{task_id}/status` | GET | 查询索引进度 |
+| `/api/assets/batch` | PATCH | 批量更新素材状态 |
+| `/api/assets/batch-fields` | PATCH | 批量更新素材字段 |
+| `/api/assets/{asset_id}` | PATCH/DELETE | 更新/删除单个素材 |
+| `/api/assets/migrate` | POST | 从项目级 DB 迁移素材到共享 DB |
+| `/api/assets/categories/suggest` | POST | AI 建议分类体系 |
+| `/api/scene/folders` | GET | 列出场景文件夹及文件数 |
+| `/api/scene/upload` | POST | 上传场景素材视频 |
+| `/api/scene/folders/{name}/files` | GET/DELETE | 列出/删除场景文件夹内文件 |
+| `/api/jobs/{job_id}/export` | GET | 下载 Export Bundle ZIP |
+| `/api/jobs/{job_id}/logs` | GET | 获取 Job 执行日志 |
 
 ### 知识库（Issue #28）
 
@@ -232,7 +247,7 @@ uv run pytest tests/ -q --tb=short
 ├── apps/
 │   ├── control_plane/                # Phase 1 控制面（FastAPI + Web + 任务调度）
 │   │   ├── app.py                    # FastAPI app factory
-│   │   ├── routes/                   # projects, jobs, reviews, workers, knowledge, products, config, templates
+│   │   ├── routes/                   # projects, jobs, reviews, workers, knowledge, products, config, templates, assets, scene, tts
 │   │   ├── services/                 # dispatch.py, reconcile.py
 │   │   └── templates/                # Jinja2 页面
 │   └── runtime_worker/              # Phase 1 执行器（拉模式 worker）
@@ -252,7 +267,7 @@ uv run pytest tests/ -q --tb=short
 │   │   ├── store.py                   # ScriptTemplateStore（config/templates/*.json）
 │   │   └── renderer.py               # 模板 + 变量 → manual_script
 │   ├── pipeline_services/            # 业务能力（独立 service + phase runner）
-│   │   ├── llm_client.py             # 通用 LLM HTTP 客户端
+│   │   ├── export_service.py          # Export Bundle ZIP 打包（final.mp4 + 音轨 + 字幕 + 素材 + timeline.json）
 │   │   ├── script_service/           # 脚本生成
 │   │   │   ├── generator.py          # ScriptGenerator 核心类
 │   │   │   ├── prompts.py            # Prompt 模板构造
@@ -307,14 +322,17 @@ queued → script_generating → script_review → tts_generating → tts_review
 → completed
 
 Import 模式：
-queued → scene_assembling ←(parallel)── tts_generating
-          ↓
-       montage_assembling → asset_retrieving → asset_review → video_rendering
-       (复用现有 clip → final_rendering → final_review → completed)
+queued → scene_assembling ──────────────────────┐
+       → tts_generating → subtitle_generating ──┤
+                                                 ↓
+                            montage_assembling ←─┘
+                                                 ↓
+                            asset_retrieving → asset_review → video_rendering
+                            → final_rendering → final_review → completed
 ```
 
 - **Generate 模式**：LLM 生成脚本 → TTS → 素材检索 → 视频合成
-- **Import 模式**：从场景素材文件夹随机选取视频 → scene_assembling（与 TTS 并行）→ montage_assembling 拼接场景段和素材段 → 复用现有渲染流水线
+- **Import 模式**：scene_assembling 从场景文件夹随机选取视频拼接开场段（与 TTS 并行）→ subtitle_generating 生成字幕 → montage_assembling 拼接场景段和素材段 → 复用现有渲染流水线
 - Import 模式自动跳过 `script_review` 和 `tts_review` 审核门
 - `mode: "import" | "generate"` 字段在 JobRecord 上，创建时指定
 
@@ -372,12 +390,12 @@ Phase 5 新增运营人员配置面板：
 
 ## 项目命名规则
 - Phase 1 新系统不再沿用旧的 `001xxx` 目录结构，项目数据统一落在 `workspace/projects/{project_id}/`
-- 旧规则（`001见手青` 等旧项目已在清理中移除）
+- 旧规则（`001xxx` 格式的旧项目已在清理中移除）
 
 ## LLM / TTS / Vision 架构
 - 文本能力支持 `deepseek`、`kimi`、`openai`，默认值见 `AppConfigManager.DEFAULTS["llm"]`
-- TTS 能力支持 `mimo`、`minimax`，默认值见 `AppConfigManager.DEFAULTS["tts"]`
-- TTS 模型支持 4 种模式：`mimo-v2.5-tts`（预置音色）、`mimo-v2.5-tts-voicedesign`（音色设计）、`mimo-v2.5-tts-voiceclone`（音色克隆）、`mimo-v2-tts`（V2 预置），默认音色池 `Mia` / `Dean`
+- TTS 能力支持 `qwen`（百炼 DashScope）、`mimo`、`minimax`，默认值见 `AppConfigManager.DEFAULTS["tts"]`
+- TTS 模型：`qwen-tts`（默认）、`mimo-v2.5-tts`（预置音色）、`mimo-v2.5-tts-voicedesign`（音色设计）、`mimo-v2.5-tts-voiceclone`（音色克隆）、`mimo-v2-tts`（V2 预置）
 - TTS 配置新增字段：`voice_clone_sample_path`（克隆样本路径）、`voice_clone_mime_type`（样本 MIME）、`optimize_text_preview`（voicedesign 文本优化预览，默认 `False`）
 - TTS 音频格式默认值为 `wav`
 - Vision 能力支持 `xiaomi`、`openai`、`claude` 兼容接口，默认值见 `AppConfigManager.DEFAULTS["vision"]`
@@ -397,7 +415,7 @@ Phase 5 新增运营人员配置面板：
 ## 重要约束
 
 - **API Key 安全**：secret 只放本机 `.env`，不得写入代码、文档、报告或聊天
-- **TTS 配额**：MiniMax 日额度有限，MiMo 需关注用量
+- **TTS 配额**：MiniMax 日额度有限，MiMo/Qwen 需关注用量
 - **媒体路径**：默认值以 `AppConfigManager.DEFAULTS` 与部署环境覆盖为准；Windows 可通过环境变量或 profile 覆盖。Whisper 在 Windows 下对中文路径敏感
 - **Python 版本**：需要 Python 3.11+（通过 `uv run` / `uv sync` 管理）
 - **平台**：Phase 1 架构已支持跨平台（mac 开发 + Windows 生产），平台差异收口在 `runtime_adapters` 层

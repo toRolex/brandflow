@@ -26,11 +26,11 @@ vi.mock("../../ProductContext", () => ({
 }));
 
 const MOCK_CONFIG = {
-  default_name: "羊肚菌",
-  default_brand: "菌王山珍",
+  default_name: "示例产品",
+  default_brand: "示例品牌",
   script: {
-    scene: "食材展示、烹饪过程、成品呈现",
-    material: "食材近景、清洗处理、烹饪翻炒",
+    scene: "产品展示、制作过程、成品呈现",
+    material: "产品近景、细节处理、使用场景",
     system_prompt: "你是一位美食短视频文案专家。",
   },
 };
@@ -46,11 +46,11 @@ describe("ProductConfigForm", () => {
     expect(api.getProductConfig).toHaveBeenCalledTimes(1);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
-    expect(screen.getByDisplayValue("菌王山珍")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("食材展示、烹饪过程、成品呈现")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("食材近景、清洗处理、烹饪翻炒")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("示例品牌")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("产品展示、制作过程、成品呈现")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("产品近景、细节处理、使用场景")).toBeInTheDocument();
     expect(screen.getByDisplayValue("你是一位美食短视频文案专家。")).toBeInTheDocument();
   });
 
@@ -68,7 +68,7 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
     const saveBtn = screen.getByText("保存配置");
@@ -78,8 +78,8 @@ describe("ProductConfigForm", () => {
       expect(api.saveProductConfig).toHaveBeenCalledTimes(1);
       expect(api.saveProductConfig).toHaveBeenCalledWith(
         expect.objectContaining({
-          default_name: "羊肚菌",
-          default_brand: "菌王山珍",
+          default_name: "示例产品",
+          default_brand: "示例品牌",
         })
       );
     });
@@ -90,7 +90,7 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
     const saveBtn = screen.getByText("保存配置");
@@ -106,7 +106,7 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
     const saveBtn = screen.getByText("保存配置");
@@ -122,7 +122,7 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
     const resetBtn = screen.getByText("重置为默认值");
@@ -152,7 +152,7 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
     const resetBtn = screen.getByText("重置为默认值");
@@ -167,23 +167,23 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
-    const nameInput = screen.getByDisplayValue("羊肚菌");
-    fireEvent.change(nameInput, { target: { value: "松茸" } });
+    const nameInput = screen.getByDisplayValue("示例产品");
+    fireEvent.change(nameInput, { target: { value: "新产品名称" } });
 
-    expect(screen.getByDisplayValue("松茸")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("新产品名称")).toBeInTheDocument();
   });
 
   it("表单验证：产品名为空时显示错误", async () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
-    const nameInput = screen.getByDisplayValue("羊肚菌");
+    const nameInput = screen.getByDisplayValue("示例产品");
     fireEvent.change(nameInput, { target: { value: "" } });
 
     const saveBtn = screen.getByText("保存配置");
@@ -201,10 +201,10 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
-    const brandInput = screen.getByDisplayValue("菌王山珍");
+    const brandInput = screen.getByDisplayValue("示例品牌");
     fireEvent.change(brandInput, { target: { value: "" } });
 
     const saveBtn = screen.getByText("保存配置");
@@ -221,10 +221,10 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
-    const nameInput = screen.getByDisplayValue("羊肚菌");
+    const nameInput = screen.getByDisplayValue("示例产品");
     fireEvent.change(nameInput, { target: { value: "a".repeat(51) } });
 
     const saveBtn = screen.getByText("保存配置");
@@ -241,10 +241,10 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
-    const brandInput = screen.getByDisplayValue("菌王山珍");
+    const brandInput = screen.getByDisplayValue("示例品牌");
     fireEvent.change(brandInput, { target: { value: "a".repeat(51) } });
 
     const saveBtn = screen.getByText("保存配置");
@@ -266,7 +266,7 @@ describe("ProductConfigForm", () => {
     render(<ProductConfigForm />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("羊肚菌")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
     });
 
     const saveBtn = screen.getByText("保存配置");

@@ -1,18 +1,5 @@
 import { useState } from "react";
 
-const CATEGORIES = [
-  "产地溯源",
-  "筛选分拣",
-  "清洗泡发",
-  "切配处理",
-  "下锅入锅",
-  "烹饪翻炒",
-  "出锅装盘",
-  "成品展示",
-  "试吃品尝",
-  "产品特写",
-];
-
 interface Props {
   count: number;
   onEnable: () => void;
@@ -20,9 +7,10 @@ interface Props {
   onDelete: () => void;
   onClear: () => void;
   onBatchEdit?: (fields: { product?: string; category?: string }) => void;
+  categories?: string[];
 }
 
-export default function BatchActionBar({ count, onEnable, onDisable, onDelete, onClear, onBatchEdit }: Props) {
+export default function BatchActionBar({ count, onEnable, onDisable, onDelete, onClear, onBatchEdit, categories = [] }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [editProduct, setEditProduct] = useState("");
   const [editCategory, setEditCategory] = useState("");
@@ -100,7 +88,7 @@ export default function BatchActionBar({ count, onEnable, onDisable, onDelete, o
               onChange={(e) => setEditCategory(e.target.value)}
             >
               <option value="">不修改</option>
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>

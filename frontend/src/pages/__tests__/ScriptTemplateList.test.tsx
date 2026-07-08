@@ -15,7 +15,7 @@ const MOCK_TEMPLATES = [
   {
     id: "tmpl_001",
     name: "通用带货脚本",
-    description: "适用于食品类短视频带货",
+    description: "适用于产品类短视频展示",
     slots: [{ type: "hook" as const, label: "开头钩子", required: true, max_length: 60, hint: "" }],
     variables: [{ name: "product_name", label: "产品名", source: "product_config" as const }],
     default_config_override: {},
@@ -63,7 +63,7 @@ describe("ScriptTemplateList", () => {
   it("显示模板描述和 slot 数量", async () => {
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("适用于食品类短视频带货")).toBeInTheDocument();
+      expect(screen.getByText("适用于产品类短视频展示")).toBeInTheDocument();
     });
     expect(screen.getByText("1 个片段")).toBeInTheDocument();
     expect(screen.getByText(/产品测评脚本/)).toBeInTheDocument();

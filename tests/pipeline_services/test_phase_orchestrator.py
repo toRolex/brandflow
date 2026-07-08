@@ -659,7 +659,13 @@ class TestRunVideo:
         assert "-i" in call_args
         assert "-filter_complex" in call_args
         filter_idx = call_args.index("-filter_complex")
-        assert "concat=n=2" in call_args[filter_idx + 1]
+        filter_str = call_args[filter_idx + 1]
+        assert "concat=n=2" in filter_str
+        # Verify normalization: both inputs scaled to 720x1280@30fps yuv420p before concat
+        assert "scale=720:1280" in filter_str
+        assert "fps=30" in filter_str
+        assert "format=pix_fmts=yuv420p" in filter_str
+        assert "setsar=1" in filter_str
 
         # Temp _clip_base.mp4 should be cleaned up
         assert not (job_dir / "_clip_base.mp4").exists()

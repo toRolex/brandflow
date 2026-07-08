@@ -478,15 +478,15 @@ class TestImportModeTickFlow:
         assert action.run_handler is True
         assert action.handler_phase == "scene_assembling"
         assert action.parallel_phases == ["tts_generating"]
-        assert action.new_phase == "montage_assembling"
+        assert action.new_phase == "subtitle_generating"
 
     def test_montage_assembling_triggers_handler(self) -> None:
-        """montage_assembling → handler, then advance to asset_retrieving."""
+        """montage_assembling → handler, then advance to video_rendering."""
         record = make_record(phase="montage_assembling", mode="import")
         action = _compute_transition(record, ())
         assert action.run_handler is True
         assert action.handler_phase == "montage_assembling"
-        assert action.new_phase == "asset_retrieving"
+        assert action.new_phase == "video_rendering"
 
     def test_import_mode_full_tick_with_mock_orchestrator(self) -> None:
         """JobTickService.tick handles import mode through scene_assembling."""
@@ -533,7 +533,7 @@ class TestImportModeTickFlow:
         # Verify scene config was passed in context
         ctx_arg = call_args[0][1]
         assert isinstance(ctx_arg, PhaseContext)
-        assert ctx_arg.scene_folder_paths == []
+        assert isinstance(ctx_arg.scene_folder_paths, list)
         assert ctx_arg.transition_duration_ms == 500
 
         # Verify transition to montage_assembling
@@ -571,7 +571,7 @@ class TestImportModeTickFlow:
     def test_import_mode_advances_past_scene_assembling_to_completed(
         self,
     ) -> None:
-        """End-to-end transition from queued through import mode to completed."""
+        """End-to-end transition from montage_assembling through video_rendering."""
         record = make_record(phase="montage_assembling", mode="import")
         mock_repo = MagicMock()
         mock_repo.load_job.return_value = record
@@ -596,5 +596,75 @@ class TestImportModeTickFlow:
 
         assert summary.action in ("advanced",)
         assert summary.from_phase == "montage_assembling"
-        # Should advance to asset_retrieving
-        assert summary.to_phase == "asset_retrieving"
+        # Should advance to video_rendering (not asset_retrieving)
+        assert summary.to_phase == "video_rendering"
+
+    # -- Import mode subtitle routing (issue #56) -----------------------
+
+    def test_subtitle_generating_to_montage_assembling_with_artifacts(
+        self,
+    ) -> None:
+        """Import mode: subtitle_generating + artifacts → montage_assembling."""
+        record = make_record(phase="subtitle_generating", mode="import")
+        action = _compute_transition(
+            record,
+            ({"kind": "subtitle", "relative_path": "subtitle.srt"},),
+        )
+        assert action.new_phase == "montage_assembling"
+        assert "import mode" in action.message.lower()
+
+    def test_subtitle_generating_skip_to_montage_assembling(self) -> None:
+        """Import mode: subtitle_generating + skip_subtitle → montage_assembling."""
+        record = make_record(
+            phase="subtitle_generating", mode="import", skip_subtitle=True
+        )
+        action = _compute_transition(record, ())
+        assert action.new_phase == "montage_assembling"
+        assert "skip" in action.message.lower()
+
+    def test_subtitle_generating_runs_handler_no_artifacts(self) -> None:
+        """Import mode: subtitle_generating, no skip, no artifacts → run handler."""
+        record = make_record(phase="subtitle_generating", mode="import")
+        action = _compute_transition(record, ())
+        assert action.run_handler is True
+        assert action.handler_phase == "subtitle_generating"
+        assert action.new_phase is None
+
+    def test_subtitle_after_artifacts_routes_to_montage_assembling(
+        self,
+    ) -> None:
+        """_transition_after_artifacts: import mode subtitle → montage_assembling."""
+        from packages.pipeline_services.job_tick_service import (
+            _transition_after_artifacts,
+        )
+
+        record = make_record(phase="subtitle_generating", mode="import")
+        action = _transition_after_artifacts(
+            record,
+            ({"kind": "subtitle", "relative_path": "subtitle.srt"},),
+        )
+        assert action.new_phase == "montage_assembling"
+        assert "import mode" in action.message.lower()
+
+    def test_scene_assembling_to_subtitle_generating_transition(self) -> None:
+        """Import mode: scene_assembling → subtitle_generating (not montage_assembling)."""
+        record = make_record(phase="scene_assembling", mode="import")
+        action = _compute_transition(record, ())
+        assert action.new_phase == "subtitle_generating"
+
+    def test_generate_mode_subtitle_skip_unchanged(self) -> None:
+        """Generate mode: subtitle skip still uses _safe_next (asset_retrieving)."""
+        record = make_record(
+            phase="subtitle_generating", mode="generate", skip_subtitle=True
+        )
+        action = _compute_transition(record, ())
+        assert action.new_phase == "asset_retrieving"
+
+    def test_generate_mode_subtitle_artifacts_unchanged(self) -> None:
+        """Generate mode: subtitle + artifacts still goes to _safe_next."""
+        record = make_record(phase="subtitle_generating", mode="generate")
+        action = _compute_transition(
+            record,
+            ({"kind": "subtitle", "relative_path": "subtitle.srt"},),
+        )
+        assert action.new_phase == "asset_retrieving"

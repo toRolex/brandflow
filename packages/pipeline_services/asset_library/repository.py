@@ -8,7 +8,6 @@ from pathlib import Path
 from packages.pipeline_services.asset_library.models import (
     AssetRecord,
     AssetStatus,
-    Category,
 )
 
 
@@ -76,7 +75,7 @@ class AssetRepository:
             (
                 record.asset_id,
                 record.file_path,
-                record.category.value,
+                record.category_name(),
                 record.product,
                 record.confidence,
                 record.duration_seconds,
@@ -100,12 +99,12 @@ class AssetRepository:
         conn.close()
         return row_to_record(row) if row else None
 
-    def query_by_category(self, product: str, category: Category) -> list[AssetRecord]:
+    def query_by_category(self, product: str, category: str) -> list[AssetRecord]:
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM assets WHERE product = ? AND category = ? AND status != 'disabled' ORDER BY usage_count ASC, confidence DESC",
-            (product, category.value),
+            (product, category),
         ).fetchall()
         conn.close()
         return [row_to_record(r) for r in rows]
@@ -176,8 +175,6 @@ class AssetRepository:
         updates = {k: v for k, v in kwargs.items() if k in allowed}
         if not updates:
             return False
-        if "category" in updates and isinstance(updates["category"], Category):
-            updates["category"] = updates["category"].value
         if "tags" in updates and isinstance(updates["tags"], list):
             updates["tags"] = json.dumps(updates["tags"], ensure_ascii=False)
         set_clause = ", ".join(f"{k} = ?" for k in updates)
@@ -190,11 +187,11 @@ class AssetRepository:
         conn.close()
         return cursor.rowcount > 0
 
-    def count_by_category(self, product: str, category: Category) -> int:
+    def count_by_category(self, product: str, category: str) -> int:
         conn = sqlite3.connect(str(self.db_path))
         row = conn.execute(
             "SELECT COUNT(*) FROM assets WHERE product = ? AND category = ? AND status != 'disabled'",
-            (product, category.value),
+            (product, category),
         ).fetchone()
         conn.close()
         return row[0] if row else 0
@@ -248,16 +245,10 @@ class AssetRepository:
 
 
 def row_to_record(row: sqlite3.Row) -> AssetRecord:
-    raw_category = row["category"]
-    try:
-        category = Category(raw_category)
-    except ValueError:
-        # Config-based category name that is not in the legacy enum
-        category = Category.MACRO  # fallback
     return AssetRecord(
         asset_id=row["asset_id"],
         file_path=row["file_path"],
-        category=category,
+        category=row["category"],
         product=row["product"],
         confidence=row["confidence"],
         duration_seconds=row["duration_seconds"],
