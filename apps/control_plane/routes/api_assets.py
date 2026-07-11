@@ -39,7 +39,7 @@ def _sanitize_filename(filename: str) -> str:
 def _get_valid_category_names(root_dir: Path) -> set[str]:
     """Return the set of category names that are currently valid.
 
-    Uses AppConfigManager so it respects product-config -> instance-config
+    Uses ConfigReader so it respects product-config -> instance-config
     -> default-food-categories priority chain.
     """
     manager = AppConfigManager(config_dir=root_dir / "config")

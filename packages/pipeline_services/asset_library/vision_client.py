@@ -185,7 +185,7 @@ def resolve_vision_config(
     secrets: "SecretStore | None" = None,
     reader: "ConfigReader | None" = None,
 ) -> dict:
-    """Resolve vision provider config from AppConfigManager or injected deps.
+    """Resolve vision provider config from ConfigReader injected deps or fallback.
 
     When *secrets* and *reader* are provided they are used directly;
     otherwise falls back to constructing ``AppConfigManager`` (legacy path).

@@ -14,7 +14,7 @@ def test_tts_config_default_audio_format():
 
 
 def test_app_config_defaults_audio_format():
-    """AppConfigManager DEFAULTS 中 tts 音频格式应为 wav"""
+    """ConfigReader DEFAULTS 中 tts 音频格式应为 wav"""
     assert DEFAULTS["tts"]["audio_format"] == "wav", (
         f"Expected 'wav', got '{DEFAULTS['tts']['audio_format']}'"
     )

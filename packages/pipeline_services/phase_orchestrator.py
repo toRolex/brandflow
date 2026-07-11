@@ -5,7 +5,7 @@ into small, testable, injectable handler methods.
 
 Slice 1: ``script_generating`` only.  Subsequent slices migrate remaining phases.
 Slice 2: ``tts_generating``.
-Slice 4: ConfigReader injection — eliminates AppConfigManager() temporary constructions.
+Slice 4: ConfigReader injection — eliminates AppConfigManager() temporary constructions (now using ConfigReader).
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def create_orchestrator(
     """Factory: build a PhaseOrchestrator with real service dependencies.
 
     When *config_reader* is provided, all config reads go through it
-    (no AppConfigManager temporary construction).  When None, falls back
+    (no AppConfigManager temporary construction — replaced by ConfigReader injection).  When None, falls back
     to AppConfigManager for backward compatibility.
     """
     from apps.control_plane.services.schedule_store import ScheduleStore
@@ -271,7 +271,7 @@ class PhaseOrchestrator:
         """Resolve category names for asset classification.
 
         Priority: product-level categories > asset_library categories > defaults.
-        Uses ConfigReader when available; otherwise falls back to AppConfigManager.
+        Uses ConfigReader when available; otherwise falls back to AppConfigManager (backward compatibility).
         """
         if config_reader is not None:
             product_config = config_reader.get_product_config(product_id=ctx.product)
@@ -290,7 +290,7 @@ class PhaseOrchestrator:
             )
             return [c.name for c in default_categories()]
 
-        # Fallback: AppConfigManager
+        # Fallback: AppConfigManager (legacy backward compatibility)
         from packages.provider_config.app_config import AppConfigManager
         app_cfg = AppConfigManager()
         categories = app_cfg.get_categories()
@@ -400,7 +400,7 @@ class PhaseOrchestrator:
     ) -> None:
         """Auto-generate cover title if the job JSON has no ``cover_title.text``.
 
-        Uses ConfigReader when injected; falls back to AppConfigManager otherwise.
+        Uses ConfigReader when injected; falls back to AppConfigManager otherwise (backward compatibility).
         Errors are logged but never propagated.
         """
         job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
@@ -818,7 +818,7 @@ class PhaseOrchestrator:
                     p = ctx.root_dir / "workspace" / p
                 folders.append(p)
         else:
-            # Fallback: ctx.scene_config > ConfigReader > AppConfigManager
+            # Fallback: ctx.scene_config > ConfigReader > AppConfigManager (backward compatibility)
             scene_config = ctx.scene_config
             if not scene_config and self._config is not None:
                 scene_config = self._config.get_scene_config(product_id=ctx.product)
@@ -1030,6 +1030,6 @@ class PhaseOrchestrator:
 
 
 def _fallback_category_suggestion_model() -> str:
-    """Fallback: read category suggestion model via AppConfigManager."""
+    """Fallback: read category suggestion model via AppConfigManager (legacy backward compatibility)."""
     from packages.provider_config.app_config import AppConfigManager
     return AppConfigManager().get_category_suggestion_model()
