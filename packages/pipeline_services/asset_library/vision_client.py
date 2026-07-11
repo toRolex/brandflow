@@ -180,8 +180,25 @@ class VisionClient:
             return {"category": raw_text.strip(), "confidence": 0.5}
 
 
-def resolve_vision_config(providers_payload: dict) -> dict:
-    """Resolve vision provider config from AppConfigManager."""
+def resolve_vision_config(
+    providers_payload: dict,
+    secrets: "SecretStore | None" = None,
+    reader: "ConfigReader | None" = None,
+) -> dict:
+    """Resolve vision provider config from AppConfigManager or injected deps.
+
+    When *secrets* and *reader* are provided they are used directly;
+    otherwise falls back to constructing ``AppConfigManager`` (legacy path).
+    """
+    if secrets is not None and reader is not None:
+        config = reader.get_vision_config()
+        return {
+            "provider": config.get("provider", "xiaomi"),
+            "api_key": secrets.get_vision_api_key(reader),
+            "endpoint": secrets.get_vision_endpoint(reader),
+            "model": secrets.get_vision_model(reader),
+        }
+
     from packages.provider_config.app_config import AppConfigManager
 
     manager = AppConfigManager()
