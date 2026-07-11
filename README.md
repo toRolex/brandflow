@@ -4,6 +4,8 @@ AI 驱动的短视频自动化生产系统，基于 `control-plane + runtime-wor
 
 ## 快速启动
 
+### macOS / Linux
+
 ```bash
 # 1. 安装后端依赖
 uv sync
@@ -15,9 +17,24 @@ cp .env.example .env
 cd frontend && npm install && cd ..
 ```
 
+### Windows
+
+```cmd
+# 1. 初始化目录、体检、生成 .env 模板
+packaging\windows\init.bat
+
+# 2. 编辑 .env 填入 API Key
+
+# 3. 安装前端依赖
+cd frontend && npm install && cd ..
+
+# 4. 同时启动后端和前端
+packaging\windows\start.bat
+```
+
 ### 启动
 
-**需要同时开两个终端窗口** — 一个跑后端，一个跑前端。
+**macOS / Linux 需要同时开两个终端窗口** — 一个跑后端，一个跑前端。
 
 **终端 1 — 后端：**
 ```bash
@@ -30,6 +47,8 @@ uv run python -m apps.control_plane
 cd frontend && npm run dev
 ```
 看到 `Local: http://localhost:5173/` 即成功。
+
+**Windows** 直接运行 `packaging\windows\start.bat`，后端日志写入 `logs/backend.log`，前端日志写入 `logs/frontend.log`。
 
 然后打开浏览器访问 **http://localhost:5173**。
 

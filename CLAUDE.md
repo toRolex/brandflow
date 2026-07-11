@@ -175,6 +175,16 @@ ssh snack-lan "cmd /c \"cd /d D:\brandflow && <命令>\""
 uv run python -m apps.control_plane
 ```
 
+### Windows 一键初始化 / 启动（Issue #78）
+
+```cmd
+# 初始化目录、运行体检、生成 .env 模板
+packaging\windows\init.bat
+
+# 同时启动后端（17890）和前端（5173），日志写入 logs/
+packaging\windows\start.bat
+```
+
 ### 部署体检（Issue #76）
 ```bash
 # CLI 入口：检查 ffmpeg / ffprobe / whisper-cli、目录、端口
