@@ -152,6 +152,49 @@ class TestProviderConfigs:
 # ---------------------------------------------------------------------------
 
 
+class TestTTSNestedConfig:
+    def test_get_tts_config_nested_root_override_preserves_defaults(self) -> None:
+        """root 级 TTS 嵌套覆盖应保留同级默认值."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(
+                tmpdir,
+                {"tts": {"director": {"character": "自定义角色"}}},
+            )
+            reader = ConfigReader(config_dir=tmpdir)
+            config = reader.get_tts_config()
+            assert config["director"]["character"] == "自定义角色"
+            assert config["director"]["scene"] == ""
+            assert config["director"]["guidance"] == ""
+
+    def test_get_tts_config_audio_tags_root_override(self) -> None:
+        """root 级 TTS audio_tags 嵌套覆盖."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(
+                tmpdir,
+                {"tts": {"audio_tags": {"enabled": True, "tags": "(温柔)[笑声]"}}},
+            )
+            reader = ConfigReader(config_dir=tmpdir)
+            config = reader.get_tts_config()
+            assert config["audio_tags"]["enabled"] is True
+            assert config["audio_tags"]["tags"] == "(温柔)[笑声]"
+
+    def test_get_tts_config_nested_defaults_present(self) -> None:
+        """无覆盖时嵌套 TTS 默认值应存在."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(tmpdir, {})
+            reader = ConfigReader(config_dir=tmpdir)
+            config = reader.get_tts_config()
+            assert "director" in config
+            assert config["director"]["character"] == ""
+            assert "audio_tags" in config
+            assert config["audio_tags"]["enabled"] is False
+
+
+# ---------------------------------------------------------------------------
+# Seam: get_media_config / get_video_config / get_asset_library_config (continued)
+# ---------------------------------------------------------------------------
+
+
 class TestNonProductConfigs:
     def test_get_media_config_returns_defaults_and_overrides(self) -> None:
         """get_media_config 合并 DEFAULTS + root."""
@@ -313,6 +356,26 @@ class TestSceneConfig:
             prod = reader.get_scene_config(product_id="snack")
             assert prod["folders"][0]["name"] == "产品级"
             assert prod["transition_duration_ms"] == 600
+
+    def test_get_scene_config_product_falls_back_to_top_level(self) -> None:
+        """产品没有 scene 配置时回退到顶级 scene."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(
+                tmpdir,
+                {
+                    "scene": {
+                        "folders": [{"name": "回退文件夹", "path": "fallback"}],
+                        "transition_duration_ms": 400,
+                    },
+                    "products": [
+                        {"id": "snack"},
+                    ],
+                },
+            )
+            reader = ConfigReader(config_dir=tmpdir)
+            config = reader.get_scene_config(product_id="snack")
+            assert config["folders"][0]["name"] == "回退文件夹"
+            assert config["transition_duration_ms"] == 400
 
     def test_get_scene_config_product_partial_merge(self) -> None:
         """产品级 scene 部分字段时回退到 DEFAULTS."""
