@@ -337,16 +337,20 @@ def test_merge_multiple_configs() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TTSConfigManager delegates to AppConfigManager
+# TTSConfigManager delegates to ConfigReader / save_config
 # ---------------------------------------------------------------------------
 
 
 def test_tts_config_from_app_config() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
-        from packages.provider_config.app_config import AppConfigManager
+        from packages.provider_config.config_io import save_config
+        from packages.provider_config.config_reader import ConfigReader
 
-        app_manager = AppConfigManager(config_dir=tmpdir)
-        app_manager.set_tts("model", "from-app-config")
+        config_path = Path(tmpdir) / "app_config.json"
+        save_config(config_path, {"tts": {"model": "from-app-config"}})
+
+        reader = ConfigReader(config_dir=tmpdir)
+        assert reader.get_tts_config()["model"] == "from-app-config"
 
         tts_manager = TTSConfigManager(config_dir=tmpdir)
         config = tts_manager.get_config()
@@ -355,10 +359,10 @@ def test_tts_config_from_app_config() -> None:
 
 def test_tts_config_save_to_app_config() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
+        from packages.provider_config.config_reader import ConfigReader
+
         tts_manager = TTSConfigManager(config_dir=tmpdir)
         tts_manager.save_config(TTSConfig(model="saved-model"))
 
-        from packages.provider_config.app_config import AppConfigManager
-
-        app_manager = AppConfigManager(config_dir=tmpdir)
-        assert app_manager.get_tts_value("model") == "saved-model"
+        reader = ConfigReader(config_dir=tmpdir)
+        assert reader.get_tts_config()["model"] == "saved-model"
