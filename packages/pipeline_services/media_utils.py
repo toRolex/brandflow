@@ -338,26 +338,6 @@ def _resolve_executable(
     return None
 
 
-def _resolve_ffmpeg_path() -> str | None:
-    """解析 ffmpeg 可执行文件路径。
-
-    优先级：环境变量/显式配置 > ``tools/bin/`` > ``PATH``。
-    """
-    project_root = Path(__file__).resolve().parent.parent.parent
-    tools_bin = project_root / "tools" / "bin"
-    return _resolve_executable(get_ffmpeg_path(), extra_search_dirs=[tools_bin])
-
-
-def _resolve_ffprobe_path() -> str | None:
-    """解析 ffprobe 可执行文件路径。
-
-    优先级：环境变量/显式配置 > ``tools/bin/`` > ``PATH``。
-    """
-    project_root = Path(__file__).resolve().parent.parent.parent
-    tools_bin = project_root / "tools" / "bin"
-    return _resolve_executable(get_ffprobe_path(), extra_search_dirs=[tools_bin])
-
-
 def get_whisper_cli_path() -> str:
     """解析 whisper-cli 可执行文件路径。
 
@@ -370,16 +350,6 @@ def get_whisper_cli_path() -> str:
     media = config.get_media_config() if hasattr(config, "get_media_config") else {}
     path = media.get("whisper_cli_path") or "whisper-cli"
     return path
-
-
-def _resolve_whisper_cli_path() -> str | None:
-    """解析 whisper-cli 可执行文件路径。
-
-    优先级：环境变量/显式配置 > ``tools/bin/`` > ``PATH``。
-    """
-    project_root = Path(__file__).resolve().parent.parent.parent
-    tools_bin = project_root / "tools" / "bin"
-    return _resolve_executable(get_whisper_cli_path(), extra_search_dirs=[tools_bin])
 
 
 def run_ffmpeg(args: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
