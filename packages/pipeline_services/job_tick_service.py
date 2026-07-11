@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from packages.domain_core.models import ArtifactPointer, JobRecord
 from packages.domain_core.state import PHASE_ORDER, next_phase
@@ -21,7 +21,9 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
 )
-from packages.provider_config.app_config import AppConfigManager
+
+if TYPE_CHECKING:
+    from packages.provider_config.config_reader import ConfigReader
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -329,16 +331,29 @@ def _compute_transition(
 def _transition_after_artifacts(
     record: JobRecord,
     artifacts: tuple[Any, ...],
+    *,
+    phase: str | None = None,
 ) -> TickAction:
     """Decide transition after a phase handler produced artifacts (or not).
 
     Separated from ``_compute_transition`` so per-phase failure logic is
     isolated for testing.
+
+    Parameters
+    ----------
+    record : JobRecord
+        The current job state.
+    artifacts : tuple
+        Artifacts produced by the handler.
+    phase : str or None
+        Explicit phase to use for transition logic.  When None, uses
+        ``record.phase``.  This eliminates the ``temp_record.model_copy``
+        hack in ``JobTickService.tick()``.
     """
-    phase = record.phase
+    effective_phase = phase if phase is not None else record.phase
 
     # Import mode: subtitle_generating → montage_assembling (not asset_retrieving)
-    if record.mode == "import" and phase == "subtitle_generating" and artifacts:
+    if record.mode == "import" and effective_phase == "subtitle_generating" and artifacts:
         return TickAction(
             new_phase="montage_assembling",
             message="subtitle_generating → montage_assembling (import mode)",
@@ -346,22 +361,22 @@ def _transition_after_artifacts(
 
     # 1. Artifacts produced → advance
     if artifacts:
-        next_p = _safe_next(phase)
+        next_p = _safe_next(effective_phase)
         if next_p in REVIEW_PHASES:
             review_status = "none" if record.auto_approve else "pending"
             return TickAction(
                 new_phase=next_p,
                 new_review_status=review_status,
-                message=f"{phase} produced artifacts, advancing to {next_p} ({review_status} review)",
+                message=f"{effective_phase} produced artifacts, advancing to {next_p} ({review_status} review)",
             )
         return TickAction(
             new_phase=next_p,
-            message=f"{phase} produced artifacts, advancing to {next_p}",
+            message=f"{effective_phase} produced artifacts, advancing to {next_p}",
         )
 
     # 2. No artifacts — per-phase failure handling
     # 2a. video_rendering: retry once, then fail
-    if phase == "video_rendering":
+    if effective_phase == "video_rendering":
         if "video_rendering" in (record.last_error or ""):
             return TickAction(
                 new_phase="failed",
@@ -372,29 +387,29 @@ def _transition_after_artifacts(
         )
 
     # 2b. subtitle_generating: stay in phase (critical — do not auto-advance)
-    if phase == "subtitle_generating":
+    if effective_phase == "subtitle_generating":
         return TickAction(
             message="subtitle_generating produced no artifacts, staying in phase",
         )
 
     # 2c. asset_retrieving: auto-advance on no artifacts (transitional phase)
-    if phase == "asset_retrieving":
+    if effective_phase == "asset_retrieving":
         return TickAction(
-            new_phase=_safe_next(phase),
+            new_phase=_safe_next(effective_phase),
             message="asset_retrieving produced no artifacts, auto-advancing",
         )
 
     # 2d. Other handled phases: auto-advance (transitional or empty handler)
-    if phase in HANDLED_PHASES:
+    if effective_phase in HANDLED_PHASES:
         return TickAction(
-            new_phase=_safe_next(phase),
-            message=f"{phase} produced no artifacts, auto-advancing (fallback)",
+            new_phase=_safe_next(effective_phase),
+            message=f"{effective_phase} produced no artifacts, auto-advancing (fallback)",
         )
 
     # 2e. Fallback — auto-advance
     return TickAction(
-        new_phase=_safe_next(phase),
-        message=f"auto-advance from {phase} (fallback)",
+        new_phase=_safe_next(effective_phase),
+        message=f"auto-advance from {effective_phase} (fallback)",
     )
 
 
@@ -414,9 +429,12 @@ class JobTickService:
         self,
         orchestrator: PhaseOrchestrator,
         repo: FileStoreRepository,
+        *,
+        config_reader: "ConfigReader | None" = None,
     ) -> None:
         self._orchestrator = orchestrator
         self._repo = repo
+        self._config = config_reader
 
     def tick(
         self,
@@ -469,10 +487,17 @@ class JobTickService:
             # Populate scene config for import mode
             scene_folder_paths: list[str] = []
             transition_duration_ms: int = 500
+            scene_config: dict[str, Any] = {}
             if record.mode == "import":
-                app_cfg = AppConfigManager()
-                product_cfg = app_cfg.get_product_config()
-                scene_cfg = product_cfg.get("scene", {})
+                # Resolve scene config: ConfigReader > AppConfigManager fallback
+                if self._config is not None:
+                    scene_cfg = self._config.get_scene_config(product_id=product)
+                else:
+                    from packages.provider_config.app_config import AppConfigManager
+                    app_cfg = AppConfigManager()
+                    product_cfg = app_cfg.get_product_config()
+                    scene_cfg = product_cfg.get("scene", {})
+                scene_config = scene_cfg
                 scene_folder_paths = [
                     entry.get("path", "")
                     for entry in scene_cfg.get("folders", [])
@@ -496,6 +521,7 @@ class JobTickService:
                 options=options or {},
                 scene_folder_paths=scene_folder_paths,
                 transition_duration_ms=transition_duration_ms,
+                scene_config=scene_config,
             )
             handler_phase = action.handler_phase or record.phase
 
@@ -522,10 +548,11 @@ class JobTickService:
                 # target transition — use it directly.
                 pass
             else:
-                # Build a temporary record whose phase matches the handler that
-                # just ran, so per-phase failure/advance rules apply correctly.
-                temp_record = record.model_copy(update={"phase": handler_phase})
-                action = _transition_after_artifacts(temp_record, tuple(artifacts))
+                # Pass explicit phase so per-phase rules use the handler's phase
+                # instead of the record's current phase.
+                action = _transition_after_artifacts(
+                    record, tuple(artifacts), phase=handler_phase
+                )
 
         # 5. Apply phase / review_status changes
         update: dict[str, Any] = {}
