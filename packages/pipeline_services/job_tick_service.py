@@ -489,7 +489,7 @@ class JobTickService:
             transition_duration_ms: int = 500
             scene_config: dict[str, Any] = {}
             if record.mode == "import":
-                # Resolve scene config: ConfigReader > AppConfigManager fallback
+                # Resolve scene config: ConfigReader > AppConfigManager fallback (backward compatibility)
                 if self._config is not None:
                     scene_cfg = self._config.get_scene_config(product_id=product)
                 else:

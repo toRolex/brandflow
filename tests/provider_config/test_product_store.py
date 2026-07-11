@@ -438,7 +438,7 @@ class TestSetProduct:
 
 
 # ---------------------------------------------------------------------------
-# Seam 13: Backward compatibility via AppConfigManager
+# Seam 13: Backward compatibility via ConfigReader
 # ---------------------------------------------------------------------------
 
 

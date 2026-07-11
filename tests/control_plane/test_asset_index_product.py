@@ -44,7 +44,7 @@ def test_index_uses_explicit_product_param(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_index_falls_back_to_active_product(tmp_path: Path, monkeypatch) -> None:
-    """未传 product 时，从 AppConfigManager 活跃产品名读取。"""
+    """未传 product 时，从 ConfigReader 活跃产品名读取。"""
     client = _client(tmp_path)
     _setup_source_videos(tmp_path)
 
@@ -59,7 +59,7 @@ def test_index_falls_back_to_active_product(tmp_path: Path, monkeypatch) -> None
         _fake_ingest_one,
     )
 
-    # Mock AppConfigManager.get_product_config to return active product with name
+    # Mock ConfigReader.get_product_config to return active product with name
     def _fake_get_product_config(self, product_id=None):
         return {"name": "测试产品", "id": "test-product", "default_name": "测试产品"}
 
@@ -75,7 +75,7 @@ def test_index_falls_back_to_active_product(tmp_path: Path, monkeypatch) -> None
 
 
 def test_index_explicit_product_wins_over_config(tmp_path: Path, monkeypatch) -> None:
-    """显式传入 product 时，忽略 AppConfigManager 的值。"""
+    """显式传入 product 时，忽略 ConfigReader 的值。"""
     client = _client(tmp_path)
     _setup_source_videos(tmp_path)
 
