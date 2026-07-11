@@ -6,7 +6,7 @@ from packages.pipeline_services.asset_library.vision_client import resolve_visio
 
 
 def test_resolve_vision_config_from_app_config(monkeypatch) -> None:
-    """resolve_vision_config 应从 AppConfigManager 读取配置"""
+    """resolve_vision_config 应从 ConfigReader 读取配置"""
     monkeypatch.setenv("XIAOMI_VISION_API_KEY", "test-key")
     monkeypatch.setenv(
         "XIAOMI_VISION_API_URL", "https://api.example.com/v1/chat/completions"
@@ -14,7 +14,7 @@ def test_resolve_vision_config_from_app_config(monkeypatch) -> None:
     monkeypatch.setenv("XIAOMI_VISION_MODEL", "mimo-v2.5")
 
     with patch(
-        "packages.provider_config.app_config.AppConfigManager._load",
+        "packages.provider_config.config_io.load_config",
         return_value={},
     ):
         config = resolve_vision_config({})

@@ -1,7 +1,7 @@
 """Tests for Phase 2 Slice 2 — full Import mode pipeline.
 
 Covers:
-- Scene config defaults via AppConfigManager.get_scene_config
+- Scene config defaults via ConfigReader.get_scene_config
 - PhaseContext scene field population
 - scene_assembling handler: config resolution, random file picking, ffmpeg output
 - montage_assembling handler: file-aware concatenation logic
@@ -27,7 +27,8 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
 )
-from packages.provider_config.app_config import AppConfigManager, DEFAULTS
+from packages.provider_config.config_constants import DEFAULTS
+from packages.provider_config.config_reader import ConfigReader
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +97,7 @@ def make_record(
 
 
 # ---------------------------------------------------------------------------
-# 1. Scene config defaults via AppConfigManager
+# 1. Scene config defaults via ConfigReader
 # ---------------------------------------------------------------------------
 
 
@@ -121,8 +122,8 @@ class TestSceneConfigDefaults:
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            mgr = AppConfigManager(config_dir=tmpdir)
-            cfg = mgr.get_scene_config()
+            reader = ConfigReader(config_dir=tmpdir)
+            cfg = reader.get_scene_config()
             assert cfg["folders"] == []
             assert cfg["transition_duration_ms"] == 500
 
@@ -146,8 +147,8 @@ class TestSceneConfigDefaults:
             encoding="utf-8",
         )
 
-        mgr = AppConfigManager(config_dir=str(config_dir))
-        cfg = mgr.get_scene_config()
+        reader = ConfigReader(config_dir=str(config_dir))
+        cfg = reader.get_scene_config()
         assert len(cfg["folders"]) == 2
         assert cfg["folders"][0]["name"] == "brand-intro"
         assert cfg["folders"][1]["path"] == "scene/product-show"
@@ -546,7 +547,7 @@ class TestImportModeTickFlow:
         assert "tts_audio" in artifact_kinds
 
     def test_import_mode_scene_config_populated_in_tick(self) -> None:
-        """Import mode tick populates scene config from AppConfigManager."""
+        """Import mode tick populates scene config from ConfigReader."""
         record = make_record(phase="scene_assembling", mode="import")
         mock_repo = MagicMock()
         mock_repo.load_job.return_value = record
