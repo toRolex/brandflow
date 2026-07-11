@@ -228,8 +228,8 @@ class TestRunScriptLLM:
 
 class TestRunScriptCoverTitle:
     @patch.object(PhaseOrchestrator, "_resolve_llm_config")
-    @patch.object(PhaseOrchestrator, "_resolve_llm_api_key")
-    @patch.object(PhaseOrchestrator, "_resolve_llm_endpoint")
+    @patch.object(PhaseOrchestrator, "_resolve_api_key")
+    @patch.object(PhaseOrchestrator, "_resolve_api_url")
     @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
     def test_auto_generates_cover_title_when_missing(
         self,
@@ -273,8 +273,8 @@ class TestRunScriptCoverTitle:
         assert updated["cover_title"]["text"] == "羊肚菌美味"
 
     @patch.object(PhaseOrchestrator, "_resolve_llm_config")
-    @patch.object(PhaseOrchestrator, "_resolve_llm_api_key")
-    @patch.object(PhaseOrchestrator, "_resolve_llm_endpoint")
+    @patch.object(PhaseOrchestrator, "_resolve_api_key")
+    @patch.object(PhaseOrchestrator, "_resolve_api_url")
     @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
     def test_skips_cover_title_when_already_set(
         self,
@@ -307,8 +307,8 @@ class TestRunScriptCoverTitle:
         mock_sg_cls.assert_not_called()
 
     @patch.object(PhaseOrchestrator, "_resolve_llm_config")
-    @patch.object(PhaseOrchestrator, "_resolve_llm_api_key")
-    @patch.object(PhaseOrchestrator, "_resolve_llm_endpoint")
+    @patch.object(PhaseOrchestrator, "_resolve_api_key")
+    @patch.object(PhaseOrchestrator, "_resolve_api_url")
     @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
     def test_cover_title_error_does_not_propagate(
         self,
@@ -392,7 +392,7 @@ def _make_orchestrator_with_tts_config(tts_provider=None, tts_config=None):
         get_tts_config=lambda: tts_config or dict(_FAKE_TTS_CONFIG),
     )
     mock_provider = tts_provider or MagicMock()
-    orch._build_tts_provider = staticmethod(lambda cfg: mock_provider)
+    orch._build_tts_provider = lambda cfg: mock_provider
     return orch
 
 

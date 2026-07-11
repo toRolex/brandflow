@@ -45,8 +45,8 @@ class SecretStore:
     }
 
     _TTS_PROVIDERS = frozenset({"mimo", "minimax", "qwen"})
-    _LLM_PROVIDERS = frozenset({"deepseek", "kimi"})
-    _VISION_PROVIDERS = frozenset({"xiaomi", "openai", "claude"})
+    _LLM_PROVIDERS = frozenset({"deepseek", "kimi", "openai"})
+    _VISION_PROVIDERS = frozenset({"xiaomi", "claude"})
 
     def __init__(self, env: dict[str, str] | None = None) -> None:
         self._env = env if env is not None else os.environ
