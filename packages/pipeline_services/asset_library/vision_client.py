@@ -185,10 +185,10 @@ def resolve_vision_config(
     secrets: "SecretStore | None" = None,
     reader: "ConfigReader | None" = None,
 ) -> dict:
-    """Resolve vision provider config from ConfigReader injected deps or fallback.
+    """Resolve vision provider config from ConfigReader + SecretStore or injected deps.
 
     When *secrets* and *reader* are provided they are used directly;
-    otherwise falls back to constructing ``AppConfigManager`` (legacy path).
+    otherwise falls back to constructing ``ConfigReader`` + ``SecretStore``.
     """
     if secrets is not None and reader is not None:
         config = reader.get_vision_config()
@@ -199,13 +199,15 @@ def resolve_vision_config(
             "model": secrets.get_vision_model(reader),
         }
 
-    from packages.provider_config.app_config import AppConfigManager
+    from packages.provider_config.config_reader import ConfigReader
+    from packages.provider_config.secret_store import SecretStore
 
-    manager = AppConfigManager()
-    config = manager.get_vision_config()
+    _reader = ConfigReader()
+    _secrets = SecretStore()
+    config = _reader.get_vision_config()
     return {
         "provider": config.get("provider", "xiaomi"),
-        "api_key": manager.get_vision_api_key(),
-        "endpoint": manager.get_vision_endpoint(),
-        "model": manager.get_vision_model(),
+        "api_key": _secrets.get_vision_api_key(_reader),
+        "endpoint": _secrets.get_vision_endpoint(_reader),
+        "model": _secrets.get_vision_model(_reader),
     }

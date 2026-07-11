@@ -32,6 +32,7 @@ from packages.pipeline_services.job_tick_service import (
 from packages.pipeline_services.phase_orchestrator import create_orchestrator
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.product_store import ProductStore
+from packages.provider_config.secret_store import SecretStore
 
 
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
@@ -144,6 +145,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.state.product_store = ProductStore(
         reader=reader, config_path=config_dir / "app_config.json"
     )
+    app.state.secret_store = SecretStore()
     app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)

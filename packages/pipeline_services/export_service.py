@@ -15,10 +15,10 @@ ALLOWED_VIDEO_EXTENSIONS = frozenset({".mp4", ".mov", ".avi", ".webm"})
 
 
 def _get_scene_config_default() -> dict[str, Any]:
-    """Default scene config provider — reads from ConfigReader (via AppConfigManager fallback)."""
-    from packages.provider_config.app_config import AppConfigManager
+    """Default scene config provider — reads from ConfigReader."""
+    from packages.provider_config.config_reader import ConfigReader
 
-    return AppConfigManager().get_scene_config()
+    return ConfigReader().get_scene_config()
 
 
 def build_export_bundle(

@@ -16,7 +16,7 @@ from packages.domain_core.models import (
     ProductionMode,
 )
 from packages.file_store.repository import FileStoreRepository
-from packages.provider_config.app_config import AppConfigManager
+from packages.provider_config.config_reader import ConfigReader
 from apps.control_plane.services.music_library import MusicLibrary
 
 router = APIRouter(tags=["api-jobs"])
@@ -28,7 +28,9 @@ def _resolve_product_defaults(
     """当 product/brand 同时为空时从 product config 读取默认值."""
     if product.strip():
         return product, brand
-    cfg = AppConfigManager(config_dir=str(Path(root_dir) / "config")).get_product_config()
+    reader = ConfigReader(config_dir=str(Path(root_dir) / "config"))
+    active_id = reader.active_product_id
+    cfg = reader.get_product_config(product_id=active_id) if active_id else reader.get_product_config()
     default_name = cfg.get("default_name", "")
     if not default_name:
         return product, brand
@@ -416,7 +418,6 @@ _COVER_TITLE_COOLDOWN = 3.0  # seconds
 @router.post("/api/cover-title/generate")
 def generate_cover_title(payload: GenerateCoverTitleRequest, request: Request):
     import time
-    from packages.provider_config.app_config import AppConfigManager
     from packages.pipeline_services.script_service.generator import ScriptGenerator
 
     if not payload.script_text.strip():
@@ -431,12 +432,13 @@ def generate_cover_title(payload: GenerateCoverTitleRequest, request: Request):
         )
     _COVER_TITLE_RATE_LIMIT[client_ip] = now
 
-    app_config = AppConfigManager()
-    llm_config = app_config.get_llm_config()
+    config_reader = request.app.state.config_reader
+    secret_store = request.app.state.secret_store
+    llm_config = config_reader.get_llm_config()
 
     class _Config:
-        api_key = app_config.get_llm_api_key()
-        base_url = app_config.get_llm_endpoint()
+        api_key = secret_store.get_llm_api_key(config_reader)
+        base_url = secret_store.get_llm_endpoint(config_reader)
         model = llm_config.get("model", "deepseek-v4-pro")
 
     gen = ScriptGenerator(_Config())

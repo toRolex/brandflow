@@ -4,23 +4,32 @@ import json
 import tempfile
 from pathlib import Path
 
-from packages.provider_config.app_config import AppConfigManager
+from packages.provider_config.config_io import load_config
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.product_store import ProductStore
+
+
+def _make_store(tmpdir: str) -> ProductStore:
+    config_path = Path(tmpdir) / "app_config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    reader = ConfigReader(config_dir=tmpdir)
+    return ProductStore(reader=reader, config_path=config_path)
 
 
 def test_list_products_empty() -> None:
     """无产品配置时返回空列表"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        manager = AppConfigManager(config_dir=tmpdir)
-        products = manager.list_products()
+        store = _make_store(tmpdir)
+        products = store.list_products()
         assert products == []
 
 
 def test_switch_product_creates_new() -> None:
     """切换不存在的产品时应自动创建"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        manager = AppConfigManager(config_dir=tmpdir)
-        manager.switch_product("prod_001")
-        products = manager.list_products()
+        store = _make_store(tmpdir)
+        store.switch_product("prod_001")
+        products = store.list_products()
         assert len(products) == 1
         assert products[0]["id"] == "prod_001"
 
@@ -28,54 +37,54 @@ def test_switch_product_creates_new() -> None:
 def test_get_product_config_with_id() -> None:
     """get_product_config(product_id) 应返回该产品配置"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        manager = AppConfigManager(config_dir=tmpdir)
-        manager.switch_product("prod_001")
-        manager.set_product("default_name", "羊肚菌")
-        manager.switch_product("prod_002")
-        manager.set_product("default_name", "竹荪")
+        store = _make_store(tmpdir)
+        store.switch_product("prod_001")
+        store.set_product("default_name", "羊肚菌")
+        store.switch_product("prod_002")
+        store.set_product("default_name", "竹荪")
 
-        config = manager.get_product_config("prod_001")
+        config = store.get_product_config("prod_001")
         assert config["default_name"] == "羊肚菌"
 
-        config2 = manager.get_product_config("prod_002")
+        config2 = store.get_product_config("prod_002")
         assert config2["default_name"] == "竹荪"
 
 
 def test_get_product_config_active() -> None:
     """get_product_config() 无参应返回活跃产品配置"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        manager = AppConfigManager(config_dir=tmpdir)
-        manager.switch_product("prod_001")
-        manager.set_product("default_name", "羊肚菌")
+        store = _make_store(tmpdir)
+        store.switch_product("prod_001")
+        store.set_product("default_name", "羊肚菌")
 
-        config = manager.get_product_config()
+        config = store.get_product_config()
         assert config["default_name"] == "羊肚菌"
 
 
 def test_switch_product_switches_active() -> None:
     """switch_product 应更改活跃产品"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        manager = AppConfigManager(config_dir=tmpdir)
-        manager.switch_product("prod_001")
-        manager.set_product("default_name", "羊肚菌")
-        manager.switch_product("prod_002")
-        manager.set_product("default_name", "竹荪")
+        store = _make_store(tmpdir)
+        store.switch_product("prod_001")
+        store.set_product("default_name", "羊肚菌")
+        store.switch_product("prod_002")
+        store.set_product("default_name", "竹荪")
 
         # Active should be prod_002
-        config = manager.get_product_config()
+        config = store.get_product_config()
         assert config["default_name"] == "竹荪"
 
 
 def test_list_products_returns_summaries() -> None:
     """list_products 返回 {id, name} 摘要"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        manager = AppConfigManager(config_dir=tmpdir)
-        manager.switch_product("prod_001")
-        manager.set_product("default_name", "羊肚菌")
-        manager.switch_product("prod_002")
-        manager.set_product("default_name", "竹荪")
+        store = _make_store(tmpdir)
+        store.switch_product("prod_001")
+        store.set_product("default_name", "羊肚菌")
+        store.switch_product("prod_002")
+        store.set_product("default_name", "竹荪")
 
-        products = manager.list_products()
+        products = store.list_products()
         assert len(products) == 2
 
         p1 = next(p for p in products if p["id"] == "prod_001")
@@ -99,8 +108,8 @@ def test_backward_compatibility_migration() -> None:
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(old_data, f)
 
-        manager = AppConfigManager(config_dir=tmpdir)
-        products = manager.list_products()
+        store = _make_store(tmpdir)
+        products = store.list_products()
         assert len(products) == 1
         assert products[0]["id"] == "default"
         assert products[0]["name"] == "羊肚菌"
@@ -126,8 +135,8 @@ def test_backward_compatibility_get_product_config() -> None:
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(old_data, f)
 
-        manager = AppConfigManager(config_dir=tmpdir)
-        config = manager.get_product_config()
+        store = _make_store(tmpdir)
+        config = store.get_product_config()
         assert config["default_name"] == "羊肚菌"
         assert config["default_brand"] == "菌王"
         assert config["script"]["scene"] == "食材展示"
@@ -139,8 +148,8 @@ def test_backward_compatibility_get_product_config() -> None:
 def test_get_product_config_nonexistent_returns_defaults() -> None:
     """不存在的 product_id 应返回 DEFAULTS"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        manager = AppConfigManager(config_dir=tmpdir)
-        config = manager.get_product_config("nonexistent")
+        store = _make_store(tmpdir)
+        config = store.get_product_config("nonexistent")
         assert config["default_name"] == ""
         assert "script" in config
 
@@ -148,11 +157,11 @@ def test_get_product_config_nonexistent_returns_defaults() -> None:
 def test_get_product_config_default_fields() -> None:
     """get_product_config 应包含 id 和 name 字段"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        manager = AppConfigManager(config_dir=tmpdir)
-        manager.switch_product("prod_001")
-        manager.set_product("default_name", "羊肚菌")
+        store = _make_store(tmpdir)
+        store.switch_product("prod_001")
+        store.set_product("default_name", "羊肚菌")
 
-        config = manager.get_product_config()
+        config = store.get_product_config()
         assert config["id"] == "prod_001"
         assert config["name"] == "羊肚菌"
 
@@ -168,29 +177,29 @@ def test_persistence_after_migration() -> None:
             json.dump(old_data, f)
 
         # First load triggers migration
-        manager1 = AppConfigManager(config_dir=tmpdir)
-        config = manager1.get_product_config()
+        store1 = _make_store(tmpdir)
+        config = store1.get_product_config()
         assert config["default_name"] == "羊肚菌"
 
         # Second load sees migrated format
-        manager2 = AppConfigManager(config_dir=tmpdir)
-        config2 = manager2.get_product_config()
+        store2 = _make_store(tmpdir)
+        config2 = store2.get_product_config()
         assert config2["default_name"] == "羊肚菌"
-        assert manager2._load().get("active_product_id") == "default"
+        assert load_config(store2._reader._config_path).get("active_product_id") == "default"
 
 
 def test_reset_product_config_clears_active() -> None:
     """reset_product_config 应清除活跃产品"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        manager = AppConfigManager(config_dir=tmpdir)
-        manager.switch_product("prod_001")
-        manager.set_product("default_name", "羊肚菌")
-        manager.reset_product_config()
+        store = _make_store(tmpdir)
+        store.switch_product("prod_001")
+        store.set_product("default_name", "羊肚菌")
+        store.reset_product_config()
 
         # After reset, should return defaults
-        config = manager.get_product_config()
+        config = store.get_product_config()
         assert config["default_name"] == ""
 
         # Product should be removed from list
-        products = manager.list_products()
+        products = store.list_products()
         assert len(products) == 0

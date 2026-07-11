@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 
-from packages.provider_config.app_config import AppConfigManager
+from packages.provider_config.config_reader import ConfigReader
 
 router = APIRouter(prefix="/api/scene", tags=["scene"])
 
@@ -16,15 +16,15 @@ ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm"}
 
 def _get_scene_folders(root_dir: Path) -> list[dict]:
     """Return the scene folder config entries."""
-    app_config = AppConfigManager(config_dir=str(root_dir / "config"))
-    scene_config = app_config.get_scene_config()
+    reader = ConfigReader(config_dir=str(root_dir / "config"))
+    scene_config = reader.get_scene_config()
     return scene_config.get("folders", [])
 
 
 def _get_scene_config(root_dir: Path) -> dict:
     """Return the full scene config."""
-    app_config = AppConfigManager(config_dir=str(root_dir / "config"))
-    return app_config.get_scene_config()
+    reader = ConfigReader(config_dir=str(root_dir / "config"))
+    return reader.get_scene_config()
 
 
 def _folder_exists_in_config(root_dir: Path, folder_name: str) -> bool:

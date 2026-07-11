@@ -14,6 +14,7 @@ from packages.pipeline_services.asset_library import (
 )
 from packages.pipeline_services.asset_library.category_config import (
     default_categories,
+    get_categories,
 )
 from packages.pipeline_services.asset_library.classify import (
     build_classify_prompt,
@@ -23,8 +24,6 @@ from packages.pipeline_services.asset_library.vision_client import (
     build_vision_prompt,
     VisionClient,
 )
-from packages.provider_config.app_config import AppConfigManager
-
 
 # ---------------------------------------------------------------------------
 # CategoryConfig dataclass
@@ -61,16 +60,34 @@ class TestCategoryConfig:
 
 
 # ---------------------------------------------------------------------------
-# ConfigReader.get_categories()
+# get_categories() with ConfigReader / ProductStore
 # ---------------------------------------------------------------------------
+
+
+def _make_reader(tmpdir: str):
+    """Helper: create a ConfigReader pointing at *tmpdir*."""
+    from packages.provider_config.config_reader import ConfigReader
+
+    return ConfigReader(config_dir=tmpdir)
+
+
+def _make_store(tmpdir: str):
+    """Helper: create a ProductStore with real ConfigReader and config_path."""
+    from packages.provider_config.config_reader import ConfigReader
+    from packages.provider_config.product_store import ProductStore
+
+    config_path = Path(tmpdir) / "app_config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    reader = ConfigReader(config_dir=tmpdir)
+    return ProductStore(reader=reader, config_path=config_path)
 
 
 class TestAppConfigCategories:
     def test_get_categories_default(self) -> None:
         """Empty config should return the default food categories."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            manager = AppConfigManager(config_dir=tmpdir)
-            cats = manager.get_categories()
+            reader = _make_reader(tmpdir)
+            cats = get_categories(reader)
             assert len(cats) == 10
             assert cats[0].name == "产地溯源"
             assert cats[-1].name == "产品特写"
@@ -89,8 +106,8 @@ class TestAppConfigCategories:
                 ),
                 encoding="utf-8",
             )
-            manager = AppConfigManager(config_dir=tmpdir)
-            cats = manager.get_categories()
+            reader = _make_reader(tmpdir)
+            cats = get_categories(reader)
             assert len(cats) == 2
             assert cats[0].id == "harvest"
             assert cats[0].name == "采收采集"
@@ -105,8 +122,8 @@ class TestAppConfigCategories:
                 json.dumps({"asset_library": {"categories": []}}, ensure_ascii=False),
                 encoding="utf-8",
             )
-            manager = AppConfigManager(config_dir=tmpdir)
-            cats = manager.get_categories()
+            reader = _make_reader(tmpdir)
+            cats = get_categories(reader)
             assert len(cats) == 10  # fallback to defaults
             assert cats[0].name == "产地溯源"
 
@@ -129,8 +146,8 @@ class TestAppConfigCategories:
                 json.dumps(config, ensure_ascii=False),
                 encoding="utf-8",
             )
-            manager = AppConfigManager(config_dir=tmpdir)
-            cats = manager.get_categories()
+            reader = _make_reader(tmpdir)
+            cats = get_categories(reader, product_id=reader.active_product_id or None)
             assert len(cats) == 2
             assert cats[0].id == "promo"
             assert cats[0].name == "促销活动"
@@ -153,8 +170,8 @@ class TestAppConfigCategories:
                 json.dumps(config, ensure_ascii=False),
                 encoding="utf-8",
             )
-            manager = AppConfigManager(config_dir=tmpdir)
-            cats = manager.get_categories()
+            reader = _make_reader(tmpdir)
+            cats = get_categories(reader)
             assert len(cats) == 2
             assert cats[0].id == "origin"
             assert cats[0].name == "产地溯源"
@@ -173,8 +190,8 @@ class TestAppConfigCategories:
                 json.dumps(config, ensure_ascii=False),
                 encoding="utf-8",
             )
-            manager = AppConfigManager(config_dir=tmpdir)
-            cats = manager.get_categories()
+            reader = _make_reader(tmpdir)
+            cats = get_categories(reader)
             assert len(cats) == 10  # fallback to defaults
             assert cats[0].name == "产地溯源"
 
@@ -202,8 +219,8 @@ class TestAppConfigCategories:
                 json.dumps(config, ensure_ascii=False),
                 encoding="utf-8",
             )
-            manager = AppConfigManager(config_dir=tmpdir)
-            cats = manager.get_categories()
+            reader = _make_reader(tmpdir)
+            cats = get_categories(reader, product_id=reader.active_product_id or None)
             assert len(cats) == 2
             assert cats[0].id == "harvest"
             assert cats[0].name == "采收采集"
@@ -229,8 +246,8 @@ class TestAppConfigCategories:
                 json.dumps(config, ensure_ascii=False),
                 encoding="utf-8",
             )
-            manager = AppConfigManager(config_dir=tmpdir)
-            cats = manager.get_categories()
+            reader = _make_reader(tmpdir)
+            cats = get_categories(reader, product_id=reader.active_product_id or None)
             # Should fall back to default food categories (10)
             assert len(cats) == 10
             assert cats[0].name == "产地溯源"
@@ -253,8 +270,8 @@ class TestAppConfigCategories:
                 json.dumps(config, ensure_ascii=False),
                 encoding="utf-8",
             )
-            manager = AppConfigManager(config_dir=tmpdir)
-            cats = manager.get_categories()
+            reader = _make_reader(tmpdir)
+            cats = get_categories(reader, product_id=reader.active_product_id or None)
             assert len(cats) == 10  # fallback to defaults
             assert cats[0].name == "产地溯源"
 
@@ -263,9 +280,9 @@ class TestAppConfigCategories:
     def test_save_product_config_persists_categories(self) -> None:
         """save_product_config() should persist categories and they are readable."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            manager = AppConfigManager(config_dir=tmpdir)
-            manager.switch_product("prod_cat")
-            manager.save_product_config(
+            store = _make_store(tmpdir)
+            store.switch_product("prod_cat")
+            store.save_product_config(
                 "prod_cat",
                 {
                     "categories": [
@@ -274,7 +291,7 @@ class TestAppConfigCategories:
                     ],
                 },
             )
-            cats = manager.get_categories()
+            cats = get_categories(store._reader, product_id="prod_cat")
             assert len(cats) == 2
             assert cats[0].id == "origin"
             assert cats[0].name == "产地溯源"
@@ -286,9 +303,9 @@ class TestAppConfigCategories:
     def test_save_product_config_categories_roundtrip(self) -> None:
         """Categories saved via save_product_config() survive reload from disk."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            manager1 = AppConfigManager(config_dir=tmpdir)
-            manager1.switch_product("prod_roundtrip")
-            manager1.save_product_config(
+            store1 = _make_store(tmpdir)
+            store1.switch_product("prod_roundtrip")
+            store1.save_product_config(
                 "prod_roundtrip",
                 {
                     "categories": [
@@ -296,11 +313,9 @@ class TestAppConfigCategories:
                     ],
                 },
             )
-            # Reload from disk
-            manager2 = AppConfigManager(config_dir=tmpdir)
-            # Switch to same product so get_product_config finds it
-            manager2.switch_product("prod_roundtrip")
-            cats = manager2.get_categories()
+            # Reload from disk with fresh reader
+            reader2 = _make_reader(tmpdir)
+            cats = get_categories(reader2, product_id="prod_roundtrip")
             assert len(cats) == 1
             assert cats[0].id == "test_cat"
             assert cats[0].name == "测试分类"
@@ -308,8 +323,8 @@ class TestAppConfigCategories:
 
     def test_get_category_suggestion_model_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            manager = AppConfigManager(config_dir=tmpdir)
-            assert manager.get_category_suggestion_model() == "deepseek-v4-flash"
+            reader = _make_reader(tmpdir)
+            assert reader.get_category_suggestion_model() == "deepseek-v4-flash"
 
     def test_get_category_suggestion_model_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -321,18 +336,18 @@ class TestAppConfigCategories:
                 ),
                 encoding="utf-8",
             )
-            manager = AppConfigManager(config_dir=tmpdir)
-            assert manager.get_category_suggestion_model() == "custom-model"
+            reader = _make_reader(tmpdir)
+            assert reader.get_category_suggestion_model() == "custom-model"
 
     def test_get_category_suggestion_sample_size_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            manager = AppConfigManager(config_dir=tmpdir)
-            assert manager.get_category_suggestion_sample_size() == 20
+            reader = _make_reader(tmpdir)
+            assert reader.get_category_suggestion_sample_size() == 20
 
     def test_get_asset_library_config_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            manager = AppConfigManager(config_dir=tmpdir)
-            cfg = manager.get_asset_library_config()
+            reader = _make_reader(tmpdir)
+            cfg = reader.get_asset_library_config()
             assert "categories" in cfg
             assert "category_suggestion_model" in cfg
             assert cfg["category_suggestion_model"] == "deepseek-v4-flash"
