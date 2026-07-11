@@ -7,6 +7,10 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from packages.provider_config.config_reader import ConfigReader
 
 
 TARGET_VIDEO_WIDTH = 1080
@@ -338,18 +342,23 @@ def _resolve_executable(
     return None
 
 
-def get_whisper_cli_path() -> str:
+def get_whisper_cli_path(reader: ConfigReader | None = None) -> str:
     """解析 whisper-cli 可执行文件路径。
 
-    优先级：环境变量 WHISPER_CLI_PATH > app_config.json media.whisper_cli_path > "whisper-cli"
+    优先级：环境变量 WHISPER_CLI_PATH > ConfigReader media.whisper_cli_path > "whisper-cli"
+
+    Args:
+        reader: 可选的 ``ConfigReader`` 实例。传入时从缓存读取 media 配置，
+                避免了内部构造 ``AppConfigManager`` 的开销。
     """
     env_path = os.getenv("WHISPER_CLI_PATH", "").strip()
     if env_path:
         return env_path
-    config = AppConfigManager()
-    media = config.get_media_config() if hasattr(config, "get_media_config") else {}
-    path = media.get("whisper_cli_path") or "whisper-cli"
-    return path
+    if reader is not None:
+        media = reader.get_media_config()
+        path = media.get("whisper_cli_path") or "whisper-cli"
+        return path
+    return "whisper-cli"
 
 
 def run_ffmpeg(args: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
