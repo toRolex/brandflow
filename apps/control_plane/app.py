@@ -37,12 +37,14 @@ from packages.provider_config.product_store import ProductStore
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 
 
-async def _auto_tick(root_dir: Path):
+async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
     """Dev-mode background loop: scans disk and delegates to JobTickService."""
     # Construct orchestrator and tick service once; deps are stateless
-    orchestrator = create_orchestrator(root_dir)
+    orchestrator = create_orchestrator(root_dir, config_reader=config_reader)
     repo = FileStoreRepository(root_dir)
-    tick_svc = JobTickService(orchestrator=orchestrator, repo=repo)
+    tick_svc = JobTickService(
+        orchestrator=orchestrator, repo=repo, config_reader=config_reader
+    )
 
     while True:
         await asyncio.sleep(AUTO_TICK_INTERVAL)
@@ -110,7 +112,7 @@ async def _auto_tick(root_dir: Path):
 async def lifespan(app: FastAPI):
     dev_mode = os.environ.get("DEV_AUTO_TICK", "1") == "1"
     if dev_mode:
-        asyncio.create_task(_auto_tick(app.state.root_dir))
+        asyncio.create_task(_auto_tick(app.state.root_dir, app.state.config_reader))
     yield
 
 
@@ -132,10 +134,13 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
     app.state.root_dir = root_dir or Path.cwd()
     app.state.dispatcher = Dispatcher(FileStoreRepository(app.state.root_dir))
-    app.state.orchestrator = create_orchestrator(app.state.root_dir)
     config_dir = app.state.root_dir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     reader = ConfigReader(config_dir=str(config_dir))
+    app.state.config_reader = reader
+    app.state.orchestrator = create_orchestrator(
+        app.state.root_dir, config_reader=reader
+    )
     app.state.product_store = ProductStore(
         reader=reader, config_path=config_dir / "app_config.json"
     )

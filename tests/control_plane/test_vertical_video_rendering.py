@@ -219,7 +219,7 @@ def test_auto_tick_skips_subtitle_phase_when_skip_subtitle_is_enabled(
     monkeypatch.setattr("apps.control_plane.app.asyncio.sleep", fake_sleep)
 
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(_auto_tick(root_dir))
+        asyncio.run(_auto_tick(root_dir, None))
 
     data = json.loads(job_path.read_text(encoding="utf-8"))
     assert data["phase"] == "asset_retrieving"
@@ -264,7 +264,7 @@ def test_auto_tick_auto_approves_review_gates(monkeypatch, tmp_path: Path) -> No
     monkeypatch.setattr("apps.control_plane.app.asyncio.sleep", fake_sleep)
 
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(_auto_tick(root_dir))
+        asyncio.run(_auto_tick(root_dir, None))
 
     data = json.loads(job_path.read_text(encoding="utf-8"))
     assert data["phase"] == "tts_generating"

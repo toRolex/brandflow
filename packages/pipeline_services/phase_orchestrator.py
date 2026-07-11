@@ -5,11 +5,13 @@ into small, testable, injectable handler methods.
 
 Slice 1: ``script_generating`` only.  Subsequent slices migrate remaining phases.
 Slice 2: ``tts_generating``.
+Slice 4: ConfigReader injection — eliminates AppConfigManager() temporary constructions.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -22,7 +24,7 @@ from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
-from packages.provider_config.app_config import AppConfigManager
+from packages.provider_config.config_reader import ConfigReader
 
 
 # ---------------------------------------------------------------------------
@@ -35,22 +37,38 @@ def to_url_path(path: Path, workspace_dir: Path) -> str:
     return path.relative_to(workspace_dir).as_posix()
 
 
-def create_orchestrator(root_dir: Path) -> PhaseOrchestrator:
-    """Factory: build a PhaseOrchestrator with real service dependencies."""
+def create_orchestrator(
+    root_dir: Path, config_reader: ConfigReader | None = None
+) -> "PhaseOrchestrator":
+    """Factory: build a PhaseOrchestrator with real service dependencies.
+
+    When *config_reader* is provided, all config reads go through it
+    (no AppConfigManager temporary construction).  When None, falls back
+    to AppConfigManager for backward compatibility.
+    """
     from apps.control_plane.services.schedule_store import ScheduleStore
     from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
     from packages.pipeline_services.subtitle_service import SubtitleService
     from packages.pipeline_services.video_service import VideoService
-    from packages.provider_config.app_config import AppConfigManager
 
-    app_config = AppConfigManager()
+    if config_reader is None:
+        from packages.provider_config.app_config import AppConfigManager
+
+        app_config = AppConfigManager()
+        return PhaseOrchestrator(
+            script_bridge=LegacyScriptBridge(root_dir),
+            subtitle_svc=SubtitleService(),
+            video_svc=VideoService(dry_run=False),
+            schedule_store=ScheduleStore(root_dir),
+            get_tts_config=app_config.get_tts_config,
+            get_llm_config=app_config.get_llm_config,
+        )
     return PhaseOrchestrator(
         script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
         schedule_store=ScheduleStore(root_dir),
-        get_tts_config=app_config.get_tts_config,
-        get_llm_config=app_config.get_llm_config,
+        config_reader=config_reader,
     )
 
 
@@ -106,6 +124,9 @@ class PhaseContext:
     # Import-mode scene fields
     scene_folder_paths: list[str] = field(default_factory=list)
     transition_duration_ms: int = 500
+    # Full scene config dict (populated by caller from ConfigReader);
+    # when non-empty, handlers use this instead of reading config themselves.
+    scene_config: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +143,8 @@ class PhaseOrchestrator:
         subtitle_svc: SubtitleService,
         video_svc: VideoService,
         schedule_store: Any,
+        *,
+        config_reader: ConfigReader | None = None,
         get_tts_config: Callable[[], dict[str, Any]] | None = None,
         get_llm_config: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
@@ -129,6 +152,7 @@ class PhaseOrchestrator:
         self._subtitle_svc = subtitle_svc
         self._video_svc = video_svc
         self._schedule_store = schedule_store
+        self._config = config_reader
         self._get_tts_config = get_tts_config
         self._get_llm_config = get_llm_config
 
@@ -210,6 +234,130 @@ class PhaseOrchestrator:
             size_bytes=path.stat().st_size if path.exists() else 0,
         )
 
+    # -- config resolution helpers (ConfigReader-first, fallback to callbacks) --
+
+    def _resolve_tts_config(self, ctx: PhaseContext) -> dict[str, Any]:
+        """Resolve TTS config: ConfigReader when injected, else callback/fallback."""
+        if self._config is not None:
+            return self._config.get_tts_config(product_id=ctx.product)
+        if self._get_tts_config is not None:
+            return self._get_tts_config()
+        from packages.provider_config.app_config import AppConfigManager
+        return AppConfigManager().get_tts_config()
+
+    def _resolve_llm_config(self, ctx: PhaseContext) -> dict[str, Any]:
+        """Resolve LLM config: ConfigReader when injected, else callback/fallback."""
+        if self._config is not None:
+            return self._config.get_llm_config(product_id=ctx.product)
+        if self._get_llm_config is not None:
+            return self._get_llm_config()
+        from packages.provider_config.app_config import AppConfigManager
+        return AppConfigManager().get_llm_config()
+
+    @staticmethod
+    def _resolve_llm_api_key(llm_config: dict[str, Any]) -> str:
+        """Read LLM API key from env vars (no AppConfigManager dependency)."""
+        provider = llm_config.get("provider", "deepseek")
+        env_key_map = {
+            "mimo": "MIMO_API_KEY",
+            "qwen": "DASHSCOPE_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
+            "kimi": "KIMI_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
+        }
+        env_key = env_key_map.get(provider, "")
+        value = os.getenv(env_key, "").strip().strip('"').strip("'")
+        if not value:
+            if provider in ("mimo", "minimax", "qwen"):
+                value = os.getenv("TTS_API_KEY", "").strip().strip('"').strip("'")
+            else:
+                value = os.getenv("LLM_API_KEY", "").strip().strip('"').strip("'")
+        return value
+
+    @staticmethod
+    def _resolve_llm_endpoint(llm_config: dict[str, Any]) -> str:
+        """Read LLM endpoint from env vars (no AppConfigManager dependency)."""
+        provider = llm_config.get("provider", "deepseek")
+        env_url_map = {
+            "mimo": "MIMO_API_BASE_URL",
+            "qwen": "DASHSCOPE_API_URL",
+            "deepseek": "DEEPSEEK_API_URL",
+            "kimi": "KIMI_API_URL",
+            "minimax": "MINIMAX_TTS_URL",
+        }
+        env_key = env_url_map.get(provider, "")
+        value = os.getenv(env_key, "").strip().rstrip("/")
+        if not value:
+            value = os.getenv("LLM_API_URL", "").strip().rstrip("/")
+        return value
+
+    @staticmethod
+    def _resolve_asset_api_key(llm_config: dict[str, Any]) -> str:
+        """Read API key for asset classification from env vars."""
+        provider = llm_config.get("provider", "deepseek")
+        env_key_map = {
+            "mimo": "MIMO_API_KEY",
+            "qwen": "DASHSCOPE_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
+            "kimi": "KIMI_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
+        }
+        env_key = env_key_map.get(provider, "")
+        value = os.getenv(env_key, "").strip().strip('"').strip("'")
+        if not value:
+            if provider in ("mimo", "minimax", "qwen"):
+                value = os.getenv("TTS_API_KEY", "").strip().strip('"').strip("'")
+            else:
+                value = os.getenv("LLM_API_KEY", "").strip().strip('"').strip("'")
+        return value
+
+    @staticmethod
+    def _resolve_asset_api_url(llm_config: dict[str, Any]) -> str:
+        """Read API base URL for asset classification from env vars."""
+        provider = llm_config.get("provider", "deepseek")
+        env_url_map = {
+            "mimo": "MIMO_API_BASE_URL",
+            "qwen": "DASHSCOPE_API_URL",
+            "deepseek": "DEEPSEEK_API_URL",
+            "kimi": "KIMI_API_URL",
+            "minimax": "MINIMAX_TTS_URL",
+        }
+        env_key = env_url_map.get(provider, "")
+        value = os.getenv(env_key, "").strip().rstrip("/")
+        if not value:
+            value = os.getenv("LLM_API_URL", "").strip().rstrip("/")
+        return value
+
+    @staticmethod
+    def _resolve_categories(config_reader: ConfigReader | None, ctx: PhaseContext) -> list[str]:
+        """Resolve category names for asset classification.
+
+        Priority: product-level categories > asset_library categories > defaults.
+        Uses ConfigReader when available; otherwise falls back to AppConfigManager.
+        """
+        if config_reader is not None:
+            product_config = config_reader.get_product_config(product_id=ctx.product)
+            product_cats: list[dict] = product_config.get("categories", [])
+            if product_cats:
+                return [c.get("name", "") for c in product_cats if c.get("name")]
+
+            al_config = config_reader.get_asset_library_config()
+            raw: list[dict] = al_config.get("categories", [])
+            if raw:
+                return [c.get("name", "") for c in raw if c.get("name")]
+
+            # Default food category names
+            from packages.pipeline_services.asset_library.category_config import (
+                default_categories,
+            )
+            return [c.name for c in default_categories()]
+
+        # Fallback: AppConfigManager
+        from packages.provider_config.app_config import AppConfigManager
+        app_cfg = AppConfigManager()
+        categories = app_cfg.get_categories()
+        return [c.name for c in categories] if categories else None
+
     @staticmethod
     def _build_tts_provider(tts_cfg: dict[str, Any]) -> Any:
         """Build TTS provider dynamically from current config.
@@ -217,24 +365,39 @@ class PhaseOrchestrator:
         Reads model from *tts_cfg* and returns the matching provider instance
         so that config changes (e.g. mimo → qwen) take effect immediately
         without restarting the worker.
+
+        API keys are read directly from environment variables (no
+        AppConfigManager dependency).
         """
         from packages.pipeline_services.tts_provider import (
             MiMoTTSProvider,
             QwenTTSProvider,
         )
 
-        app_config = AppConfigManager()
         tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
+
+        def _tts_api_key(provider: str) -> str:
+            key_map = {"mimo": "MIMO_API_KEY", "qwen": "DASHSCOPE_API_KEY"}
+            env_key = key_map.get(provider, "")
+            value = os.getenv(env_key, "").strip().strip('"').strip("'")
+            if not value:
+                value = os.getenv("TTS_API_KEY", "").strip().strip('"').strip("'")
+            return value
+
+        def _tts_api_base_url(provider: str) -> str:
+            url_map = {"mimo": "MIMO_API_BASE_URL", "qwen": "DASHSCOPE_API_URL"}
+            env_key = url_map.get(provider, "")
+            return os.getenv(env_key, "").strip().rstrip("/")
 
         if tts_model.startswith("qwen"):
             return QwenTTSProvider(
-                api_key=app_config.get_api_key("qwen"),
-                base_url=app_config.get_api_base_url("qwen")
+                api_key=_tts_api_key("qwen"),
+                base_url=_tts_api_base_url("qwen")
                 or "https://dashscope.aliyuncs.com/api/v1",
             )
         return MiMoTTSProvider(
-            api_key=app_config.get_api_key("mimo"),
-            base_url=app_config.get_api_base_url("mimo")
+            api_key=_tts_api_key("mimo"),
+            base_url=_tts_api_base_url("mimo")
             or "https://api.xiaomimimo.com/v1",
         )
 
@@ -252,12 +415,11 @@ class PhaseOrchestrator:
             language = ctx.options.get("language", "mandarin")
             if language == "cantonese":
                 try:
-                    app_cfg = AppConfigManager()
-                    llm_cfg = app_cfg.get_llm_config()
+                    llm_cfg = self._resolve_llm_config(ctx)
 
                     class _LLMConfig:
-                        api_key = app_cfg.get_llm_api_key()
-                        base_url = app_cfg.get_llm_endpoint()
+                        api_key = self._resolve_llm_api_key(llm_cfg)
+                        base_url = self._resolve_llm_endpoint(llm_cfg)
                         model = llm_cfg.get("model", "deepseek-v4-pro")
 
                     gen = ScriptGenerator(_LLMConfig())
@@ -315,8 +477,7 @@ class PhaseOrchestrator:
     ) -> None:
         """Auto-generate cover title if the job JSON has no ``cover_title.text``.
 
-        This is the ONE place a handler reads config directly — because cover
-        title generation is self-contained and not worth a separate dependency.
+        Uses ConfigReader when injected; falls back to AppConfigManager otherwise.
         Errors are logged but never propagated.
         """
         job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
@@ -336,12 +497,11 @@ class PhaseOrchestrator:
             if not script_text:
                 return
 
-            app_config = AppConfigManager()
-            llm_config = app_config.get_llm_config()
+            llm_config = self._resolve_llm_config(ctx)
 
             class _CoverConfig:
-                api_key = app_config.get_llm_api_key()
-                base_url = app_config.get_llm_endpoint()
+                api_key = self._resolve_llm_api_key(llm_config)
+                base_url = self._resolve_llm_endpoint(llm_config)
                 model = llm_config.get("model", "deepseek-v4-pro")
 
             gen = ScriptGenerator(_CoverConfig())
@@ -386,11 +546,7 @@ class PhaseOrchestrator:
             )
             if existing_script:
                 try:
-                    get_tts_config = self._get_tts_config
-                    if get_tts_config is None:
-                        app_cfg = AppConfigManager()
-                        get_tts_config = app_cfg.get_tts_config
-                    tts_cfg = get_tts_config()
+                    tts_cfg = self._resolve_tts_config(ctx)
 
                     config = _TTSConfigShim(tts_cfg)
                     tts_provider = self._build_tts_provider(tts_cfg)
@@ -485,30 +641,24 @@ class PhaseOrchestrator:
 
         db_path = shared_asset_db_path(ctx.root_dir)
 
-        get_llm_config = self._get_llm_config
-        if get_llm_config is None:
-            app_config = AppConfigManager()
-            get_llm_config = app_config.get_llm_config
-        llm_config = get_llm_config()
+        llm_config = self._resolve_llm_config(ctx)
 
-        app_config = AppConfigManager()
-        api_key = app_config.get_api_key(llm_config.get("provider", "deepseek"))
-        api_url = app_config.get_api_base_url(llm_config.get("provider", "deepseek"))
+        api_key = self._resolve_asset_api_key(llm_config)
+        api_url = self._resolve_asset_api_url(llm_config)
 
         classify_fn = None
         if api_key and api_url:
             if not api_url.endswith("/chat/completions"):
                 api_url = f"{api_url}/chat/completions"
 
-            # Read configurable categories for classification
-            app_cfg = AppConfigManager()
-            categories = app_cfg.get_categories()
-            category_names = [c.name for c in categories] if categories else None
+            category_names = self._resolve_categories(self._config, ctx)
 
             classify_fn = create_classify_fn(
                 api_url=api_url,
                 api_key=api_key,
-                model=app_cfg.get_category_suggestion_model(),
+                model=self._config.get_category_suggestion_model()
+                if self._config is not None
+                else _fallback_category_suggestion_model(),
                 category_names=category_names,
             )
 
@@ -727,7 +877,7 @@ class PhaseOrchestrator:
         """scene_assembling: build scene segment from scene folders with crossfade transitions.
 
         Reads scene folder paths from ``ctx.scene_folder_paths`` (populated by
-        the tick service) or falls back to ``AppConfigManager.get_scene_config()``.
+        the tick service) or falls back to ``ctx.scene_config`` or ConfigReader.
         Picks one random video file from each folder, then uses ffmpeg ``xfade``
         to create a crossfade scene segment.
         """
@@ -745,9 +895,13 @@ class PhaseOrchestrator:
                     p = ctx.root_dir / "workspace" / p
                 folders.append(p)
         else:
-            # Fallback: read from config
-            app_config = AppConfigManager()
-            scene_config = app_config.get_scene_config()
+            # Fallback: ctx.scene_config > ConfigReader > AppConfigManager
+            scene_config = ctx.scene_config
+            if not scene_config and self._config is not None:
+                scene_config = self._config.get_scene_config(product_id=ctx.product)
+            if not scene_config:
+                from packages.provider_config.app_config import AppConfigManager
+                scene_config = AppConfigManager().get_scene_config()
             for entry in scene_config.get("folders", []):
                 path_str = entry.get("path", "")
                 if not path_str:
@@ -950,3 +1104,9 @@ class PhaseOrchestrator:
         """Get media duration in seconds via ffprobe."""
         from packages.pipeline_services.media_utils import get_media_duration as _gmd
         return _gmd(file_path)
+
+
+def _fallback_category_suggestion_model() -> str:
+    """Fallback: read category suggestion model via AppConfigManager."""
+    from packages.provider_config.app_config import AppConfigManager
+    return AppConfigManager().get_category_suggestion_model()
