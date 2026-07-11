@@ -16,6 +16,7 @@ from packages.provider_config.config_constants import (
 )
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.product_store import ProductStore
+from packages.provider_config.secret_store import SecretStore
 
 try:
     from dotenv import load_dotenv
@@ -70,6 +71,7 @@ class AppConfigManager:
         self.config_path = self.config_dir / "app_config.json"
         self._reader = ConfigReader(config_dir=self.config_dir)
         self._products = ProductStore(reader=self._reader, config_path=self.config_path)
+        self._secrets = SecretStore()
 
     def _load(self) -> dict[str, Any]:
         if self.config_path.exists():
@@ -133,53 +135,16 @@ class AppConfigManager:
         return self._reader.get_llm_config()
 
     def get_api_key(self, provider: str) -> str:
-        import os
-
-        # 优先读取 provider 专用 key，回退到通用 TTS_API_KEY 或 LLM_API_KEY
-        env_key = self.API_KEY_ENV_MAP.get(provider, "")
-        value = os.getenv(env_key, "").strip().strip('"').strip("'")
-        if not value:
-            # 根据 provider 类型回退到通用 key
-            if provider in ("mimo", "minimax", "qwen"):
-                value = os.getenv("TTS_API_KEY", "").strip().strip('"').strip("'")
-            else:
-                value = os.getenv("LLM_API_KEY", "").strip().strip('"').strip("'")
-        return value
+        return self._secrets.get_api_key(provider)
 
     def get_api_base_url(self, provider: str) -> str:
-        import os
-
-        # 优先读取 provider 专用 endpoint，回退到通用 TTS_API_URL 或 LLM_API_URL
-        env_key = self.API_BASE_URL_ENV_MAP.get(provider, "")
-        value = os.getenv(env_key, "").strip().rstrip("/")
-        if not value:
-            if provider in ("mimo", "minimax"):
-                value = os.getenv("TTS_API_URL", "").strip().rstrip("/")
-            elif provider != "qwen":
-                value = os.getenv("LLM_API_URL", "").strip().rstrip("/")
-        return value
+        return self._secrets.get_api_base_url(provider)
 
     def get_llm_api_key(self) -> str:
-        import os
-
-        provider = self.get_llm_config().get("provider", "deepseek")
-        # 优先读取 provider 专用 key，回退到通用 LLM_API_KEY
-        env_key = self.API_KEY_ENV_MAP.get(provider, "")
-        value = os.getenv(env_key, "").strip().strip('"').strip("'")
-        if not value:
-            value = os.getenv("LLM_API_KEY", "").strip().strip('"').strip("'")
-        return value
+        return self._secrets.get_llm_api_key(self._reader)
 
     def get_llm_endpoint(self) -> str:
-        import os
-
-        provider = self.get_llm_config().get("provider", "deepseek")
-        # 优先读取 provider 专用 endpoint，回退到通用 LLM_API_URL
-        env_key = self.API_BASE_URL_ENV_MAP.get(provider, "")
-        value = os.getenv(env_key, "").strip().rstrip("/")
-        if not value:
-            value = os.getenv("LLM_API_URL", "").strip().rstrip("/")
-        return value
+        return self._secrets.get_llm_endpoint(self._reader)
 
     def get_vision_config(self) -> dict[str, Any]:
         self._reader.reload()
@@ -206,37 +171,13 @@ class AppConfigManager:
         self._save(config)
 
     def get_vision_api_key(self) -> str:
-        import os
-
-        provider = self.get_vision_config().get("provider", "xiaomi")
-        # 优先读取 provider 专用 key，回退到通用 VISION_API_KEY
-        env_key = self.VISION_API_KEY_ENV_MAP.get(provider, "VISION_API_KEY")
-        value = os.getenv(env_key, "").strip().strip('"').strip("'")
-        if not value:
-            value = os.getenv("VISION_API_KEY", "").strip().strip('"').strip("'")
-        return value
+        return self._secrets.get_vision_api_key(self._reader)
 
     def get_vision_endpoint(self) -> str:
-        import os
-
-        provider = self.get_vision_config().get("provider", "xiaomi")
-        # 优先读取 provider 专用 endpoint，回退到通用 VISION_API_URL
-        env_key = self.VISION_ENDPOINT_ENV_MAP.get(provider, "VISION_API_URL")
-        value = os.getenv(env_key, "").strip().rstrip("/")
-        if not value:
-            value = os.getenv("VISION_API_URL", "").strip().rstrip("/")
-        return value
+        return self._secrets.get_vision_endpoint(self._reader)
 
     def get_vision_model(self) -> str:
-        import os
-
-        provider = self.get_vision_config().get("provider", "xiaomi")
-        # 优先读取 provider 专用 model，回退到通用 VISION_MODEL
-        env_key = self.VISION_MODEL_ENV_MAP.get(provider, "VISION_MODEL")
-        value = os.getenv(env_key, "").strip()
-        if not value:
-            value = os.getenv("VISION_MODEL", "").strip()
-        return value
+        return self._secrets.get_vision_model(self._reader)
 
     def get_media_config(self) -> dict[str, Any]:
         self._reader.reload()
