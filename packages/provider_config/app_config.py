@@ -15,6 +15,7 @@ from packages.provider_config.config_constants import (
     _set_nested,
 )
 from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.product_store import ProductStore
 
 try:
     from dotenv import load_dotenv
@@ -68,6 +69,7 @@ class AppConfigManager:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.config_path = self.config_dir / "app_config.json"
         self._reader = ConfigReader(config_dir=self.config_dir)
+        self._products = ProductStore(reader=self._reader, config_path=self.config_path)
 
     def _load(self) -> dict[str, Any]:
         if self.config_path.exists():
@@ -284,69 +286,17 @@ class AppConfigManager:
         return self._reader.get_product_config()
 
     def set_product_config(self, values: dict[str, Any]) -> None:
-        raw = self._load()
-        self._ensure_active_product(raw)
-        active_id = raw.get("active_product_id", "")
-
-        for i, p in enumerate(raw["products"]):
-            if p.get("id") == active_id:
-                existing = raw["products"][i]
-                merged = _deep_merge(existing, values)
-                merged.pop("name", None)
-                raw["products"][i] = merged
-                break
-
-        self._save(raw)
+        self._products.set_product_config(values)
 
     def save_product_config(self, product_id: str, values: dict[str, Any]) -> None:
         """保存指定产品的完整配置，不切换活跃产品。"""
-        raw = self._load()
-        self._ensure_active_product(raw)
-
-        for i, p in enumerate(raw["products"]):
-            if p.get("id") == product_id:
-                existing = raw["products"][i]
-                merged = _deep_merge(existing, values)
-                merged["id"] = product_id
-                merged.pop("name", None)
-                raw["products"][i] = merged
-                self._save(raw)
-                return
-
-        # 产品不存在时创建它
-        raw["products"].append({"id": product_id, **values})
-        self._save(raw)
+        self._products.save_product_config(product_id, values)
 
     def set_product(self, key: str, value: Any) -> None:
-        raw = self._load()
-        self._ensure_active_product(raw)
-        active_id = raw.get("active_product_id", "")
-
-        for i, p in enumerate(raw["products"]):
-            if p.get("id") == active_id:
-                _set_nested(raw["products"][i], key, value)
-                break
-
-        self._save(raw)
+        self._products.set_product(key, value)
 
     def reset_product_config(self) -> None:
-        raw = self._load()
-        active_id = raw.get("active_product_id", "")
-
-        # 移除活跃产品
-        products = raw.get("products", [])
-        for i, p in enumerate(products):
-            if p.get("id") == active_id:
-                products.pop(i)
-                break
-
-        # 重置活跃索引
-        if products:
-            raw["active_product_id"] = products[0]["id"]
-        else:
-            raw["active_product_id"] = ""
-
-        self._save(raw)
+        self._products.reset_product_config()
 
     def get_product_value(self, key: str, default: Any = None) -> Any:
         config = self.get_product_config()
@@ -354,119 +304,36 @@ class AppConfigManager:
 
     def _ensure_active_product(self, raw: dict[str, Any]) -> dict[str, Any]:
         """确保 products 列表和活跃产品存在，用于写入操作。"""
-        if "products" not in raw:
-            raw["products"] = []
-        if "active_product_id" not in raw:
-            raw["active_product_id"] = ""
-
-        # 有产品但无活跃 ID 时选择第一个
-        if not raw["active_product_id"] and raw["products"]:
-            raw["active_product_id"] = raw["products"][0]["id"]
-
-        # 无任何产品时创建默认
-        if not raw["products"]:
-            raw["products"] = [{"id": "default"}]
-            raw["active_product_id"] = "default"
-
-        return raw
+        return self._products._ensure_active_product(raw)
 
     def create_product(self, name: str) -> dict[str, str]:
         """创建新产品。name 同时作为产品 ID，不可为空。"""
-        trimmed = name.strip()
-        if not trimmed:
-            raise ValueError("product name cannot be empty")
-
-        raw = self._load()
-        if "products" not in raw:
-            raw["products"] = []
-
-        # 产品已存在时直接返回
-        for p in raw["products"]:
-            if p.get("id") == trimmed:
-                return {"id": trimmed, "name": trimmed}
-
-        raw["products"].append({"id": trimmed, "default_name": trimmed})
-        if "active_product_id" not in raw or not raw["active_product_id"]:
-            raw["active_product_id"] = trimmed
-
-        self._save(raw)
-        return {"id": trimmed, "name": trimmed}
+        return self._products.create_product(name)
 
     def rename_product(self, product_id: str, name: str) -> dict[str, str]:
         """重命名产品。只改变显示名称，不改变产品 ID。"""
-        trimmed = name.strip()
-        if not trimmed:
-            raise ValueError("product name cannot be empty")
-
-        raw = self._load()
-        for i, p in enumerate(raw.get("products", [])):
-            if p.get("id") == product_id:
-                raw["products"][i]["default_name"] = trimmed
-                self._save(raw)
-                return {"id": product_id, "name": trimmed}
-
-        raise ValueError("product not found")
+        return self._products.rename_product(product_id, name)
 
     def delete_product(self, product_id: str) -> dict[str, str | None]:
         """删除产品。删除活跃产品时自动选择第一个剩余产品。"""
-        raw = self._load()
-        products = raw.get("products", [])
-
-        # 查找要删除的产品
-        index = None
-        for i, p in enumerate(products):
-            if p.get("id") == product_id:
-                index = i
-                break
-
-        if index is None:
-            raise ValueError("product not found")
-
-        was_active = raw.get("active_product_id") == product_id
-        products.pop(index)
-
-        # 如果删除的是活跃产品，重置活跃产品
-        new_active = raw.get("active_product_id")
-        if was_active:
-            if products:
-                new_active = products[0]["id"]
-            else:
-                new_active = ""
-            raw["active_product_id"] = new_active
-
-        self._save(raw)
-        return {"status": "deleted", "active_product_id": new_active}
+        return self._products.delete_product(product_id)
 
     def switch_product(self, product_id: str) -> None:
         """切换到指定产品，不存在时自动创建。"""
-        raw = self._load()
-        if "products" not in raw:
-            raw["products"] = []
-
-        found = any(p.get("id") == product_id for p in raw["products"])
-        if not found:
-            raw["products"].append({"id": product_id})
-
-        raw["active_product_id"] = product_id
-        self._save(raw)
+        self._products.switch_product(product_id)
 
     def list_products(self) -> list[dict[str, str]]:
         """返回所有产品的 id + name 摘要。"""
-        raw = self._load()
-        products = raw.get("products", [])
-        return [
-            {
-                "id": p.get("id", ""),
-                "name": p.get("default_name", "") or p.get("name", "") or p.get("id", ""),
-            }
-            for p in products
-        ]
+        return self._products.list_products()
 
     def resolve_product_name(self, explicit_product: str = "") -> str:
         """Resolve product name with fallback chain.
 
         Priority: explicit_product > active product name > default_name > id.
         Returns empty string when no active product is configured.
+
+        Note: this method calls ``self.get_product_config()`` (not delegated to
+        ProductStore) so that monkeypatch-based tests can still intercept it.
         """
         if explicit_product:
             return explicit_product

@@ -30,6 +30,8 @@ from packages.pipeline_services.job_tick_service import (
     PhaseExecutionError,
 )
 from packages.pipeline_services.phase_orchestrator import create_orchestrator
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.product_store import ProductStore
 
 
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
@@ -131,6 +133,12 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.state.root_dir = root_dir or Path.cwd()
     app.state.dispatcher = Dispatcher(FileStoreRepository(app.state.root_dir))
     app.state.orchestrator = create_orchestrator(app.state.root_dir)
+    config_dir = app.state.root_dir / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    reader = ConfigReader(config_dir=str(config_dir))
+    app.state.product_store = ProductStore(
+        reader=reader, config_path=config_dir / "app_config.json"
+    )
     app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)
