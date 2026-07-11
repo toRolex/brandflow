@@ -215,6 +215,90 @@ def get_video_size(video_path: Path) -> tuple[int, int]:
     return int(parts[0]), int(parts[1])
 
 
+def _resolve_executable(
+    name_or_path: str, extra_search_dirs: list[Path] | None = None
+) -> str | None:
+    """解析外部工具可执行文件的绝对路径。
+
+    解析优先级：
+    1. 如果是绝对路径且可执行，直接返回。
+    2. 在 ``extra_search_dirs`` 中查找。
+    3. 在 ``PATH`` 环境变量中查找。
+
+    Args:
+        name_or_path: 工具名称（如 ``ffmpeg``）或绝对/相对路径。
+        extra_search_dirs: 额外搜索目录，优先级高于 PATH。
+
+    Returns:
+        可执行文件的绝对路径；未找到时返回 ``None``。
+    """
+    candidate = Path(name_or_path.strip())
+    if candidate.is_absolute():
+        if (
+            candidate.exists()
+            and candidate.is_file()
+            and os.access(str(candidate), os.X_OK)
+        ):
+            return str(candidate.resolve())
+        return None
+
+    search_dirs: list[Path] = list(extra_search_dirs or [])
+    path_env = os.environ.get("PATH", "")
+    search_dirs.extend(Path(d) for d in path_env.split(os.pathsep) if d)
+    if not search_dirs:
+        return None
+
+    search_path = os.pathsep.join(str(d) for d in search_dirs)
+    found = shutil.which(name_or_path, path=search_path)
+    if found:
+        return str(Path(found).resolve())
+    return None
+
+
+def _resolve_ffmpeg_path() -> str | None:
+    """解析 ffmpeg 可执行文件路径。
+
+    优先级：环境变量/显式配置 > ``tools/bin/`` > ``PATH``。
+    """
+    project_root = Path(__file__).resolve().parent.parent.parent
+    tools_bin = project_root / "tools" / "bin"
+    return _resolve_executable(get_ffmpeg_path(), extra_search_dirs=[tools_bin])
+
+
+def _resolve_ffprobe_path() -> str | None:
+    """解析 ffprobe 可执行文件路径。
+
+    优先级：环境变量/显式配置 > ``tools/bin/`` > ``PATH``。
+    """
+    project_root = Path(__file__).resolve().parent.parent.parent
+    tools_bin = project_root / "tools" / "bin"
+    return _resolve_executable(get_ffprobe_path(), extra_search_dirs=[tools_bin])
+
+
+def get_whisper_cli_path() -> str:
+    """解析 whisper-cli 可执行文件路径。
+
+    优先级：环境变量 WHISPER_CLI_PATH > app_config.json media.whisper_cli_path > "whisper-cli"
+    """
+    env_path = os.getenv("WHISPER_CLI_PATH", "").strip()
+    if env_path:
+        return env_path
+    config = AppConfigManager()
+    media = config.get_media_config() if hasattr(config, "get_media_config") else {}
+    path = media.get("whisper_cli_path") or "whisper-cli"
+    return path
+
+
+def _resolve_whisper_cli_path() -> str | None:
+    """解析 whisper-cli 可执行文件路径。
+
+    优先级：环境变量/显式配置 > ``tools/bin/`` > ``PATH``。
+    """
+    project_root = Path(__file__).resolve().parent.parent.parent
+    tools_bin = project_root / "tools" / "bin"
+    return _resolve_executable(get_whisper_cli_path(), extra_search_dirs=[tools_bin])
+
+
 def run_ffmpeg(args: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
     """运行 ffmpeg 命令。"""
     ffmpeg = get_ffmpeg_path()

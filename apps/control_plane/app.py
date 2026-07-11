@@ -147,8 +147,18 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(products_router)
 
     @app.get("/api/health")
-    async def health():
-        return {"status": "ok", "version": "0.7.0"}
+    async def health(deploy_check: bool = False):
+        from packages.deploy_health.checker import DeployHealthChecker
+
+        result: dict = {"status": "ok", "version": "0.7.0"}
+        if deploy_check:
+            checker = DeployHealthChecker(root_dir=app.state.root_dir)
+            health_result = checker.check_all()
+            result["deploy_health"] = health_result.to_dict()
+            if health_result.overall != "healthy":
+                result["status"] = "degraded"
+                result["deploy_health"]["overall"] = health_result.overall
+        return result
 
     workspace = root_dir or Path.cwd() / "workspace"
     if workspace.exists():
