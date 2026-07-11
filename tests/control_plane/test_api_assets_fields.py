@@ -325,3 +325,131 @@ def test_batch_fields_file_move_consistency(tmp_path: Path) -> None:
 
     for old_fp in file_paths:
         assert not Path(old_fp).exists()
+
+
+# ── GET /api/assets/categories endpoint tests ──
+
+
+class TestGetCategoriesEndpoint:
+    """GET /api/assets/categories — priority chain: product-level → instance-level → defaults."""
+
+    def test_product_level_categories_returned(self, tmp_path: Path) -> None:
+        """产品级 categories 应优先返回。"""
+        _write_config(
+            tmp_path,
+            {
+                "products": [
+                    {
+                        "id": "prod-a",
+                        "name": "产品A",
+                        "categories": [
+                            {"id": "unboxing", "name": "开箱展示", "description": "开箱"},
+                            {"id": "tasting", "name": "试吃品尝", "description": "试吃"},
+                        ],
+                    },
+                ],
+                "active_product_id": "prod-a",
+                "asset_library": {
+                    "categories": [
+                        {"id": "origin", "name": "产地溯源", "description": "产地"},
+                    ],
+                },
+            },
+        )
+        client = _make_client(tmp_path)
+        resp = client.get("/api/assets/categories")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 2
+        assert data[0]["id"] == "unboxing"
+        assert data[0]["name"] == "开箱展示"
+        assert data[0]["description"] == "开箱"
+        assert data[1]["id"] == "tasting"
+
+    def test_fallback_to_instance_level(self, tmp_path: Path) -> None:
+        """产品未配置 categories 时回退到 asset_library.categories。"""
+        _write_config(
+            tmp_path,
+            {
+                "products": [
+                    {"id": "prod-b"},
+                ],
+                "active_product_id": "prod-b",
+                "asset_library": {
+                    "categories": [
+                        {"id": "origin", "name": "产地溯源", "description": "原产地"},
+                        {"id": "sorting", "name": "筛选分拣", "description": "分拣"},
+                    ],
+                },
+            },
+        )
+        client = _make_client(tmp_path)
+        resp = client.get("/api/assets/categories")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 2
+        assert data[0]["id"] == "origin"
+        assert data[1]["id"] == "sorting"
+
+    def test_fallback_to_defaults(self, tmp_path: Path) -> None:
+        """产品和 asset_library 均未配置 categories 时返回默认分类。"""
+        _write_config(
+            tmp_path,
+            {
+                "products": [
+                    {"id": "prod-c"},
+                ],
+                "active_product_id": "prod-c",
+            },
+        )
+        client = _make_client(tmp_path)
+        resp = client.get("/api/assets/categories")
+        assert resp.status_code == 200
+        data = resp.json()
+        # 默认 food categories 有 10 个
+        assert len(data) == 10
+        default_ids = [c["id"] for c in data]
+        assert "origin" in default_ids
+        assert "stir_fry" in default_ids
+        assert "finished" in default_ids
+
+    def test_empty_product_categories_falls_to_instance(self, tmp_path: Path) -> None:
+        """产品显式设置空 categories 列表时回退到 asset_library。"""
+        _write_config(
+            tmp_path,
+            {
+                "products": [
+                    {"id": "prod-d", "categories": []},
+                ],
+                "active_product_id": "prod-d",
+                "asset_library": {
+                    "categories": [
+                        {"id": "macro", "name": "产品特写", "description": "特写"},
+                    ],
+                },
+            },
+        )
+        client = _make_client(tmp_path)
+        resp = client.get("/api/assets/categories")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["id"] == "macro"
+
+    def test_both_empty_returns_defaults(self, tmp_path: Path) -> None:
+        """产品和 asset_library 均为空 categories 时返回默认分类。"""
+        _write_config(
+            tmp_path,
+            {
+                "products": [
+                    {"id": "prod-e", "categories": []},
+                ],
+                "active_product_id": "prod-e",
+                "asset_library": {"categories": []},
+            },
+        )
+        client = _make_client(tmp_path)
+        resp = client.get("/api/assets/categories")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 10  # 默认 food categories

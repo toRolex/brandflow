@@ -1,12 +1,32 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../api/client";
 import { useProducts } from "../ProductContext";
-import type { ProductConfig } from "../types";
+import type { CategoryConfig, ProductConfig } from "../types";
 
 interface FormErrors {
   default_name?: string;
   default_brand?: string;
 }
+
+interface CatFormData {
+  name: string;
+  description: string;
+}
+
+interface CatFormErrors {
+  name?: string;
+}
+
+/** Generate a stable machine-readable id from a category name. */
+function generateCategoryId(name: string): string {
+  const cleaned = name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+  if (!cleaned.replace(/_/g, "")) {
+    return `cat_${Date.now().toString(36)}`;
+  }
+  return cleaned;
+}
+
+const EMPTY_CAT_FORM: CatFormData = { name: "", description: "" };
 
 const DEFAULT_CONFIG: ProductConfig = {
   default_name: "",
@@ -55,7 +75,7 @@ const errorTextStyle = {
 } as React.CSSProperties;
 
 export default function ProductConfigForm() {
-  const { products, activeProductId, activeProductName, switchProduct, refreshProducts, createProduct, renameProduct, deleteProduct } = useProducts();
+  const { products, activeProductId, activeProductName, refreshProducts, createProduct, renameProduct, deleteProduct } = useProducts();
   const [config, setConfig] = useState<ProductConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -68,6 +88,12 @@ export default function ProductConfigForm() {
   const [renamingProductId, setRenamingProductId] = useState<string>("");
   const [renameValue, setRenameValue] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string>("");
+  const [showCatForm, setShowCatForm] = useState(false);
+  const [editingCatIndex, setEditingCatIndex] = useState<number | null>(null);
+  const [catFormData, setCatFormData] = useState<CatFormData>(EMPTY_CAT_FORM);
+  const [catFormErrors, setCatFormErrors] = useState<CatFormErrors>({});
+
+  const categories: CategoryConfig[] = (config.categories as CategoryConfig[]) ?? [];
 
   const loadConfig = useCallback(async (productId?: string) => {
     setLoading(true);
@@ -162,6 +188,75 @@ export default function ProductConfigForm() {
       ...prev,
       script: { ...prev.script, [field]: value },
     }));
+  };
+
+  const validateCatForm = (): boolean => {
+    const errors: CatFormErrors = {};
+    if (!catFormData.name.trim()) {
+      errors.name = "分类名称不能为空";
+    }
+    setCatFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSaveCategories = async (newCategories: CategoryConfig[]) => {
+    setSaving(true);
+    setSaveMsg(null);
+    const updatedConfig = { ...config, categories: newCategories };
+    try {
+      let result: ProductConfig;
+      if (editingProductId && editingProductId !== activeProductId) {
+        result = await api.saveProductConfigById(editingProductId, updatedConfig);
+      } else {
+        result = await api.saveProductConfig(updatedConfig);
+      }
+      setConfig(result);
+      setSaveMsg("分类已保存");
+      setTimeout(() => setSaveMsg(null), 3000);
+    } catch {
+      setSaveMsg("保存失败");
+    }
+    setSaving(false);
+  };
+
+  const handleAddCategory = async () => {
+    if (!validateCatForm()) return;
+
+    const newCategory: CategoryConfig = {
+      id: generateCategoryId(catFormData.name.trim()),
+      name: catFormData.name.trim(),
+      description: catFormData.description.trim(),
+      vision_prompt: "",
+    };
+
+    if (editingCatIndex !== null) {
+      const existingId = categories[editingCatIndex]?.id;
+      const updated = categories.map((c, i) =>
+        i === editingCatIndex
+          ? { ...newCategory, id: existingId || newCategory.id }
+          : c
+      );
+      await handleSaveCategories(updated);
+    } else {
+      await handleSaveCategories([...categories, newCategory]);
+    }
+
+    setShowCatForm(false);
+    setCatFormData(EMPTY_CAT_FORM);
+    setEditingCatIndex(null);
+  };
+
+  const handleEditCategory = (index: number) => {
+    const cat = categories[index];
+    setCatFormData({ name: cat.name, description: cat.description });
+    setEditingCatIndex(index);
+    setCatFormErrors({});
+    setShowCatForm(true);
+  };
+
+  const handleDeleteCategory = async (index: number) => {
+    const updated = categories.filter((_, i) => i !== index);
+    await handleSaveCategories(updated);
   };
 
   if (loading) {
@@ -571,6 +666,159 @@ export default function ProductConfigForm() {
               </section>
             </div>
           </div>
+
+          {/* 素材分类管理 */}
+          <section
+            className="rounded-xl border p-6 mt-6"
+            style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>素材分类</h2>
+              <button
+                className="px-3 py-1.5 text-sm font-medium rounded-lg hover:brightness-110 transition-colors"
+                style={{ background: "var(--accent)", color: "var(--text-inverse)" }}
+                onClick={() => {
+                  setShowCatForm(true);
+                  setEditingCatIndex(null);
+                  setCatFormData(EMPTY_CAT_FORM);
+                  setCatFormErrors({});
+                }}
+              >
+                + 新增分类
+              </button>
+            </div>
+
+            {categories.length === 0 ? (
+              <div className="text-center py-8" style={{ color: "var(--text-tertiary)" }}>
+                暂无分类配置，点击"新增分类"添加
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b" style={{ borderColor: "var(--border-default)" }}>
+                      <th className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>ID</th>
+                      <th className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>分类名称</th>
+                      <th className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>描述</th>
+                      <th className="text-right px-4 py-2 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categories.map((cat, i) => (
+                      <tr key={cat.id} className="border-b last:border-0" style={{ borderColor: "var(--border-subtle)" }}>
+                        <td className="px-4 py-3 text-sm font-mono" style={{ color: "var(--text-tertiary)" }}>{cat.id}</td>
+                        <td className="px-4 py-3 text-sm font-medium">{cat.name}</td>
+                        <td className="px-4 py-3 text-sm" style={{ color: "var(--text-secondary)" }}>{cat.description}</td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            className="text-sm mr-3 hover:underline disabled:opacity-50"
+                            style={{ color: "var(--accent)" }}
+                            onClick={() => handleEditCategory(i)}
+                            disabled={saving}
+                          >
+                            编辑
+                          </button>
+                          <button
+                            className="text-sm hover:underline disabled:opacity-50"
+                            style={{ color: "var(--danger)" }}
+                            onClick={() => handleDeleteCategory(i)}
+                            disabled={saving}
+                          >
+                            删除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {/* 分类表单模态窗 */}
+          {showCatForm && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center"
+              style={{ background: "rgba(0,0,0,0.4)" }}
+              onClick={() => {
+                setShowCatForm(false);
+                setEditingCatIndex(null);
+                setCatFormData(EMPTY_CAT_FORM);
+                setCatFormErrors({});
+              }}
+            >
+              <div
+                className="rounded-xl border p-6 w-full max-w-md mx-4"
+                style={{ background: "var(--bg-card)", borderColor: "var(--border-default)" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>
+                  {editingCatIndex !== null ? "编辑分类" : "新增分类"}
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label style={labelStyle}>
+                      分类名称 <span style={{ color: "var(--danger)" }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2 rounded-lg text-sm"
+                      style={{
+                        ...inputStyle,
+                        ...(catFormErrors.name
+                          ? { borderColor: "var(--danger-border)", background: "var(--danger-bg)" }
+                          : {}),
+                      }}
+                      placeholder="分类名称"
+                      value={catFormData.name}
+                      onChange={(e) => {
+                        setCatFormData((prev) => ({ ...prev, name: e.target.value }));
+                        if (catFormErrors.name) setCatFormErrors({});
+                      }}
+                    />
+                    {catFormErrors.name && (
+                      <p style={errorTextStyle}>{catFormErrors.name}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label style={labelStyle}>描述</label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2 rounded-lg text-sm"
+                      style={inputStyle}
+                      placeholder="分类描述"
+                      value={catFormData.description}
+                      onChange={(e) =>
+                        setCatFormData((prev) => ({ ...prev, description: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    className="px-4 py-2 text-sm font-medium rounded-lg hover:brightness-95 transition-colors"
+                    style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}
+                    onClick={() => {
+                      setShowCatForm(false);
+                      setEditingCatIndex(null);
+                      setCatFormData(EMPTY_CAT_FORM);
+                      setCatFormErrors({});
+                    }}
+                  >
+                    取消
+                  </button>
+                  <button
+                    className="px-4 py-2 text-sm font-medium rounded-lg hover:brightness-110 disabled:opacity-50 transition-colors"
+                    style={{ background: "var(--accent)", color: "var(--text-inverse)" }}
+                    onClick={handleAddCategory}
+                    disabled={saving}
+                  >
+                    确认
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex items-center gap-4 mt-6">

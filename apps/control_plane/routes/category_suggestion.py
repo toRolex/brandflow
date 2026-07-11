@@ -71,9 +71,16 @@ async def suggest(request: Request, body: SuggestRequest) -> SuggestResponse:
 
 
 @router.get("")
-async def list_categories() -> list[dict]:
-    """Return the currently configured asset categories."""
-    manager = AppConfigManager()
+async def list_categories(request: Request) -> list[dict]:
+    """Return the currently configured asset categories.
+
+    Uses the app config directory so that product-level categories are respected
+    when running with a non-default ``config_dir`` (e.g. in tests).
+    """
+    from pathlib import Path
+
+    root_dir: Path = request.app.state.root_dir
+    manager = AppConfigManager(config_dir=root_dir / "config")
     return [
         {"id": c.id, "name": c.name, "description": c.description}
         for c in manager.get_categories()

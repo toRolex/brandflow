@@ -65,7 +65,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { products, activeProductId, activeProductName } = useProducts();
+  const { products, activeProductName } = useProducts();
 
   const [configuredCategories, setConfiguredCategories] = useState<CategoryItem[]>([]);
 
