@@ -12,6 +12,7 @@ from packages.pipeline_services.media_utils import (
     _resolve_ffmpeg_path,
     _resolve_ffprobe_path,
     _resolve_whisper_cli_path,
+    get_whisper_cli_path,
 )
 
 
@@ -136,3 +137,186 @@ class TestResolveWhisperCliPath:
                 _resolve_whisper_cli_path()
 
         assert exc_info.value.tool_name == "whisper-cli"
+
+
+class TestResolveFfmpegPathWithConfig:
+    """Tests for _resolve_ffmpeg_path with ConfigReader support (Issue #88)."""
+
+    def test_config_path_takes_priority_over_tools_bin(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """config media.ffmpeg_path should be tried before tools/bin/."""
+        monkeypatch.delenv("FFMPEG_PATH", raising=False)
+        config_exe = tmp_path / "opt" / "myffmpeg"
+        config_exe.parent.mkdir(parents=True, exist_ok=True)
+        config_exe.write_text("")
+
+        fake_reader = mock.Mock()
+        fake_reader.get_media_config.return_value = {"ffmpeg_path": str(config_exe)}
+
+        # tools/bin/ffmpeg does NOT exist, shutil.which returns None
+        with (
+            mock.patch("pathlib.Path.cwd", return_value=tmp_path),
+            mock.patch("shutil.which", return_value=None),
+        ):
+            result = _resolve_ffmpeg_path(reader=fake_reader)
+
+        assert result == str(config_exe)
+
+    def test_env_var_still_wins_over_config(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """env var FFMPEG_PATH must still beat app_config.json."""
+        env_exe = tmp_path / "env_ffmpeg"
+        env_exe.write_text("")
+        monkeypatch.setenv("FFMPEG_PATH", str(env_exe))
+
+        config_exe = tmp_path / "config_ffmpeg"
+        config_exe.write_text("")
+
+        fake_reader = mock.Mock()
+        fake_reader.get_media_config.return_value = {"ffmpeg_path": str(config_exe)}
+
+        result = _resolve_ffmpeg_path(reader=fake_reader)
+        assert result == str(env_exe)
+
+    def test_config_path_not_exists_falls_through(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """If config path does not exist on disk, fall through to tools/bin/."""
+        monkeypatch.delenv("FFMPEG_PATH", raising=False)
+        tools_exe = tmp_path / "tools" / "bin" / "ffmpeg"
+        tools_exe.parent.mkdir(parents=True, exist_ok=True)
+        tools_exe.write_text("")
+
+        fake_reader = mock.Mock()
+        fake_reader.get_media_config.return_value = {
+            "ffmpeg_path": "/nonexistent/ffmpeg"
+        }
+
+        with mock.patch("pathlib.Path.cwd", return_value=tmp_path):
+            result = _resolve_ffmpeg_path(reader=fake_reader)
+
+        assert result == str(tools_exe)
+
+    def test_no_reader_backward_compatible(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Calling without reader should work as before (no config step)."""
+        monkeypatch.delenv("FFMPEG_PATH", raising=False)
+        tools_exe = tmp_path / "tools" / "bin" / "ffmpeg"
+        tools_exe.parent.mkdir(parents=True, exist_ok=True)
+        tools_exe.write_text("")
+
+        with mock.patch("pathlib.Path.cwd", return_value=tmp_path):
+            result = _resolve_ffmpeg_path()
+
+        assert result == str(tools_exe)
+
+
+class TestResolveFfprobePathWithConfig:
+    """Tests for _resolve_ffprobe_path with ConfigReader support (Issue #88)."""
+
+    def test_config_path_resolved(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        monkeypatch.delenv("FFPROBE_PATH", raising=False)
+        config_exe = tmp_path / "opt" / "myffprobe"
+        config_exe.parent.mkdir(parents=True, exist_ok=True)
+        config_exe.write_text("")
+
+        fake_reader = mock.Mock()
+        fake_reader.get_media_config.return_value = {"ffprobe_path": str(config_exe)}
+
+        with (
+            mock.patch("pathlib.Path.cwd", return_value=tmp_path),
+            mock.patch("shutil.which", return_value=None),
+        ):
+            result = _resolve_ffprobe_path(reader=fake_reader)
+
+        assert result == str(config_exe)
+
+    def test_env_var_wins_over_config(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv("FFPROBE_PATH", str(tmp_path / "env_ffprobe"))
+        (tmp_path / "env_ffprobe").write_text("")
+
+        fake_reader = mock.Mock()
+        fake_reader.get_media_config.return_value = {
+            "ffprobe_path": "/nonexistent/ffprobe"
+        }
+
+        result = _resolve_ffprobe_path(reader=fake_reader)
+        assert result == str(tmp_path / "env_ffprobe")
+
+
+class TestResolveWhisperCliPathWithConfig:
+    """Tests for _resolve_whisper_cli_path with ConfigReader support (Issue #88)."""
+
+    def test_config_path_resolved(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        monkeypatch.delenv("WHISPER_CLI_PATH", raising=False)
+        config_exe = tmp_path / "opt" / "mywhisper"
+        config_exe.parent.mkdir(parents=True, exist_ok=True)
+        config_exe.write_text("")
+
+        fake_reader = mock.Mock()
+        fake_reader.get_media_config.return_value = {"whisper_cli_path": str(config_exe)}
+
+        with (
+            mock.patch("pathlib.Path.cwd", return_value=tmp_path),
+            mock.patch("shutil.which", return_value=None),
+        ):
+            result = _resolve_whisper_cli_path(reader=fake_reader)
+
+        assert result == str(config_exe)
+
+    def test_env_var_wins_over_config(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv("WHISPER_CLI_PATH", str(tmp_path / "env_whisper"))
+        (tmp_path / "env_whisper").write_text("")
+
+        fake_reader = mock.Mock()
+        fake_reader.get_media_config.return_value = {
+            "whisper_cli_path": "/nonexistent/whisper"
+        }
+
+        result = _resolve_whisper_cli_path(reader=fake_reader)
+        assert result == str(tmp_path / "env_whisper")
+
+
+class TestGetWhisperCliPath:
+    """Tests for the public get_whisper_cli_path function."""
+
+    def test_delegates_to_resolve_with_reader(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """get_whisper_cli_path(reader) should delegate to _resolve_whisper_cli_path."""
+        monkeypatch.delenv("WHISPER_CLI_PATH", raising=False)
+        config_exe = tmp_path / "opt" / "whisper_from_config"
+        config_exe.parent.mkdir(parents=True, exist_ok=True)
+        config_exe.write_text("")
+
+        fake_reader = mock.Mock()
+        fake_reader.get_media_config.return_value = {"whisper_cli_path": str(config_exe)}
+
+        with (
+            mock.patch("pathlib.Path.cwd", return_value=tmp_path),
+            mock.patch("shutil.which", return_value=None),
+        ):
+            result = get_whisper_cli_path(reader=fake_reader)
+
+        assert result == str(config_exe)
+
+    def test_no_reader_falls_through_to_tools_bin(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """get_whisper_cli_path() without reader should use tools/bin/ fallback."""
+        monkeypatch.delenv("WHISPER_CLI_PATH", raising=False)
+        tools_exe = tmp_path / "tools" / "bin" / "whisper-cli"
+        tools_exe.parent.mkdir(parents=True, exist_ok=True)
+        tools_exe.write_text("")
+
+        with mock.patch("pathlib.Path.cwd", return_value=tmp_path):
+            result = get_whisper_cli_path()
+
+        assert result == str(tools_exe)
