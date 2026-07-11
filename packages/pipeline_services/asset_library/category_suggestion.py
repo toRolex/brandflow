@@ -16,6 +16,10 @@ from pathlib import Path
 
 from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.asset_library.repository import AssetRepository
+from packages.pipeline_services.media_utils import (
+    _resolve_ffmpeg_path,
+    _resolve_ffprobe_path,
+)
 from packages.provider_config.app_config import AppConfigManager
 
 logger = logging.getLogger(__name__)
@@ -80,13 +84,9 @@ def _resolve_llm_api_config() -> dict:
     }
 
 
-def _ffmpeg_path() -> str:
-    return os.environ.get("FFMPEG_PATH", "ffmpeg")
-
-
 def _get_media_duration(video_path: Path) -> float | None:
     """Get video duration in seconds using ffprobe."""
-    ffprobe = os.environ.get("FFPROBE_PATH", "ffprobe")
+    ffprobe = _resolve_ffprobe_path()
     try:
         result = subprocess.run(
             [
@@ -122,7 +122,7 @@ def _extract_frame(video_path: Path, output_dir: Path) -> Path | None:
 
         midpoint = duration / 2
         output_path = output_dir / f"{video_path.stem}.jpg"
-        ffmpeg = _ffmpeg_path()
+        ffmpeg = _resolve_ffmpeg_path()
 
         subprocess.run(
             [

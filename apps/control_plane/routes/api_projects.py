@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
+from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 
 router = APIRouter(prefix="/api/projects", tags=["api-projects"])
 
@@ -218,7 +219,7 @@ def index_assets(request: Request, project_id: str):
         product = meta.get("product", os.environ.get("PRODUCT", ""))
 
         indexer = AssetIndexer(
-            ffmpeg_path=os.environ.get("FFMPEG_PATH", "ffmpeg"),
+            ffmpeg_path=_resolve_ffmpeg_path(),
             repository=repository,
             vision_config=vision_config,
             product=product,

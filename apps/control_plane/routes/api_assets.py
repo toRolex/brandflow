@@ -23,11 +23,8 @@ from packages.file_store.paths import (
     shared_source_dir,
 )
 from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
-from packages.pipeline_services.asset_library.thumbnail import (
-    ThumbnailGenerator,
-    _resolve_tool_path,
-    _get_default,
-)
+from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerator
+from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 
 router = APIRouter(prefix="/api/assets", tags=["api-assets"])
 
@@ -193,7 +190,7 @@ async def index_assets(
     from packages.provider_config.app_config import AppConfigManager
 
     app_config = AppConfigManager()
-    product_value = app_config.resolve_product_name(product)
+    product_value = app_config.resolve_product_name(product or "")
 
     if async_mode:
         task = index_task_manager.create_task(len(new_videos))
@@ -207,7 +204,7 @@ async def index_assets(
 
     repository = AssetRepository(db_path)
     vision_config = app_config.get_vision_config()
-    ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
+    ffmpeg_path = _resolve_ffmpeg_path()
     indexer = AssetIndexer(
         ffmpeg_path=ffmpeg_path,
         repository=repository,
@@ -252,7 +249,7 @@ async def _run_index_task(
 
         app_config = AppConfigManager()
         vision_config = app_config.get_vision_config()
-        ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
+        ffmpeg_path = _resolve_ffmpeg_path()
         indexer = AssetIndexer(
             ffmpeg_path=ffmpeg_path,
             repository=repository,

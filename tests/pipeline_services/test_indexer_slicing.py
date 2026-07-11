@@ -12,6 +12,7 @@ import pytest
 
 from packages.pipeline_services.asset_library.indexer import AssetIndexer
 from packages.pipeline_services.asset_library.repository import AssetRepository
+from packages.pipeline_services.media_utils import _resolve_ffprobe_path
 
 
 def _create_test_video(
@@ -94,7 +95,7 @@ def _get_first_frame_type(ffmpeg_path: str, video_path: Path) -> str | None:
 
     Returns 'I' for keyframes, 'P' for predicted frames, 'B' for bidirectional, or None on error.
     """
-    ffprobe_path = str(ffmpeg_path).replace("ffmpeg", "ffprobe")
+    ffprobe_path = _resolve_ffprobe_path()
     cmd = [
         ffprobe_path,
         "-v",
