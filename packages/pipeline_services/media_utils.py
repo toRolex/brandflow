@@ -41,13 +41,15 @@ def _resolve_tool_path(
     tool_name: str,
     env_var: str,
     default_candidates: list[str],
+    config_path: str | None = None,
 ) -> str:
     """Resolve an external media tool path with a clear, actionable error.
 
     Resolution order:
       1. ``os.environ[env_var]`` (must exist as a file or be available in PATH)
-      2. Each path in ``default_candidates`` (resolved relative to CWD)
-      3. ``shutil.which(tool_name)``
+      2. ``config_path`` (from ``app_config.json``, if provided and exists as a file)
+      3. Each path in ``default_candidates`` (resolved relative to CWD)
+      4. ``shutil.which(tool_name)``
 
     Raises
     ------
@@ -63,6 +65,11 @@ def _resolve_tool_path(
             return env_value
         if shutil.which(env_value):
             return env_value
+
+    if config_path:
+        attempted.append(f"config:{config_path}")
+        if Path(config_path).exists():
+            return config_path
 
     cwd = Path.cwd()
     for candidate in default_candidates:
@@ -88,39 +95,57 @@ def _resolve_tool_path(
     )
 
 
-def _resolve_ffmpeg_path() -> str:
+def _resolve_ffmpeg_path(reader: ConfigReader | None = None) -> str:
     """Resolve the ffmpeg executable path.
 
-    Priority: ``FFMPEG_PATH`` env > ``tools/bin/ffmpeg(.exe)`` > ``shutil.which('ffmpeg')``.
+    Priority: ``FFMPEG_PATH`` env > ``app_config.json`` media.ffmpeg_path >
+    ``tools/bin/ffmpeg(.exe)`` > ``shutil.which('ffmpeg')``.
     """
+    config_path: str | None = None
+    if reader is not None:
+        media = reader.get_media_config()
+        config_path = media.get("ffmpeg_path") or None
     return _resolve_tool_path(
         tool_name="ffmpeg",
         env_var="FFMPEG_PATH",
         default_candidates=["tools/bin/ffmpeg", "tools/bin/ffmpeg.exe"],
+        config_path=config_path,
     )
 
 
-def _resolve_ffprobe_path() -> str:
+def _resolve_ffprobe_path(reader: ConfigReader | None = None) -> str:
     """Resolve the ffprobe executable path.
 
-    Priority: ``FFPROBE_PATH`` env > ``tools/bin/ffprobe(.exe)`` > ``shutil.which('ffprobe')``.
+    Priority: ``FFPROBE_PATH`` env > ``app_config.json`` media.ffprobe_path >
+    ``tools/bin/ffprobe(.exe)`` > ``shutil.which('ffprobe')``.
     """
+    config_path: str | None = None
+    if reader is not None:
+        media = reader.get_media_config()
+        config_path = media.get("ffprobe_path") or None
     return _resolve_tool_path(
         tool_name="ffprobe",
         env_var="FFPROBE_PATH",
         default_candidates=["tools/bin/ffprobe", "tools/bin/ffprobe.exe"],
+        config_path=config_path,
     )
 
 
-def _resolve_whisper_cli_path() -> str:
+def _resolve_whisper_cli_path(reader: ConfigReader | None = None) -> str:
     """Resolve the whisper-cli executable path.
 
-    Priority: ``WHISPER_CLI_PATH`` env > ``tools/bin/whisper-cli(.exe)`` > ``shutil.which('whisper-cli')``.
+    Priority: ``WHISPER_CLI_PATH`` env > ``app_config.json`` media.whisper_cli_path >
+    ``tools/bin/whisper-cli(.exe)`` > ``shutil.which('whisper-cli')``.
     """
+    config_path: str | None = None
+    if reader is not None:
+        media = reader.get_media_config()
+        config_path = media.get("whisper_cli_path") or None
     return _resolve_tool_path(
         tool_name="whisper-cli",
         env_var="WHISPER_CLI_PATH",
         default_candidates=["tools/bin/whisper-cli", "tools/bin/whisper-cli.exe"],
+        config_path=config_path,
     )
 
 
@@ -343,22 +368,17 @@ def _resolve_executable(
 
 
 def get_whisper_cli_path(reader: ConfigReader | None = None) -> str:
-    """解析 whisper-cli 可执行文件路径。
+    """Resolve whisper-cli executable path.
 
-    优先级：环境变量 WHISPER_CLI_PATH > ConfigReader media.whisper_cli_path > "whisper-cli"
+    Priority: ``WHISPER_CLI_PATH`` env > ``ConfigReader`` media.whisper_cli_path >
+    ``tools/bin/whisper-cli(.exe)`` > ``shutil.which('whisper-cli')``.
 
     Args:
-        reader: 可选的 ``ConfigReader`` 实例。传入时从缓存读取 media 配置，
-                避免了内部构造 ``AppConfigManager`` 的开销。
+        reader: Optional ``ConfigReader`` instance. When provided, reads
+                ``media.whisper_cli_path`` from ``app_config.json`` as part
+                of the resolution chain.
     """
-    env_path = os.getenv("WHISPER_CLI_PATH", "").strip()
-    if env_path:
-        return env_path
-    if reader is not None:
-        media = reader.get_media_config()
-        path = media.get("whisper_cli_path") or "whisper-cli"
-        return path
-    return "whisper-cli"
+    return _resolve_whisper_cli_path(reader=reader)
 
 
 def run_ffmpeg(args: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
