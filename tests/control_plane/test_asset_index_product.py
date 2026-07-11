@@ -64,7 +64,7 @@ def test_index_falls_back_to_active_product(tmp_path: Path, monkeypatch) -> None
         return {"name": "测试产品", "id": "test-product", "default_name": "测试产品"}
 
     monkeypatch.setattr(
-        "packages.provider_config.app_config.AppConfigManager.get_product_config",
+        "packages.provider_config.config_reader.ConfigReader.get_product_config",
         _fake_get_product_config,
     )
 
@@ -94,7 +94,7 @@ def test_index_explicit_product_wins_over_config(tmp_path: Path, monkeypatch) ->
         return {"name": "配置中的产品", "id": "config-product"}
 
     monkeypatch.setattr(
-        "packages.provider_config.app_config.AppConfigManager.get_product_config",
+        "packages.provider_config.config_reader.ConfigReader.get_product_config",
         _fake_get_product_config,
     )
 
@@ -179,7 +179,7 @@ def test_index_uses_resolve_product_name(tmp_path: Path, monkeypatch) -> None:
         return "零食测试"
 
     monkeypatch.setattr(
-        "packages.provider_config.app_config.AppConfigManager.resolve_product_name",
+        "apps.control_plane.routes.api_assets._resolve_product_name",
         _fake_resolve_name,
     )
 
@@ -210,7 +210,7 @@ def test_index_falls_back_to_default_name(tmp_path: Path, monkeypatch) -> None:
         return {"name": "", "default_name": "零食测试", "id": "snack"}
 
     monkeypatch.setattr(
-        "packages.provider_config.app_config.AppConfigManager.get_product_config",
+        "packages.provider_config.config_reader.ConfigReader.get_product_config",
         _fake_get_product_config,
     )
 
@@ -240,7 +240,7 @@ def test_index_falls_back_to_id(tmp_path: Path, monkeypatch) -> None:
         return {"name": "", "default_name": "", "id": "snack-prod"}
 
     monkeypatch.setattr(
-        "packages.provider_config.app_config.AppConfigManager.get_product_config",
+        "packages.provider_config.config_reader.ConfigReader.get_product_config",
         _fake_get_product_config,
     )
 

@@ -209,10 +209,10 @@ def index_assets(request: Request, project_id: str):
     if new_videos:
         repository = AssetRepository(db_path)
 
-        from packages.provider_config.app_config import AppConfigManager
+        from packages.provider_config.config_reader import ConfigReader
 
-        app_config = AppConfigManager()
-        vision_config = app_config.get_vision_config()
+        reader = ConfigReader(config_dir=str(request.app.state.root_dir / "config"))
+        vision_config = reader.get_vision_config()
 
         repo = FileStoreRepository(request.app.state.root_dir)
         meta = repo.load_project_meta(project_id)

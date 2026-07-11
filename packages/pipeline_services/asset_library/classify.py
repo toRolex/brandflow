@@ -2,7 +2,7 @@
 
 Provides a factory function that creates a callable for classifying sentences
 into asset categories.  Category names should be passed from the caller
-(typically from product config via ``ConfigReader.get_categories()``).
+(typically from product config via ``get_categories()``).
 
 When ``category_names`` is ``None`` or empty the classifier runs in *adaptive
 mode*: the LLM is asked to generate a concise Chinese category name freely,

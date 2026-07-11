@@ -20,6 +20,7 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
 )
+from packages.provider_config.config_reader import ConfigReader
 from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
 
 
@@ -172,7 +173,10 @@ def _build_orchestrator(root_dir: Path) -> PhaseOrchestrator:
     """Construct a PhaseOrchestrator with real service dependencies."""
     from packages.pipeline_services.phase_orchestrator import create_orchestrator
 
-    return create_orchestrator(root_dir)
+    config_dir = root_dir / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    reader = ConfigReader(config_dir=str(config_dir))
+    return create_orchestrator(root_dir, config_reader=reader)
 
 
 def main() -> None:

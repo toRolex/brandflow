@@ -7,13 +7,14 @@ from fastapi.responses import Response
 from pathlib import Path
 from pydantic import BaseModel
 
-from packages.provider_config.app_config import AppConfigManager
+from packages.provider_config.secret_store import SecretStore
 from packages.provider_config.tts_config import TTSConfigManager
 from packages.pipeline_services.tts_monitor import TTSMonitor
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 
-app_config = AppConfigManager()
+_secret_store = SecretStore()
+app_config = _secret_store  # backward compatibility alias
 config_manager = TTSConfigManager()
 monitor = TTSMonitor()
 

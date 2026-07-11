@@ -489,14 +489,12 @@ class JobTickService:
             transition_duration_ms: int = 500
             scene_config: dict[str, Any] = {}
             if record.mode == "import":
-                # Resolve scene config: ConfigReader > AppConfigManager fallback (backward compatibility)
+                # Resolve scene config: ConfigReader
                 if self._config is not None:
                     scene_cfg = self._config.get_scene_config(product_id=product)
                 else:
-                    from packages.provider_config.app_config import AppConfigManager
-                    app_cfg = AppConfigManager()
-                    product_cfg = app_cfg.get_product_config()
-                    scene_cfg = product_cfg.get("scene", {})
+                    from packages.provider_config.config_reader import ConfigReader
+                    scene_cfg = ConfigReader().get_scene_config(product_id=product)
                 scene_config = scene_cfg
                 scene_folder_paths = [
                     entry.get("path", "")

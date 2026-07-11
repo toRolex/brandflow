@@ -1,7 +1,7 @@
 """Shared file I/O helpers: load/save JSON config files with thread-safe atomic writes.
 
 Replaces the ``_load()`` / ``_save()`` methods previously defined inside
-``AppConfigManager`` (now ``ConfigReader``) so that other modules can share the
+the old config manager so that ``ConfigReader`` and other modules can share the
 same safe I/O primitives.
 """
 

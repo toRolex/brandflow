@@ -264,11 +264,11 @@ def _sync_secrets_to_env(root_dir: Path, payload: dict) -> dict:
 
 
 def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
-    """Sync business config from providers.yaml to app_config.json for ConfigReader."""
-    from packages.provider_config.app_config import AppConfigManager
+    """Sync business config from providers.yaml to app_config.json."""
+    from packages.provider_config.config_io import load_config, save_config
 
-    manager = AppConfigManager(config_dir=root_dir / "config")
-    app_config = manager._load()
+    config_path = root_dir / "config" / "app_config.json"
+    app_config = load_config(config_path)
     providers = providers_payload.get("providers", {})
 
     # Sync LLM config (provider, model, thinking)
@@ -310,7 +310,7 @@ def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
         if vision_provider.get("model"):
             app_config["vision"]["model"] = vision_provider["model"]
 
-    manager._save(app_config)
+    save_config(config_path, app_config)
 
 
 def save_provider_config(root_dir: Path, payload: dict) -> None:
@@ -329,7 +329,7 @@ def save_provider_config(root_dir: Path, payload: dict) -> None:
         encoding="utf-8",
     )
     temp_path.replace(config_path)
-    # Sync business config to app_config.json for ConfigReader
+    # Sync business config to app_config.json
     _sync_to_app_config(root, normalized)
 
 

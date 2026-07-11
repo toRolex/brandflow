@@ -5,7 +5,7 @@ into small, testable, injectable handler methods.
 
 Slice 1: ``script_generating`` only.  Subsequent slices migrate remaining phases.
 Slice 2: ``tts_generating``.
-Slice 4: ConfigReader injection — eliminates AppConfigManager() temporary constructions (now using ConfigReader).
+Slice 4: ConfigReader injection — all config reads use ConfigReader (no AppConfigManager).
 """
 
 from __future__ import annotations
@@ -38,31 +38,17 @@ def to_url_path(path: Path, workspace_dir: Path) -> str:
 
 
 def create_orchestrator(
-    root_dir: Path, config_reader: ConfigReader | None = None
+    root_dir: Path, config_reader: ConfigReader
 ) -> "PhaseOrchestrator":
     """Factory: build a PhaseOrchestrator with real service dependencies.
 
-    When *config_reader* is provided, all config reads go through it
-    (no AppConfigManager temporary construction — replaced by ConfigReader injection).  When None, falls back
-    to AppConfigManager for backward compatibility.
+    *config_reader* is required — all config reads go through it.
     """
     from apps.control_plane.services.schedule_store import ScheduleStore
     from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
     from packages.pipeline_services.subtitle_service import SubtitleService
     from packages.pipeline_services.video_service import VideoService
 
-    if config_reader is None:
-        from packages.provider_config.app_config import AppConfigManager
-
-        app_config = AppConfigManager()
-        return PhaseOrchestrator(
-            script_bridge=LegacyScriptBridge(root_dir),
-            subtitle_svc=SubtitleService(),
-            video_svc=VideoService(dry_run=False),
-            schedule_store=ScheduleStore(root_dir),
-            get_tts_config=app_config.get_tts_config,
-            get_llm_config=app_config.get_llm_config,
-        )
     return PhaseOrchestrator(
         script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
@@ -239,22 +225,26 @@ class PhaseOrchestrator:
     # -- config resolution helpers (ConfigReader-first, fallback to callbacks) --
 
     def _resolve_tts_config(self, ctx: PhaseContext) -> dict[str, Any]:
-        """Resolve TTS config: ConfigReader when injected, else callback/fallback."""
+        """Resolve TTS config via ConfigReader."""
         if self._config is not None:
             return self._config.get_tts_config(product_id=ctx.product)
         if self._get_tts_config is not None:
             return self._get_tts_config()
-        from packages.provider_config.app_config import AppConfigManager
-        return AppConfigManager().get_tts_config()
+        raise RuntimeError(
+            "No ConfigReader or TTS config callback available; "
+            "create_orchestrator() requires a ConfigReader"
+        )
 
     def _resolve_llm_config(self, ctx: PhaseContext) -> dict[str, Any]:
-        """Resolve LLM config: ConfigReader when injected, else callback/fallback."""
+        """Resolve LLM config via ConfigReader."""
         if self._config is not None:
             return self._config.get_llm_config(product_id=ctx.product)
         if self._get_llm_config is not None:
             return self._get_llm_config()
-        from packages.provider_config.app_config import AppConfigManager
-        return AppConfigManager().get_llm_config()
+        raise RuntimeError(
+            "No ConfigReader or LLM config callback available; "
+            "create_orchestrator() requires a ConfigReader"
+        )
 
     def _resolve_api_key(self, llm_config: dict[str, Any]) -> str:
         """Resolve API key via SecretStore (replaces _resolve_llm_api_key + _resolve_asset_api_key)."""
@@ -271,7 +261,7 @@ class PhaseOrchestrator:
         """Resolve category names for asset classification.
 
         Priority: product-level categories > asset_library categories > defaults.
-        Uses ConfigReader when available; otherwise falls back to AppConfigManager (backward compatibility).
+        Uses ConfigReader when available; otherwise returns default food categories.
         """
         if config_reader is not None:
             product_config = config_reader.get_product_config(product_id=ctx.product)
@@ -284,17 +274,11 @@ class PhaseOrchestrator:
             if raw:
                 return [c.get("name", "") for c in raw if c.get("name")]
 
-            # Default food category names
-            from packages.pipeline_services.asset_library.category_config import (
-                default_categories,
-            )
-            return [c.name for c in default_categories()]
-
-        # Fallback: AppConfigManager (legacy backward compatibility)
-        from packages.provider_config.app_config import AppConfigManager
-        app_cfg = AppConfigManager()
-        categories = app_cfg.get_categories()
-        return [c.name for c in categories] if categories else None
+        # Default food category names
+        from packages.pipeline_services.asset_library.category_config import (
+            default_categories,
+        )
+        return [c.name for c in default_categories()]
 
     def _build_tts_provider(self, tts_cfg: dict[str, Any]) -> Any:
         """Build TTS provider dynamically from current config.
@@ -400,7 +384,7 @@ class PhaseOrchestrator:
     ) -> None:
         """Auto-generate cover title if the job JSON has no ``cover_title.text``.
 
-        Uses ConfigReader when injected; falls back to AppConfigManager otherwise (backward compatibility).
+        Uses ConfigReader for LLM config resolution.
         Errors are logged but never propagated.
         """
         job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
@@ -818,13 +802,10 @@ class PhaseOrchestrator:
                     p = ctx.root_dir / "workspace" / p
                 folders.append(p)
         else:
-            # Fallback: ctx.scene_config > ConfigReader > AppConfigManager (backward compatibility)
+            # Fallback: ctx.scene_config > ConfigReader
             scene_config = ctx.scene_config
             if not scene_config and self._config is not None:
                 scene_config = self._config.get_scene_config(product_id=ctx.product)
-            if not scene_config:
-                from packages.provider_config.app_config import AppConfigManager
-                scene_config = AppConfigManager().get_scene_config()
             for entry in scene_config.get("folders", []):
                 path_str = entry.get("path", "")
                 if not path_str:
@@ -1030,6 +1011,5 @@ class PhaseOrchestrator:
 
 
 def _fallback_category_suggestion_model() -> str:
-    """Fallback: read category suggestion model via AppConfigManager (legacy backward compatibility)."""
-    from packages.provider_config.app_config import AppConfigManager
-    return AppConfigManager().get_category_suggestion_model()
+    """Fallback: return the default category suggestion model."""
+    return "deepseek-v4-flash"

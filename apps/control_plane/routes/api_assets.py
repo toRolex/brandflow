@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 
-from packages.provider_config.app_config import AppConfigManager
+from packages.pipeline_services.asset_library.category_config import get_categories
 from fastapi.responses import FileResponse, StreamingResponse
 
 from apps.control_plane.index_tasks import index_task_manager, TaskStatus
@@ -36,14 +36,38 @@ def _sanitize_filename(filename: str) -> str:
     return Path(filename).name
 
 
+def _resolve_product_name(config_reader, explicit_product: str = "") -> str:
+    """Resolve product name with fallback chain.
+
+    Priority: explicit_product > active product name > default_name > id.
+    """
+    if explicit_product:
+        return explicit_product
+    active_id = config_reader.active_product_id
+    if active_id:
+        config = config_reader.get_product_config(product_id=active_id)
+    else:
+        config = config_reader.get_product_config()
+    name = config.get("name", "")
+    if name:
+        return name
+    default = config.get("default_name", "")
+    if default:
+        return default
+    return config.get("id", "")
+
+
 def _get_valid_category_names(root_dir: Path) -> set[str]:
     """Return the set of category names that are currently valid.
 
-    Uses ConfigReader so it respects product-config -> instance-config
-    -> default-food-categories priority chain.
+    Uses get_categories with ConfigReader so it respects product-config
+    -> instance-config -> default-food-categories priority chain.
     """
-    manager = AppConfigManager(config_dir=root_dir / "config")
-    return {c.name for c in manager.get_categories()}
+    from packages.provider_config.config_reader import ConfigReader
+
+    reader = ConfigReader(config_dir=str(root_dir / "config"))
+    active_id = reader.active_product_id
+    return {c.name for c in get_categories(reader, product_id=active_id or None)}
 
 
 def _validate_category(category: str | None, root_dir: Path) -> None:
@@ -187,23 +211,21 @@ async def index_assets(
             conn.close()
         return {"indexed": 0, "skipped": len(videos), "total_clips": total_clips}
 
-    from packages.provider_config.app_config import AppConfigManager
-
-    app_config = AppConfigManager()
-    product_value = app_config.resolve_product_name(product or "")
+    config_reader = request.app.state.config_reader
+    product_value = _resolve_product_name(config_reader, product or "")
 
     if async_mode:
         task = index_task_manager.create_task(len(new_videos))
         print(f"[INDEX] 创建异步任务: {task.task_id}, 待处理 {len(new_videos)} 个视频")
         bg_task = asyncio.create_task(
-            _run_index_task(task.task_id, root_dir, new_videos, db_path, product_value)
+            _run_index_task(task.task_id, root_dir, new_videos, db_path, product_value, config_reader)
         )
         _background_tasks.add(bg_task)
         bg_task.add_done_callback(_background_tasks.discard)
         return {"task_id": task.task_id, "total_videos": len(new_videos)}
 
     repository = AssetRepository(db_path)
-    vision_config = app_config.get_vision_config()
+    vision_config = config_reader.get_vision_config()
     ffmpeg_path = _resolve_ffmpeg_path()
     indexer = AssetIndexer(
         ffmpeg_path=ffmpeg_path,
@@ -233,7 +255,8 @@ async def index_assets(
 
 
 async def _run_index_task(
-    task_id: str, root_dir: Path, videos: list[Path], db_path: Path, product: str
+    task_id: str, root_dir: Path, videos: list[Path], db_path: Path, product: str,
+    config_reader: "ConfigReader | None" = None,
 ):
     task = index_task_manager.get_task(task_id)
     if not task:
@@ -245,10 +268,13 @@ async def _run_index_task(
 
     try:
         repository = AssetRepository(db_path)
-        from packages.provider_config.app_config import AppConfigManager
 
-        app_config = AppConfigManager()
-        vision_config = app_config.get_vision_config()
+        if config_reader is not None:
+            vision_config = config_reader.get_vision_config()
+        else:
+            from packages.provider_config.config_reader import ConfigReader
+            vision_config = ConfigReader(config_dir=str(root_dir / "config")).get_vision_config()
+
         ffmpeg_path = _resolve_ffmpeg_path()
         indexer = AssetIndexer(
             ffmpeg_path=ffmpeg_path,

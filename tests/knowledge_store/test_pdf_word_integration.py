@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+from packages.provider_config.secret_store import SecretStore
 
 import fitz
 from docx import Document
@@ -64,12 +67,20 @@ class TestPdfWordEndToEndIntegration:
 
     def _patch_extractor_deps(self):
         """Patch app config and LLM client so extraction runs without real keys."""
-        return patch.multiple(
-            "packages.provider_config.app_config.AppConfigManager",
-            get_llm_api_key=MagicMock(return_value="test-key"),
-            get_llm_endpoint=MagicMock(return_value="https://api.test/v1"),
-            get_llm_config=MagicMock(return_value={"model": "test-model"}),
+        stack = ExitStack()
+        stack.enter_context(
+            patch.multiple(
+                "packages.provider_config.config_reader.ConfigReader",
+                get_llm_config=MagicMock(return_value={"model": "test-model"}),
+            )
         )
+        stack.enter_context(
+            patch.object(SecretStore, "get_llm_api_key", return_value="test-key")
+        )
+        stack.enter_context(
+            patch.object(SecretStore, "get_llm_endpoint", return_value="https://api.test/v1")
+        )
+        return stack
 
     @patch.object(ScriptGenerator, "_call_llm")
     def test_upload_pdf_then_script_injection(
@@ -226,10 +237,12 @@ class TestMimeTypeDetection:
         client = _client(tmp_path)
 
         with patch.multiple(
-            "packages.provider_config.app_config.AppConfigManager",
-            get_llm_api_key=MagicMock(return_value="test-key"),
-            get_llm_endpoint=MagicMock(return_value="https://api.test/v1"),
+            "packages.provider_config.config_reader.ConfigReader",
             get_llm_config=MagicMock(return_value={"model": "test-model"}),
+        ), patch.object(
+            SecretStore, "get_llm_api_key", return_value="test-key"
+        ), patch.object(
+            SecretStore, "get_llm_endpoint", return_value="https://api.test/v1"
         ):
             with patch(
                 "packages.pipeline_services.llm_client.LLMClient.chat"
@@ -254,10 +267,12 @@ class TestMimeTypeDetection:
         client = _client(tmp_path)
 
         with patch.multiple(
-            "packages.provider_config.app_config.AppConfigManager",
-            get_llm_api_key=MagicMock(return_value="test-key"),
-            get_llm_endpoint=MagicMock(return_value="https://api.test/v1"),
+            "packages.provider_config.config_reader.ConfigReader",
             get_llm_config=MagicMock(return_value={"model": "test-model"}),
+        ), patch.object(
+            SecretStore, "get_llm_api_key", return_value="test-key"
+        ), patch.object(
+            SecretStore, "get_llm_endpoint", return_value="https://api.test/v1"
         ):
             with patch(
                 "packages.pipeline_services.llm_client.LLMClient.chat"

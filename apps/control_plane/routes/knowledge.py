@@ -13,7 +13,8 @@ from packages.knowledge_store.models import KnowledgeDocument, SourceType
 from packages.knowledge_store.parsers import parse_file
 from packages.knowledge_store.store import KnowledgeStore
 from packages.pipeline_services.llm_client import LLMClient
-from packages.provider_config.app_config import AppConfigManager
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
@@ -59,14 +60,15 @@ def _get_store(request: Request) -> KnowledgeStore:
 def _make_extractor() -> KnowledgeExtractor | None:
     """Create a KnowledgeExtractor with LLM client from app config."""
     try:
-        cfg = AppConfigManager()
-        llm_config = cfg.get_llm_config()
-        api_key = cfg.get_llm_api_key()
+        reader = ConfigReader()
+        secrets = SecretStore()
+        llm_config = reader.get_llm_config()
+        api_key = secrets.get_llm_api_key(reader)
         if not api_key:
             return None
         client = LLMClient(
             api_key=api_key,
-            base_url=llm_config.get("base_url", cfg.get_llm_endpoint()),
+            base_url=llm_config.get("base_url", secrets.get_llm_endpoint(reader)),
             model=llm_config.get("model", ""),
             timeout=120,
         )
