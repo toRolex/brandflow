@@ -11,7 +11,6 @@ Slice 4: ConfigReader injection — eliminates AppConfigManager() temporary cons
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -25,6 +24,7 @@ from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
 from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +145,7 @@ class PhaseOrchestrator:
         schedule_store: Any,
         *,
         config_reader: ConfigReader | None = None,
+        secret_store: SecretStore | None = None,
         get_tts_config: Callable[[], dict[str, Any]] | None = None,
         get_llm_config: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
@@ -153,6 +154,7 @@ class PhaseOrchestrator:
         self._video_svc = video_svc
         self._schedule_store = schedule_store
         self._config = config_reader
+        self._secrets = secret_store if secret_store is not None else SecretStore()
         self._get_tts_config = get_tts_config
         self._get_llm_config = get_llm_config
 
@@ -254,79 +256,15 @@ class PhaseOrchestrator:
         from packages.provider_config.app_config import AppConfigManager
         return AppConfigManager().get_llm_config()
 
-    @staticmethod
-    def _resolve_llm_api_key(llm_config: dict[str, Any]) -> str:
-        """Read LLM API key from env vars (no AppConfigManager dependency)."""
+    def _resolve_api_key(self, llm_config: dict[str, Any]) -> str:
+        """Resolve API key via SecretStore (replaces _resolve_llm_api_key + _resolve_asset_api_key)."""
         provider = llm_config.get("provider", "deepseek")
-        env_key_map = {
-            "mimo": "MIMO_API_KEY",
-            "qwen": "DASHSCOPE_API_KEY",
-            "deepseek": "DEEPSEEK_API_KEY",
-            "kimi": "KIMI_API_KEY",
-            "minimax": "MINIMAX_API_KEY",
-        }
-        env_key = env_key_map.get(provider, "")
-        value = os.getenv(env_key, "").strip().strip('"').strip("'")
-        if not value:
-            if provider in ("mimo", "minimax", "qwen"):
-                value = os.getenv("TTS_API_KEY", "").strip().strip('"').strip("'")
-            else:
-                value = os.getenv("LLM_API_KEY", "").strip().strip('"').strip("'")
-        return value
+        return self._secrets.get_api_key(provider)
 
-    @staticmethod
-    def _resolve_llm_endpoint(llm_config: dict[str, Any]) -> str:
-        """Read LLM endpoint from env vars (no AppConfigManager dependency)."""
+    def _resolve_api_url(self, llm_config: dict[str, Any]) -> str:
+        """Resolve API base URL via SecretStore (replaces _resolve_llm_endpoint + _resolve_asset_api_url)."""
         provider = llm_config.get("provider", "deepseek")
-        env_url_map = {
-            "mimo": "MIMO_API_BASE_URL",
-            "qwen": "DASHSCOPE_API_URL",
-            "deepseek": "DEEPSEEK_API_URL",
-            "kimi": "KIMI_API_URL",
-            "minimax": "MINIMAX_TTS_URL",
-        }
-        env_key = env_url_map.get(provider, "")
-        value = os.getenv(env_key, "").strip().rstrip("/")
-        if not value:
-            value = os.getenv("LLM_API_URL", "").strip().rstrip("/")
-        return value
-
-    @staticmethod
-    def _resolve_asset_api_key(llm_config: dict[str, Any]) -> str:
-        """Read API key for asset classification from env vars."""
-        provider = llm_config.get("provider", "deepseek")
-        env_key_map = {
-            "mimo": "MIMO_API_KEY",
-            "qwen": "DASHSCOPE_API_KEY",
-            "deepseek": "DEEPSEEK_API_KEY",
-            "kimi": "KIMI_API_KEY",
-            "minimax": "MINIMAX_API_KEY",
-        }
-        env_key = env_key_map.get(provider, "")
-        value = os.getenv(env_key, "").strip().strip('"').strip("'")
-        if not value:
-            if provider in ("mimo", "minimax", "qwen"):
-                value = os.getenv("TTS_API_KEY", "").strip().strip('"').strip("'")
-            else:
-                value = os.getenv("LLM_API_KEY", "").strip().strip('"').strip("'")
-        return value
-
-    @staticmethod
-    def _resolve_asset_api_url(llm_config: dict[str, Any]) -> str:
-        """Read API base URL for asset classification from env vars."""
-        provider = llm_config.get("provider", "deepseek")
-        env_url_map = {
-            "mimo": "MIMO_API_BASE_URL",
-            "qwen": "DASHSCOPE_API_URL",
-            "deepseek": "DEEPSEEK_API_URL",
-            "kimi": "KIMI_API_URL",
-            "minimax": "MINIMAX_TTS_URL",
-        }
-        env_key = env_url_map.get(provider, "")
-        value = os.getenv(env_key, "").strip().rstrip("/")
-        if not value:
-            value = os.getenv("LLM_API_URL", "").strip().rstrip("/")
-        return value
+        return self._secrets.get_api_base_url(provider)
 
     @staticmethod
     def _resolve_categories(config_reader: ConfigReader | None, ctx: PhaseContext) -> list[str]:
@@ -358,16 +296,14 @@ class PhaseOrchestrator:
         categories = app_cfg.get_categories()
         return [c.name for c in categories] if categories else None
 
-    @staticmethod
-    def _build_tts_provider(tts_cfg: dict[str, Any]) -> Any:
+    def _build_tts_provider(self, tts_cfg: dict[str, Any]) -> Any:
         """Build TTS provider dynamically from current config.
 
         Reads model from *tts_cfg* and returns the matching provider instance
-        so that config changes (e.g. mimo → qwen) take effect immediately
+        so that config changes (e.g. mimo to qwen) take effect immediately
         without restarting the worker.
 
-        API keys are read directly from environment variables (no
-        AppConfigManager dependency).
+        API keys are resolved via SecretStore (replaces inline os.getenv closures).
         """
         from packages.pipeline_services.tts_provider import (
             MiMoTTSProvider,
@@ -376,28 +312,15 @@ class PhaseOrchestrator:
 
         tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
 
-        def _tts_api_key(provider: str) -> str:
-            key_map = {"mimo": "MIMO_API_KEY", "qwen": "DASHSCOPE_API_KEY"}
-            env_key = key_map.get(provider, "")
-            value = os.getenv(env_key, "").strip().strip('"').strip("'")
-            if not value:
-                value = os.getenv("TTS_API_KEY", "").strip().strip('"').strip("'")
-            return value
-
-        def _tts_api_base_url(provider: str) -> str:
-            url_map = {"mimo": "MIMO_API_BASE_URL", "qwen": "DASHSCOPE_API_URL"}
-            env_key = url_map.get(provider, "")
-            return os.getenv(env_key, "").strip().rstrip("/")
-
         if tts_model.startswith("qwen"):
             return QwenTTSProvider(
-                api_key=_tts_api_key("qwen"),
-                base_url=_tts_api_base_url("qwen")
+                api_key=self._secrets.get_api_key("qwen"),
+                base_url=self._secrets.get_api_base_url("qwen")
                 or "https://dashscope.aliyuncs.com/api/v1",
             )
         return MiMoTTSProvider(
-            api_key=_tts_api_key("mimo"),
-            base_url=_tts_api_base_url("mimo")
+            api_key=self._secrets.get_api_key("mimo"),
+            base_url=self._secrets.get_api_base_url("mimo")
             or "https://api.xiaomimimo.com/v1",
         )
 
@@ -418,8 +341,8 @@ class PhaseOrchestrator:
                     llm_cfg = self._resolve_llm_config(ctx)
 
                     class _LLMConfig:
-                        api_key = self._resolve_llm_api_key(llm_cfg)
-                        base_url = self._resolve_llm_endpoint(llm_cfg)
+                        api_key = self._resolve_api_key(llm_cfg)
+                        base_url = self._resolve_api_url(llm_cfg)
                         model = llm_cfg.get("model", "deepseek-v4-pro")
 
                     gen = ScriptGenerator(_LLMConfig())
@@ -500,8 +423,8 @@ class PhaseOrchestrator:
             llm_config = self._resolve_llm_config(ctx)
 
             class _CoverConfig:
-                api_key = self._resolve_llm_api_key(llm_config)
-                base_url = self._resolve_llm_endpoint(llm_config)
+                api_key = self._resolve_api_key(llm_config)
+                base_url = self._resolve_api_url(llm_config)
                 model = llm_config.get("model", "deepseek-v4-pro")
 
             gen = ScriptGenerator(_CoverConfig())
@@ -643,8 +566,8 @@ class PhaseOrchestrator:
 
         llm_config = self._resolve_llm_config(ctx)
 
-        api_key = self._resolve_asset_api_key(llm_config)
-        api_url = self._resolve_asset_api_url(llm_config)
+        api_key = self._resolve_api_key(llm_config)
+        api_url = self._resolve_api_url(llm_config)
 
         classify_fn = None
         if api_key and api_url:

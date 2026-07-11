@@ -28,7 +28,7 @@ def _make_orchestrator(root_dir: Path, video_svc, schedule_store) -> PhaseOrches
         schedule_store=schedule_store,
     )
     stub = StubTTSProvider()
-    orch._build_tts_provider = staticmethod(lambda cfg: stub)
+    orch._build_tts_provider = lambda cfg: stub
     return orch
 
 
