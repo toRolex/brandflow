@@ -164,6 +164,7 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 ├── packages/
 │   ├── domain_core/          # 领域模型 + 状态机 + worker 协议
 │   ├── file_store/           # 文件系统轻持久化
+│   ├── deploy_health/        # 部署体检：CLI + /api/health?deploy_check=true（Issue #76）
 │   ├── knowledge_store/      # 知识库：文档、items、LLM 提取（Issue #28）
 │   ├── pipeline_services/    # 业务能力（独立 service：脚本/TTS/字幕/视频）
 │   ├── provider_config/      # 统一配置入口与 provider 配置桥接
@@ -183,6 +184,12 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 ## 可用命令
 
 ```bash
+# 部署体检（Issue #76）
+uv run python -m packages.deploy_health            # CLI 输出 JSON 体检结果
+
+# 健康接口
+# GET /api/health?deploy_check=true
+
 # 测试
 uv run pytest tests/ -q                # 全量测试
 
