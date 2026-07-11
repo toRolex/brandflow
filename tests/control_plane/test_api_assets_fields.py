@@ -26,7 +26,7 @@ def _make_client(tmp_path: Path) -> TestClient:
 
 
 def _write_config(root_dir: Path, config: dict) -> None:
-    """Write app_config.json at <root_dir>/config/ for AppConfigManager."""
+    """Write app_config.json at <root_dir>/config/ for ConfigReader."""
     config_dir = root_dir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / "app_config.json").write_text(

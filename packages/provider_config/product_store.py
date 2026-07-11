@@ -1,4 +1,4 @@
-"""Product CRUD store extracted from AppConfigManager.
+"""Product CRUD store extracted from AppConfigManager (now ConfigReader).
 
 All writes go through ``config_io.save_config()`` and call ``self._reader.reload()``
 to keep the ConfigReader hot-cache in sync.

@@ -8,7 +8,7 @@ from packages.provider_config.app_config import AppConfigManager
 
 
 class TestCreateProduct:
-    """AppConfigManager.create_product(name) 新建产品。"""
+    """ConfigReader.create_product(name) 新建产品。"""
 
     def test_create_product_generates_id_from_name(self) -> None:
         """create_product 用 name 直接作为 product ID。"""
@@ -60,7 +60,7 @@ class TestCreateProduct:
 
 
 class TestRenameProduct:
-    """AppConfigManager.rename_product(product_id, name) 重命名产品。"""
+    """ConfigReader.rename_product(product_id, name) 重命名产品。"""
 
     def test_rename_preserves_product_id(self) -> None:
         """重命名后产品 ID 不变，default_name 更新。"""
@@ -108,7 +108,7 @@ class TestRenameProduct:
 
 
 class TestDeleteProduct:
-    """AppConfigManager.delete_product(product_id) 删除产品。"""
+    """ConfigReader.delete_product(product_id) 删除产品。"""
 
     def test_delete_removes_product(self) -> None:
         """删除后 list_products() 不包含该产品。"""

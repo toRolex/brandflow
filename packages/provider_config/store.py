@@ -159,13 +159,13 @@ def _inject_env_secrets(payload: dict, root_dir: Path) -> dict:
 
 
 def load_provider_config(root_dir: Path) -> dict:
-    """[DEPRECATED] 请使用 AppConfigManager 代替。
+    """[DEPRECATED] 请使用 ConfigReader 代替。
 
     此函数保留用于前端"系统配置"页面的向后兼容。
-    新代码应使用 AppConfigManager 读取配置。
+    新代码应使用 ConfigReader 读取配置。
     """
     warnings.warn(
-        "load_provider_config is deprecated, use AppConfigManager instead",
+        "load_provider_config is deprecated, use ConfigReader instead",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -264,7 +264,7 @@ def _sync_secrets_to_env(root_dir: Path, payload: dict) -> dict:
 
 
 def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
-    """Sync business config from providers.yaml to app_config.json for AppConfigManager."""
+    """Sync business config from providers.yaml to app_config.json for ConfigReader."""
     from packages.provider_config.app_config import AppConfigManager
 
     manager = AppConfigManager(config_dir=root_dir / "config")
@@ -329,7 +329,7 @@ def save_provider_config(root_dir: Path, payload: dict) -> None:
         encoding="utf-8",
     )
     temp_path.replace(config_path)
-    # Sync business config to app_config.json for AppConfigManager
+    # Sync business config to app_config.json for ConfigReader
     _sync_to_app_config(root, normalized)
 
 
