@@ -118,3 +118,150 @@ def test_product_config_file_structure() -> None:
         assert "products" in raw
         assert raw["products"][0]["default_name"] == "格式验证"
         assert "active_product_id" in raw
+
+
+def test_product_name_falls_back_to_default_name_when_name_empty() -> None:
+    """name 为空字符串时 get_product_config 应 fallback 到 default_name"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        # 模拟旧配置迁移场景：name="" 但 default_name 有值
+        raw = {
+            "products": [
+                {"id": "snack", "name": "", "default_name": "零食测试"},
+            ],
+            "active_product_id": "snack",
+        }
+        with open(manager.config_path, "w", encoding="utf-8") as f:
+            json.dump(raw, f, ensure_ascii=False)
+
+        config = manager.get_product_config()
+        assert config["name"] == "零食测试"
+        assert config["default_name"] == "零食测试"
+        assert config["id"] == "snack"
+
+
+def test_product_name_falls_back_to_id_when_both_name_and_default_empty() -> None:
+    """name 和 default_name 都为空时 get_product_config 应 fallback 到 id"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        raw = {
+            "products": [
+                {"id": "snack", "name": "", "default_name": ""},
+            ],
+            "active_product_id": "snack",
+        }
+        with open(manager.config_path, "w", encoding="utf-8") as f:
+            json.dump(raw, f, ensure_ascii=False)
+
+        config = manager.get_product_config()
+        assert config["name"] == "snack"
+        assert config["id"] == "snack"
+
+
+class TestResolveProductName:
+    def test_explicit_product_wins(self) -> None:
+        """显式传入 product 参数时直接返回该值"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AppConfigManager(config_dir=tmpdir)
+            assert manager.resolve_product_name("显式产品") == "显式产品"
+
+    def test_falls_back_to_active_product_name(self) -> None:
+        """未传 product 时返回活跃产品的 name"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AppConfigManager(config_dir=tmpdir)
+            manager.set_product("default_name", "测试产品")
+            assert manager.resolve_product_name() == "测试产品"
+
+    def test_falls_back_to_default_name_when_name_empty(self) -> None:
+        """活跃产品 name 为空时 fallback 到 default_name"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AppConfigManager(config_dir=tmpdir)
+            raw = {
+                "products": [
+                    {"id": "snack", "name": "", "default_name": "零食测试"},
+                ],
+                "active_product_id": "snack",
+            }
+            with open(manager.config_path, "w", encoding="utf-8") as f:
+                json.dump(raw, f, ensure_ascii=False)
+            assert manager.resolve_product_name() == "零食测试"
+
+    def test_falls_back_to_id_when_both_empty(self) -> None:
+        """活跃产品 name 和 default_name 都为空时 fallback 到 id"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AppConfigManager(config_dir=tmpdir)
+            raw = {
+                "products": [
+                    {"id": "snack", "name": "", "default_name": ""},
+                ],
+                "active_product_id": "snack",
+            }
+            with open(manager.config_path, "w", encoding="utf-8") as f:
+                json.dump(raw, f, ensure_ascii=False)
+            assert manager.resolve_product_name() == "snack"
+
+    def test_returns_empty_when_no_active_product(self) -> None:
+        """无活跃产品时返回空字符串"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AppConfigManager(config_dir=tmpdir)
+            assert manager.resolve_product_name() == ""
+
+
+def test_save_product_config_cleans_empty_name(tmp_path) -> None:
+    """save_product_config 保存时应清除产品中显式的空 name 字段。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        # 模拟旧配置: name="" default_name="零食测试"
+        raw = {
+            "products": [
+                {"id": "snack", "name": "", "default_name": "零食测试"},
+            ],
+            "active_product_id": "snack",
+        }
+        with open(manager.config_path, "w", encoding="utf-8") as f:
+            json.dump(raw, f, ensure_ascii=False)
+
+        # 保存新配置（不含 name 字段）
+        manager.save_product_config("snack", {"default_name": "新名字"})
+
+        # 读取文件确认 name 已被清除
+        with open(manager.config_path, encoding="utf-8") as f:
+            saved = json.load(f)
+        product = saved["products"][0]
+        # name 不应再是空字符串（应被清除或设为 default_name）
+        assert product.get("name", "NOT_PRESENT") != ""
+        # 读路径应正确解析
+        config = manager.get_product_config()
+        assert config["name"] == "新名字"
+
+
+def test_list_products_falls_back_to_id() -> None:
+    """list_products 在 default_name 和 name 都为空时应 fallback 到 id"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        raw = {
+            "products": [
+                {"id": "snack", "name": "", "default_name": ""},
+                {"id": "drink", "default_name": "饮料"},
+            ],
+            "active_product_id": "snack",
+        }
+        with open(manager.config_path, "w", encoding="utf-8") as f:
+            json.dump(raw, f, ensure_ascii=False)
+
+        products = manager.list_products()
+        assert products[0]["id"] == "snack"
+        assert products[0]["name"] == "snack"  # fallback to id
+        assert products[1]["id"] == "drink"
+        assert products[1]["name"] == "饮料"   # default_name wins
+
+
+def test_set_product_config_keeps_name_consistent(tmp_path) -> None:
+    """set_product_config 保存后 name 应与 default_name 一致。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = AppConfigManager(config_dir=tmpdir)
+        manager.set_product_config({"default_name": "测试产品"})
+
+        config = manager.get_product_config()
+        assert config["name"] == "测试产品"
+        assert config["default_name"] == "测试产品"

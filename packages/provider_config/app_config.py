@@ -417,9 +417,9 @@ class AppConfigManager:
                 if p.get("id") == product_id:
                     merged = _deep_merge(defaults, p)
                     merged.setdefault("id", product_id)
-                    merged.setdefault("name", merged.get("default_name", ""))
+                    if not merged.get("name"):
+                        merged["name"] = merged.get("default_name", "") or merged.get("id", "")
                     return merged
-            # 未找到时返回 DEFAULTS
             merged = deepcopy(defaults)
             merged["id"] = product_id
             merged["name"] = ""
@@ -434,7 +434,8 @@ class AppConfigManager:
             if p.get("id") == active_id:
                 merged = _deep_merge(defaults, p)
                 merged.setdefault("id", active_id)
-                merged.setdefault("name", merged.get("default_name", ""))
+                if not merged.get("name"):
+                    merged["name"] = merged.get("default_name", "") or merged.get("id", "")
                 return merged
 
         # 活跃产品未找到时返回 DEFAULTS
@@ -449,6 +450,7 @@ class AppConfigManager:
             if p.get("id") == active_id:
                 existing = raw["products"][i]
                 merged = _deep_merge(existing, values)
+                merged.pop("name", None)
                 raw["products"][i] = merged
                 break
 
@@ -464,6 +466,7 @@ class AppConfigManager:
                 existing = raw["products"][i]
                 merged = _deep_merge(existing, values)
                 merged["id"] = product_id
+                merged.pop("name", None)
                 raw["products"][i] = merged
                 self._save(raw)
                 return
@@ -612,10 +615,27 @@ class AppConfigManager:
         return [
             {
                 "id": p.get("id", ""),
-                "name": p.get("default_name", "") or p.get("name", "") or "",
+                "name": p.get("default_name", "") or p.get("name", "") or p.get("id", ""),
             }
             for p in products
         ]
+
+    def resolve_product_name(self, explicit_product: str = "") -> str:
+        """Resolve product name with fallback chain.
+
+        Priority: explicit_product > active product name > default_name > id.
+        Returns empty string when no active product is configured.
+        """
+        if explicit_product:
+            return explicit_product
+        config = self.get_product_config()
+        name = config.get("name", "")
+        if name:
+            return name
+        default = config.get("default_name", "")
+        if default:
+            return default
+        return config.get("id", "")
 
     def get_asset_library_config(self) -> dict[str, Any]:
         config = self._load()

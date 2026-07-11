@@ -193,7 +193,7 @@ async def index_assets(
     from packages.provider_config.app_config import AppConfigManager
 
     app_config = AppConfigManager()
-    product_value = product or app_config.get_product_config().get("name", "")
+    product_value = app_config.resolve_product_name(product)
 
     if async_mode:
         task = index_task_manager.create_task(len(new_videos))

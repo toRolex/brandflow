@@ -155,3 +155,96 @@ def test_indexed_asset_has_non_empty_product(tmp_path: Path, monkeypatch) -> Non
     # 验证用错误 product 查不到
     empty = repo.query_all_available("其他产品")
     assert len(empty) == 0
+
+
+def test_index_uses_resolve_product_name(tmp_path: Path, monkeypatch) -> None:
+    """api_assets 应使用 resolve_product_name 做产品名解析。"""
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    captured_product: list[str] = []
+
+    def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
+        captured_product.append(self.product)
+        return []
+
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        _fake_ingest_one,
+    )
+
+    def _fake_resolve_name(self, explicit_product=""):
+        if explicit_product:
+            return explicit_product
+        return "零食测试"
+
+    monkeypatch.setattr(
+        "packages.provider_config.app_config.AppConfigManager.resolve_product_name",
+        _fake_resolve_name,
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": False})
+
+    assert resp.status_code == 200
+    assert captured_product == ["零食测试"]
+
+
+def test_index_falls_back_to_default_name(tmp_path: Path, monkeypatch) -> None:
+    """name 为空但 default_name 有值时，素材入库应使用 default_name。"""
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    captured_product: list[str] = []
+
+    def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
+        captured_product.append(self.product)
+        return []
+
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        _fake_ingest_one,
+    )
+
+    # Simulate: name="" default_name="零食测试"
+    def _fake_get_product_config(self, product_id=None):
+        return {"name": "", "default_name": "零食测试", "id": "snack"}
+
+    monkeypatch.setattr(
+        "packages.provider_config.app_config.AppConfigManager.get_product_config",
+        _fake_get_product_config,
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": False})
+
+    assert resp.status_code == 200
+    assert captured_product == ["零食测试"]
+
+
+def test_index_falls_back_to_id(tmp_path: Path, monkeypatch) -> None:
+    """name 和 default_name 都为空时，素材入库应使用 product id。"""
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    captured_product: list[str] = []
+
+    def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
+        captured_product.append(self.product)
+        return []
+
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        _fake_ingest_one,
+    )
+
+    def _fake_get_product_config(self, product_id=None):
+        return {"name": "", "default_name": "", "id": "snack-prod"}
+
+    monkeypatch.setattr(
+        "packages.provider_config.app_config.AppConfigManager.get_product_config",
+        _fake_get_product_config,
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": False})
+
+    assert resp.status_code == 200
+    assert captured_product == ["snack-prod"]
