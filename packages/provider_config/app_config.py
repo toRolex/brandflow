@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -9,132 +8,18 @@ from packages.pipeline_services.asset_library.category_config import (
     CategoryConfig,
     default_categories,
 )
+from packages.provider_config.config_constants import (
+    DEFAULTS,
+    _deep_merge,
+    _get_nested,
+    _set_nested,
+)
+from packages.provider_config.config_reader import ConfigReader
 
 try:
     from dotenv import load_dotenv
 except ImportError:
     load_dotenv: Any | None = None
-
-
-DEFAULTS: dict[str, Any] = {
-    "llm": {
-        "provider": "deepseek",
-        "model": "deepseek-v4-pro",
-        "thinking": "disabled",
-    },
-    "tts": {
-        "provider": "qwen",
-        "model": "qwen-tts",
-        "voice": "Cherry",
-        "fallback_voice": "Stella",
-        "randomize_voice": True,
-        "random_voices": ["Cherry", "Stella"],
-        "style_prompt": "自然 清晰 适合短视频带货口播",
-        "voice_design_prompt": "",
-        "style_control_mode": "simple",
-        "director": {
-            "character": "",
-            "scene": "",
-            "guidance": "",
-        },
-        "audio_tags": {
-            "enabled": False,
-            "tags": "",
-        },
-        "audio_format": "wav",
-        "sample_rate": None,
-        "bitrate": None,
-        "channel": None,
-        "enable_request_logging": False,
-        "enable_performance_metrics": True,
-        "log_audio_duration": True,
-    },
-    "vision": {
-        "provider": "xiaomi",
-        "model": "mimo-v2.5",
-    },
-    "media": {
-        "ffmpeg_path": "ffmpeg",
-        "ffprobe_path": "ffprobe",
-        "subtitle_mode": "script_timed",
-        "max_retry": 3,
-        "retry_delay_seconds": 60,
-    },
-    "asset_library": {
-        "categories": [],
-        "category_suggestion_model": "deepseek-v4-flash",
-        "category_suggestion_sample_size": 20,
-    },
-    "video": {
-        "cover_title_style": {
-            "primary_color": "#FFD700",
-            "outline_color": "#000000",
-            "highlight_color": "#FF0000",
-            "outline_width": 2.0,
-            "position": "center",
-        }
-    },
-    "scene": {
-        "folders": [],
-        "transition_duration_ms": 500,
-    },
-    "product": {
-        "default_name": "",
-        "default_brand": "",
-        "script": {
-            "scene": "",
-            "material": "",
-            "system_prompt": "你是一位短视频文案专家，撰写抖音口播文案。",
-            "enable_qa_check": True,
-            "word_count_min": 150,
-            "word_count_max": 200,
-            "max_sentence_length": 20,
-            "forbidden_words": [
-                "治疗", "治愈", "疗效", "降血糖", "降血压", "抗癌", "药到病除",
-            ],
-            "required_word_count": {
-                "product": 1,
-                "brand": 1,
-            },
-            "emoji_forbidden": True,
-        },
-        "categories": [],
-        "keyword_map": {},
-    },
-}
-
-
-def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """深度合并两个字典，override 中的值覆盖 base 中的值，嵌套字典递归合并。"""
-    result = deepcopy(base)
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = _deep_merge(result[key], value)
-        else:
-            result[key] = deepcopy(value)
-    return result
-
-
-def _get_nested(data: dict[str, Any], key_path: str, default: Any = None) -> Any:
-    """通过点分路径获取嵌套字典的值，如 'director.character'。"""
-    keys = key_path.split(".")
-    current = data
-    for key in keys:
-        if not isinstance(current, dict) or key not in current:
-            return default
-        current = current[key]
-    return current
-
-
-def _set_nested(data: dict[str, Any], key_path: str, value: Any) -> None:
-    """通过点分路径设置嵌套字典的值，如 'director.character'。"""
-    keys = key_path.split(".")
-    current = data
-    for key in keys[:-1]:
-        if key not in current or not isinstance(current[key], dict):
-            current[key] = {}
-        current = current[key]
-    current[keys[-1]] = value
 
 
 class AppConfigManager:
@@ -182,6 +67,7 @@ class AppConfigManager:
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.config_path = self.config_dir / "app_config.json"
+        self._reader = ConfigReader(config_dir=self.config_dir)
 
     def _load(self) -> dict[str, Any]:
         if self.config_path.exists():
@@ -207,23 +93,14 @@ class AppConfigManager:
     def _save(self, config: dict[str, Any]) -> None:
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
-
-    def _get_active_product_section(self, section: str) -> dict[str, Any]:
-        """返回活跃产品中指定 section 的配置（如 tts/llm/vision），无则返回空 dict。"""
-        raw = self._load()
-        active_id = raw.get("active_product_id", "")
-        if not active_id:
-            return {}
-        for p in raw.get("products", []):
-            if p.get("id") == active_id:
-                return p.get(section, {}) if isinstance(p.get(section), dict) else {}
-        return {}
+        self._reader.reload()
 
     def get_tts_config(self) -> dict[str, Any]:
-        config = self._load()
-        root_tts = config.get("tts", {})
-        product_tts = self._get_active_product_section("tts")
-        return _deep_merge(DEFAULTS["tts"], _deep_merge(root_tts, product_tts))
+        self._reader.reload()
+        active_id = self._reader.active_product_id
+        if active_id:
+            return self._reader.get_tts_config(product_id=active_id)
+        return self._reader.get_tts_config()
 
     def set_tts(self, key: str, value: Any) -> None:
         config = self._load()
@@ -247,10 +124,11 @@ class AppConfigManager:
         return _get_nested(config, key, default)
 
     def get_llm_config(self) -> dict[str, Any]:
-        config = self._load()
-        root_llm = config.get("llm", {})
-        product_llm = self._get_active_product_section("llm")
-        return _deep_merge(DEFAULTS["llm"], _deep_merge(root_llm, product_llm))
+        self._reader.reload()
+        active_id = self._reader.active_product_id
+        if active_id:
+            return self._reader.get_llm_config(product_id=active_id)
+        return self._reader.get_llm_config()
 
     def get_api_key(self, provider: str) -> str:
         import os
@@ -302,10 +180,11 @@ class AppConfigManager:
         return value
 
     def get_vision_config(self) -> dict[str, Any]:
-        config = self._load()
-        root_vision = config.get("vision", {})
-        product_vision = self._get_active_product_section("vision")
-        return _deep_merge(DEFAULTS["vision"], _deep_merge(root_vision, product_vision))
+        self._reader.reload()
+        active_id = self._reader.active_product_id
+        if active_id:
+            return self._reader.get_vision_config(product_id=active_id)
+        return self._reader.get_vision_config()
 
     def set_vision(self, key: str, value: Any) -> None:
         config = self._load()
@@ -358,16 +237,12 @@ class AppConfigManager:
         return value
 
     def get_media_config(self) -> dict[str, Any]:
-        config = self._load()
-        media = config.get("media", {})
-        defaults = DEFAULTS["media"]
-        return _deep_merge(defaults, media)
+        self._reader.reload()
+        return self._reader.get_media_config()
 
     def get_video_config(self) -> dict[str, Any]:
-        config = self._load()
-        video = config.get("video", {})
-        defaults = DEFAULTS["video"]
-        return _deep_merge(defaults, video)
+        self._reader.reload()
+        return self._reader.get_video_config()
 
     def set_video(self, key: str, value: Any) -> None:
         config = self._load()
@@ -382,24 +257,16 @@ class AppConfigManager:
 
     def get_scene_config(self) -> dict[str, Any]:
         """Return scene config, preferring product-level overrides.
-
         Priority chain:
-        1. ``product.scene`` (active product-level override)
-        2. ``scene`` (top-level, backward compatible)
-        3. ``DEFAULTS["scene"]``
+        1. product.scene (active product-level override)
+        2. scene (top-level, backward compatible)
+        3. DEFAULTS["scene"]
         """
-        defaults = DEFAULTS["scene"]
-
-        # Priority 1: product-level scene config
-        product_config = self.get_product_config()
-        scene = product_config.get("scene")
-        if isinstance(scene, dict) and scene:
-            return _deep_merge(defaults, scene)
-
-        # Priority 2: top-level scene config (backward compatible)
-        config = self._load()
-        scene = config.get("scene", {})
-        return _deep_merge(defaults, scene)
+        self._reader.reload()
+        active_id = self._reader.active_product_id
+        if active_id:
+            return self._reader.get_scene_config(product_id=active_id)
+        return self._reader.get_scene_config()
 
     def get_product_config(self, product_id: str | None = None) -> dict[str, Any]:
         """获取产品配置。
@@ -407,39 +274,14 @@ class AppConfigManager:
         Args:
             product_id: 指定产品 ID。为 None 时返回活跃产品配置。
         """
-        raw = self._load()
-        defaults = DEFAULTS["product"]
-        products = raw.get("products", [])
-
+        self._reader.reload()
         if product_id:
-            # 查找指定产品
-            for p in products:
-                if p.get("id") == product_id:
-                    merged = _deep_merge(defaults, p)
-                    merged.setdefault("id", product_id)
-                    if not merged.get("name"):
-                        merged["name"] = merged.get("default_name", "") or merged.get("id", "")
-                    return merged
-            merged = deepcopy(defaults)
-            merged["id"] = product_id
-            merged["name"] = ""
-            return merged
+            return self._reader.get_product_config(product_id=product_id)
 
-        # 无参时返回活跃产品配置
-        if not products:
-            return deepcopy(defaults)
-
-        active_id = raw.get("active_product_id", "")
-        for p in products:
-            if p.get("id") == active_id:
-                merged = _deep_merge(defaults, p)
-                merged.setdefault("id", active_id)
-                if not merged.get("name"):
-                    merged["name"] = merged.get("default_name", "") or merged.get("id", "")
-                return merged
-
-        # 活跃产品未找到时返回 DEFAULTS
-        return deepcopy(defaults)
+        active_id = self._reader.active_product_id
+        if active_id:
+            return self._reader.get_product_config(product_id=active_id)
+        return self._reader.get_product_config()
 
     def set_product_config(self, values: dict[str, Any]) -> None:
         raw = self._load()
@@ -638,10 +480,8 @@ class AppConfigManager:
         return config.get("id", "")
 
     def get_asset_library_config(self) -> dict[str, Any]:
-        config = self._load()
-        al = config.get("asset_library", {})
-        defaults = DEFAULTS["asset_library"]
-        return _deep_merge(defaults, al)
+        self._reader.reload()
+        return self._reader.get_asset_library_config()
 
     def get_categories(self) -> list[CategoryConfig]:
         """Return the configured asset categories.
@@ -688,16 +528,16 @@ class AppConfigManager:
         Reads from the product-level ``keyword_map`` field.  Returns an empty
         mapping when the product has not configured one — no hardcoded fallback.
         """
-        product_config = self.get_product_config()
-        raw: dict = product_config.get("keyword_map", {})
-        if not isinstance(raw, dict):
-            return {}
-        return {str(k): list(v) for k, v in raw.items() if isinstance(v, list)}
+        self._reader.reload()
+        active_id = self._reader.active_product_id
+        if active_id:
+            return self._reader.get_keyword_map(product_id=active_id)
+        return self._reader.get_keyword_map()
 
     def get_category_suggestion_model(self) -> str:
-        al_config = self.get_asset_library_config()
-        return al_config.get("category_suggestion_model", "deepseek-v4-flash")
+        self._reader.reload()
+        return self._reader.get_category_suggestion_model()
 
     def get_category_suggestion_sample_size(self) -> int:
-        al_config = self.get_asset_library_config()
-        return al_config.get("category_suggestion_sample_size", 20)
+        self._reader.reload()
+        return self._reader.get_category_suggestion_sample_size()
