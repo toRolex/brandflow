@@ -615,6 +615,9 @@ def migrate_project_assets(request: Request):
                 new_conn = sqlite3.connect(str(shared_db_path))
                 for row in rows:
                     d = dict(row)
+                    # Rewrite file_path from per-project dir to shared_assets/indexed
+                    old_fp = Path(d["file_path"])
+                    d["file_path"] = str(shared_idx / d["product"] / d["category"] / old_fp.name)
                     try:
                         new_conn.execute(
                             """INSERT OR IGNORE INTO assets
