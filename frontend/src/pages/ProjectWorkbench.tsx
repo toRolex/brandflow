@@ -10,7 +10,7 @@ import BatchCreateForm from "../components/BatchCreateForm";
 import ProjectTabs from "../components/ProjectTabs";
 import ConfirmDialog from "../components/ConfirmDialog";
 
-type TabKey = "jobs" | "schedule" | "assets" | "scene";
+type TabKey = "jobs" | "schedule" | "scene";
 
 export default function ProjectWorkbench() {
   const { id } = useParams<{ id: string }>();
@@ -359,7 +359,6 @@ export default function ProjectWorkbench() {
         onTabChange={setTab}
         jobs={jobs}
         schedule={schedule}
-        projectId={id!}
         selectedJobIds={selectedJobIds}
         onSelectionChange={setSelectedJobIds}
         onRetry={handleRetry}

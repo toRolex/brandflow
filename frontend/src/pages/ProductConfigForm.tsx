@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../api/client";
 import { useProducts } from "../ProductContext";
-import type { CategoryConfig, ProductConfig } from "../types";
+import type { CategoryConfig, ProductConfig, SuggestCategory } from "../types";
 
 interface FormErrors {
   default_name?: string;
@@ -11,6 +11,7 @@ interface FormErrors {
 interface CatFormData {
   name: string;
   description: string;
+  vision_prompt: string;
 }
 
 interface CatFormErrors {
@@ -26,7 +27,7 @@ function generateCategoryId(name: string): string {
   return cleaned;
 }
 
-const EMPTY_CAT_FORM: CatFormData = { name: "", description: "" };
+const EMPTY_CAT_FORM: CatFormData = { name: "", description: "", vision_prompt: "" };
 
 const DEFAULT_CONFIG: ProductConfig = {
   default_name: "",
@@ -92,6 +93,9 @@ export default function ProductConfigForm() {
   const [editingCatIndex, setEditingCatIndex] = useState<number | null>(null);
   const [catFormData, setCatFormData] = useState<CatFormData>(EMPTY_CAT_FORM);
   const [catFormErrors, setCatFormErrors] = useState<CatFormErrors>({});
+  const [suggestions, setSuggestions] = useState<SuggestCategory[] | null>(null);
+  const [pendingSuggestionNames, setPendingSuggestionNames] = useState<Set<string>>(new Set());
+  const [suggestLoading, setSuggestLoading] = useState(false);
 
   const categories: CategoryConfig[] = (config.categories as CategoryConfig[]) ?? [];
 
@@ -226,7 +230,7 @@ export default function ProductConfigForm() {
       id: generateCategoryId(catFormData.name.trim()),
       name: catFormData.name.trim(),
       description: catFormData.description.trim(),
-      vision_prompt: "",
+      vision_prompt: catFormData.vision_prompt.trim(),
     };
 
     if (editingCatIndex !== null) {
@@ -248,7 +252,7 @@ export default function ProductConfigForm() {
 
   const handleEditCategory = (index: number) => {
     const cat = categories[index];
-    setCatFormData({ name: cat.name, description: cat.description });
+    setCatFormData({ name: cat.name, description: cat.description, vision_prompt: cat.vision_prompt });
     setEditingCatIndex(index);
     setCatFormErrors({});
     setShowCatForm(true);
@@ -257,6 +261,76 @@ export default function ProductConfigForm() {
   const handleDeleteCategory = async (index: number) => {
     const updated = categories.filter((_, i) => i !== index);
     await handleSaveCategories(updated);
+  };
+
+  const handleSuggest = async () => {
+    setSuggestLoading(true);
+    setSuggestions(null);
+    try {
+      const result = await api.suggestCategories();
+      setSuggestions(result.suggestions);
+      setPendingSuggestionNames(new Set(result.suggestions.map((s) => s.label)));
+    } catch {
+      setSaveMsg("获取 AI 建议失败");
+      setTimeout(() => setSaveMsg(null), 3000);
+    }
+    setSuggestLoading(false);
+  };
+
+  const toggleSuggestion = (label: string) => {
+    setPendingSuggestionNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+      return next;
+    });
+  };
+
+  const confirmSuggestions = async () => {
+    if (!suggestions) return;
+    setSaving(true);
+    setSaveMsg(null);
+
+    const checked = suggestions.filter((s) => pendingSuggestionNames.has(s.label));
+    const newCategories: CategoryConfig[] = checked.map((s) => ({
+      id: generateCategoryId(s.label),
+      name: s.label,
+      description: s.description,
+      vision_prompt: s.vision_prompt,
+    }));
+
+    // Merge with existing categories, avoid duplicates by id then by name
+    const existingIds = new Set(categories.map((c) => c.id));
+    const existingNames = new Set(categories.map((c) => c.name));
+    const merged = [
+      ...categories,
+      ...newCategories.filter((c) => !existingIds.has(c.id) && !existingNames.has(c.name)),
+    ];
+
+    try {
+      const updatedConfig = { ...config, categories: merged };
+      let result: ProductConfig;
+      if (editingProductId && editingProductId !== activeProductId) {
+        result = await api.saveProductConfigById(editingProductId, updatedConfig);
+      } else {
+        result = await api.saveProductConfig(updatedConfig);
+      }
+      setConfig(result);
+      setSuggestions(null);
+      setSaveMsg("分类已更新");
+      setTimeout(() => setSaveMsg(null), 3000);
+    } catch {
+      setSaveMsg("保存失败");
+    }
+    setSaving(false);
+  };
+
+  const cancelSuggestions = () => {
+    setSuggestions(null);
+    setPendingSuggestionNames(new Set());
   };
 
   if (loading) {
@@ -674,19 +748,74 @@ export default function ProductConfigForm() {
           >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>素材分类</h2>
-              <button
-                className="px-3 py-1.5 text-sm font-medium rounded-lg hover:brightness-110 transition-colors"
-                style={{ background: "var(--accent)", color: "var(--text-inverse)" }}
-                onClick={() => {
-                  setShowCatForm(true);
-                  setEditingCatIndex(null);
-                  setCatFormData(EMPTY_CAT_FORM);
-                  setCatFormErrors({});
-                }}
-              >
-                + 新增分类
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  style={{ background: "var(--accent)", color: "var(--text-inverse)" }}
+                  onClick={handleSuggest}
+                  disabled={suggestLoading || saving}
+                >
+                  {suggestLoading ? "获取建议中..." : "AI 智能推荐分类"}
+                </button>
+                <button
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg hover:brightness-110 transition-colors"
+                  style={{ background: "var(--accent)", color: "var(--text-inverse)" }}
+                  onClick={() => {
+                    setShowCatForm(true);
+                    setEditingCatIndex(null);
+                    setCatFormData(EMPTY_CAT_FORM);
+                    setCatFormErrors({});
+                  }}
+                >
+                  + 新增分类
+                </button>
+              </div>
             </div>
+
+            {/* AI Suggestions Panel */}
+            {suggestions && (
+              <div className="mb-4 border rounded-xl p-4" style={{ background: "var(--bg-tag-blue)", borderColor: "var(--text-tag-blue)" }}>
+                <h3 className="font-semibold mb-2" style={{ color: "var(--text-tag-blue)" }}>AI 分类建议</h3>
+                <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>勾选需要添加的分类，确认后将合并到现有分类列表</p>
+                <div className="space-y-2 mb-4">
+                  {suggestions.map((s) => (
+                    <label
+                      key={s.label}
+                      className="flex items-start gap-3 p-3 bg-[var(--bg-card)] rounded-lg border border-[var(--border-default)] cursor-pointer hover:border-[var(--accent)] transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={pendingSuggestionNames.has(s.label)}
+                        onChange={() => toggleSuggestion(s.label)}
+                      />
+                      <div>
+                        <div className="font-medium text-sm">{s.label}</div>
+                        <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{s.description}</div>
+                        <div className="text-xs font-mono mt-0.5" style={{ color: "var(--text-tertiary)" }}>{s.vision_prompt}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    className="px-4 py-2 rounded-lg text-sm hover:brightness-110 disabled:opacity-50 transition-colors"
+                    style={{ background: "var(--accent)", color: "var(--text-inverse)" }}
+                    onClick={confirmSuggestions}
+                    disabled={saving || pendingSuggestionNames.size === 0}
+                  >
+                    确认添加
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-lg text-sm hover:brightness-95 transition-colors"
+                    style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}
+                    onClick={cancelSuggestions}
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            )}
 
             {categories.length === 0 ? (
               <div className="text-center py-8" style={{ color: "var(--text-tertiary)" }}>
@@ -700,6 +829,7 @@ export default function ProductConfigForm() {
                       <th className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>ID</th>
                       <th className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>分类名称</th>
                       <th className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>描述</th>
+                      <th className="text-left px-4 py-2 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>Vision Prompt</th>
                       <th className="text-right px-4 py-2 text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>操作</th>
                     </tr>
                   </thead>
@@ -709,6 +839,7 @@ export default function ProductConfigForm() {
                         <td className="px-4 py-3 text-sm font-mono" style={{ color: "var(--text-tertiary)" }}>{cat.id}</td>
                         <td className="px-4 py-3 text-sm font-medium">{cat.name}</td>
                         <td className="px-4 py-3 text-sm" style={{ color: "var(--text-secondary)" }}>{cat.description}</td>
+                        <td className="px-4 py-3 text-sm font-mono" style={{ color: "var(--text-tertiary)" }}>{cat.vision_prompt}</td>
                         <td className="px-4 py-3 text-right">
                           <button
                             className="text-sm mr-3 hover:underline disabled:opacity-50"
@@ -790,6 +921,19 @@ export default function ProductConfigForm() {
                       value={catFormData.description}
                       onChange={(e) =>
                         setCatFormData((prev) => ({ ...prev, description: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Vision Prompt</label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2 rounded-lg text-sm"
+                      style={inputStyle}
+                      placeholder="Vision prompt"
+                      value={catFormData.vision_prompt}
+                      onChange={(e) =>
+                        setCatFormData((prev) => ({ ...prev, vision_prompt: e.target.value }))
                       }
                     />
                   </div>

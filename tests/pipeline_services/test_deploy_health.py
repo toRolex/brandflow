@@ -172,7 +172,26 @@ class TestDeployHealthCheckerCheckAll:
         (tmp_path / "config").mkdir(parents=True)
         (tmp_path / "config" / "app_config.json").write_text("{}")
         checker = DeployHealthChecker(root_dir=tmp_path)
-        result = checker.check_all()
+        with (
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
+                return_value="/usr/bin/ffmpeg",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffprobe_path",
+                return_value="/usr/bin/ffprobe",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
+                return_value="/usr/bin/whisper-cli",
+            ),
+            patch("socket.socket") as mock_socket_class,
+        ):
+            mock_sock = MagicMock()
+            mock_socket_class.return_value = mock_sock
+            mock_sock.bind.return_value = None
+            mock_sock.setsockopt.return_value = None
+            result = checker.check_all()
         assert isinstance(result, DeployHealthResult)
         assert len(result.tools) >= 2
         assert len(result.directories) > 0

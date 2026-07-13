@@ -1,6 +1,8 @@
 [project]
 name = "brandflow-pipeline"
-version = "0.7.2"
+
+version = "0.7.3"
+
 description = "Local short-video automation pipeline"
 requires-python = ">=3.11"
 dependencies = [

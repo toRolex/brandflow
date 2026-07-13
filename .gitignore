@@ -15,6 +15,7 @@ logs/
 reports/
 .codex-memory/
 tools/bin/
+tools/*.exe
 tools/models/
 tools/downloads/
 .worktrees/
@@ -46,3 +47,6 @@ frontend/package-lock.json
 skills-lock.json
 node_modules
 data/
+.impeccable/
+DESIGN.md
+PRODUCT.md

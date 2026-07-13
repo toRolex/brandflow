@@ -574,7 +574,15 @@ def migrate_project_assets(request: Request):
     root_dir: Path = request.app.state.root_dir
     projects_root = root_dir / "workspace" / "projects"
     if not projects_root.exists():
-        return {"migrated_projects": 0, "migrated_clips": 0, "migrated_sources": 0}
+        return {
+            "migrated_projects": 0,
+            "migrated_clips": 0,
+            "migrated_sources": 0,
+            "migrated_video_source_records": 0,
+            "conflicts": 0,
+            "skipped_ids": [],
+            "verification": {"old_count": 0, "new_count": 0, "diff": 0},
+        }
 
     shared_db_path = shared_asset_db_path(root_dir)
     shared_src = shared_source_dir(root_dir)
@@ -588,6 +596,25 @@ def migrate_project_assets(request: Request):
     migrated_projects = 0
     migrated_clips = 0
     migrated_sources = 0
+    migrated_video_source_records = 0
+    conflicts = 0
+    skipped_ids: list[str] = []
+
+    # Count old DB rows before migration (for post-verification comparison)
+    old_count = 0
+    for project_dir in sorted(projects_root.iterdir()):
+        if not project_dir.is_dir():
+            continue
+        old_db = project_dir / "asset_index.db"
+        if old_db.exists():
+            try:
+                old_conn = sqlite3.connect(str(old_db))
+                old_count += old_conn.execute("SELECT COUNT(*) FROM assets").fetchone()[
+                    0
+                ]
+                old_conn.close()
+            except sqlite3.Error:
+                pass  # silently skip corrupt DBs
 
     for project_dir in sorted(projects_root.iterdir()):
         if not project_dir.is_dir():
@@ -609,38 +636,60 @@ def migrate_project_assets(request: Request):
             old_conn = sqlite3.connect(str(old_db))
             old_conn.row_factory = sqlite3.Row
             rows = old_conn.execute("SELECT * FROM assets").fetchall()
+
+            # Migrate source_videos table from old DB
+            old_source_rows = old_conn.execute(
+                "SELECT source_path, indexed_at FROM source_videos"
+            ).fetchall()
+            if old_source_rows:
+                new_conn = sqlite3.connect(str(shared_db_path))
+                for source_path, indexed_at in old_source_rows:
+                    new_conn.execute(
+                        "INSERT OR IGNORE INTO source_videos (source_path, indexed_at) VALUES (?, ?)",
+                        (source_path, indexed_at),
+                    )
+                new_conn.commit()
+                new_conn.close()
+                migrated_video_source_records += len(old_source_rows)
+
             old_conn.close()
 
             if rows:
                 new_conn = sqlite3.connect(str(shared_db_path))
                 for row in rows:
                     d = dict(row)
-                    try:
-                        new_conn.execute(
-                            """INSERT OR IGNORE INTO assets
-                               (asset_id, file_path, category, product, confidence, duration_seconds,
-                                status, usage_count, source_video, tags, created_at, last_used_at)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                            (
-                                d["asset_id"],
-                                d["file_path"],
-                                d["category"],
-                                d["product"],
-                                d["confidence"],
-                                d["duration_seconds"],
-                                d["status"],
-                                d["usage_count"],
-                                d["source_video"],
-                                d["tags"]
-                                if isinstance(d["tags"], str)
-                                else json.dumps(d["tags"], ensure_ascii=False),
-                                d["created_at"],
-                                d["last_used_at"],
-                            ),
-                        )
+                    # Rewrite file_path from per-project dir to shared_assets/indexed
+                    old_fp = Path(d["file_path"])
+                    d["file_path"] = str(
+                        shared_idx / d["product"] / d["category"] / old_fp.name
+                    )
+                    cursor = new_conn.execute(
+                        """INSERT OR IGNORE INTO assets
+                           (asset_id, file_path, category, product, confidence, duration_seconds,
+                            status, usage_count, source_video, tags, created_at, last_used_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            d["asset_id"],
+                            d["file_path"],
+                            d["category"],
+                            d["product"],
+                            d["confidence"],
+                            d["duration_seconds"],
+                            d["status"],
+                            d["usage_count"],
+                            d["source_video"],
+                            d["tags"]
+                            if isinstance(d["tags"], str)
+                            else json.dumps(d["tags"], ensure_ascii=False),
+                            d["created_at"],
+                            d["last_used_at"],
+                        ),
+                    )
+                    if cursor.rowcount > 0:
                         migrated_clips += 1
-                    except sqlite3.IntegrityError:
-                        pass  # already exists
+                    else:
+                        conflicts += 1
+                        skipped_ids.append(d["asset_id"])
                 new_conn.commit()
                 new_conn.close()
                 migrated_projects += 1
@@ -662,10 +711,35 @@ def migrate_project_assets(request: Request):
                             if not dest.exists():
                                 shutil.copy2(str(clip), str(dest))
 
+    # Backfill any source_video references from assets that were added
+    # via INSERT OR IGNORE conflicts
+    repo = AssetRepository(shared_db_path)
+    backfilled = repo.backfill_source_videos()
+    migrated_video_source_records += backfilled
+
+    # Post-verification: count rows in shared DB after migration
+    new_count = 0
+    shared_db = Path(shared_db_path)
+    if shared_db.exists():
+        try:
+            verify_conn = sqlite3.connect(str(shared_db))
+            new_count = verify_conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
+            verify_conn.close()
+        except sqlite3.Error:
+            pass
+
     return {
         "migrated_projects": migrated_projects,
         "migrated_clips": migrated_clips,
         "migrated_sources": migrated_sources,
+        "migrated_video_source_records": migrated_video_source_records,
+        "conflicts": conflicts,
+        "skipped_ids": skipped_ids,
+        "verification": {
+            "old_count": old_count,
+            "new_count": new_count,
+            "diff": new_count - old_count,
+        },
     }
 
 

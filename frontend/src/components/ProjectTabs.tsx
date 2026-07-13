@@ -1,17 +1,15 @@
 import type { JobSummary, ScheduleEntry } from "../types";
 import JobTable from "./JobTable";
 import ScheduleTable from "./ScheduleTable";
-import SmartAssetLibrary from "../pages/SmartAssetLibrary";
 import SceneUpload from "./SceneUpload";
 
-type TabKey = "jobs" | "schedule" | "assets" | "scene";
+type TabKey = "jobs" | "schedule" | "scene";
 
 interface ProjectTabsProps {
   tab: TabKey;
   onTabChange: (tab: TabKey) => void;
   jobs: JobSummary[];
   schedule: ScheduleEntry[];
-  projectId: string;
   selectedJobIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
   onRetry: (jobId: string) => void;
@@ -23,7 +21,6 @@ interface ProjectTabsProps {
 const TABS: { key: TabKey; label: string }[] = [
   { key: "jobs", label: "Job 列表" },
   { key: "schedule", label: "排期池" },
-  { key: "assets", label: "智能素材库" },
   { key: "scene", label: "场景素材" },
 ];
 
@@ -32,7 +29,6 @@ export default function ProjectTabs({
   onTabChange,
   jobs,
   schedule,
-  projectId,
   selectedJobIds,
   onSelectionChange,
   onRetry,
@@ -74,10 +70,8 @@ export default function ProjectTabs({
         />
       ) : tab === "schedule" ? (
         <ScheduleTable entries={schedule} onExport={onExportSchedule} />
-      ) : tab === "scene" ? (
-        <SceneUpload />
       ) : (
-        <SmartAssetLibrary projectId={projectId} />
+        <SceneUpload />
       )}
     </>
   );

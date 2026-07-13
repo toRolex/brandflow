@@ -158,7 +158,6 @@ const CONFIG_ITEMS = [
   { path: "/config", label: "Provider 配置" },
   { path: "/system/config/product", label: "产品配置" },
   { path: "/system/config/templates", label: "脚本模板" },
-  { path: "/system/config/categories", label: "素材分类" },
   { path: "/system/config/quality", label: "质检规则" },
   { path: "/system/config/knowledge", label: "知识库" },
 ];
