@@ -381,3 +381,118 @@ describe("SmartAssetLibrary product filtering", () => {
     });
   });
 });
+
+describe("unmapped/historical categories (#124)", () => {
+  const mockAssetsWithUnmapped: AssetRecord[] = [
+    ...mockAssets,
+    {
+      asset_id: "a4",
+      file_path: "/workspace/shared_assets/indexed/longjing/legacy/a4.mp4",
+      category: "旧分类",
+      product: "龙井茶",
+      confidence: 0.7,
+      duration_seconds: 4.0,
+      status: "available",
+      usage_count: 0,
+      source_video: "v3.mp4",
+      tags: [],
+      created_at: "2025-01-01T00:00:00",
+      last_used_at: "2025-01-01T00:00:00",
+    },
+  ];
+
+  function renderLibrary() {
+    return render(
+      <ProductProvider>
+        <SmartAssetLibrary />
+      </ProductProvider>
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.listIndexedAssetsShared).mockResolvedValue({
+      assets: mockAssetsWithUnmapped,
+      stats: { total: 4, available: 4, disabled: 0, source_videos: 3 },
+    });
+    vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
+    vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
+    vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
+    vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
+    vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
+    vi.mocked(api.batchDeleteAssets).mockResolvedValue({ deleted: 1, files_deleted: 1 });
+    vi.mocked(api.uploadAssetShared).mockResolvedValue({ name: "test.mp4", size_bytes: 1000, in_use: false });
+    vi.mocked(api.indexAssetsShared).mockResolvedValue({ indexed: 1, skipped: 0, total_clips: 1 });
+  });
+
+  it("未映射分类显示在下拉列表中，与配置分类并列且可区分", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listCategories).toHaveBeenCalled();
+    });
+
+    // productFilteredAssets (龙井茶 active) = [a1, a2, a4]
+    // Configured categories: 冲泡 (1), 产地 (1), 品鉴 (0)
+    // Unmapped category: 旧分类 (1)
+    await waitFor(() => {
+      expect(screen.getByText("冲泡 (1)")).toBeInTheDocument();
+      expect(screen.getByText("产地 (1)")).toBeInTheDocument();
+      expect(screen.getByText("品鉴 (0)")).toBeInTheDocument();
+    });
+
+    // Unmapped category should appear with correct count
+    expect(screen.getByText("旧分类 (1)")).toBeInTheDocument();
+    // Separator text should exist
+    expect(screen.getByText(/未映射/)).toBeInTheDocument();
+  });
+
+  it("选择未映射分类正确筛选素材", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(screen.getByText("旧分类 (1)")).toBeInTheDocument();
+    });
+
+    const selects = screen.getAllByRole("combobox");
+    const catSelect = selects[1];
+    fireEvent.change(catSelect, { target: { value: "旧分类" } });
+
+    await waitFor(() => {
+      // Only a4 (旧分类) should be shown, total assets = 4
+      expect(screen.getByText("共 1 / 4 条素材")).toBeInTheDocument();
+      expect(screen.getByText("a4.mp4")).toBeInTheDocument();
+    });
+  });
+
+  it("全部分类计数与各分类计数来源一致", async () => {
+    renderLibrary();
+
+    // productFilteredAssets (龙井茶 active) = [a1, a2, a4] = 3 items
+    await waitFor(() => {
+      expect(screen.getByText("全部分类 (3)")).toBeInTheDocument();
+    });
+  });
+
+  it("切换产品时未映射分类基于目标产品重新计算", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(screen.getByText("旧分类 (1)")).toBeInTheDocument();
+    });
+
+    // Switch to 普洱茶
+    const selects = screen.getAllByRole("combobox");
+    fireEvent.change(selects[0], { target: { value: "普洱茶" } });
+
+    // 普洱茶 only has a3 (冲泡), no unmapped assets
+    await waitFor(() => {
+      expect(screen.getByText("全部分类 (1)")).toBeInTheDocument();
+      // Unmapped separator should be gone since 普洱茶 has no unmapped categories
+      expect(screen.queryByText(/未映射/)).not.toBeInTheDocument();
+    });
+  });
+});
