@@ -48,6 +48,17 @@ class VisionClient:
         self.provider = provider or os.getenv("VISION_PROVIDER", "openai")
         self._vision_prompt = build_vision_prompt(categories)
 
+    def _resolve_endpoint(self) -> str:
+        """返回补全了 ``/chat/completions`` 后缀的 endpoint URL。
+
+        如果 endpoint 不以 ``/chat/completions`` 结尾则自动追加，
+        已包含后缀时不重复追加。尾部 ``/`` 会被去除后再拼接。
+        """
+        ep = self.endpoint.rstrip("/")
+        if not ep.endswith("/chat/completions"):
+            ep += "/chat/completions"
+        return ep
+
     def classify_frame(self, image_path: Path) -> dict:
         logger.info(
             f"[Vision] 开始分类: {image_path.name}, provider={self.provider}, model={self.model}"
@@ -60,12 +71,13 @@ class VisionClient:
 
         import requests
 
+        endpoint = self._resolve_endpoint()
         try:
             if self.provider == "claude":
                 payload, headers = self._build_claude_request(image_b64, media_type)
-                logger.debug(f"[Vision] 请求 Claude API: {self.endpoint}")
+                logger.debug(f"[Vision] 请求 Claude API: {endpoint}")
                 resp = requests.post(
-                    self.endpoint, json=payload, headers=headers, timeout=60
+                    endpoint, json=payload, headers=headers, timeout=60
                 )
                 resp.raise_for_status()
                 result = self._parse_claude_response(resp.json())
@@ -73,9 +85,9 @@ class VisionClient:
                 # Default: OpenAI-compatible format
                 data_url = f"data:{media_type};base64,{image_b64}"
                 payload, headers = self._build_openai_request(data_url)
-                logger.debug(f"[Vision] 请求 OpenAI API: {self.endpoint}")
+                logger.debug(f"[Vision] 请求 OpenAI API: {endpoint}")
                 resp = requests.post(
-                    self.endpoint, json=payload, headers=headers, timeout=60
+                    endpoint, json=payload, headers=headers, timeout=60
                 )
                 resp.raise_for_status()
                 result = self._parse_openai_response(resp.json())
@@ -86,7 +98,7 @@ class VisionClient:
             return result
         except requests.exceptions.Timeout:
             logger.error(
-                f"[Vision] 请求超时: {image_path.name}, endpoint={self.endpoint}"
+                f"[Vision] 请求超时: {image_path.name}, endpoint={endpoint}"
             )
             raise
         except requests.exceptions.HTTPError as e:
@@ -112,7 +124,7 @@ class VisionClient:
                     ],
                 }
             ],
-            "max_tokens": 1000,
+            "max_tokens": 2000,
             "temperature": 0,
         }
         headers = {
@@ -143,7 +155,7 @@ class VisionClient:
     ) -> tuple[dict, dict]:
         payload = {
             "model": self.model,
-            "max_tokens": 1000,
+            "max_tokens": 2000,
             "messages": [
                 {
                     "role": "user",
