@@ -250,6 +250,18 @@ export const api = {
     );
   },
 
+  // Schedule
+  getSchedule: (params?: { project_id?: string; platform?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.project_id) qs.set("project_id", params.project_id);
+    if (params?.platform) qs.set("platform", params.platform);
+    return request<import("../types").ScheduleEntry[]>(`/api/schedule?${qs.toString()}`);
+  },
+
+  exportSchedule: () => {
+    window.open(`${BASE}/api/schedule/export`, "_blank");
+  },
+
   // Config
   getConfig: () =>
     request<import("../types").ProviderConfig>("/api/config"),
@@ -436,6 +448,36 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ slot_contents: slotContents, variable_values: variableValues }),
     }),
+
+  // Scene folders
+  getSceneFolders: () =>
+    request<import("../types").SceneFoldersResponse>("/api/scene/folders"),
+
+  // Scene upload
+  uploadSceneVideo: async (folderName: string, file: File) => {
+    const form = new FormData();
+    form.append("folder", folderName);
+    form.append("file", file);
+    const res = await fetch("/api/scene/upload", { method: "POST", body: form });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text}`);
+    }
+    return res.json();
+  },
+
+  // Scene folder files
+  getSceneFolderFiles: (folderName: string) =>
+    request<import("../types").SceneFolderFilesResponse>(
+      `/api/scene/folders/${encodeURIComponent(folderName)}/files`
+    ),
+
+  // Delete scene file
+  deleteSceneFile: (folderName: string, fileName: string) =>
+    request<{ status: string }>(
+      `/api/scene/folders/${encodeURIComponent(folderName)}/files/${encodeURIComponent(fileName)}`,
+      { method: "DELETE" }
+    ),
 
   // Categories
   listCategories: () =>

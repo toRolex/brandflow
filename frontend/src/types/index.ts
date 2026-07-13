@@ -183,6 +183,16 @@ export interface ScriptCheckResult {
   passed: boolean;
 }
 
+export interface ScheduleEntry {
+  id: number;
+  job_id: string;
+  platform: string;
+  title: string;
+  description: string;
+  status: "pending" | "published";
+  created_at: string;
+}
+
 export interface ProviderSection {
   selected: string;
   providers: Record<string, Record<string, unknown>>;
@@ -284,6 +294,26 @@ export interface MusicTrack {
   relative_path: string;
   duration_seconds: number | null;
   size_bytes: number;
+}
+
+// ── Scene Upload ───────────────────────────────────
+
+export interface SceneFolder {
+  name: string;
+  file_count: number;
+}
+
+export interface SceneFolderFile {
+  name: string;
+  size_bytes: number;
+}
+
+export interface SceneFoldersResponse {
+  folders: SceneFolder[];
+}
+
+export interface SceneFolderFilesResponse {
+  files: SceneFolderFile[];
 }
 
 // ── Script Template ────────────────────────────────
