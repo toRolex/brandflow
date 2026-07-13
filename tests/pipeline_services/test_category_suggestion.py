@@ -1,11 +1,12 @@
 """Tests for Phase 2 Slice 7 — AI-powered Category Suggestion."""
+
 from __future__ import annotations
 
 import json
 import sqlite3
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -114,11 +115,19 @@ def test_empty_library() -> None:
         assert len(result["errors"]) >= 1
 
 
-@patch("packages.pipeline_services.asset_library.category_suggestion._resolve_vision_api_config")
-@patch("packages.pipeline_services.asset_library.category_suggestion._resolve_llm_api_config")
+@patch(
+    "packages.pipeline_services.asset_library.category_suggestion._resolve_vision_api_config"
+)
+@patch(
+    "packages.pipeline_services.asset_library.category_suggestion._resolve_llm_api_config"
+)
 @patch("packages.pipeline_services.asset_library.category_suggestion._extract_frame")
-@patch("packages.pipeline_services.asset_library.category_suggestion._describe_frame_with_vision")
-@patch("packages.pipeline_services.asset_library.category_suggestion._cluster_descriptions")
+@patch(
+    "packages.pipeline_services.asset_library.category_suggestion._describe_frame_with_vision"
+)
+@patch(
+    "packages.pipeline_services.asset_library.category_suggestion._cluster_descriptions"
+)
 def test_suggest_categories_full_flow(
     mock_cluster: Mock,
     mock_describe: Mock,
@@ -213,7 +222,9 @@ def test_suggest_categories_full_flow(
     mock_cluster.assert_called_once()
 
 
-@patch("packages.pipeline_services.asset_library.category_suggestion._cluster_descriptions")
+@patch(
+    "packages.pipeline_services.asset_library.category_suggestion._cluster_descriptions"
+)
 def test_suggest_no_vision_results(
     mock_cluster: Mock,
     populated_db_dir: Path,
@@ -254,11 +265,19 @@ def test_suggest_no_vision_results(
     mock_cluster.assert_not_called()
 
 
-@patch("packages.pipeline_services.asset_library.category_suggestion._resolve_vision_api_config")
-@patch("packages.pipeline_services.asset_library.category_suggestion._resolve_llm_api_config")
+@patch(
+    "packages.pipeline_services.asset_library.category_suggestion._resolve_vision_api_config"
+)
+@patch(
+    "packages.pipeline_services.asset_library.category_suggestion._resolve_llm_api_config"
+)
 @patch("packages.pipeline_services.asset_library.category_suggestion._extract_frame")
-@patch("packages.pipeline_services.asset_library.category_suggestion._describe_frame_with_vision")
-@patch("packages.pipeline_services.asset_library.category_suggestion._cluster_descriptions")
+@patch(
+    "packages.pipeline_services.asset_library.category_suggestion._describe_frame_with_vision"
+)
+@patch(
+    "packages.pipeline_services.asset_library.category_suggestion._cluster_descriptions"
+)
 def test_suggest_with_fewer_assets_than_sample(
     mock_cluster: Mock,
     mock_describe: Mock,
@@ -377,11 +396,14 @@ class TestResolveVisionConfig:
                 encoding="utf-8",
             )
 
-            with patch(
-                "packages.pipeline_services.asset_library.category_suggestion.ConfigReader"
-            ) as MockReader, patch(
-                "packages.pipeline_services.asset_library.category_suggestion.SecretStore"
-            ) as MockSecrets:
+            with (
+                patch(
+                    "packages.pipeline_services.asset_library.category_suggestion.ConfigReader"
+                ) as MockReader,
+                patch(
+                    "packages.pipeline_services.asset_library.category_suggestion.SecretStore"
+                ) as MockSecrets,
+            ):
                 mock_reader = MockReader.return_value
                 mock_reader.get_vision_config.return_value = {
                     "provider": "xiaomi",
@@ -419,9 +441,7 @@ def api_client(populated_db_dir: Path) -> object:
 
 
 class TestSuggestEndpoint:
-    @patch(
-        "apps.control_plane.routes.category_suggestion.suggest_categories"
-    )
+    @patch("apps.control_plane.routes.category_suggestion.suggest_categories")
     def test_suggest_endpoint_post(
         self,
         mock_suggest: Mock,
@@ -456,9 +476,7 @@ class TestSuggestEndpoint:
         assert data["sampled_assets"] == 5
         assert data["errors"] == []
 
-    @patch(
-        "apps.control_plane.routes.category_suggestion.suggest_categories"
-    )
+    @patch("apps.control_plane.routes.category_suggestion.suggest_categories")
     def test_suggest_endpoint_with_model_override(
         self,
         mock_suggest: Mock,

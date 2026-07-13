@@ -90,7 +90,9 @@ class ProductStore:
         return [
             {
                 "id": p.get("id", ""),
-                "name": p.get("default_name", "") or p.get("name", "") or p.get("id", ""),
+                "name": p.get("default_name", "")
+                or p.get("name", "")
+                or p.get("id", ""),
             }
             for p in products
         ]

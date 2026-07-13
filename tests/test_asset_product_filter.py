@@ -63,9 +63,24 @@ def test_indexed_assets_filters_by_product():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
         assets = [
-            {"asset_id": "a1", "file_path": "/tmp/a1.mp4", "product": "龙井茶", "category": "冲泡"},
-            {"asset_id": "a2", "file_path": "/tmp/a2.mp4", "product": "龙井茶", "category": "产地"},
-            {"asset_id": "a3", "file_path": "/tmp/a3.mp4", "product": "普洱茶", "category": "冲泡"},
+            {
+                "asset_id": "a1",
+                "file_path": "/tmp/a1.mp4",
+                "product": "龙井茶",
+                "category": "冲泡",
+            },
+            {
+                "asset_id": "a2",
+                "file_path": "/tmp/a2.mp4",
+                "product": "龙井茶",
+                "category": "产地",
+            },
+            {
+                "asset_id": "a3",
+                "file_path": "/tmp/a3.mp4",
+                "product": "普洱茶",
+                "category": "冲泡",
+            },
         ]
         app = _build_app_with_asset_db(root, assets)
         client = TestClient(app)
@@ -97,14 +112,31 @@ def test_indexed_assets_product_and_category_combined():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
         assets = [
-            {"asset_id": "a1", "file_path": "/tmp/a1.mp4", "product": "龙井茶", "category": "冲泡"},
-            {"asset_id": "a2", "file_path": "/tmp/a2.mp4", "product": "龙井茶", "category": "产地"},
-            {"asset_id": "a3", "file_path": "/tmp/a3.mp4", "product": "普洱茶", "category": "冲泡"},
+            {
+                "asset_id": "a1",
+                "file_path": "/tmp/a1.mp4",
+                "product": "龙井茶",
+                "category": "冲泡",
+            },
+            {
+                "asset_id": "a2",
+                "file_path": "/tmp/a2.mp4",
+                "product": "龙井茶",
+                "category": "产地",
+            },
+            {
+                "asset_id": "a3",
+                "file_path": "/tmp/a3.mp4",
+                "product": "普洱茶",
+                "category": "冲泡",
+            },
         ]
         app = _build_app_with_asset_db(root, assets)
         client = TestClient(app)
 
-        resp = client.get("/api/assets/indexed", params={"product": "龙井茶", "category": "冲泡"})
+        resp = client.get(
+            "/api/assets/indexed", params={"product": "龙井茶", "category": "冲泡"}
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["assets"]) == 1
@@ -116,7 +148,12 @@ def test_indexed_assets_product_no_match_returns_empty():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
         assets = [
-            {"asset_id": "a1", "file_path": "/tmp/a1.mp4", "product": "龙井茶", "category": "冲泡"},
+            {
+                "asset_id": "a1",
+                "file_path": "/tmp/a1.mp4",
+                "product": "龙井茶",
+                "category": "冲泡",
+            },
         ]
         app = _build_app_with_asset_db(root, assets)
         client = TestClient(app)

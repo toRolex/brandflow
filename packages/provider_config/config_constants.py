@@ -9,7 +9,6 @@ from copy import deepcopy
 from typing import Any
 
 
-
 DEFAULTS: dict[str, Any] = {
     "llm": {
         "provider": "deepseek",
@@ -84,7 +83,13 @@ DEFAULTS: dict[str, Any] = {
             "word_count_max": 200,
             "max_sentence_length": 20,
             "forbidden_words": [
-                "治疗", "治愈", "疗效", "降血糖", "降血压", "抗癌", "药到病除",
+                "治疗",
+                "治愈",
+                "疗效",
+                "降血糖",
+                "降血压",
+                "抗癌",
+                "药到病除",
             ],
             "required_word_count": {
                 "product": 1,

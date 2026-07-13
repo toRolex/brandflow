@@ -1,19 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
-
-from packages.knowledge_store.models import KnowledgeItem
 
 
 class TestParsePDF:
     """PDF 解析器单元测试"""
 
-    def _make_test_pdf(
-        self, path: Path, lines: list[str] | None = None
-    ) -> None:
+    def _make_test_pdf(self, path: Path, lines: list[str] | None = None) -> None:
         """Helper: create a minimal PDF with extractable text.
 
         Uses insert_htmlbox to ensure CJK characters are properly embedded
@@ -64,9 +59,7 @@ class TestParsePDF:
 class TestParseDocx:
     """DOCX 解析器单元测试"""
 
-    def _make_test_docx(
-        self, path: Path, lines: list[str] | None = None
-    ) -> None:
+    def _make_test_docx(self, path: Path, lines: list[str] | None = None) -> None:
         """Helper: create a minimal DOCX with paragraphs."""
         from docx import Document
 

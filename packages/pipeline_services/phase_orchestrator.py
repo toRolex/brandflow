@@ -188,17 +188,14 @@ class PhaseOrchestrator:
 
         with ThreadPoolExecutor(max_workers=len(phases)) as executor:
             future_map = {
-                executor.submit(self.run_phase, phase, ctx): phase
-                for phase in phases
+                executor.submit(self.run_phase, phase, ctx): phase for phase in phases
             }
             for future in as_completed(future_map):
                 phase_name = future_map[future]
                 try:
                     results[phase_name] = future.result()
                 except Exception as e:
-                    print(
-                        f"[PARALLEL] Phase {phase_name} failed: {e}", flush=True
-                    )
+                    print(f"[PARALLEL] Phase {phase_name} failed: {e}", flush=True)
                     results[phase_name] = []
 
         return results
@@ -257,7 +254,9 @@ class PhaseOrchestrator:
         return self._secrets.get_api_base_url(provider)
 
     @staticmethod
-    def _resolve_categories(config_reader: ConfigReader | None, ctx: PhaseContext) -> list[str]:
+    def _resolve_categories(
+        config_reader: ConfigReader | None, ctx: PhaseContext
+    ) -> list[str]:
         """Resolve category names for asset classification.
 
         Priority: product-level categories > asset_library categories > defaults.
@@ -278,6 +277,7 @@ class PhaseOrchestrator:
         from packages.pipeline_services.asset_library.category_config import (
             default_categories,
         )
+
         return [c.name for c in default_categories()]
 
     def _build_tts_provider(self, tts_cfg: dict[str, Any]) -> Any:
@@ -642,22 +642,31 @@ class PhaseOrchestrator:
             ffmpeg = self._get_ffmpeg_path()
             subprocess.run(
                 [
-                    ffmpeg, "-y",
-                    "-i", str(assembled_path),
-                    "-i", str(clip_base_path),
+                    ffmpeg,
+                    "-y",
+                    "-i",
+                    str(assembled_path),
+                    "-i",
+                    str(clip_base_path),
                     "-filter_complex",
                     "[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
                     "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v0];"
                     "[1:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
                     "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v1];"
                     "[v0][v1]concat=n=2:v=1:a=0",
-                    "-map", "[v]",
+                    "-map",
+                    "[v]",
                     "-an",
-                    "-c:v", "libx264",
-                    "-preset", "ultrafast",
-                    "-crf", "23",
-                    "-pix_fmt", "yuv420p",
-                    "-movflags", "+faststart",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "ultrafast",
+                    "-crf",
+                    "23",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-movflags",
+                    "+faststart",
                     str(base_path),
                 ],
                 check=True,
@@ -825,7 +834,8 @@ class PhaseOrchestrator:
                 print(f"[SCENE] Folder not found: {folder}", flush=True)
                 continue
             candidates = [
-                p for p in folder.iterdir()
+                p
+                for p in folder.iterdir()
                 if p.is_file() and p.suffix.lower() in video_ext
             ]
             if not candidates:
@@ -847,6 +857,7 @@ class PhaseOrchestrator:
         if len(clips) == 1:
             # Single clip -- copy directly
             import shutil
+
             shutil.copy2(clips[0], scene_path)
             print(f"[SCENE] Single clip copied to {scene_path}", flush=True)
         else:
@@ -864,7 +875,9 @@ class PhaseOrchestrator:
                 out_label = f"t{i}"
 
                 # Build segments
-                filter_parts.append(f"[{i}:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[{cur_in_label}]")
+                filter_parts.append(
+                    f"[{i}:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[{cur_in_label}]"
+                )
                 filter_parts.append(
                     f"[{prev_label}][{cur_in_label}]"
                     f"xfade=transition=fade:duration={transition_duration:.3f}:"
@@ -878,23 +891,35 @@ class PhaseOrchestrator:
                 accumulated += durations[i] - transition_duration
 
             # First input always needs settb + fps + scale normalization
-            filter_complex = f"[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[c0];" + ";".join(filter_parts)
+            filter_complex = (
+                "[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[c0];"
+                + ";".join(filter_parts)
+            )
             final_label = f"t{len(clips) - 1}"
 
             cmd = [ffmpeg, "-y"]
             for clip in clips:
                 cmd.extend(["-i", str(clip)])
-            cmd.extend([
-                "-filter_complex", filter_complex,
-                "-map", f"[{final_label}]",
-                "-an",
-                "-c:v", "libx264",
-                "-preset", "ultrafast",
-                "-crf", "23",
-                "-pix_fmt", "yuv420p",
-                "-movflags", "+faststart",
-                str(scene_path),
-            ])
+            cmd.extend(
+                [
+                    "-filter_complex",
+                    filter_complex,
+                    "-map",
+                    f"[{final_label}]",
+                    "-an",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "ultrafast",
+                    "-crf",
+                    "23",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-movflags",
+                    "+faststart",
+                    str(scene_path),
+                ]
+            )
 
             print(f"[SCENE] Running ffmpeg xfade for {len(clips)} clips", flush=True)
             subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
@@ -937,19 +962,28 @@ class PhaseOrchestrator:
             ffmpeg = self._get_ffmpeg_path()
             subprocess.run(
                 [
-                    ffmpeg, "-y",
-                    "-i", str(scene_path),
-                    "-i", str(base_path),
+                    ffmpeg,
+                    "-y",
+                    "-i",
+                    str(scene_path),
+                    "-i",
+                    str(base_path),
                     "-filter_complex",
                     "[0:v]settb=AVTB[sv];[1:v]settb=AVTB[bv];"
                     "[sv][bv]concat=n=2:v=1:a=0",
-                    "-map", "[v]",
+                    "-map",
+                    "[v]",
                     "-an",
-                    "-c:v", "libx264",
-                    "-preset", "ultrafast",
-                    "-crf", "23",
-                    "-pix_fmt", "yuv420p",
-                    "-movflags", "+faststart",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "ultrafast",
+                    "-crf",
+                    "23",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-movflags",
+                    "+faststart",
                     str(assembled_path),
                 ],
                 check=True,
@@ -1001,12 +1035,14 @@ class PhaseOrchestrator:
     def _get_ffmpeg_path() -> str:
         """Resolve ffmpeg path via media_utils."""
         from packages.pipeline_services.media_utils import get_ffmpeg_path as _gfp
+
         return _gfp()
 
     @staticmethod
     def _get_media_duration(file_path: Path) -> float:
         """Get media duration in seconds via ffprobe."""
         from packages.pipeline_services.media_utils import get_media_duration as _gmd
+
         return _gmd(file_path)
 
 

@@ -65,7 +65,8 @@ class TestJobDefaultsFromProductConfig:
     def test_job_uses_default_product(self, tmp_path: Path) -> None:
         client = _client(tmp_path)
         client.put(
-            "/api/config/product", json={"default_name": "默认产品", "default_brand": "默认品牌"}
+            "/api/config/product",
+            json={"default_name": "默认产品", "default_brand": "默认品牌"},
         )
         # 先创建项目
         client.post("/api/projects", json={"name": "test"})
@@ -217,7 +218,12 @@ class TestProductConfigCategoriesAPI:
             "/api/products/prod_E/config",
             json={
                 "categories": [
-                    {"id": "a", "name": "分类A", "description": "描述A", "vision_prompt": "vpA"},
+                    {
+                        "id": "a",
+                        "name": "分类A",
+                        "description": "描述A",
+                        "vision_prompt": "vpA",
+                    },
                     {"id": "b", "name": "分类B", "description": "描述B"},
                 ],
             },

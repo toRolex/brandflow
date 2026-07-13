@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
-from packages.knowledge_store.models import KnowledgeItem, SourceType, KnowledgeItemType
+from packages.knowledge_store.models import KnowledgeItem, KnowledgeItemType
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -81,9 +80,7 @@ class TestKnowledgePDFUpload:
         pdf_bytes = self._make_test_pdf(tmp_path / "test.pdf")
         client = _client(tmp_path)
 
-        with patch(
-            "apps.control_plane.routes.knowledge._make_extractor"
-        ) as mock_maker:
+        with patch("apps.control_plane.routes.knowledge._make_extractor") as mock_maker:
             mock_extractor = MagicMock()
             mock_extractor.extract.return_value = []
             mock_maker.return_value = mock_extractor
@@ -114,9 +111,7 @@ class TestKnowledgePDFUpload:
             tags=["口感"],
             source_document="test.pdf",
         )
-        with patch(
-            "apps.control_plane.routes.knowledge._make_extractor"
-        ) as mock_maker:
+        with patch("apps.control_plane.routes.knowledge._make_extractor") as mock_maker:
             mock_extractor = MagicMock()
             mock_extractor.extract.return_value = [mock_item]
             mock_maker.return_value = mock_extractor
@@ -142,9 +137,7 @@ class TestKnowledgePDFUpload:
 class TestKnowledgeDocxUpload:
     """POST /api/knowledge/upload — DOCX上传"""
 
-    def _make_test_docx(
-        self, path: Path, text: str = "test docx content"
-    ) -> bytes:
+    def _make_test_docx(self, path: Path, text: str = "test docx content") -> bytes:
         from docx import Document
 
         doc = Document()
@@ -157,9 +150,7 @@ class TestKnowledgeDocxUpload:
         docx_bytes = self._make_test_docx(tmp_path / "test.docx")
         client = _client(tmp_path)
 
-        with patch(
-            "apps.control_plane.routes.knowledge._make_extractor"
-        ) as mock_maker:
+        with patch("apps.control_plane.routes.knowledge._make_extractor") as mock_maker:
             mock_extractor = MagicMock()
             mock_extractor.extract.return_value = []
             mock_maker.return_value = mock_extractor
@@ -187,9 +178,7 @@ class TestKnowledgeDocxUpload:
             tags=["包装"],
             source_document="test.docx",
         )
-        with patch(
-            "apps.control_plane.routes.knowledge._make_extractor"
-        ) as mock_maker:
+        with patch("apps.control_plane.routes.knowledge._make_extractor") as mock_maker:
             mock_extractor = MagicMock()
             mock_extractor.extract.return_value = [mock_item]
             mock_maker.return_value = mock_extractor

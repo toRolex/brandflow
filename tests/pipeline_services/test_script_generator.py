@@ -401,7 +401,10 @@ class TestValidateScriptWithConfig:
         """配置的 forbidden_words 应替换硬编码禁词列表。"""
         # 填充字数到 150-200，产品/品牌各出现 1 次，"治疗"在文本中
         padding = "今天给大家介绍一款非常好吃的美食。" * 9
-        text = padding + "滋元堂今天介绍羊肚菌的做法这种食材来自云南深山可以治疗疾病口感非常好推荐大家尝试购买品尝。"
+        text = (
+            padding
+            + "滋元堂今天介绍羊肚菌的做法这种食材来自云南深山可以治疗疾病口感非常好推荐大家尝试购买品尝。"
+        )
         config = {"script": {"forbidden_words": ["养生"]}}  # only "养生" is forbidden
         result = validate_script(text, "羊肚菌", "滋元堂", config=config)
         # "治疗" is NOT in the custom forbidden list, so it should pass
@@ -422,7 +425,9 @@ class TestValidateScriptWithConfig:
         """配置 required_word_count.product 控制品名出现次数。"""
         padding = "今天给大家介绍一款非常好吃的美食。" * 9  # compact_len=144
         # "羊肚菌" 不出现，但 product=0 表示不要求品名出现
-        text = padding + "滋元堂这款产品来自优质产地口感鲜美营养丰富值得推荐。"  # compact_len=25
+        text = (
+            padding + "滋元堂这款产品来自优质产地口感鲜美营养丰富值得推荐。"
+        )  # compact_len=25
         config = {"script": {"required_word_count": {"product": 0}}}
         result = validate_script(text, "羊肚菌", "滋元堂", config=config)
         # total compact_len ≈ 169, within 150-200
@@ -431,7 +436,9 @@ class TestValidateScriptWithConfig:
     def test_config_emoji_allowed(self):
         """配置 emoji_forbidden=False 时 emoji 不应被拒。"""
         padding = "今天给大家介绍一款非常好吃的美食。" * 9  # compact_len=144
-        text = padding + "羊肚菌是来自云南的美味食材滋元堂精心挑选口感鲜美😊推荐购买。"  # compact_len≈28
+        text = (
+            padding + "羊肚菌是来自云南的美味食材滋元堂精心挑选口感鲜美😊推荐购买。"
+        )  # compact_len≈28
         config = {"script": {"emoji_forbidden": False}}
         result = validate_script(text, "羊肚菌", "滋元堂", config=config)
         assert result["ok"] is True, f"errors: {result['errors']}"
@@ -448,7 +455,11 @@ class TestValidateScriptWithConfig:
     def test_config_max_sentence_length(self):
         """配置 max_sentence_length 应检查每句紧凑字数。"""
         # 单句超长（"非常长的一个句子"*10 紧凑字数=80），产品/品牌各出现一次
-        text = "今天介绍羊肚菌的做法。" + "非常长的一个句子" * 10 + "。滋元堂的产品值得信赖。"
+        text = (
+            "今天介绍羊肚菌的做法。"
+            + "非常长的一个句子" * 10
+            + "。滋元堂的产品值得信赖。"
+        )
         config = {"script": {"max_sentence_length": 30}}
         result = validate_script(text, "羊肚菌", "滋元堂", config=config)
         assert result["ok"] is False
@@ -489,7 +500,9 @@ class TestValidateCantoneseScriptWithConfig:
     def test_config_custom_forbidden_words(self):
         """自定义禁词列表应替换硬编码列表。"""
         padding = "今日介紹一款非常美味嘅食材。" * 10  # compact_len=130
-        text = padding + "羊肚菌係一種美味食材滋元堂品質值得信賴可以治療疾病口感好正。"  # compact_len=29
+        text = (
+            padding + "羊肚菌係一種美味食材滋元堂品質值得信賴可以治療疾病口感好正。"
+        )  # compact_len=29
         config = {"script": {"forbidden_words": ["养生"]}}
         result = validate_cantonese_script(text, "羊肚菌", "滋元堂", config=config)
         # total ≈ 159, within 150-200; "治療" not in custom list
@@ -498,7 +511,9 @@ class TestValidateCantoneseScriptWithConfig:
     def test_config_emoji_allowed(self):
         """配置 emoji_forbidden=False 时 emoji 不应被拒。"""
         padding = "今日介紹一款非常美味嘅食材。" * 11  # compact_len=143
-        text = padding + "羊肚菌係美味食材滋元堂品質值得信賴口感好正😊推薦購買。"  # compact_len≈25
+        text = (
+            padding + "羊肚菌係美味食材滋元堂品質值得信賴口感好正😊推薦購買。"
+        )  # compact_len≈25
         config = {"script": {"emoji_forbidden": False}}
         result = validate_cantonese_script(text, "羊肚菌", "滋元堂", config=config)
         assert result["ok"] is True, f"errors: {result['errors']}"

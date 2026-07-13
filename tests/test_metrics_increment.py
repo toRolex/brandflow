@@ -37,8 +37,26 @@ class TestDiffUpdated:
     """Same video in both snapshots with different numbers."""
 
     def test_updated_delta(self):
-        previous = [_video("相同视频", plays=100, likes=10, followers_gained=1, shares=2, comments=0)]
-        current = [_video("相同视频", plays=150, likes=15, followers_gained=3, shares=5, comments=1)]
+        previous = [
+            _video(
+                "相同视频",
+                plays=100,
+                likes=10,
+                followers_gained=1,
+                shares=2,
+                comments=0,
+            )
+        ]
+        current = [
+            _video(
+                "相同视频",
+                plays=150,
+                likes=15,
+                followers_gained=3,
+                shares=5,
+                comments=1,
+            )
+        ]
         result = compute_metrics_diff(previous, current, CURRENT_DATE, PREVIOUS_DATE)
         s = result["summary"]
         assert s["updated_videos"] == 1
@@ -101,12 +119,30 @@ class TestDiffMixed:
 
         # 5 updated — same titles in both
         for i in range(1, 6):
-            previous.append(_video(f"更新视频{i}", plays=100 * i, likes=10 * i, publish_date=f"2026-07-0{i}"))
-            current.append(_video(f"更新视频{i}", plays=100 * i + 10, likes=10 * i + 1, publish_date=f"2026-07-0{i}"))
+            previous.append(
+                _video(
+                    f"更新视频{i}",
+                    plays=100 * i,
+                    likes=10 * i,
+                    publish_date=f"2026-07-0{i}",
+                )
+            )
+            current.append(
+                _video(
+                    f"更新视频{i}",
+                    plays=100 * i + 10,
+                    likes=10 * i + 1,
+                    publish_date=f"2026-07-0{i}",
+                )
+            )
 
         # 3 new — only in current
         for i in range(1, 4):
-            current.append(_video(f"新视频{i}", plays=50 * i, likes=5 * i, publish_date="2026-07-02"))
+            current.append(
+                _video(
+                    f"新视频{i}", plays=50 * i, likes=5 * i, publish_date="2026-07-02"
+                )
+            )
 
         result = compute_metrics_diff(previous, current, CURRENT_DATE, PREVIOUS_DATE)
         s = result["summary"]
@@ -164,7 +200,11 @@ class TestDiffTopGainers:
             _video("视频C", plays=300),
         ]
         result = compute_metrics_diff([], current, CURRENT_DATE, PREVIOUS_DATE)
-        assert [g["title"] for g in result["top_gainers"]] == ["视频C", "视频B", "视频A"]
+        assert [g["title"] for g in result["top_gainers"]] == [
+            "视频C",
+            "视频B",
+            "视频A",
+        ]
 
     def test_top_gainers_skip_zero(self):
         """Videos with 0 plays_delta should not appear in top_gainers."""
@@ -195,7 +235,9 @@ class TestDiffDetail:
 
     def test_detail_included_when_requested(self):
         current = [_video("视频A", plays=100)]
-        result = compute_metrics_diff([], current, CURRENT_DATE, PREVIOUS_DATE, include_detail=True)
+        result = compute_metrics_diff(
+            [], current, CURRENT_DATE, PREVIOUS_DATE, include_detail=True
+        )
         assert "detail" in result
         assert len(result["detail"]) == 1
 

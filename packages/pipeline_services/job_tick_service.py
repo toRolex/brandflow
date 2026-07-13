@@ -353,7 +353,11 @@ def _transition_after_artifacts(
     effective_phase = phase if phase is not None else record.phase
 
     # Import mode: subtitle_generating → montage_assembling (not asset_retrieving)
-    if record.mode == "import" and effective_phase == "subtitle_generating" and artifacts:
+    if (
+        record.mode == "import"
+        and effective_phase == "subtitle_generating"
+        and artifacts
+    ):
         return TickAction(
             new_phase="montage_assembling",
             message="subtitle_generating → montage_assembling (import mode)",
@@ -494,6 +498,7 @@ class JobTickService:
                     scene_cfg = self._config.get_scene_config(product_id=product)
                 else:
                     from packages.provider_config.config_reader import ConfigReader
+
                     scene_cfg = ConfigReader().get_scene_config(product_id=product)
                 scene_config = scene_cfg
                 scene_folder_paths = [

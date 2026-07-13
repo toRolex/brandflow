@@ -7,9 +7,7 @@ from packages.domain_core.models import JobRecord
 from packages.file_store.repository import FileStoreRepository
 
 
-def _save_test_job(
-    app, project_id: str, job_id: str, **overrides: object
-) -> None:
+def _save_test_job(app, project_id: str, job_id: str, **overrides: object) -> None:
     repo = FileStoreRepository(app.state.root_dir)
     record = JobRecord(
         job_id=job_id,

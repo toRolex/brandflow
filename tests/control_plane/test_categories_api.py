@@ -116,7 +116,9 @@ class TestCategoriesEndpoint:
         # Without product or asset_library config, falls back to 10 food defaults
         assert len(data) == 10
 
-    def test_product_with_empty_categories_returns_defaults(self, tmp_path: Path) -> None:
+    def test_product_with_empty_categories_returns_defaults(
+        self, tmp_path: Path
+    ) -> None:
         """Product with explicitly empty categories list falls back to defaults."""
         client = _client(tmp_path)
         client.post("/api/products/prod_empty/switch")

@@ -66,7 +66,12 @@ class Dispatcher:
                         "input_bundle_url": f"/workers/tasks/{task_id}/input-bundle",
                         "report_url": f"/workers/tasks/{task_id}/report",
                         "heartbeat_url": f"/workers/tasks/{task_id}/heartbeat",
-                        "expected_outputs": ["script", "audio", "subtitles", "final_video"],
+                        "expected_outputs": [
+                            "script",
+                            "audio",
+                            "subtitles",
+                            "final_video",
+                        ],
                         "runtime_limits": {"max_seconds": 1800},
                         "manual_script": record.manual_script,
                         "uploaded_audio_path": record.uploaded_audio_path,

@@ -93,9 +93,7 @@ class TestKnowledgeStoreSellingPoints:
         assert len(points) == 1  # only priority 3
         assert points[0].priority == 3
 
-    def test_list_selling_points_filter_by_priority_range(
-        self, tmp_path: Path
-    ) -> None:
+    def test_list_selling_points_filter_by_priority_range(self, tmp_path: Path) -> None:
         store = KnowledgeStore(tmp_path)
         self._populate(store)
         points = store.list_selling_points(priority_min=3, priority_max=4)
@@ -110,9 +108,7 @@ class TestKnowledgeStoreSellingPoints:
         assert len(points) == 1
         assert points[0].id == "sp_003"
 
-    def test_list_selling_points_filter_by_multiple_tags(
-        self, tmp_path: Path
-    ) -> None:
+    def test_list_selling_points_filter_by_multiple_tags(self, tmp_path: Path) -> None:
         store = KnowledgeStore(tmp_path)
         self._populate(store)
         # Items matching ANY of the tags
@@ -169,9 +165,7 @@ class TestKnowledgeStoreSellingPoints:
         assert sp.priority == 1
         assert sp.tags == ["更新标签"]
 
-    def test_get_top_selling_points_returns_by_priority(
-        self, tmp_path: Path
-    ) -> None:
+    def test_get_top_selling_points_returns_by_priority(self, tmp_path: Path) -> None:
         store = KnowledgeStore(tmp_path)
         self._populate(store)
         top = store.get_top_selling_points(top_k=2)
@@ -234,9 +228,7 @@ class TestKnowledgeStoreRefresh:
         ]
         store.save_items(items)
 
-    def test_refresh_all_removes_old_items_and_adds_new(
-        self, tmp_path: Path
-    ) -> None:
+    def test_refresh_all_removes_old_items_and_adds_new(self, tmp_path: Path) -> None:
         store = KnowledgeStore(tmp_path)
         self._populate_docs_and_items(store)
 

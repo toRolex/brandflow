@@ -120,11 +120,13 @@ class TestKnowledgeStore:
 
     def test_get_top_k_empty_when_no_items(self, tmp_path: Path) -> None:
         store = KnowledgeStore(tmp_path)
-        assert store.get_top_k_items(item_type=KnowledgeItemType.SELLING_POINT, k=5) == []
+        assert (
+            store.get_top_k_items(item_type=KnowledgeItemType.SELLING_POINT, k=5) == []
+        )
 
     def test_directory_created_on_init(self, tmp_path: Path) -> None:
         store_path = tmp_path / "knowledge"
-        store = KnowledgeStore(store_path)
+        KnowledgeStore(store_path)
         assert store_path.exists()
         assert store_path.is_dir()
 
