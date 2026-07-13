@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobSummary, ScheduleEntry, MusicTrack, ProductionMode, ScriptTemplate } from "../types";
+import type { JobSummary, MusicTrack, ProductionMode, ScriptTemplate } from "../types";
 import type { SingleJobFormData } from "../components/CreateJobForm";
 import type { BatchConfig } from "../utils/batchScriptSplit";
 import WorkbenchShell from "../components/WorkbenchShell";
@@ -10,7 +10,7 @@ import BatchCreateForm from "../components/BatchCreateForm";
 import ProjectTabs from "../components/ProjectTabs";
 import ConfirmDialog from "../components/ConfirmDialog";
 
-type TabKey = "jobs" | "schedule" | "scene";
+type TabKey = "jobs";
 
 export default function ProjectWorkbench() {
   const { id } = useParams<{ id: string }>();
@@ -18,7 +18,6 @@ export default function ProjectWorkbench() {
 
   /* ── 共享状态 ── */
   const [jobs, setJobs] = useState<JobSummary[]>([]);
-  const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<TabKey>("jobs");
@@ -62,13 +61,6 @@ export default function ProjectWorkbench() {
     } catch (e) {
       console.error("load project failed", e);
       setError("加载项目数据失败");
-    }
-    try {
-      const sched = await api.getSchedule({ project_id: id });
-      setSchedule(sched);
-    } catch (e) {
-      console.error("load schedule failed", e);
-      setError("加载排期数据失败");
     }
   }, [id]);
 
@@ -247,14 +239,6 @@ export default function ProjectWorkbench() {
     }
   };
 
-  const handleExportSchedule = async () => {
-    try {
-      await api.exportSchedule();
-    } catch {
-      setError("导出排期失败");
-    }
-  };
-
   return (
     <WorkbenchShell
       projectName={projectName}
@@ -360,13 +344,11 @@ export default function ProjectWorkbench() {
         tab={tab}
         onTabChange={setTab}
         jobs={jobs}
-        schedule={schedule}
         selectedJobIds={selectedJobIds}
         onSelectionChange={setSelectedJobIds}
         onRetry={handleRetry}
         onDeleteJob={handleDeleteJob}
         onRenameJob={handleRenameJob}
-        onExportSchedule={handleExportSchedule}
       />
 
       {/* ── ConfirmDialog ── */}

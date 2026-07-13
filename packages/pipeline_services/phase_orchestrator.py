@@ -44,7 +44,6 @@ def create_orchestrator(
 
     *config_reader* is required — all config reads go through it.
     """
-    from apps.control_plane.services.schedule_store import ScheduleStore
     from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
     from packages.pipeline_services.subtitle_service import SubtitleService
     from packages.pipeline_services.video_service import VideoService
@@ -53,7 +52,6 @@ def create_orchestrator(
         script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
-        schedule_store=ScheduleStore(root_dir),
         config_reader=config_reader,
     )
 
@@ -128,8 +126,8 @@ class PhaseOrchestrator:
         script_bridge: LegacyScriptBridge,
         subtitle_svc: SubtitleService,
         video_svc: VideoService,
-        schedule_store: Any,
         *,
+        schedule_store: Any = None,
         config_reader: ConfigReader | None = None,
         secret_store: SecretStore | None = None,
         get_tts_config: Callable[[], dict[str, Any]] | None = None,
@@ -779,12 +777,6 @@ class PhaseOrchestrator:
             print(
                 f"[FINAL] {ctx.job_id}: final.mp4 produced ({final_path.stat().st_size} bytes)",
                 flush=True,
-            )
-            self._schedule_store.add(
-                job_id=ctx.job_id,
-                platform=platform,
-                title=ctx.product,
-                description="",
             )
             return [self._to_artifact("final_video", final_path, workspace_dir)]
         print(f"[FINAL] {ctx.job_id}: final.mp4 NOT produced", flush=True)
