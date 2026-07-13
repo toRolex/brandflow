@@ -124,17 +124,6 @@ export default function SmartAssetLibrary({ projectId }: Props) {
     return counts;
   }, [productFilteredAssets, configuredCategories]);
 
-  const unmappedCategoryNames = useMemo(() => {
-    const configuredNames = new Set(configuredCategories.map((c) => c.name));
-    const found = new Set<string>();
-    for (const asset of productFilteredAssets) {
-      if (asset.category && !configuredNames.has(asset.category)) {
-        found.add(asset.category);
-      }
-    }
-    return Array.from(found).sort();
-  }, [productFilteredAssets, configuredCategories]);
-
   const durationRange = useMemo(() => {
     if (assets.length === 0) return { min: 0, max: 0 };
     const durations = assets.map((a) => a.duration_seconds);
@@ -524,22 +513,12 @@ export default function SmartAssetLibrary({ projectId }: Props) {
             value={filters.category}
             onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
           >
-            <option value="">全部分类 ({productFilteredAssets.length})</option>
+            <option value="">全部分类 ({stats.total})</option>
             {configuredCategories.map((cat) => (
               <option key={cat.id} value={cat.name}>
                 {cat.name} ({categoryCounts.get(cat.name) ?? 0})
               </option>
             ))}
-            {unmappedCategoryNames.length > 0 && (
-              <>
-                <option disabled>── 未映射/历史分类 ──</option>
-                {unmappedCategoryNames.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat} ({categoryCounts.get(cat) ?? 0})
-                  </option>
-                ))}
-              </>
-            )}
           </select>
 
           <select
