@@ -84,7 +84,7 @@ class TestAutoTickLoop:
                 from apps.control_plane.app import _auto_tick
 
                 with pytest.raises(_LoopDone):
-                    await _auto_tick(root_dir)
+                    await _auto_tick(root_dir, None)
         finally:
             for p in patchers:
                 p.stop()

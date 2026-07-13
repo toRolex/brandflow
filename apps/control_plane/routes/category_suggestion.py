@@ -7,10 +7,14 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from packages.pipeline_services.asset_library.category_config import (
+    get_categories,
+)
 from packages.pipeline_services.asset_library.category_suggestion import (
     suggest_categories,
 )
-from packages.provider_config.app_config import AppConfigManager
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 
 router = APIRouter(prefix="/api/assets/categories", tags=["api-assets"])
 
@@ -42,16 +46,17 @@ async def suggest(request: Request, body: SuggestRequest) -> SuggestResponse:
     via the LLM API.
     """
     root_dir: Path = request.app.state.root_dir
-    manager = AppConfigManager()
+    config_reader: ConfigReader = request.app.state.config_reader
+    secret_store: SecretStore = request.app.state.secret_store
 
-    sample_size = body.sample_size or manager.get_category_suggestion_sample_size()
-    llm_model = body.model or manager.get_category_suggestion_model()
+    sample_size = body.sample_size or config_reader.get_category_suggestion_sample_size()
+    llm_model = body.model or config_reader.get_category_suggestion_model()
 
     # Build LLM config override with the specified model
     llm_config = {
-        "provider": manager.get_llm_config().get("provider", "deepseek"),
-        "api_key": manager.get_llm_api_key(),
-        "endpoint": manager.get_llm_endpoint(),
+        "provider": config_reader.get_llm_config().get("provider", "deepseek"),
+        "api_key": secret_store.get_llm_api_key(config_reader),
+        "endpoint": secret_store.get_llm_endpoint(config_reader),
         "model": llm_model,
     }
 
@@ -71,10 +76,16 @@ async def suggest(request: Request, body: SuggestRequest) -> SuggestResponse:
 
 
 @router.get("")
-async def list_categories() -> list[dict]:
-    """Return the currently configured asset categories."""
-    manager = AppConfigManager()
+async def list_categories(request: Request) -> list[dict]:
+    """Return the currently configured asset categories.
+
+    Uses the app config directory so that product-level categories are respected
+    when running with a non-default ``config_dir`` (e.g. in tests).
+    """
+    root_dir: Path = request.app.state.root_dir
+    config_reader = ConfigReader(config_dir=str(root_dir / "config"))
+    active_id = config_reader.active_product_id
     return [
         {"id": c.id, "name": c.name, "description": c.description}
-        for c in manager.get_categories()
+        for c in get_categories(config_reader, product_id=active_id or None)
     ]

@@ -1,21 +1,18 @@
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
 from pathlib import Path
 
+from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 from packages.runtime_adapters.base import BaseRuntimeAdapter
 
 
 class MacLocalRuntimeAdapter(BaseRuntimeAdapter):
     """Runtime adapter for macOS development environment.
 
-    Locates ffmpeg by probing, in order:
+    Locates ffmpeg using the shared resolver:
       1. ``FFMPEG_PATH`` environment variable
-      2. ``brew --prefix ffmpeg`` output
-      3. ``tools/bin/ffmpeg`` relative to CWD
-      4. ``shutil.which("ffmpeg")`` (system PATH)
+      2. ``tools/bin/ffmpeg`` relative to CWD
+      3. ``shutil.which('ffmpeg')`` (system PATH)
     """
 
     profile_name = "mac-local"
@@ -24,40 +21,11 @@ class MacLocalRuntimeAdapter(BaseRuntimeAdapter):
         return None
 
     def ffmpeg_path(self) -> Path:
-        # 1. Explicit env var
-        env = os.environ.get("FFMPEG_PATH")
-        if env is not None:
-            path = Path(env)
-            if path.exists():
-                return path
+        """Return the resolved path to ``ffmpeg``.
 
-        # 2. Homebrew
-        try:
-            brew_prefix = subprocess.check_output(
-                ["brew", "--prefix", "ffmpeg"],
-                text=True,
-                stderr=subprocess.DEVNULL,
-            ).strip()
-            path = Path(brew_prefix) / "bin" / "ffmpeg"
-            if path.exists():
-                return path
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
-
-        # 3. tools/bin
-        local = Path("tools/bin/ffmpeg")
-        if local.exists():
-            return local
-
-        # 4. System PATH
-        which = shutil.which("ffmpeg")
-        if which:
-            return Path(which)
-
-        raise FileNotFoundError(
-            "ffmpeg not found. Install via 'brew install ffmpeg' "
-            "or set FFMPEG_PATH env var"
-        )
+        Raises :class:`ToolNotFoundError` if ffmpeg cannot be located.
+        """
+        return Path(_resolve_ffmpeg_path())
 
     def attempt_root(self, workspace_root: Path, attempt_id: str) -> Path:
         root = workspace_root / "attempts" / attempt_id

@@ -7,6 +7,10 @@ Old code may continue using ``Category`` for backward compatibility.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from packages.provider_config.config_reader import ConfigReader
 
 
 @dataclass
@@ -49,3 +53,46 @@ def default_categories() -> list[CategoryConfig]:
         CategoryConfig(id="tasting", name="试吃品尝"),
         CategoryConfig(id="macro", name="产品特写"),
     ]
+
+
+def _dict_to_category_config(d: dict) -> CategoryConfig:
+    """Convert a raw dict to a CategoryConfig."""
+    return CategoryConfig(
+        id=d.get("id", ""),
+        name=d.get("name", ""),
+        description=d.get("description", ""),
+        vision_prompt=d.get("vision_prompt", ""),
+    )
+
+
+def get_categories(
+    reader: "ConfigReader", product_id: str | None = None
+) -> list[CategoryConfig]:
+    """Return the configured asset categories with priority chain.
+
+    Priority chain:
+    1. ``product.categories`` (product-level override)
+    2. ``asset_library.categories`` (instance-level)
+    3. ``default_categories()`` (food fallback)
+
+    Args:
+        reader: A ``ConfigReader`` instance.
+        product_id: Optional product ID. When None, uses active product.
+
+    Returns:
+        List of ``CategoryConfig`` instances.
+    """
+    # Priority 1: product-level categories
+    product_config = reader.get_product_config(product_id=product_id)
+    product_cats: list[dict] = product_config.get("categories", [])
+    if product_cats:
+        return [_dict_to_category_config(c) for c in product_cats]
+
+    # Priority 2: asset_library categories (instance-level)
+    al_config = reader.get_asset_library_config()
+    raw: list[dict] = al_config.get("categories", [])
+    if raw:
+        return [_dict_to_category_config(c) for c in raw]
+
+    # Priority 3: default food categories
+    return default_categories()

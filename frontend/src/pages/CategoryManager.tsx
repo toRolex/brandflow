@@ -14,6 +14,17 @@ interface FormErrors {
 
 const EMPTY_FORM: FormData = { name: "", description: "", vision_prompt: "" };
 
+/** Generate a stable machine-readable id from a category name.
+ *  Lowercase, replace spaces with underscores, strip non-alphanumeric chars.
+ *  Falls back to a timestamp-based id for pure-Chinese names. */
+function generateCategoryId(name: string): string {
+  const cleaned = name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+  if (!cleaned.replace(/_/g, "")) {
+    return `cat_${Date.now().toString(36)}`;
+  }
+  return cleaned;
+}
+
 export default function CategoryManager() {
   const [config, setConfig] = useState<ProductConfig | null>(null);
   const [loading, setLoading] = useState(false);
@@ -63,10 +74,12 @@ export default function CategoryManager() {
     setSaveMsg(null);
 
     if (editingIndex !== null) {
-      // Edit existing category
+      // Edit existing category — preserve existing id
+      const existingId = categories[editingIndex]?.id;
       const updatedCategories = categories.map((c, i) =>
         i === editingIndex
           ? {
+              id: existingId || generateCategoryId(formData.name.trim()),
               name: formData.name.trim(),
               description: formData.description.trim(),
               vision_prompt: formData.vision_prompt.trim(),
@@ -89,8 +102,9 @@ export default function CategoryManager() {
         setSaveMsg("保存失败");
       }
     } else {
-      // Add new category
+      // Add new category — auto-generate id
       const newCategory: CategoryConfig = {
+        id: generateCategoryId(formData.name.trim()),
         name: formData.name.trim(),
         description: formData.description.trim(),
         vision_prompt: formData.vision_prompt.trim(),
@@ -179,16 +193,18 @@ export default function CategoryManager() {
 
     const checked = suggestions.filter((s) => pendingSuggestionNames.has(s.label));
     const newCategories: CategoryConfig[] = checked.map((s) => ({
+      id: generateCategoryId(s.label),
       name: s.label,
       description: s.description,
       vision_prompt: s.vision_prompt,
     }));
 
-    // Merge with existing categories, avoid duplicates by name
+    // Merge with existing categories, avoid duplicates by id then by name
+    const existingIds = new Set(categories.map((c) => c.id));
     const existingNames = new Set(categories.map((c) => c.name));
     const merged = [
       ...categories,
-      ...newCategories.filter((c) => !existingNames.has(c.name)),
+      ...newCategories.filter((c) => !existingIds.has(c.id) && !existingNames.has(c.name)),
     ];
 
     try {
@@ -307,7 +323,7 @@ export default function CategoryManager() {
             </thead>
             <tbody>
               {categories.map((cat, i) => (
-                <tr key={cat.name} className="border-b border-[var(--border-subtle)] last:border-0">
+                <tr key={cat.id} className="border-b border-[var(--border-subtle)] last:border-0">
                   <td className="px-5 py-4 text-sm font-medium">{cat.name}</td>
                   <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">{cat.description}</td>
                   <td className="px-5 py-4 text-sm text-[var(--text-tertiary)] font-mono">{cat.vision_prompt}</td>

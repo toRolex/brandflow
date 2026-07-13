@@ -3,6 +3,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from packages.pipeline_services.media_utils import _resolve_ffprobe_path
+
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".flac", ".aac", ".m4a"}
 
@@ -40,9 +42,10 @@ class MusicLibrary:
     @staticmethod
     def _probe_duration(path: Path) -> float | None:
         try:
+            ffprobe = _resolve_ffprobe_path()
             result = subprocess.run(
                 [
-                    "ffprobe",
+                    ffprobe,
                     "-v",
                     "quiet",
                     "-show_entries",

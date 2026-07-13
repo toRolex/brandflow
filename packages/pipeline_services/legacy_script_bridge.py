@@ -2,14 +2,37 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from packages.pipeline_services.script_service import ScriptGenerator
 
+if TYPE_CHECKING:
+    from packages.provider_config.config_reader import ConfigReader
+    from packages.provider_config.secret_store import SecretStore
+
 
 class LegacyScriptBridge:
-    def __init__(self, root_dir: Path):
+    def __init__(
+        self,
+        root_dir: Path,
+        config_reader: "ConfigReader | None" = None,
+        secret_store: "SecretStore | None" = None,
+    ):
         self._root_dir = root_dir
+        self._config_reader = config_reader
+        self._secret_store = secret_store
+
+    def _get_or_create_reader(self) -> "ConfigReader":
+        if self._config_reader is not None:
+            return self._config_reader
+        from packages.provider_config.config_reader import ConfigReader
+        return ConfigReader(config_dir=str(self._root_dir / "config"))
+
+    def _get_or_create_secrets(self) -> "SecretStore":
+        if self._secret_store is not None:
+            return self._secret_store
+        from packages.provider_config.secret_store import SecretStore
+        return SecretStore()
 
     def generate(
         self,
@@ -20,14 +43,13 @@ class LegacyScriptBridge:
         language: str = "mandarin",
         brand: str = "",
     ) -> dict[str, Any]:
-        from packages.provider_config.app_config import AppConfigManager
-
-        config = AppConfigManager()
-        llm_config = config.get_llm_config()
+        reader = self._get_or_create_reader()
+        secrets = self._get_or_create_secrets()
+        llm_config = reader.get_llm_config()
 
         class _Config:
-            api_key = config.get_llm_api_key()
-            base_url = config.get_llm_endpoint()
+            api_key = secrets.get_llm_api_key(reader)
+            base_url = secrets.get_llm_endpoint(reader)
             model = llm_config.get("model", "deepseek-v4-pro")
 
         generator = ScriptGenerator(_Config())

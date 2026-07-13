@@ -1,48 +1,30 @@
 from __future__ import annotations
 
-import os
-import platform
 import subprocess
 import logging
 from pathlib import Path
+
+from packages.pipeline_services.media_utils import (
+    _resolve_ffmpeg_path,
+    _resolve_ffprobe_path,
+)
 
 logger = logging.getLogger(__name__)
 
 FFMPEG_TIMEOUT = 30
 THUMBNAIL_WIDTH = 220
 
-_IS_WINDOWS = platform.system() == "Windows"
-
-_DEFAULT_TOOLS = {
-    "Windows": {
-        "FFMPEG_PATH": "tools/bin/ffmpeg.exe",
-        "FFPROBE_PATH": "tools/bin/ffprobe.exe",
-    },
-}
-
-
-def _resolve_tool_path(path_str: str) -> str:
-    """Resolve tool path: if it looks like a relative path (contains separators), make it absolute relative to CWD."""
-    if "/" in path_str or "\\" in path_str:
-        p = Path(path_str)
-        if not p.is_absolute():
-            p = Path.cwd() / p
-        return str(p)
-    return path_str
-
-
-def _get_default(env_key: str, fallback_name: str) -> str:
-    defaults = _DEFAULT_TOOLS.get(platform.system(), {})
-    return os.environ.get(env_key, defaults.get(env_key, fallback_name))
-
 
 class ThumbnailGenerator:
-    def __init__(self, ffmpeg_path: str | None = None) -> None:
-        if ffmpeg_path is None:
-            ffmpeg_path = _get_default("FFMPEG_PATH", "ffmpeg")
-        self.ffmpeg_path = _resolve_tool_path(ffmpeg_path)
-        ffprobe_path = _get_default("FFPROBE_PATH", "ffprobe")
-        self.ffprobe_path = _resolve_tool_path(ffprobe_path)
+    def __init__(
+        self, ffmpeg_path: str | None = None, ffprobe_path: str | None = None
+    ) -> None:
+        self.ffmpeg_path = (
+            ffmpeg_path if ffmpeg_path is not None else _resolve_ffmpeg_path()
+        )
+        self.ffprobe_path = (
+            ffprobe_path if ffprobe_path is not None else _resolve_ffprobe_path()
+        )
 
     def generate(self, video_path: Path, output_path: Path) -> bool:
         try:

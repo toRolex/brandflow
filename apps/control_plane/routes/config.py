@@ -11,7 +11,6 @@ from packages.provider_config import (
     provider_options_payload,
     save_provider_config,
 )
-from packages.provider_config.app_config import AppConfigManager
 from packages.provider_config.store import CLEAR_SECRET_SENTINEL
 
 router = APIRouter(tags=["config"])
@@ -98,23 +97,30 @@ def _normalize_payload(payload: dict) -> dict:
     return normalized
 
 
-def _app_config(request: Request) -> AppConfigManager:
-    return AppConfigManager(config_dir=str(request.app.state.root_dir / "config"))
+def _resolve_product_config(reader) -> dict:
+    """Return the active product's merged config, or root-level config if none active."""
+    reader.reload()
+    active_id = reader.active_product_id
+    if active_id:
+        return reader.get_product_config(product_id=active_id)
+    return reader.get_product_config()
 
 
 @router.get("/api/config/product")
 def get_product_config(request: Request) -> dict:
-    return _app_config(request).get_product_config()
+    reader = request.app.state.config_reader
+    return _resolve_product_config(reader)
 
 
 @router.put("/api/config/product")
 def put_product_config(request: Request, payload: dict) -> dict:
-    cfg = _app_config(request)
-    cfg.set_product_config(payload)
-    return cfg.get_product_config()
+    product_store = request.app.state.product_store
+    reader = request.app.state.config_reader
+    product_store.set_product_config(payload)
+    return _resolve_product_config(reader)
 
 
 @router.delete("/api/config/product")
 def delete_product_config(request: Request) -> dict:
-    _app_config(request).reset_product_config()
+    request.app.state.product_store.reset_product_config()
     return {"status": "ok"}

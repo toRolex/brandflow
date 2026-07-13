@@ -227,12 +227,16 @@ class TestRunScriptLLM:
 
 
 class TestRunScriptCoverTitle:
-    @patch("packages.pipeline_services.phase_orchestrator.AppConfigManager")
+    @patch.object(PhaseOrchestrator, "_resolve_llm_config")
+    @patch.object(PhaseOrchestrator, "_resolve_api_key")
+    @patch.object(PhaseOrchestrator, "_resolve_api_url")
     @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
     def test_auto_generates_cover_title_when_missing(
         self,
         mock_sg_cls: MagicMock,
-        mock_acm_cls: MagicMock,
+        mock_endpoint: MagicMock,
+        mock_api_key: MagicMock,
+        mock_llm_config: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
     ):
@@ -249,6 +253,10 @@ class TestRunScriptCoverTitle:
             encoding="utf-8",
         )
 
+        mock_llm_config.return_value = {"model": "deepseek-v4-pro"}
+        mock_api_key.return_value = "fake-api-key"
+        mock_endpoint.return_value = "https://api.example.com"
+
         # Mock ScriptGenerator
         mock_gen = MagicMock()
         mock_sg_cls.return_value = mock_gen
@@ -264,12 +272,16 @@ class TestRunScriptCoverTitle:
         updated = json.loads(job_json_path.read_text(encoding="utf-8"))
         assert updated["cover_title"]["text"] == "羊肚菌美味"
 
-    @patch("packages.pipeline_services.phase_orchestrator.AppConfigManager")
+    @patch.object(PhaseOrchestrator, "_resolve_llm_config")
+    @patch.object(PhaseOrchestrator, "_resolve_api_key")
+    @patch.object(PhaseOrchestrator, "_resolve_api_url")
     @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
     def test_skips_cover_title_when_already_set(
         self,
         mock_sg_cls: MagicMock,
-        mock_acm_cls: MagicMock,
+        mock_endpoint: MagicMock,
+        mock_api_key: MagicMock,
+        mock_llm_config: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
     ):
@@ -294,12 +306,16 @@ class TestRunScriptCoverTitle:
 
         mock_sg_cls.assert_not_called()
 
-    @patch("packages.pipeline_services.phase_orchestrator.AppConfigManager")
+    @patch.object(PhaseOrchestrator, "_resolve_llm_config")
+    @patch.object(PhaseOrchestrator, "_resolve_api_key")
+    @patch.object(PhaseOrchestrator, "_resolve_api_url")
     @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
     def test_cover_title_error_does_not_propagate(
         self,
         mock_sg_cls: MagicMock,
-        mock_acm_cls: MagicMock,
+        mock_endpoint: MagicMock,
+        mock_api_key: MagicMock,
+        mock_llm_config: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
         capsys: pytest.CaptureFixture,
@@ -376,7 +392,7 @@ def _make_orchestrator_with_tts_config(tts_provider=None, tts_config=None):
         get_tts_config=lambda: tts_config or dict(_FAKE_TTS_CONFIG),
     )
     mock_provider = tts_provider or MagicMock()
-    orch._build_tts_provider = staticmethod(lambda cfg: mock_provider)
+    orch._build_tts_provider = lambda cfg: mock_provider
     return orch
 
 

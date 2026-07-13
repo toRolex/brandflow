@@ -16,7 +16,12 @@ from pathlib import Path
 
 from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.asset_library.repository import AssetRepository
-from packages.provider_config.app_config import AppConfigManager
+from packages.pipeline_services.media_utils import (
+    _resolve_ffmpeg_path,
+    _resolve_ffprobe_path,
+)
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 
 logger = logging.getLogger(__name__)
 
@@ -57,36 +62,34 @@ _CATEGORIZE_PROMPT_TEMPLATE = """你是一个视频素材分类系统设计师�
 
 
 def _resolve_vision_api_config() -> dict:
-    """Resolve vision API connection details from AppConfigManager."""
-    manager = AppConfigManager()
-    config = manager.get_vision_config()
+    """Resolve vision API connection details from ConfigReader + SecretStore."""
+    reader = ConfigReader()
+    secrets = SecretStore()
+    config = reader.get_vision_config()
     return {
         "provider": config.get("provider", "xiaomi"),
-        "api_key": manager.get_vision_api_key(),
-        "endpoint": manager.get_vision_endpoint(),
-        "model": manager.get_vision_model(),
+        "api_key": secrets.get_vision_api_key(reader),
+        "endpoint": secrets.get_vision_endpoint(reader),
+        "model": secrets.get_vision_model(reader),
     }
 
 
 def _resolve_llm_api_config() -> dict:
-    """Resolve LLM API connection details from AppConfigManager."""
-    manager = AppConfigManager()
-    config = manager.get_llm_config()
+    """Resolve LLM API connection details from ConfigReader + SecretStore."""
+    reader = ConfigReader()
+    secrets = SecretStore()
+    config = reader.get_llm_config()
     return {
         "provider": config.get("provider", "deepseek"),
-        "api_key": manager.get_llm_api_key(),
-        "endpoint": manager.get_llm_endpoint(),
-        "model": manager.get_category_suggestion_model(),
+        "api_key": secrets.get_llm_api_key(reader),
+        "endpoint": secrets.get_llm_endpoint(reader),
+        "model": reader.get_category_suggestion_model(),
     }
-
-
-def _ffmpeg_path() -> str:
-    return os.environ.get("FFMPEG_PATH", "ffmpeg")
 
 
 def _get_media_duration(video_path: Path) -> float | None:
     """Get video duration in seconds using ffprobe."""
-    ffprobe = os.environ.get("FFPROBE_PATH", "ffprobe")
+    ffprobe = _resolve_ffprobe_path()
     try:
         result = subprocess.run(
             [
@@ -122,7 +125,7 @@ def _extract_frame(video_path: Path, output_dir: Path) -> Path | None:
 
         midpoint = duration / 2
         output_path = output_dir / f"{video_path.stem}.jpg"
-        ffmpeg = _ffmpeg_path()
+        ffmpeg = _resolve_ffmpeg_path()
 
         subprocess.run(
             [
@@ -295,10 +298,10 @@ def suggest_categories(
         Maximum number of assets to sample for analysis.
     llm_config:
         Optional override for LLM config (provider, api_key, endpoint, model).
-        When ``None``, resolves from ``AppConfigManager``.
+        When ``None``, resolves from ``ConfigReader`` + ``SecretStore``.
     vision_config:
         Optional override for Vision config (provider, api_key, endpoint, model).
-        When ``None``, resolves from ``AppConfigManager``.
+        When ``None``, resolves from ``ConfigReader`` + ``SecretStore``.
 
     Returns
     -------

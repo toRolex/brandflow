@@ -367,7 +367,6 @@ class TestResolveVisionConfig:
     def test_returns_dict_with_keys(self) -> None:
         """resolve_vision_api_config should return a dict with expected keys."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create a minimal config to avoid polluting real config
             config_dir = Path(tmpdir)
             config_path = config_dir / "app_config.json"
             config_path.write_text(
@@ -379,18 +378,21 @@ class TestResolveVisionConfig:
             )
 
             with patch(
-                "packages.pipeline_services.asset_library.category_suggestion.AppConfigManager"
-            ) as MockManager:
-                mock_instance = MockManager.return_value
-                mock_instance.get_vision_config.return_value = {
+                "packages.pipeline_services.asset_library.category_suggestion.ConfigReader"
+            ) as MockReader, patch(
+                "packages.pipeline_services.asset_library.category_suggestion.SecretStore"
+            ) as MockSecrets:
+                mock_reader = MockReader.return_value
+                mock_reader.get_vision_config.return_value = {
                     "provider": "xiaomi",
                     "model": "mimo-v2.5",
                 }
-                mock_instance.get_vision_api_key.return_value = "test-key"
-                mock_instance.get_vision_endpoint.return_value = (
+                mock_secrets = MockSecrets.return_value
+                mock_secrets.get_vision_api_key.return_value = "test-key"
+                mock_secrets.get_vision_endpoint.return_value = (
                     "https://vision.test/chat/completions"
                 )
-                mock_instance.get_vision_model.return_value = "mimo-v2.5"
+                mock_secrets.get_vision_model.return_value = "mimo-v2.5"
 
                 config = _resolve_vision_api_config()
 
