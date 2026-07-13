@@ -329,10 +329,15 @@ export const api = {
       body: JSON.stringify(config),
     }),
 
-  getTTSVoices: (provider?: string) =>
-    request<{ preset_voices: Array<{ id: string; label: string; note: string }> }>(
-      `/api/tts/voices${provider ? `?provider=${provider}` : ""}`
-    ),
+  getTTSVoices: (provider?: string, model?: string) => {
+    const params = new URLSearchParams();
+    if (provider) params.set("provider", provider);
+    if (model) params.set("model", model);
+    const qs = params.toString();
+    return request<{ preset_voices: Array<{ id: string; label: string; note: string; model: string }> }>(
+      `/api/tts/voices${qs ? `?${qs}` : ""}`
+    );
+  },
 
   previewTTS: async (requestBody: { text: string; model?: string; voice?: string; style_prompt?: string; voice_design_prompt?: string; instructions?: string; optimize_instructions?: boolean; language_type?: string }) => {
     const res = await fetch("/api/tts/preview", {
