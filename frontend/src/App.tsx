@@ -10,7 +10,6 @@ import ConfigPage from "./pages/ConfigPage";
 import ProductConfigForm from "./pages/ProductConfigForm";
 import ScriptTemplateList from "./pages/ScriptTemplateList";
 import ScriptTemplateEditor from "./pages/ScriptTemplateEditor";
-import CategoryManager from "./pages/CategoryManager";
 import QualityRulesForm from "./pages/QualityRulesForm";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
 import TTSConfig from "./pages/TTSConfig";
@@ -31,7 +30,6 @@ export default function App() {
             <Route path="/system/config/product" element={<ProductConfigForm />} />
             <Route path="/system/config/templates" element={<ScriptTemplateList />} />
             <Route path="/system/config/templates/:id" element={<ScriptTemplateEditor />} />
-            <Route path="/system/config/categories" element={<CategoryManager />} />
             <Route path="/system/config/quality" element={<QualityRulesForm />} />
             <Route path="/system/config/knowledge" element={<KnowledgeBasePage />} />
             <Route path="/tts-config" element={<TTSConfig />} />

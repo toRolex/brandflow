@@ -15,6 +15,7 @@ logs/
 reports/
 .codex-memory/
 tools/bin/
+tools/*.exe
 tools/models/
 tools/downloads/
 .worktrees/

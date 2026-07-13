@@ -77,6 +77,7 @@ def _sanitize_filename(filename: str) -> str:
     return Path(filename).name
 
 
+# DEPRECATED: Per-project asset management. Use global /api/assets endpoints instead.
 @router.post("/{project_id}/upload")
 async def upload_asset(request: Request, project_id: str, file: UploadFile):
     if not file.filename:
@@ -93,6 +94,7 @@ async def upload_asset(request: Request, project_id: str, file: UploadFile):
     return {"name": safe_name, "size_bytes": len(content), "in_use": False}
 
 
+# DEPRECATED: Per-project asset management. Use global /api/assets endpoints instead.
 @router.get("/{project_id}/assets")
 def list_assets(request: Request, project_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
@@ -107,13 +109,16 @@ def _asset_db_path(project_dir: Path) -> Path:
     return project_dir / "asset_index.db"
 
 
+# DEPRECATED: Per-project asset management. Use global /api/assets endpoints instead.
 @router.get("/{project_id}/assets/indexed")
 def get_indexed_assets(
     request: Request,
     project_id: str,
     category: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    product: str | None = Query(default=None),  # DEPRECATED: 全局端点 /api/assets/indexed 已支持
 ):
+    """DEPRECATED — 请使用全局端点 GET /api/assets/indexed。保留仅用于兼容旧项目。"""
     project_dir = _project_dir(request.app.state.root_dir, project_id)
     if not project_dir.exists():
         raise HTTPException(status_code=404, detail="project not found")
@@ -144,6 +149,9 @@ def get_indexed_assets(
         conditions.append("(file_path LIKE ? OR source_video LIKE ? OR tags LIKE ?)")
         like_q = f"%{q}%"
         params.extend([like_q, like_q, like_q])
+    if product:
+        conditions.append("product = ?")
+        params.append(product)
 
     if conditions:
         base_query += " WHERE " + " AND ".join(conditions)
@@ -178,6 +186,7 @@ def get_indexed_assets(
     }
 
 
+# DEPRECATED: Per-project asset management. Use global /api/assets endpoints instead.
 @router.post("/{project_id}/assets/index")
 def index_assets(request: Request, project_id: str):
     project_dir = _project_dir(request.app.state.root_dir, project_id)
@@ -258,6 +267,7 @@ def index_assets(request: Request, project_id: str):
     }
 
 
+# DEPRECATED: Per-project asset management. Use global /api/assets endpoints instead.
 @router.patch("/{project_id}/assets/{asset_id}")
 async def patch_asset_status(request: Request, project_id: str, asset_id: str):
     body = await request.json()
@@ -305,6 +315,7 @@ async def patch_asset_status(request: Request, project_id: str, asset_id: str):
     return {"updated": updated}
 
 
+# DEPRECATED: Per-project asset management. Use global /api/assets endpoints instead.
 @router.delete("/{project_id}/assets/{asset_name}")
 def delete_asset(request: Request, project_id: str, asset_name: str):
     repo = FileStoreRepository(request.app.state.root_dir)
