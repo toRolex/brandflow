@@ -645,9 +645,7 @@ class TestRunVideo:
 
         orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
 
-        with patch.object(
-            orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"
-        ):
+        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
             with patch.object(subprocess, "run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
 

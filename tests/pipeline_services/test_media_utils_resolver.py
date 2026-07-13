@@ -217,7 +217,9 @@ class TestResolveFfmpegPathWithConfig:
 class TestResolveFfprobePathWithConfig:
     """Tests for _resolve_ffprobe_path with ConfigReader support (Issue #88)."""
 
-    def test_config_path_resolved(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def test_config_path_resolved(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
         monkeypatch.delenv("FFPROBE_PATH", raising=False)
         config_exe = tmp_path / "opt" / "myffprobe"
         config_exe.parent.mkdir(parents=True, exist_ok=True)
@@ -252,14 +254,18 @@ class TestResolveFfprobePathWithConfig:
 class TestResolveWhisperCliPathWithConfig:
     """Tests for _resolve_whisper_cli_path with ConfigReader support (Issue #88)."""
 
-    def test_config_path_resolved(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def test_config_path_resolved(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
         monkeypatch.delenv("WHISPER_CLI_PATH", raising=False)
         config_exe = tmp_path / "opt" / "mywhisper"
         config_exe.parent.mkdir(parents=True, exist_ok=True)
         config_exe.write_text("")
 
         fake_reader = mock.Mock()
-        fake_reader.get_media_config.return_value = {"whisper_cli_path": str(config_exe)}
+        fake_reader.get_media_config.return_value = {
+            "whisper_cli_path": str(config_exe)
+        }
 
         with (
             mock.patch("pathlib.Path.cwd", return_value=tmp_path),
@@ -297,7 +303,9 @@ class TestGetWhisperCliPath:
         config_exe.write_text("")
 
         fake_reader = mock.Mock()
-        fake_reader.get_media_config.return_value = {"whisper_cli_path": str(config_exe)}
+        fake_reader.get_media_config.return_value = {
+            "whisper_cli_path": str(config_exe)
+        }
 
         with (
             mock.patch("pathlib.Path.cwd", return_value=tmp_path),

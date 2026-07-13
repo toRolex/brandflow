@@ -58,14 +58,12 @@ def _max_sentence_length_errors(
         sentence = sentence.strip()
         if sentence and compact_len(sentence) > max_sentence_length:
             errors.append(
-                f"第{i+1}句超长：{compact_len(sentence)} > {max_sentence_length}"
+                f"第{i + 1}句超长：{compact_len(sentence)} > {max_sentence_length}"
             )
     return errors
 
 
-def _resolve_config(
-    config: dict | None, key: str, default: Any
-) -> Any:
+def _resolve_config(config: dict | None, key: str, default: Any) -> Any:
     """从 config["script"] 读取配置值，不存在时返回 default。"""
     if config is None:
         return default
@@ -125,14 +123,11 @@ def _check_knowledge_rules(
         all_points = store.get_top_selling_points(top_k=top_k)
         if all_points:
             included_count = sum(
-                1
-                for p in all_points
-                if p.title in text or p.content in text
+                1 for p in all_points if p.title in text or p.content in text
             )
             if included_count < min_points:
                 errors.append(
-                    f"脚本中仅包含 {included_count} 个卖点，"
-                    f"要求至少 {min_points} 个"
+                    f"脚本中仅包含 {included_count} 个卖点，要求至少 {min_points} 个"
                 )
 
     # Check forbidden_words_from_knowledge

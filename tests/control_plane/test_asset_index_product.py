@@ -38,7 +38,9 @@ def test_index_uses_explicit_product_param(tmp_path: Path, monkeypatch) -> None:
         _fake_ingest_one,
     )
 
-    resp = client.post("/api/assets/index", params={"async_mode": False, "product": "零食测试"})
+    resp = client.post(
+        "/api/assets/index", params={"async_mode": False, "product": "零食测试"}
+    )
 
     assert resp.status_code == 200
     assert captured_product == ["零食测试"]
@@ -271,7 +273,14 @@ def test_sync_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> N
             "model": "test-vision-model",
         }
 
-    def _fake_init(self, ffmpeg_path, repository, vision_config=None, product="", category_names=None):
+    def _fake_init(
+        self,
+        ffmpeg_path,
+        repository,
+        vision_config=None,
+        product="",
+        category_names=None,
+    ):
         category_names_captured.append(category_names)
         self.ffmpeg_path = ffmpeg_path
         self.repository = repository
@@ -292,7 +301,9 @@ def test_sync_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> N
     resp = client.post("/api/assets/index", params={"async_mode": False})
 
     assert resp.status_code == 200
-    assert len(resolve_called) == 1, "应调用 resolve_vision_config() 而非 get_vision_config()"
+    assert len(resolve_called) == 1, (
+        "应调用 resolve_vision_config() 而非 get_vision_config()"
+    )
     assert resolve_called[0]["reader"] is not None, "应传入 ConfigReader"
     assert len(category_names_captured) == 1
     assert category_names_captured[0] is not None, "应传入 category_names"
@@ -318,7 +329,14 @@ def test_async_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> 
             "model": "test-vision-model",
         }
 
-    def _fake_init(self, ffmpeg_path, repository, vision_config=None, product="", category_names=None):
+    def _fake_init(
+        self,
+        ffmpeg_path,
+        repository,
+        vision_config=None,
+        product="",
+        category_names=None,
+    ):
         category_names_captured.append(category_names)
         self.ffmpeg_path = ffmpeg_path
         self.repository = repository
@@ -345,6 +363,8 @@ def test_async_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> 
     asyncio.run(asyncio.sleep(0.2))
 
     assert len(resolve_called) > 0, "异步路径应调用 resolve_vision_config()"
-    assert len(category_names_captured) > 0, "异步路径应向 AssetIndexer 传入 category_names"
+    assert len(category_names_captured) > 0, (
+        "异步路径应向 AssetIndexer 传入 category_names"
+    )
     assert category_names_captured[0] is not None
     assert len(category_names_captured[0]) > 0, "category_names 不应为空"

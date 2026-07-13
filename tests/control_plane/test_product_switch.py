@@ -62,10 +62,16 @@ class TestProductSwitch:
         """切换产品后，创建 Job 时使用新的活跃产品配置作为默认值。"""
         client = _client(tmp_path)
         client.post("/api/products/prod_a/switch")
-        client.put("/api/products/prod_a/config", json={"default_name": "产品 A", "default_brand": "品牌 A"})
+        client.put(
+            "/api/products/prod_a/config",
+            json={"default_name": "产品 A", "default_brand": "品牌 A"},
+        )
 
         client.post("/api/products/prod_b/switch")
-        client.put("/api/products/prod_b/config", json={"default_name": "产品 B", "default_brand": "品牌 B"})
+        client.put(
+            "/api/products/prod_b/config",
+            json={"default_name": "产品 B", "default_brand": "品牌 B"},
+        )
 
         client.post("/api/projects", json={"name": "test"})
         resp = client.post(
@@ -77,7 +83,9 @@ class TestProductSwitch:
         assert data["product"] == "产品 B"
         assert data["brand"] == "品牌 B"
 
-    def test_put_product_config_does_not_change_active_product(self, tmp_path: Path) -> None:
+    def test_put_product_config_does_not_change_active_product(
+        self, tmp_path: Path
+    ) -> None:
         """更新非活跃产品配置时，活跃产品应保持不变。"""
         client = _client(tmp_path)
         client.post("/api/products/prod_a/switch")
@@ -87,7 +95,9 @@ class TestProductSwitch:
         client.put("/api/products/prod_b/config", json={"default_name": "产品 B"})
 
         # 当前活跃是 prod_b；直接修改 prod_a 的配置
-        resp = client.put("/api/products/prod_a/config", json={"default_name": "产品 A 已修改"})
+        resp = client.put(
+            "/api/products/prod_a/config", json={"default_name": "产品 A 已修改"}
+        )
         assert resp.status_code == 200
 
         # 活跃产品仍应为 prod_b
@@ -98,19 +108,29 @@ class TestProductSwitch:
         a_resp = client.get("/api/products/prod_a/config")
         assert a_resp.json()["default_name"] == "产品 A 已修改"
 
-    def test_edit_non_active_config_does_not_switch_active_for_jobs(self, tmp_path: Path) -> None:
+    def test_edit_non_active_config_does_not_switch_active_for_jobs(
+        self, tmp_path: Path
+    ) -> None:
         """编辑非活跃产品配置后，创建 Job 仍使用活跃产品的默认值。"""
         client = _client(tmp_path)
         # 设置 prod_a 为活跃产品并配置
         client.post("/api/products/prod_a/switch")
-        client.put("/api/products/prod_a/config", json={"default_name": "产品 A", "default_brand": "品牌 A"})
+        client.put(
+            "/api/products/prod_a/config",
+            json={"default_name": "产品 A", "default_brand": "品牌 A"},
+        )
 
         # 切换到 prod_b 并配置
         client.post("/api/products/prod_b/switch")
-        client.put("/api/products/prod_b/config", json={"default_name": "产品 B", "default_brand": "品牌 B"})
+        client.put(
+            "/api/products/prod_b/config",
+            json={"default_name": "产品 B", "default_brand": "品牌 B"},
+        )
 
         # 当前活跃是 prod_b；编辑 prod_a 的配置（不切换）
-        resp = client.put("/api/products/prod_a/config", json={"default_name": "产品 A 已修改"})
+        resp = client.put(
+            "/api/products/prod_a/config", json={"default_name": "产品 A 已修改"}
+        )
         assert resp.status_code == 200
 
         # 创建 Job 应使用活跃产品 prod_b 的默认值

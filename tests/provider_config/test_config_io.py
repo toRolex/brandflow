@@ -139,7 +139,9 @@ class TestConfigIOThreadSafety:
                     except Exception as exc:  # noqa: BLE001
                         errors.append(exc)
 
-            threads = [threading.Thread(target=_writer if i < 2 else _reader) for i in range(6)]
+            threads = [
+                threading.Thread(target=_writer if i < 2 else _reader) for i in range(6)
+            ]
             for t in threads:
                 t.start()
             for t in threads:

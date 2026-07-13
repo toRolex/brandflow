@@ -19,8 +19,20 @@ class TestScriptTemplateAPI:
         "name": "通用带货脚本",
         "description": "适用于食品类短视频带货",
         "slots": [
-            {"type": "hook", "label": "开头钩子", "required": True, "max_length": 60, "hint": "吸引眼球的开头"},
-            {"type": "selling_point", "label": "核心卖点", "required": True, "max_length": 200, "hint": "产品核心卖点"},
+            {
+                "type": "hook",
+                "label": "开头钩子",
+                "required": True,
+                "max_length": 60,
+                "hint": "吸引眼球的开头",
+            },
+            {
+                "type": "selling_point",
+                "label": "核心卖点",
+                "required": True,
+                "max_length": 200,
+                "hint": "产品核心卖点",
+            },
         ],
         "variables": [
             {"name": "product_name", "label": "产品名", "source": "product_config"},
@@ -105,13 +117,16 @@ class TestScriptTemplateAPI:
     def test_list_after_create(self, tmp_path: Path) -> None:
         client = _client(tmp_path)
         client.post("/api/config/templates", json=self.TEMPLATE_PAYLOAD)
-        client.post("/api/config/templates", json={
-            "name": "第二个模板",
-            "description": "描述",
-            "slots": [],
-            "variables": [],
-            "default_config_override": {},
-        })
+        client.post(
+            "/api/config/templates",
+            json={
+                "name": "第二个模板",
+                "description": "描述",
+                "slots": [],
+                "variables": [],
+                "default_config_override": {},
+            },
+        )
         resp = client.get("/api/config/templates")
         assert resp.status_code == 200
         data = resp.json()
@@ -127,8 +142,20 @@ class TestScriptTemplateJobIntegration:
         "name": "带货模板",
         "description": "描述",
         "slots": [
-            {"type": "hook", "label": "开头钩子", "required": True, "max_length": 60, "hint": ""},
-            {"type": "selling_point", "label": "核心卖点", "required": True, "max_length": 200, "hint": ""},
+            {
+                "type": "hook",
+                "label": "开头钩子",
+                "required": True,
+                "max_length": 60,
+                "hint": "",
+            },
+            {
+                "type": "selling_point",
+                "label": "核心卖点",
+                "required": True,
+                "max_length": 200,
+                "hint": "",
+            },
         ],
         "variables": [
             {"name": "product_name", "label": "产品名", "source": "product_config"},
@@ -212,8 +239,20 @@ class TestScriptTemplatePreview:
         "name": "带货模板",
         "description": "描述",
         "slots": [
-            {"type": "hook", "label": "开头钩子", "required": True, "max_length": 60, "hint": ""},
-            {"type": "selling_point", "label": "核心卖点", "required": True, "max_length": 200, "hint": ""},
+            {
+                "type": "hook",
+                "label": "开头钩子",
+                "required": True,
+                "max_length": 60,
+                "hint": "",
+            },
+            {
+                "type": "selling_point",
+                "label": "核心卖点",
+                "required": True,
+                "max_length": 200,
+                "hint": "",
+            },
         ],
         "variables": [
             {"name": "product_name", "label": "产品名", "source": "product_config"},
@@ -252,10 +291,16 @@ class TestScriptTemplatePreview:
 
     def test_preview_empty_template(self, tmp_path: Path) -> None:
         client = _client(tmp_path)
-        create_resp = client.post("/api/config/templates", json={
-            "name": "空模板", "description": "", "slots": [], "variables": [],
-            "default_config_override": {},
-        })
+        create_resp = client.post(
+            "/api/config/templates",
+            json={
+                "name": "空模板",
+                "description": "",
+                "slots": [],
+                "variables": [],
+                "default_config_override": {},
+            },
+        )
         tmpl_id = create_resp.json()["id"]
 
         resp = client.post(

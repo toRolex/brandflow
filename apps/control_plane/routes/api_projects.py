@@ -215,9 +215,7 @@ def index_assets(request: Request, project_id: str):
         reader = ConfigReader(config_dir=str(request.app.state.root_dir / "config"))
         secret_store = request.app.state.secret_store
         active_id = reader.active_product_id
-        vision_config = resolve_vision_config(
-            {}, secrets=secret_store, reader=reader
-        )
+        vision_config = resolve_vision_config({}, secrets=secret_store, reader=reader)
         category_names = [
             c.name for c in get_categories(reader, product_id=active_id or None)
         ]
@@ -227,7 +225,9 @@ def index_assets(request: Request, project_id: str):
         product = meta.get("product", "")
         if not product:
             config = reader.get_product_config()
-            product = config.get("name") or config.get("default_name") or config.get("id", "")
+            product = (
+                config.get("name") or config.get("default_name") or config.get("id", "")
+            )
 
         indexer = AssetIndexer(
             ffmpeg_path=_resolve_ffmpeg_path(),

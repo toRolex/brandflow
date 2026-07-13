@@ -152,4 +152,6 @@ def test_reset_product_config_updates_active_when_removed() -> None:
         store.reset_product_config()
 
         assert len(store.list_products()) == 1
-        assert load_config(store._reader._config_path)["active_product_id"] == "prod_001"
+        assert (
+            load_config(store._reader._config_path)["active_product_id"] == "prod_001"
+        )

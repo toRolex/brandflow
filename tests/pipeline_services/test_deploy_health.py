@@ -44,15 +44,19 @@ class TestDeployHealthCheckerCheckTools:
     def test_all_tools_available(self):
         """当所有工具都可用时，全部返回 pass。"""
         checker = DeployHealthChecker(root_dir=Path("/tmp"))
-        with patch(
-            "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
-            return_value="/usr/bin/ffmpeg",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_ffprobe_path",
-            return_value="/usr/bin/ffprobe",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
-            return_value="/usr/bin/whisper-cli",
+        with (
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
+                return_value="/usr/bin/ffmpeg",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffprobe_path",
+                return_value="/usr/bin/ffprobe",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
+                return_value="/usr/bin/whisper-cli",
+            ),
         ):
             results = checker._check_tools()
         assert all(r.status == "pass" for r in results)
@@ -61,15 +65,19 @@ class TestDeployHealthCheckerCheckTools:
     def test_ffmpeg_missing_reports_fail(self):
         """缺少 ffmpeg 时返回 fail 及修复建议。"""
         checker = DeployHealthChecker(root_dir=Path("/tmp"))
-        with patch(
-            "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
-            return_value=None,
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_ffprobe_path",
-            return_value="/usr/bin/ffprobe",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
-            return_value="/usr/bin/whisper-cli",
+        with (
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
+                return_value=None,
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffprobe_path",
+                return_value="/usr/bin/ffprobe",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
+                return_value="/usr/bin/whisper-cli",
+            ),
         ):
             results = checker._check_tools()
         ffmpeg = [r for r in results if r.name == "ffmpeg"][0]
@@ -79,15 +87,19 @@ class TestDeployHealthCheckerCheckTools:
     def test_uses_media_utils_for_path_resolution(self):
         """_check_tools 应复用 media_utils 的 _resolve_ffmpeg_path 解析路径。"""
         checker = DeployHealthChecker(root_dir=Path("/tmp"))
-        with patch(
-            "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
-            return_value="/custom/ffmpeg",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_ffprobe_path",
-            return_value="/custom/ffprobe",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
-            return_value="/custom/whisper-cli",
+        with (
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
+                return_value="/custom/ffmpeg",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffprobe_path",
+                return_value="/custom/ffprobe",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
+                return_value="/custom/whisper-cli",
+            ),
         ):
             results = checker._check_tools()
         ffmpeg_result = [r for r in results if r.name == "ffmpeg"][0]
@@ -173,18 +185,21 @@ class TestDeployHealthCheckerCheckAll:
         (tmp_path / "config").mkdir(parents=True)
         (tmp_path / "config" / "app_config.json").write_text("{}")
         checker = DeployHealthChecker(root_dir=tmp_path)
-        with patch(
-            "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
-            return_value="/usr/bin/ffmpeg",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_ffprobe_path",
-            return_value="/usr/bin/ffprobe",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
-            return_value="/usr/bin/whisper-cli",
-        ), patch(
-            "socket.socket"
-        ) as mock_socket_class:
+        with (
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
+                return_value="/usr/bin/ffmpeg",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffprobe_path",
+                return_value="/usr/bin/ffprobe",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
+                return_value="/usr/bin/whisper-cli",
+            ),
+            patch("socket.socket") as mock_socket_class,
+        ):
             mock_sock = MagicMock()
             mock_socket_class.return_value = mock_sock
             mock_sock.bind.return_value = None
@@ -198,16 +213,21 @@ class TestDeployHealthCheckerCheckAll:
         (tmp_path / "config").mkdir(parents=True)
         (tmp_path / "config" / "app_config.json").write_text("{}")
         checker = DeployHealthChecker(root_dir=tmp_path)
-        with patch(
-            "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
-            return_value=None,
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_ffprobe_path",
-            return_value="/usr/bin/ffprobe",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
-            return_value="/usr/bin/whisper-cli",
-        ), patch("socket.socket") as mock_socket_class:
+        with (
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
+                return_value=None,
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffprobe_path",
+                return_value="/usr/bin/ffprobe",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
+                return_value="/usr/bin/whisper-cli",
+            ),
+            patch("socket.socket") as mock_socket_class,
+        ):
             mock_sock = MagicMock()
             mock_socket_class.return_value = mock_sock
             mock_sock.bind.return_value = None
@@ -221,18 +241,21 @@ class TestDeployHealthCheckerCheckAll:
         (tmp_path / "config").mkdir(parents=True)
         (tmp_path / "config" / "app_config.json").write_text("{}")
         checker = DeployHealthChecker(root_dir=tmp_path)
-        with patch(
-            "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
-            return_value="/usr/bin/ffmpeg",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_ffprobe_path",
-            return_value="/usr/bin/ffprobe",
-        ), patch(
-            "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
-            return_value="/usr/bin/whisper-cli",
-        ), patch(
-            "socket.socket"
-        ) as mock_socket_class:
+        with (
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffmpeg_path",
+                return_value="/usr/bin/ffmpeg",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_ffprobe_path",
+                return_value="/usr/bin/ffprobe",
+            ),
+            patch(
+                "packages.pipeline_services.media_utils._resolve_whisper_cli_path",
+                return_value="/usr/bin/whisper-cli",
+            ),
+            patch("socket.socket") as mock_socket_class,
+        ):
             mock_sock = MagicMock()
             mock_socket_class.return_value = mock_sock
             mock_sock.bind.return_value = None

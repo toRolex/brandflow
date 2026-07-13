@@ -14,6 +14,8 @@ from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 from packages.pipeline_services.asset_library.category_config import get_categories
 from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
 from fastapi.responses import FileResponse, StreamingResponse
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 
 from apps.control_plane.index_tasks import index_task_manager, TaskStatus
 
@@ -304,8 +306,10 @@ async def _run_index_task(
             )
         else:
             from packages.provider_config.config_reader import ConfigReader
+
             vision_config = resolve_vision_config(
-                {}, secrets=secret_store,
+                {},
+                secrets=secret_store,
                 reader=ConfigReader(config_dir=str(root_dir / "config")),
             )
 

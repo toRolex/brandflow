@@ -13,11 +13,11 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from packages.domain_core.models import JobRecord, Phase
+from packages.domain_core.models import JobRecord
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
     _compute_transition,
@@ -227,11 +227,10 @@ class TestSceneAssembling:
                 "_get_media_duration",
                 return_value=5.0,
             ):
-                with patch.object(
-                    subprocess, "run"
-                ) as mock_run:
+                with patch.object(subprocess, "run") as mock_run:
                     # Make the mocked subprocess not raise
                     mock_run.return_value = MagicMock(returncode=0)
+
                     # Also make the scene path "exist" by creating it after mock_call
                     def _side_effect(*args, **kwargs):
                         scene_path = (
@@ -274,12 +273,8 @@ class TestSceneAssembling:
         )
 
         with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
-            with patch.object(
-                orchestrator, "_get_media_duration", return_value=3.0
-            ):
-                with patch.object(
-                    subprocess, "run"
-                ) as mock_run:
+            with patch.object(orchestrator, "_get_media_duration", return_value=3.0):
+                with patch.object(subprocess, "run") as mock_run:
                     mock_run.return_value = MagicMock(returncode=0)
 
                     def _make_scene(*args, **kwargs):
@@ -305,9 +300,7 @@ class TestSceneAssembling:
     def _verify_subprocess_call(mock_run: MagicMock, expected_clip_count: int) -> None:
         """Verify ffmpeg was called with the right number of input clips."""
         call_args = mock_run.call_args[0][0]
-        input_count = sum(
-            1 for i, arg in enumerate(call_args) if arg == "-i"
-        )
+        input_count = sum(1 for i, arg in enumerate(call_args) if arg == "-i")
         assert input_count == expected_clip_count, (
             f"Expected {expected_clip_count} -i flags, got {input_count}"
         )
@@ -428,9 +421,7 @@ class TestMontageAssembling:
         (job_dir / "scene_segment.mp4").write_text("scene")
         (job_dir / "base.mp4").write_text("base")
 
-        with patch.object(
-            orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"
-        ):
+        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
             with patch.object(subprocess, "run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
 

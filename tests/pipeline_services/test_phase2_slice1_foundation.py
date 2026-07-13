@@ -19,20 +19,15 @@ import pytest
 
 from packages.domain_core.models import (
     JobRecord,
-    Phase,
     ProductionMode,
 )
-from packages.domain_core.state import PHASE_ORDER, next_phase
+from packages.domain_core.state import PHASE_ORDER
 from packages.pipeline_services.job_tick_service import (
-    HANDLED_PHASES,
-    REVIEW_PHASES,
     JobTickService,
-    TickAction,
     _compute_transition,
     _safe_next,
 )
 from packages.pipeline_services.phase_orchestrator import (
-    ArtifactPointer,
     PhaseContext,
     PhaseOrchestrator,
 )
@@ -156,18 +151,24 @@ class TestImportModeQueued:
         action = _compute_transition(make_record(phase="queued", mode="import"), ())
         assert action.run_handler is False
         assert action.new_phase == "scene_assembling"
-        assert action.message == "queued → scene_assembling (import mode, no handler yet)"
+        assert (
+            action.message == "queued → scene_assembling (import mode, no handler yet)"
+        )
 
     def test_queued_import_does_not_run_script_handler(self) -> None:
         """Import mode should NOT route to script_generating."""
         action = _compute_transition(make_record(phase="queued", mode="import"), ())
-        assert action.handler_phase is None or action.handler_phase != "script_generating"
+        assert (
+            action.handler_phase is None or action.handler_phase != "script_generating"
+        )
 
 
 class TestImportModeSceneAssembling:
     def test_scene_assembling_parallel_dispatch(self) -> None:
         """scene_assembling + import → parallel dispatch with tts_generating."""
-        action = _compute_transition(make_record(phase="scene_assembling", mode="import"), ())
+        action = _compute_transition(
+            make_record(phase="scene_assembling", mode="import"), ()
+        )
         assert action.run_handler is True
         assert action.handler_phase == "scene_assembling"
         assert action.parallel_phases == ["tts_generating"]
@@ -175,7 +176,9 @@ class TestImportModeSceneAssembling:
 
     def test_scene_assembling_generate_mode(self) -> None:
         """scene_assembling + generate mode is handled normally."""
-        action = _compute_transition(make_record(phase="scene_assembling", mode="generate"), ())
+        action = _compute_transition(
+            make_record(phase="scene_assembling", mode="generate"), ()
+        )
         # With generate mode, scene_assembling should also work (defensive)
         assert action.run_handler is True
         assert action.handler_phase == "scene_assembling"
@@ -228,9 +231,7 @@ class TestImportModeSkipReviews:
     @pytest.mark.parametrize("phase", ["script_review", "tts_review"])
     def test_import_mode_skips_review_phase(self, phase: str) -> None:
         """Import mode at script_review or tts_review → auto-advance."""
-        action = _compute_transition(
-            make_record(phase=phase, mode="import"), ()
-        )
+        action = _compute_transition(make_record(phase=phase, mode="import"), ())
         assert action.run_handler is False
         assert action.new_phase is not None
         assert f"skip {phase}" in action.message
@@ -271,9 +272,7 @@ class TestRunPhasesParallel:
             root_dir=Path("/tmp"),
             product="test",
         )
-        results = orch.run_phases_parallel(
-            ["scene_assembling", "tts_generating"], ctx
-        )
+        results = orch.run_phases_parallel(["scene_assembling", "tts_generating"], ctx)
         assert "scene_assembling" in results
         assert "tts_generating" in results
 
@@ -299,6 +298,7 @@ class TestRunPhasesParallel:
             root_dir=Path("/tmp"),
             product="test",
         )
+
         # Inject a failing handler
         def _failing(_ctx):
             raise RuntimeError("oh no")
@@ -425,5 +425,7 @@ class TestImportModeFullFlow:
             action = _compute_transition(
                 make_record(phase=phase, mode="import", auto_approve=True), ()
             )
-            assert action.new_phase is not None, f"{phase} should auto-advance with auto_approve"
+            assert action.new_phase is not None, (
+                f"{phase} should auto-advance with auto_approve"
+            )
             assert action.new_review_status == "approved"

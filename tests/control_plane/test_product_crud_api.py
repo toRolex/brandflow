@@ -103,7 +103,9 @@ class TestDeleteProductAPI:
         resp = client.delete("/api/products/nonexistent")
         assert resp.status_code == 404
 
-    def test_delete_active_product_resets_active_to_first_remaining(self, tmp_path: Path) -> None:
+    def test_delete_active_product_resets_active_to_first_remaining(
+        self, tmp_path: Path
+    ) -> None:
         client = _client(tmp_path)
         client.post("/api/products", json={"name": "产品A"})
         client.post("/api/products", json={"name": "产品B"})
@@ -129,7 +131,9 @@ class TestDeleteProductAPI:
         assert data["status"] == "deleted"
         assert data["active_product_id"] == ""
 
-    def test_delete_non_active_product_does_not_change_active(self, tmp_path: Path) -> None:
+    def test_delete_non_active_product_does_not_change_active(
+        self, tmp_path: Path
+    ) -> None:
         client = _client(tmp_path)
         client.post("/api/products", json={"name": "产品A"})
         client.post("/api/products", json={"name": "产品B"})

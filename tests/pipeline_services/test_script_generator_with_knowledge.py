@@ -6,7 +6,10 @@ from unittest.mock import MagicMock, patch
 
 from packages.knowledge_store.store import KnowledgeStore
 from packages.knowledge_store.models import KnowledgeItem
-from packages.pipeline_services.script_service.generator import ScriptGenerator, ScriptResult
+from packages.pipeline_services.script_service.generator import (
+    ScriptGenerator,
+    ScriptResult,
+)
 
 
 class TestScriptGeneratorWithKnowledge:
@@ -220,9 +223,7 @@ class TestScriptGeneratorWithKnowledge:
         assert "野生生长环境" in second_messages[0]["content"]
 
     @patch.object(ScriptGenerator, "_call_llm")
-    def test_update_priority_changes_prompt_order(
-        self, mock_call_llm, tmp_path: Path
-    ):
+    def test_update_priority_changes_prompt_order(self, mock_call_llm, tmp_path: Path):
         """编辑卖点优先级后，高优先级卖点应在提示词中更靠前。"""
         store = self._populate_store(tmp_path)
 

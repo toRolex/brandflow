@@ -222,7 +222,9 @@ def test_project_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -
     client = _make_client(tmp_path)
     project_id = "prj_vision"
     _create_project_dir(tmp_path, project_id)
-    source_dir = tmp_path / "workspace" / "projects" / project_id / "runtime" / "source_assets"
+    source_dir = (
+        tmp_path / "workspace" / "projects" / project_id / "runtime" / "source_assets"
+    )
     (source_dir / "test.mp4").write_bytes(b"fake video data")
 
     resolve_called: list[bool] = []
@@ -237,7 +239,14 @@ def test_project_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -
             "model": "test-model",
         }
 
-    def _fake_init(self, ffmpeg_path, repository, vision_config=None, product="", category_names=None):
+    def _fake_init(
+        self,
+        ffmpeg_path,
+        repository,
+        vision_config=None,
+        product="",
+        category_names=None,
+    ):
         category_names_captured.append(category_names)
         self.ffmpeg_path = ffmpeg_path
         self.repository = repository
@@ -255,7 +264,9 @@ def test_project_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -
     resp = client.post(f"/api/projects/{project_id}/assets/index")
 
     assert resp.status_code == 200
-    assert len(resolve_called) == 1, "应调用 resolve_vision_config() 而非 get_vision_config()"
+    assert len(resolve_called) == 1, (
+        "应调用 resolve_vision_config() 而非 get_vision_config()"
+    )
     assert len(category_names_captured) == 1
     assert category_names_captured[0] is not None, "应传入 category_names"
     assert len(category_names_captured[0]) > 0, "category_names 不应为空"
@@ -266,12 +277,21 @@ def test_project_index_product_fallback(tmp_path: Path, monkeypatch) -> None:
     client = _make_client(tmp_path)
     project_id = "prj_fallback"
     _create_project_dir(tmp_path, project_id)
-    source_dir = tmp_path / "workspace" / "projects" / project_id / "runtime" / "source_assets"
+    source_dir = (
+        tmp_path / "workspace" / "projects" / project_id / "runtime" / "source_assets"
+    )
     (source_dir / "test.mp4").write_bytes(b"fake video data")
 
     captured_product: list[str] = []
 
-    def _fake_init(self, ffmpeg_path, repository, vision_config=None, product="", category_names=None):
+    def _fake_init(
+        self,
+        ffmpeg_path,
+        repository,
+        vision_config=None,
+        product="",
+        category_names=None,
+    ):
         captured_product.append(product)
         self.ffmpeg_path = ffmpeg_path
         self.repository = repository
@@ -297,4 +317,6 @@ def test_project_index_product_fallback(tmp_path: Path, monkeypatch) -> None:
     assert resp.status_code == 200
     assert len(captured_product) == 1
     # meta.product is empty, should fall back to reader.get_product_config() -> default_name
-    assert captured_product[0] == "默认产品", f"应回退到 default_name='默认产品'，实际: {captured_product[0]}"
+    assert captured_product[0] == "默认产品", (
+        f"应回退到 default_name='默认产品'，实际: {captured_product[0]}"
+    )
