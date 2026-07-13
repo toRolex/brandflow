@@ -26,6 +26,7 @@ from packages.file_store.paths import (
     shared_source_dir,
 )
 from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
+from packages.pipeline_services.asset_library.indexer import VisionConfigError
 from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerator
 from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 
@@ -247,6 +248,18 @@ async def index_assets(
     vision_config = resolve_vision_config(
         {}, secrets=secret_store, reader=config_reader
     )
+    # 仅当 Vision 被显式配置（有 api_key）时才校验完整性
+    if vision_config.get("api_key"):
+        missing = [
+            key
+            for key in ("provider", "endpoint", "model", "api_key")
+            if not vision_config.get(key)
+        ]
+        if missing:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Vision 配置不完整，缺失字段: {', '.join(missing)}",
+            )
     category_names = [
         c.name for c in get_categories(config_reader, product_id=active_id or None)
     ]
@@ -312,6 +325,18 @@ async def _run_index_task(
                 secrets=secret_store,
                 reader=ConfigReader(config_dir=str(root_dir / "config")),
             )
+
+        # 仅当 Vision 被显式配置（有 api_key）时才校验完整性
+        if vision_config.get("api_key"):
+            missing = [
+                key
+                for key in ("provider", "endpoint", "model", "api_key")
+                if not vision_config.get(key)
+            ]
+            if missing:
+                raise VisionConfigError(
+                    f"Vision 配置不完整，缺失字段: {', '.join(missing)}"
+                )
 
         ffmpeg_path = _resolve_ffmpeg_path()
         indexer = AssetIndexer(

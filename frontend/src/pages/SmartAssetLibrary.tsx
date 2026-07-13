@@ -9,7 +9,7 @@ import IndexProgress from "../components/IndexProgress";
 import BatchActionBar from "../components/BatchActionBar";
 import ConfirmDialog from "../components/ConfirmDialog";
 
-const STATUS_OPTIONS = ["available", "disabled", "pending_review"] as const;
+const STATUS_OPTIONS = ["available", "disabled", "pending_review", "classification_failed"] as const;
 
 const STATUS_LABELS: Record<string, string> = {
   available: "可用",
