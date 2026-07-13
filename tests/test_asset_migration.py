@@ -1,4 +1,7 @@
-"""Tests for POST /api/assets/migrate endpoint — source_videos table sync (issue #117)."""
+"""Tests for POST /api/assets/migrate endpoint — source_videos table sync (issue #117).
+
+Issue #118: Conflict handling enhancement and post-verification.
+"""
 
 from __future__ import annotations
 
@@ -350,3 +353,164 @@ def test_migrate_source_videos_response_count(tmp_path: Path) -> None:
     data = resp.json()
     assert "migrated_video_source_records" in data
     assert data["migrated_video_source_records"] >= 1
+
+
+def test_migrate_conflict_tracking_and_skipped_ids(tmp_path: Path) -> None:
+    """冲突资产应被记录为 conflicts 和 skipped_ids 而非计入 migrated_clips。"""
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Project A: 2 assets, no file needed since we only test DB
+    prj_a = tmp_path / "workspace" / "projects" / "prj_a"
+    (prj_a / "runtime" / "source_assets").mkdir(parents=True, exist_ok=True)
+    _create_project_db(
+        prj_a,
+        assets=[
+            {"asset_id": "shared_001", "source_video": "/videos/a.mp4",
+             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+            {"asset_id": "shared_002", "source_video": "/videos/b.mp4",
+             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+        ],
+        source_videos=[],
+    )
+
+    # First migration: both succeed
+    client = TestClient(create_app(tmp_path))
+    resp1 = client.post("/api/assets/migrate")
+    assert resp1.status_code == 200
+    data1 = resp1.json()
+    assert data1["migrated_clips"] == 2
+    assert data1["conflicts"] == 0
+    assert data1["skipped_ids"] == []
+    assert "verification" in data1
+
+    # Project B: 1 new asset + 1 conflicting (shared_001)
+    prj_b = tmp_path / "workspace" / "projects" / "prj_b"
+    (prj_b / "runtime" / "source_assets").mkdir(parents=True, exist_ok=True)
+    _create_project_db(
+        prj_b,
+        assets=[
+            {"asset_id": "shared_001",  # conflict!
+             "source_video": "/videos/a.mp4",
+             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+            {"asset_id": "unique_003",
+             "source_video": "/videos/c.mp4",
+             "category": "成品展示", "product": "荔枝菌", "created_at": now},
+        ],
+        source_videos=[],
+    )
+
+    # Second migration: prj_a re-processed (2 conflicts) + prj_b (1 conflict, 1 new)
+    client2 = TestClient(create_app(tmp_path))
+    resp2 = client2.post("/api/assets/migrate")
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+
+    # Only the truly new asset should count
+    assert data2["migrated_clips"] == 1
+    # Conflicts: prj_a 2 + prj_b 1 = 3
+    assert data2["conflicts"] == 3
+    assert "shared_001" in data2["skipped_ids"]
+    assert "shared_002" in data2["skipped_ids"]
+    assert len(data2["skipped_ids"]) == 3
+
+
+def test_migrate_verification_block(tmp_path: Path) -> None:
+    """迁移响应应包含 verification 块报告 old_count / new_count / diff。"""
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Project: 2 assets, no conflicts expected
+    prj = tmp_path / "workspace" / "projects" / "prj_verify"
+    (prj / "runtime" / "source_assets").mkdir(parents=True, exist_ok=True)
+    _create_project_db(
+        prj,
+        assets=[
+            {"asset_id": "v001", "source_video": "/videos/a.mp4",
+             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+            {"asset_id": "v002", "source_video": "/videos/b.mp4",
+             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+        ],
+        source_videos=[],
+    )
+
+    client = TestClient(create_app(tmp_path))
+    resp = client.post("/api/assets/migrate")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert "verification" in data
+    v = data["verification"]
+    assert "old_count" in v
+    assert "new_count" in v
+    assert "diff" in v
+
+    # old_count should be total rows across all project DBs
+    assert v["old_count"] == 2
+    # new_count should be rows in shared DB after migration
+    assert v["new_count"] == 2
+    # diff = new_count - old_count
+    assert v["diff"] == 0
+
+
+def test_migrate_verification_shows_loss_on_conflict(tmp_path: Path) -> None:
+    """冲突导致行数跳过的场景下 diff 应为负数。"""
+    now = datetime.now(timezone.utc).isoformat()
+
+    prj_a = tmp_path / "workspace" / "projects" / "prj_a"
+    (prj_a / "runtime" / "source_assets").mkdir(parents=True, exist_ok=True)
+    _create_project_db(
+        prj_a,
+        assets=[
+            {"asset_id": "loss_001", "source_video": "/videos/a.mp4",
+             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+        ],
+        source_videos=[],
+    )
+
+    # First migration — 1 asset
+    client = TestClient(create_app(tmp_path))
+    resp1 = client.post("/api/assets/migrate")
+    assert resp1.status_code == 200
+    assert resp1.json()["verification"]["diff"] == 0
+    assert resp1.json()["verification"]["new_count"] == 1
+
+    # Second project with same asset_id
+    prj_b = tmp_path / "workspace" / "projects" / "prj_b"
+    (prj_b / "runtime" / "source_assets").mkdir(parents=True, exist_ok=True)
+    _create_project_db(
+        prj_b,
+        assets=[
+            {"asset_id": "loss_001",  # conflict
+             "source_video": "/videos/b.mp4",
+             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+        ],
+        source_videos=[],
+    )
+
+    # Second migration: prj_a re-processed (1 conflict) + prj_b (1 conflict) = 2 conflicts
+    client2 = TestClient(create_app(tmp_path))
+    resp2 = client2.post("/api/assets/migrate")
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    # migrated_clips = 0 (nothing new)
+    assert data2["migrated_clips"] == 0
+    # old_count = 2 (prj_a has 1, prj_b has 1)
+    assert data2["verification"]["old_count"] == 2
+    # new_count = 1 (still only loss_001)
+    assert data2["verification"]["new_count"] == 1
+    # diff = 1 - 2 = -1
+    assert data2["verification"]["diff"] == -1
+
+
+def test_migrate_no_conflicts_no_verification_fields_defaults(tmp_path: Path) -> None:
+    """无项目时新字段应返回合理默认值。"""
+    # No projects at all
+    client = TestClient(create_app(tmp_path))
+    resp = client.post("/api/assets/migrate")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["conflicts"] == 0
+    assert data["skipped_ids"] == []
+    assert "verification" in data
+    assert data["verification"]["old_count"] == 0
+    assert data["verification"]["new_count"] == 0
+    assert data["verification"]["diff"] == 0
