@@ -257,8 +257,11 @@ async def index_assets(
         ]
         if missing:
             raise HTTPException(
-                status_code=500,
-                detail=f"Vision 配置不完整，缺失字段: {', '.join(missing)}",
+                status_code=422,
+                detail={
+                    "code": "vision_config_invalid",
+                    "message": f"Vision 配置不完整，缺失字段: {', '.join(missing)}",
+                },
             )
     category_names = [
         c.name for c in get_categories(config_reader, product_id=active_id or None)

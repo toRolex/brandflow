@@ -393,8 +393,12 @@ def test_sync_index_fails_on_invalid_vision_config(tmp_path, monkeypatch):
 
     resp = client.post("/api/assets/index", params={"async_mode": False})
 
-    assert resp.status_code == 500, (
-        f"Vision 配置无效时应返回 500，实际: {resp.status_code}, body: {resp.text}"
+    assert resp.status_code == 422, (
+        f"Vision 配置无效时应返回 422，实际: {resp.status_code}, body: {resp.text}"
+    )
+    data = resp.json()
+    assert data["detail"]["code"] == "vision_config_invalid", (
+        f"响应应包含 detail.code=vision_config_invalid，实际: {data}"
     )
     assert "Vision" in resp.text, (
         f"响应应包含 Vision 错误信息，实际: {resp.text}"
