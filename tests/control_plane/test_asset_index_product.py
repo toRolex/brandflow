@@ -368,3 +368,74 @@ def test_async_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> 
     )
     assert category_names_captured[0] is not None
     assert len(category_names_captured[0]) > 0, "category_names 不应为空"
+
+
+# ── Issue #123: Vision 配置校验 ────────────────────────────────────────────
+
+
+def test_sync_index_fails_on_invalid_vision_config(tmp_path, monkeypatch):
+    """同步路径：Vision api_key 已设但其他字段缺失时索引任务应失败。"""
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    def _fake_resolve(providers_payload, secrets=None, reader=None):
+        return {
+            "provider": "xiaomi",
+            "api_key": "sk-test",  # 有 api_key 说明 Vision 被显式配置
+            "endpoint": "",        # 但 endpoint 缺失 = 配置不完整
+            "model": "",
+        }
+
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        _fake_resolve,
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": False})
+
+    assert resp.status_code == 500, (
+        f"Vision 配置无效时应返回 500，实际: {resp.status_code}, body: {resp.text}"
+    )
+    assert "Vision" in resp.text, (
+        f"响应应包含 Vision 错误信息，实际: {resp.text}"
+    )
+
+
+def test_async_index_task_fails_on_invalid_vision_config(tmp_path, monkeypatch):
+    """异步路径：Vision api_key 已设但其他字段缺失时后台任务应标记为 FAILED。"""
+    import asyncio
+
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    def _fake_resolve(providers_payload, secrets=None, reader=None):
+        return {
+            "provider": "xiaomi",
+            "api_key": "sk-test",  # 有 api_key 说明 Vision 被显式配置
+            "endpoint": "",        # 但 endpoint 缺失 = 配置不完整
+            "model": "",
+        }
+
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        _fake_resolve,
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": True})
+
+    assert resp.status_code == 200
+    task_id = resp.json()["task_id"]
+
+    # 等待后台任务执行完毕
+    asyncio.run(asyncio.sleep(0.3))
+
+    # 检查任务状态
+    status_resp = client.get(f"/api/assets/index/{task_id}/status")
+    assert status_resp.status_code == 200
+    data = status_resp.json()
+    assert data["status"] == "failed", (
+        f"无效 Vision 配置时任务应失败，实际 status: {data['status']}, error: {data.get('error')}"
+    )
+    assert "Vision" in data.get("error", ""), (
+        f"错误信息应包含 Vision 相关描述，实际: {data.get('error')}"
+    )

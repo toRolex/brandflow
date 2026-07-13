@@ -17,6 +17,14 @@ from packages.pipeline_services.media_utils import _resolve_ffprobe_path
 logger = logging.getLogger(__name__)
 
 
+class VisionConfigError(Exception):
+    """Vision provider 配置缺失或无效。"""
+
+
+class VisionClassifyError(Exception):
+    """单个 clip 的 Vision 分类请求失败。"""
+
+
 MAX_CLIP_SECONDS = 8
 SPLIT_CLIP_SECONDS = 5
 
@@ -52,7 +60,25 @@ class AssetIndexer:
             )
         return self._vision_client
 
+    def _validate_vision_config(self) -> None:
+        """Validate that Vision provider config is complete.
+
+        Raises
+        ------
+        VisionConfigError
+            If any required field (provider, endpoint, model, api_key) is missing or empty.
+        """
+        missing = [
+            key
+            for key in ("provider", "endpoint", "model", "api_key")
+            if not self.vision_config.get(key)
+        ]
+        if missing:
+            msg = f"Vision 配置不完整，缺失字段: {', '.join(missing)}"
+            raise VisionConfigError(msg)
+
     def ingest_videos(self, source_dir: Path, output_base: Path) -> list[AssetRecord]:
+        self._validate_vision_config()
         output_base.mkdir(parents=True, exist_ok=True)
         records: list[AssetRecord] = []
 
@@ -85,12 +111,21 @@ class AssetIndexer:
                 frame_path = self._extract_mid_frame(clip_path, temp_dir)
                 if frame_path.exists():
                     log(f"[Vision] 开始分类: {frame_path.name}")
-                    category_name, confidence = self._classify_frame(frame_path)
-                    log(
-                        f"[Vision] 分类完成: {frame_path.name} → {category_name} (置信度: {confidence:.2f})"
-                    )
+                    try:
+                        category_name, confidence = self._classify_frame(frame_path)
+                        log(
+                            f"[Vision] 分类完成: {frame_path.name} → {category_name} (置信度: {confidence:.2f})"
+                        )
+                        classification_failed = False
+                    except VisionClassifyError as vce:
+                        log(
+                            f"[Vision] 分类失败: {frame_path.name}, {vce}, 标记为 classification_failed"
+                        )
+                        category_name, confidence = "产品特写", 0.0
+                        classification_failed = True
                 else:
                     category_name, confidence = "产品特写", 0.0
+                    classification_failed = True
                     log(f"[Indexer] 帧提取失败，使用默认分类: {clip_path.name}")
 
                 target_category = (
@@ -120,7 +155,7 @@ class AssetIndexer:
                     product=self.product,
                     confidence=confidence,
                     duration_seconds=duration,
-                    status="available",
+                    status="classification_failed" if classification_failed else "available",
                     source_video=str(video_path.resolve()),
                     created_at=now,
                 )
@@ -268,9 +303,11 @@ class AssetIndexer:
             )
         except Exception as exc:
             logger.error(
-                f"[AssetIndexer] vision classify failed for {frame_path}: {exc}, falling back to 产品特写"
+                f"[AssetIndexer] vision classify failed for {frame_path}: {type(exc).__name__}: {exc}"
             )
-            return "产品特写", 0.0
+            raise VisionClassifyError(
+                f"Vision classify failed for {frame_path.name}: {type(exc).__name__}: {exc}"
+            ) from exc
 
     def _get_duration(self, video_path: Path) -> float:
         cmd = [

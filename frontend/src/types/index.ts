@@ -54,7 +54,7 @@ export interface AssetRecord {
   product: string;
   confidence: number;
   duration_seconds: number;
-  status: "available" | "disabled" | "pending_review";
+  status: "available" | "disabled" | "pending_review" | "classification_failed";
   usage_count: number;
   source_video: string;
   tags: string[];

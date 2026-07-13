@@ -74,6 +74,7 @@ export default function AssetGrid({ assets, selectedIds, onToggleSelect, onPrevi
                 in_use: asset.status === "available",
                 category: asset.category,
                 confidence: asset.confidence,
+                status: asset.status,
               }}
               selected={selectedIds.has(asset.asset_id)}
               onDelete={onDelete ? () => onDelete(asset.asset_id) : undefined}
