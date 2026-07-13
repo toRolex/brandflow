@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
 from packages.pipeline_services.asset_library import (
+    AssetIndexer,
     AssetRecord,
     AssetRepository,
     Category,
@@ -209,3 +210,91 @@ def test_patch_asset_status_rejects_non_object_payload(tmp_path: Path) -> None:
 
     assert resp.status_code == 400
     assert resp.json() == {"detail": "request body must be object"}
+
+
+# ── Issue #96: resolve_vision_config + category_names wiring ──
+
+
+def test_project_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> None:
+    """POST /api/projects/{id}/assets/index 应使用 resolve_vision_config() + category_names。"""
+    from apps.control_plane.routes import api_projects as ap_mod
+
+    client = _make_client(tmp_path)
+    project_id = "prj_vision"
+    _create_project_dir(tmp_path, project_id)
+    source_dir = tmp_path / "workspace" / "projects" / project_id / "runtime" / "source_assets"
+    (source_dir / "test.mp4").write_bytes(b"fake video data")
+
+    resolve_called: list[bool] = []
+    category_names_captured: list[list[str] | None] = []
+
+    def _fake_resolve(providers_payload, secrets=None, reader=None):
+        resolve_called.append(True)
+        return {
+            "provider": "xiaomi",
+            "api_key": "test-key",
+            "endpoint": "https://test.com",
+            "model": "test-model",
+        }
+
+    def _fake_init(self, ffmpeg_path, repository, vision_config=None, product="", category_names=None):
+        category_names_captured.append(category_names)
+        self.ffmpeg_path = ffmpeg_path
+        self.repository = repository
+        self.vision_config = vision_config or {}
+        self.product = product
+        self.category_names = category_names
+
+    monkeypatch.setattr(ap_mod, "resolve_vision_config", _fake_resolve)
+    monkeypatch.setattr(AssetIndexer, "__init__", _fake_init)
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        lambda self, video_path, output_base, log_callback=None: [],
+    )
+
+    resp = client.post(f"/api/projects/{project_id}/assets/index")
+
+    assert resp.status_code == 200
+    assert len(resolve_called) == 1, "应调用 resolve_vision_config() 而非 get_vision_config()"
+    assert len(category_names_captured) == 1
+    assert category_names_captured[0] is not None, "应传入 category_names"
+    assert len(category_names_captured[0]) > 0, "category_names 不应为空"
+
+
+def test_project_index_product_fallback(tmp_path: Path, monkeypatch) -> None:
+    """meta.product 为空时回退到 reader.get_product_config() 的 name -> default_name -> id 链。"""
+    client = _make_client(tmp_path)
+    project_id = "prj_fallback"
+    _create_project_dir(tmp_path, project_id)
+    source_dir = tmp_path / "workspace" / "projects" / project_id / "runtime" / "source_assets"
+    (source_dir / "test.mp4").write_bytes(b"fake video data")
+
+    captured_product: list[str] = []
+
+    def _fake_init(self, ffmpeg_path, repository, vision_config=None, product="", category_names=None):
+        captured_product.append(product)
+        self.ffmpeg_path = ffmpeg_path
+        self.repository = repository
+        self.vision_config = vision_config or {}
+        self.product = product
+        self.category_names = category_names
+
+    def _fake_get_product_config(self, product_id=None):
+        return {"name": "", "default_name": "默认产品", "id": "fallback-id"}
+
+    monkeypatch.setattr(
+        "packages.provider_config.config_reader.ConfigReader.get_product_config",
+        _fake_get_product_config,
+    )
+    monkeypatch.setattr(AssetIndexer, "__init__", _fake_init)
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        lambda self, video_path, output_base, log_callback=None: [],
+    )
+
+    resp = client.post(f"/api/projects/{project_id}/assets/index")
+
+    assert resp.status_code == 200
+    assert len(captured_product) == 1
+    # meta.product is empty, should fall back to reader.get_product_config() -> default_name
+    assert captured_product[0] == "默认产品", f"应回退到 default_name='默认产品'，实际: {captured_product[0]}"
