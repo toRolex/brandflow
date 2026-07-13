@@ -76,6 +76,4 @@ def parse_file(file_path: Path) -> str:
     elif ext == ".docx":
         return parse_docx(file_path)
     else:
-        raise ValueError(
-            f"Unsupported file type '{ext}'. Supported: .txt, .pdf, .docx"
-        )
+        raise ValueError(f"Unsupported file type '{ext}'. Supported: .txt, .pdf, .docx")

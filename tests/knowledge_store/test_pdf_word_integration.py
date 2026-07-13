@@ -78,7 +78,9 @@ class TestPdfWordEndToEndIntegration:
             patch.object(SecretStore, "get_llm_api_key", return_value="test-key")
         )
         stack.enter_context(
-            patch.object(SecretStore, "get_llm_endpoint", return_value="https://api.test/v1")
+            patch.object(
+                SecretStore, "get_llm_endpoint", return_value="https://api.test/v1"
+            )
         )
         return stack
 
@@ -236,20 +238,20 @@ class TestMimeTypeDetection:
         pdf_bytes = _make_test_pdf(tmp_path / "test.bin", "羊肚菌珍贵食用菌")
         client = _client(tmp_path)
 
-        with patch.multiple(
-            "packages.provider_config.config_reader.ConfigReader",
-            get_llm_config=MagicMock(return_value={"model": "test-model"}),
-        ), patch.object(
-            SecretStore, "get_llm_api_key", return_value="test-key"
-        ), patch.object(
-            SecretStore, "get_llm_endpoint", return_value="https://api.test/v1"
+        with (
+            patch.multiple(
+                "packages.provider_config.config_reader.ConfigReader",
+                get_llm_config=MagicMock(return_value={"model": "test-model"}),
+            ),
+            patch.object(SecretStore, "get_llm_api_key", return_value="test-key"),
+            patch.object(
+                SecretStore, "get_llm_endpoint", return_value="https://api.test/v1"
+            ),
         ):
             with patch(
                 "packages.pipeline_services.llm_client.LLMClient.chat"
             ) as mock_chat:
-                mock_chat.return_value = json.dumps(
-                    {"items": []}, ensure_ascii=False
-                )
+                mock_chat.return_value = json.dumps({"items": []}, ensure_ascii=False)
                 resp = client.post(
                     "/api/knowledge/upload",
                     files={"file": ("test.bin", pdf_bytes, "application/pdf")},
@@ -266,20 +268,20 @@ class TestMimeTypeDetection:
         docx_bytes = _make_test_docx(tmp_path / "test.bin", "羊肚菌产自云南")
         client = _client(tmp_path)
 
-        with patch.multiple(
-            "packages.provider_config.config_reader.ConfigReader",
-            get_llm_config=MagicMock(return_value={"model": "test-model"}),
-        ), patch.object(
-            SecretStore, "get_llm_api_key", return_value="test-key"
-        ), patch.object(
-            SecretStore, "get_llm_endpoint", return_value="https://api.test/v1"
+        with (
+            patch.multiple(
+                "packages.provider_config.config_reader.ConfigReader",
+                get_llm_config=MagicMock(return_value={"model": "test-model"}),
+            ),
+            patch.object(SecretStore, "get_llm_api_key", return_value="test-key"),
+            patch.object(
+                SecretStore, "get_llm_endpoint", return_value="https://api.test/v1"
+            ),
         ):
             with patch(
                 "packages.pipeline_services.llm_client.LLMClient.chat"
             ) as mock_chat:
-                mock_chat.return_value = json.dumps(
-                    {"items": []}, ensure_ascii=False
-                )
+                mock_chat.return_value = json.dumps({"items": []}, ensure_ascii=False)
                 resp = client.post(
                     "/api/knowledge/upload",
                     files={

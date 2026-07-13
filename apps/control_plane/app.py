@@ -13,7 +13,9 @@ from apps.control_plane.routes.api_assets import router as api_assets_router
 from apps.control_plane.routes.api_jobs import router as api_jobs_router
 from apps.control_plane.routes.api_projects import router as api_projects_router
 from apps.control_plane.routes.api_schedule import router as api_schedule_router
-from apps.control_plane.routes.category_suggestion import router as category_suggestion_router
+from apps.control_plane.routes.category_suggestion import (
+    router as category_suggestion_router,
+)
 from apps.control_plane.routes.config import router as config_router
 from apps.control_plane.routes.reviews import router as reviews_router
 from apps.control_plane.routes.workers import router as workers_router
@@ -69,9 +71,7 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
                         if not job_id:
                             continue
 
-                        product = data.get(
-                            "product", os.environ.get("PRODUCT", "")
-                        )
+                        product = data.get("product", os.environ.get("PRODUCT", ""))
                         options = {
                             "manual_script": data.get("manual_script", ""),
                             "uploaded_audio_path": data.get("uploaded_audio_path", ""),

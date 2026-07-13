@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from packages.knowledge_store.extractor import KnowledgeExtractor
 from packages.knowledge_store.models import KnowledgeItem
@@ -39,9 +39,7 @@ class TestKnowledgeExtractor:
         assert len(brand_tone) >= 1
 
     def test_extract_with_empty_text_returns_empty(self):
-        extractor, mock_client = self._make_extractor(
-            '{"items": []}'
-        )
+        extractor, mock_client = self._make_extractor('{"items": []}')
         items = extractor.extract("", source_document="empty.txt")
         assert items == []
 
@@ -58,7 +56,7 @@ class TestKnowledgeExtractor:
             '{"items": [{"type": "selling_point", "title": "T", "content": "C", "priority": 3, "tags": []}]}'
         )
         long_text = "羊肚菌" * 3000  # ~9000 chars
-        items = extractor.extract(long_text, source_document="long.txt")
+        extractor.extract(long_text, source_document="long.txt")
         # Should have been called more than once (multiple chunks)
         assert mock_client.chat.call_count > 1
 
@@ -78,9 +76,7 @@ class TestKnowledgeExtractor:
         assert items[0].content == "采用天然种植方式，不使用化肥农药"
 
     def test_extract_generates_document_id(self):
-        extractor, mock_client = self._make_extractor(
-            '{"items": []}'
-        )
+        extractor, mock_client = self._make_extractor('{"items": []}')
         items = extractor.extract("内容", source_document="test.txt")
         assert all(isinstance(i, KnowledgeItem) for i in items)
 

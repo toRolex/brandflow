@@ -49,7 +49,9 @@ async def suggest(request: Request, body: SuggestRequest) -> SuggestResponse:
     config_reader: ConfigReader = request.app.state.config_reader
     secret_store: SecretStore = request.app.state.secret_store
 
-    sample_size = body.sample_size or config_reader.get_category_suggestion_sample_size()
+    sample_size = (
+        body.sample_size or config_reader.get_category_suggestion_sample_size()
+    )
     llm_model = body.model or config_reader.get_category_suggestion_model()
 
     # Build LLM config override with the specified model

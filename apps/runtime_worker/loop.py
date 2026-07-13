@@ -136,6 +136,7 @@ class WorkerLoop:
                     flush=True,
                 )
                 import traceback
+
                 traceback.print_exc()
                 status = "failed"
                 logs = f"phase execution error: {e}"

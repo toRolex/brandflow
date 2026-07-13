@@ -31,9 +31,8 @@ _PROJECT_ROOT = _THIS_DIR.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from apps.control_plane.services.metrics import (
+from apps.control_plane.services.metrics import (  # noqa: E402
     MetricsStore,
-    compute_metrics_diff,
 )
 
 _SNAPSHOT_DIR = "data/snapshots"
@@ -89,8 +88,7 @@ class SnapshotStore:
         dest = self.path_for(date)
         if not dest.exists():
             raise FileNotFoundError(
-                f"Snapshot not found: {dest}\n"
-                f"Run with --save-snapshot {date} first."
+                f"Snapshot not found: {dest}\nRun with --save-snapshot {date} first."
             )
         payload = json.loads(dest.read_text())
         # Future-proofing — we only understand version 1 for now

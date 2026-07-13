@@ -6,9 +6,7 @@ import json
 import tempfile
 import threading
 from pathlib import Path
-from unittest import mock
 
-import pytest
 
 from packages.provider_config.config_reader import ConfigReader
 
@@ -30,10 +28,13 @@ class TestConstructorMigration:
     def test_migrates_old_product_to_products(self) -> None:
         """旧格式 product 应自动迁移为 products."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = _write_config(tmpdir, {
-                "product": {"default_name": "旧产品"},
-                "active_product_id": "default",
-            })
+            _write_config(
+                tmpdir,
+                {
+                    "product": {"default_name": "旧产品"},
+                    "active_product_id": "default",
+                },
+            )
             reader = ConfigReader(config_dir=tmpdir)
 
             # After migration, the product should be accessible
@@ -43,10 +44,13 @@ class TestConstructorMigration:
     def test_migration_does_not_overwrite_existing_products(self) -> None:
         """已有 products 时不触发迁移."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = _write_config(tmpdir, {
-                "products": [{"id": "snack", "default_name": "零食"}],
-                "active_product_id": "snack",
-            })
+            _write_config(
+                tmpdir,
+                {
+                    "products": [{"id": "snack", "default_name": "零食"}],
+                    "active_product_id": "snack",
+                },
+            )
             reader = ConfigReader(config_dir=tmpdir)
             config = reader.get_product_config(product_id="snack")
             assert config["default_name"] == "零食"
@@ -230,7 +234,9 @@ class TestNonProductConfigs:
             reader = ConfigReader(config_dir=tmpdir)
             config = reader.get_asset_library_config()
             assert config["category_suggestion_sample_size"] == 50
-            assert config["category_suggestion_model"] == "deepseek-v4-flash"  # DEFAULTS
+            assert (
+                config["category_suggestion_model"] == "deepseek-v4-flash"
+            )  # DEFAULTS
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +282,9 @@ class TestProductConfig:
             assert config["default_brand"] == "SnackBrand"
             assert config["id"] == "snack"
 
-    def test_get_product_config_product_does_not_exist_returns_root_defaults(self) -> None:
+    def test_get_product_config_product_does_not_exist_returns_root_defaults(
+        self,
+    ) -> None:
         """product_id 不存在时返回 DEFAULTS + root-product（回退行为）。"""
         with tempfile.TemporaryDirectory() as tmpdir:
             # 同时包含 product 和 products 以避免迁移吞掉 root product
@@ -306,8 +314,16 @@ class TestProductConfig:
                 },
             )
             reader = ConfigReader(config_dir=tmpdir)
-            assert reader.get_product_value("script.scene", product_id="snack") == "自定义场景"
-            assert reader.get_product_value("script.unknown", "fallback", product_id="snack") == "fallback"
+            assert (
+                reader.get_product_value("script.scene", product_id="snack")
+                == "自定义场景"
+            )
+            assert (
+                reader.get_product_value(
+                    "script.unknown", "fallback", product_id="snack"
+                )
+                == "fallback"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -439,17 +455,23 @@ class TestKeywordMap:
 class TestCategorySuggestion:
     def test_get_category_suggestion_model(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            _write_config(tmpdir, {
-                "asset_library": {"category_suggestion_model": "custom-model"},
-            })
+            _write_config(
+                tmpdir,
+                {
+                    "asset_library": {"category_suggestion_model": "custom-model"},
+                },
+            )
             reader = ConfigReader(config_dir=tmpdir)
             assert reader.get_category_suggestion_model() == "custom-model"
 
     def test_get_category_suggestion_sample_size(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            _write_config(tmpdir, {
-                "asset_library": {"category_suggestion_sample_size": 100},
-            })
+            _write_config(
+                tmpdir,
+                {
+                    "asset_library": {"category_suggestion_sample_size": 100},
+                },
+            )
             reader = ConfigReader(config_dir=tmpdir)
             assert reader.get_category_suggestion_sample_size() == 100
 
@@ -463,7 +485,7 @@ class TestReload:
     def test_reload_picks_up_file_changes(self) -> None:
         """reload() 重新读取文件并重建缓存."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = _write_config(tmpdir, {"tts": {"voice": "FirstVoice"}})
+            _write_config(tmpdir, {"tts": {"voice": "FirstVoice"}})
             reader = ConfigReader(config_dir=tmpdir)
             assert reader.get_tts_config()["voice"] == "FirstVoice"
 
@@ -496,7 +518,10 @@ class TestReload:
                     except Exception as exc:  # noqa: BLE001
                         errors.append(exc)
 
-            threads = [threading.Thread(target=_reloader if i < 2 else _reader) for i in range(6)]
+            threads = [
+                threading.Thread(target=_reloader if i < 2 else _reader)
+                for i in range(6)
+            ]
             for t in threads:
                 t.start()
             for t in threads:

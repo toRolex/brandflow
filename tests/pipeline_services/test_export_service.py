@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import zipfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -127,7 +126,10 @@ class TestBuildExportBundle:
         _populate_full_job(job_dir, workspace_dir)
 
         zip_path = build_export_bundle(
-            job_dir, workspace_dir, project_dir, export_dir,
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
             get_scene_config=lambda: _SCENE_CFG_FULL,
         )
 
@@ -160,7 +162,10 @@ class TestBuildExportBundle:
         (job_dir / "subtitles.srt").unlink()
 
         zip_path = build_export_bundle(
-            job_dir, workspace_dir, project_dir, export_dir,
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
             get_scene_config=lambda: _SCENE_CFG_FULL,
         )
 
@@ -180,14 +185,16 @@ class TestBuildExportBundle:
         (job_dir / "selected_clips.json").unlink()
 
         zip_path = build_export_bundle(
-            job_dir, workspace_dir, project_dir, export_dir,
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
             get_scene_config=lambda: _SCENE_CFG_FULL,
         )
 
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
 
-        prefix = "export_job-001/"
         montage_clips = [n for n in names if "montage_" in n]
         assert montage_clips == [], f"unexpected montage clips: {montage_clips}"
 
@@ -196,7 +203,10 @@ class TestBuildExportBundle:
     ) -> None:
         """Empty job directory produces a ZIP with only timeline.json."""
         zip_path = build_export_bundle(
-            job_dir, workspace_dir, project_dir, export_dir,
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
             get_scene_config=lambda: _SCENE_CFG_FULL,
         )
 
@@ -215,7 +225,10 @@ class TestBuildExportBundle:
         (job_dir / "audio.mp3").write_text("mp3 data")
 
         zip_path = build_export_bundle(
-            job_dir, workspace_dir, project_dir, export_dir,
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
             get_scene_config=lambda: _SCENE_CFG_FULL,
         )
 
@@ -233,12 +246,15 @@ class TestBuildExportBundle:
         (job_dir / "audio.mp3").write_text("mp3 data")
 
         zip_path = build_export_bundle(
-            job_dir, workspace_dir, project_dir, export_dir,
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
             get_scene_config=lambda: _SCENE_CFG_FULL,
         )
 
         with zipfile.ZipFile(zip_path, "r") as zf:
-            assert zf.read(f"export_job-001/audio/tts.wav") == b"wav data"
+            assert zf.read("export_job-001/audio/tts.wav") == b"wav data"
 
     def test_bundle_creates_export_dir(
         self, job_dir: Path, workspace_dir: Path, project_dir: Path, tmp_path: Path
@@ -248,7 +264,10 @@ class TestBuildExportBundle:
         assert not export_dir.exists()
 
         build_export_bundle(
-            job_dir, workspace_dir, project_dir, export_dir,
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
             get_scene_config=lambda: _SCENE_CFG_FULL,
         )
 
@@ -272,7 +291,10 @@ class TestBuildExportBundle:
         }
 
         zip_path = build_export_bundle(
-            job_dir, workspace_dir, project_dir, export_dir,
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
             get_scene_config=lambda: scene_config,
         )
 
@@ -294,7 +316,10 @@ class TestBuildExportBundle:
         }
 
         zip_path = build_export_bundle(
-            job_dir, workspace_dir, project_dir, export_dir,
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
             get_scene_config=lambda: scene_config,
         )
 
@@ -314,7 +339,10 @@ class TestGenerateTimelineJson:
     def test_empty_job_dir(self, job_dir: Path, workspace_dir: Path) -> None:
         """Empty job dir produces minimal timeline with version and empty segments."""
         timeline = generate_timeline_json(
-            job_dir, workspace_dir, Path("/tmp/proj"), scene_cfg=_SCENE_CFG_FULL,
+            job_dir,
+            workspace_dir,
+            Path("/tmp/proj"),
+            scene_cfg=_SCENE_CFG_FULL,
         )
 
         assert timeline["version"] == "1.0"
@@ -322,15 +350,16 @@ class TestGenerateTimelineJson:
         assert timeline["audio"] == {"file": "audio/tts.wav"}
         assert "subtitle" not in timeline
 
-    def test_with_full_artifacts(
-        self, job_dir: Path, workspace_dir: Path
-    ) -> None:
+    def test_with_full_artifacts(self, job_dir: Path, workspace_dir: Path) -> None:
         """Full artifacts produce complete timeline with all sections."""
         (job_dir / "audio.mp3").write_text("audio")
         (job_dir / "subtitles.srt").write_text("1\n00:00:01 --> 00:00:02\ntest\n")
 
         timeline = generate_timeline_json(
-            job_dir, workspace_dir, Path("/tmp/proj"), scene_cfg=_SCENE_CFG_FULL,
+            job_dir,
+            workspace_dir,
+            Path("/tmp/proj"),
+            scene_cfg=_SCENE_CFG_FULL,
         )
 
         assert timeline["version"] == "1.0"
@@ -344,7 +373,10 @@ class TestGenerateTimelineJson:
         (job_dir / "audio.mp3").write_text("fake audio")
 
         timeline = generate_timeline_json(
-            job_dir, workspace_dir, Path("/tmp/proj"), scene_cfg=_SCENE_CFG_FULL,
+            job_dir,
+            workspace_dir,
+            Path("/tmp/proj"),
+            scene_cfg=_SCENE_CFG_FULL,
         )
         assert timeline["audio"]["duration_ms"] == 0
 
@@ -362,7 +394,10 @@ class TestGenerateTimelineJson:
         }
 
         timeline = generate_timeline_json(
-            job_dir, workspace_dir, Path("/tmp/proj"), scene_cfg=scene_config,
+            job_dir,
+            workspace_dir,
+            Path("/tmp/proj"),
+            scene_cfg=scene_config,
         )
 
         assert len(timeline["segments"]) == 1
@@ -373,9 +408,7 @@ class TestGenerateTimelineJson:
         assert scene_seg["clips"][0]["transition"] == "crossfade"
         assert scene_seg["clips"][0]["transition_duration_ms"] == 500
 
-    def test_timeline_montage_clips(
-        self, job_dir: Path, workspace_dir: Path
-    ) -> None:
+    def test_timeline_montage_clips(self, job_dir: Path, workspace_dir: Path) -> None:
         """Montage clips are included from selected_clips.json."""
         clip_dir = workspace_dir / "shared_assets" / "source"
         clip_dir.mkdir(parents=True)
@@ -391,7 +424,10 @@ class TestGenerateTimelineJson:
         (job_dir / "selected_clips.json").write_text(json.dumps(selected))
 
         timeline = generate_timeline_json(
-            job_dir, workspace_dir, Path("/tmp/proj"), scene_cfg=_SCENE_CFG_FULL,
+            job_dir,
+            workspace_dir,
+            Path("/tmp/proj"),
+            scene_cfg=_SCENE_CFG_FULL,
         )
 
         montage_segs = [s for s in timeline["segments"] if s["type"] == "montage"]
@@ -406,7 +442,10 @@ class TestGenerateTimelineJson:
     ) -> None:
         """Subtitle field is absent when subtitles.srt is missing."""
         timeline = generate_timeline_json(
-            job_dir, workspace_dir, Path("/tmp/proj"), scene_cfg=_SCENE_CFG_FULL,
+            job_dir,
+            workspace_dir,
+            Path("/tmp/proj"),
+            scene_cfg=_SCENE_CFG_FULL,
         )
         assert "subtitle" not in timeline
 

@@ -185,7 +185,10 @@ def test_persistence_after_migration() -> None:
         store2 = _make_store(tmpdir)
         config2 = store2.get_product_config()
         assert config2["default_name"] == "羊肚菌"
-        assert load_config(store2._reader._config_path).get("active_product_id") == "default"
+        assert (
+            load_config(store2._reader._config_path).get("active_product_id")
+            == "default"
+        )
 
 
 def test_reset_product_config_clears_active() -> None:

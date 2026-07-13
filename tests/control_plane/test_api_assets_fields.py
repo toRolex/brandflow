@@ -42,7 +42,9 @@ def _setup_asset_db(root_dir: Path) -> tuple[Path, str, str, str]:
     db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    indexed_dir = root_dir / "workspace" / "shared_assets" / "indexed" / "荔枝菌" / "产品特写"
+    indexed_dir = (
+        root_dir / "workspace" / "shared_assets" / "indexed" / "荔枝菌" / "产品特写"
+    )
     indexed_dir.mkdir(parents=True, exist_ok=True)
     file_path = indexed_dir / "test_clip_001.mp4"
     file_path.write_bytes(b"fake mp4 content")
@@ -67,10 +69,14 @@ def test_patch_asset_fields_valid_custom_category(tmp_path: Path) -> None:
     """Custom product category should be accepted when configured."""
     _write_config(
         tmp_path,
-        {"product": {"categories": [
-            {"id": "promo", "name": "促销活动"},
-            {"id": "unboxing", "name": "开箱展示"},
-        ]}},
+        {
+            "product": {
+                "categories": [
+                    {"id": "promo", "name": "促销活动"},
+                    {"id": "unboxing", "name": "开箱展示"},
+                ]
+            }
+        },
     )
 
     client = _make_client(tmp_path)
@@ -208,7 +214,9 @@ def _setup_multi_asset_db(root_dir: Path) -> tuple[Path, list[str], str, list[st
     file_paths = []
     for i in range(2):
         idx = i + 1
-        cat_dir = root_dir / "workspace" / "shared_assets" / "indexed" / "荔枝菌" / "产品特写"
+        cat_dir = (
+            root_dir / "workspace" / "shared_assets" / "indexed" / "荔枝菌" / "产品特写"
+        )
         cat_dir.mkdir(parents=True, exist_ok=True)
         file_path = cat_dir / f"test_clip_{idx:03d}.mp4"
         file_path.write_bytes(b"fake mp4 batch")
@@ -272,9 +280,7 @@ def test_batch_fields_invalid_category_returns_error(tmp_path: Path) -> None:
 
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT category FROM assets ORDER BY asset_id"
-    ).fetchall()
+    rows = conn.execute("SELECT category FROM assets ORDER BY asset_id").fetchall()
     conn.close()
     for row in rows:
         assert row["category"] == old_cat
@@ -313,9 +319,7 @@ def test_batch_fields_file_move_consistency(tmp_path: Path) -> None:
 
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT file_path FROM assets ORDER BY asset_id"
-    ).fetchall()
+    rows = conn.execute("SELECT file_path FROM assets ORDER BY asset_id").fetchall()
     conn.close()
 
     for row in rows:
@@ -343,8 +347,16 @@ class TestGetCategoriesEndpoint:
                         "id": "prod-a",
                         "name": "产品A",
                         "categories": [
-                            {"id": "unboxing", "name": "开箱展示", "description": "开箱"},
-                            {"id": "tasting", "name": "试吃品尝", "description": "试吃"},
+                            {
+                                "id": "unboxing",
+                                "name": "开箱展示",
+                                "description": "开箱",
+                            },
+                            {
+                                "id": "tasting",
+                                "name": "试吃品尝",
+                                "description": "试吃",
+                            },
                         ],
                     },
                 ],

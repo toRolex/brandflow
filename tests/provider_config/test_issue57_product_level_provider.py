@@ -97,9 +97,9 @@ class TestProductLevelTTSFallback:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
             store.switch_product("p1")
-            store.save_product_config("p1", {
-                "tts": {"provider": "qwen", "model": "qwen-tts"}
-            })
+            store.save_product_config(
+                "p1", {"tts": {"provider": "qwen", "model": "qwen-tts"}}
+            )
             config = _get_tts_config(store)
             assert config["provider"] == "qwen"
             assert config["model"] == "qwen-tts"
@@ -131,9 +131,7 @@ class TestProductLevelTTSFallback:
             assert config["provider"] == "mimo"
 
             store.switch_product("p1")
-            store.save_product_config("p1", {
-                "tts": {"provider": "qwen"}
-            })
+            store.save_product_config("p1", {"tts": {"provider": "qwen"}})
             config = _get_tts_config(store)
             assert config["provider"] == "qwen"  # product 覆盖
             assert config["model"] == "mimo-v2.5-tts"  # 回退到 root
@@ -143,12 +141,15 @@ class TestProductLevelTTSFallback:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
             store.switch_product("p1")
-            store.save_product_config("p1", {
-                "tts": {
-                    "provider": "minimax",
-                    "director": {"character": "播客主持人"}
-                }
-            })
+            store.save_product_config(
+                "p1",
+                {
+                    "tts": {
+                        "provider": "minimax",
+                        "director": {"character": "播客主持人"},
+                    }
+                },
+            )
             config = _get_tts_config(store)
             assert config["provider"] == "minimax"
             assert config["director"]["character"] == "播客主持人"
@@ -171,9 +172,9 @@ class TestProductLevelLLMFallback:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
             store.switch_product("p1")
-            store.save_product_config("p1", {
-                "llm": {"provider": "kimi", "model": "kimi-latest"}
-            })
+            store.save_product_config(
+                "p1", {"llm": {"provider": "kimi", "model": "kimi-latest"}}
+            )
             config = _get_llm_config(store)
             assert config["provider"] == "kimi"
             assert config["model"] == "kimi-latest"
@@ -200,9 +201,7 @@ class TestProductLevelLLMFallback:
             save_config(path, raw)
             store._reader.reload()
             store.switch_product("p1")
-            store.save_product_config("p1", {
-                "llm": {"provider": "kimi"}
-            })
+            store.save_product_config("p1", {"llm": {"provider": "kimi"}})
             config = _get_llm_config(store)
             assert config["provider"] == "kimi"
             assert config["model"] == "deepseek-v4-pro"
@@ -215,9 +214,9 @@ class TestProductLevelVisionFallback:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
             store.switch_product("p1")
-            store.save_product_config("p1", {
-                "vision": {"provider": "openai", "model": "gpt-4o-mini"}
-            })
+            store.save_product_config(
+                "p1", {"vision": {"provider": "openai", "model": "gpt-4o-mini"}}
+            )
             config = _get_vision_config(store)
             assert config["provider"] == "openai"
             assert config["model"] == "gpt-4o-mini"
@@ -237,9 +236,7 @@ class TestProductLevelVisionFallback:
             _set_vision(tmpdir, store, "provider", "xiaomi")
             _set_vision(tmpdir, store, "model", "mimo-v2.5")
             store.switch_product("p1")
-            store.save_product_config("p1", {
-                "vision": {"provider": "openai"}
-            })
+            store.save_product_config("p1", {"vision": {"provider": "openai"}})
             config = _get_vision_config(store)
             assert config["provider"] == "openai"
             assert config["model"] == "mimo-v2.5"

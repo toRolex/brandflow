@@ -286,7 +286,11 @@ class TestAppConfigCategories:
                 "prod_cat",
                 {
                     "categories": [
-                        {"id": "origin", "name": "产地溯源", "description": "原产地场景"},
+                        {
+                            "id": "origin",
+                            "name": "产地溯源",
+                            "description": "原产地场景",
+                        },
                         {"id": "sorting", "name": "筛选分拣", "description": ""},
                     ],
                 },
@@ -309,7 +313,11 @@ class TestAppConfigCategories:
                 "prod_roundtrip",
                 {
                     "categories": [
-                        {"id": "test_cat", "name": "测试分类", "description": "往返测试"},
+                        {
+                            "id": "test_cat",
+                            "name": "测试分类",
+                            "description": "往返测试",
+                        },
                     ],
                 },
             )

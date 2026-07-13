@@ -4,7 +4,11 @@ import tempfile
 from pathlib import Path
 
 from packages.script_template.store import ScriptTemplateStore
-from packages.script_template.models import ScriptTemplate, TemplateSlot, TemplateVariable
+from packages.script_template.models import (
+    ScriptTemplate,
+    TemplateSlot,
+    TemplateVariable,
+)
 
 
 def _sample_template(id: str = "tmpl_001") -> ScriptTemplate:
@@ -13,12 +17,28 @@ def _sample_template(id: str = "tmpl_001") -> ScriptTemplate:
         name="通用带货脚本",
         description="适用于食品类短视频带货",
         slots=[
-            TemplateSlot(type="hook", label="开头钩子", required=True, max_length=60, hint="吸引眼球的开头"),
-            TemplateSlot(type="selling_point", label="核心卖点", required=True, max_length=200, hint="产品核心卖点描述"),
+            TemplateSlot(
+                type="hook",
+                label="开头钩子",
+                required=True,
+                max_length=60,
+                hint="吸引眼球的开头",
+            ),
+            TemplateSlot(
+                type="selling_point",
+                label="核心卖点",
+                required=True,
+                max_length=200,
+                hint="产品核心卖点描述",
+            ),
         ],
         variables=[
-            TemplateVariable(name="product_name", label="产品名", source="product_config"),
-            TemplateVariable(name="brand_name", label="品牌名", source="product_config"),
+            TemplateVariable(
+                name="product_name", label="产品名", source="product_config"
+            ),
+            TemplateVariable(
+                name="brand_name", label="品牌名", source="product_config"
+            ),
         ],
         default_config_override={"word_count_max": 200},
     )

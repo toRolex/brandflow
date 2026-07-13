@@ -8,7 +8,6 @@ All ``get_*()`` methods are O(1) dict lookups after construction.
 from __future__ import annotations
 
 import threading
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -178,10 +177,9 @@ class ConfigReader:
             product_merged = _deep_merge(root_product, p)
             product_merged.setdefault("id", pid)
             if not product_merged.get("name"):
-                product_merged["name"] = (
-                    product_merged.get("default_name", "")
-                    or product_merged.get("id", "")
-                )
+                product_merged["name"] = product_merged.get(
+                    "default_name", ""
+                ) or product_merged.get("id", "")
 
             # Scene: product-level scene overrides top-level scene
             p_scene = p.get("scene")
@@ -192,10 +190,12 @@ class ConfigReader:
 
             self._product_cache[pid] = {
                 "tts": _deep_merge(
-                    self._cache["tts"], p.get("tts", {}) if isinstance(p.get("tts"), dict) else {}
+                    self._cache["tts"],
+                    p.get("tts", {}) if isinstance(p.get("tts"), dict) else {},
                 ),
                 "llm": _deep_merge(
-                    self._cache["llm"], p.get("llm", {}) if isinstance(p.get("llm"), dict) else {}
+                    self._cache["llm"],
+                    p.get("llm", {}) if isinstance(p.get("llm"), dict) else {},
                 ),
                 "vision": _deep_merge(
                     self._cache["vision"],

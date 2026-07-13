@@ -643,6 +643,7 @@ class MetricsStore:
             record lists. This method relies on ``imported_at`` which gets
             overwritten by the production UPSERT import.
         """
+
         def _fetch(date_str: str) -> list[dict[str, Any]]:
             where = ["imported_at LIKE ?"]
             params: list[Any] = [f"{date_str}%"]
@@ -651,10 +652,13 @@ class MetricsStore:
                 params.append(platform)
             conn = self._conn()
             try:
-                return [dict(r) for r in conn.execute(
-                    f"SELECT * FROM video_metrics WHERE {' AND '.join(where)}",
-                    params,
-                ).fetchall()]
+                return [
+                    dict(r)
+                    for r in conn.execute(
+                        f"SELECT * FROM video_metrics WHERE {' AND '.join(where)}",
+                        params,
+                    ).fetchall()
+                ]
             finally:
                 conn.close()
 
@@ -676,9 +680,9 @@ class MetricsStore:
         """Compare current DB state against a previously-saved snapshot."""
         conn = self._conn()
         try:
-            current_records = [dict(r) for r in conn.execute(
-                "SELECT * FROM video_metrics"
-            ).fetchall()]
+            current_records = [
+                dict(r) for r in conn.execute("SELECT * FROM video_metrics").fetchall()
+            ]
         finally:
             conn.close()
 
@@ -830,10 +834,7 @@ def compute_metrics_diff(
     top_gainers = top_gainers[:10]
 
     # Daily trend sorted by date
-    daily_trend = [
-        {"date": date, **agg}
-        for date, agg in sorted(daily_agg.items())
-    ]
+    daily_trend = [{"date": date, **agg} for date, agg in sorted(daily_agg.items())]
 
     result: dict[str, Any] = {
         "snapshot_date": current_snapshot_date,
