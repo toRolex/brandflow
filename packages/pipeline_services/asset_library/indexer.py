@@ -12,13 +12,10 @@ from pathlib import Path
 from packages.pipeline_services.asset_library.models import AssetRecord
 from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_library.vision_client import VisionClient
+from packages.pipeline_services.asset_library.vision_utils import VisionConfigError
 from packages.pipeline_services.media_utils import _resolve_ffprobe_path
 
 logger = logging.getLogger(__name__)
-
-
-class VisionConfigError(Exception):
-    """Vision provider 配置缺失或无效。"""
 
 
 class VisionClassifyError(Exception):

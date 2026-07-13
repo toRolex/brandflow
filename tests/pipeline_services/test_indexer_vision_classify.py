@@ -11,10 +11,13 @@ import requests
 from packages.pipeline_services.asset_library.indexer import (
     AssetIndexer,
     VisionClassifyError,
-    VisionConfigError,
 )
 from packages.pipeline_services.asset_library.models import AssetRecord
 from packages.pipeline_services.asset_library.repository import AssetRepository
+from packages.pipeline_services.asset_library.vision_utils import (
+    VisionConfigError,
+    validate_vision_config,
+)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -355,3 +358,45 @@ class TestVisionConfigValidation:
 
         with pytest.raises(VisionConfigError, match="endpoint"):
             indexer.ingest_videos(source_dir, output_base)
+
+
+# ── 公共 validate_vision_config 函数测试 ────────────────────────────────────
+
+
+class TestValidateVisionConfigPublic:
+    """Seam: 公共 validate_vision_config 函数校验 ConfigReader + SecretStore。"""
+
+    def _make_valid_mocks(self):
+        reader = Mock()
+        reader.get_vision_config.return_value = {"provider": "xiaomi"}
+        secret_store = Mock()
+        secret_store.get_vision_api_key.return_value = "test-key-123"
+        secret_store.get_vision_endpoint.return_value = "https://vision.test.com"
+        secret_store.get_vision_model.return_value = "mimo-v2.5"
+        return reader, secret_store
+
+    def test_valid_config_passes(self):
+        """配置齐全时不抛出异常。"""
+        reader, secret_store = self._make_valid_mocks()
+        validate_vision_config(reader, secret_store)
+
+    def test_missing_api_key_raises(self):
+        """API key 缺失时抛出 VisionConfigError。"""
+        reader, secret_store = self._make_valid_mocks()
+        secret_store.get_vision_api_key.return_value = ""
+        with pytest.raises(VisionConfigError, match="api_key"):
+            validate_vision_config(reader, secret_store)
+
+    def test_missing_endpoint_raises(self):
+        """endpoint 缺失时抛出 VisionConfigError。"""
+        reader, secret_store = self._make_valid_mocks()
+        secret_store.get_vision_endpoint.return_value = ""
+        with pytest.raises(VisionConfigError, match="endpoint"):
+            validate_vision_config(reader, secret_store)
+
+    def test_missing_model_raises(self):
+        """model 缺失时抛出 VisionConfigError。"""
+        reader, secret_store = self._make_valid_mocks()
+        secret_store.get_vision_model.return_value = ""
+        with pytest.raises(VisionConfigError, match="model"):
+            validate_vision_config(reader, secret_store)
