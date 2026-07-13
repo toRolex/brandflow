@@ -26,12 +26,14 @@ class LegacyScriptBridge:
         if self._config_reader is not None:
             return self._config_reader
         from packages.provider_config.config_reader import ConfigReader
+
         return ConfigReader(config_dir=str(self._root_dir / "config"))
 
     def _get_or_create_secrets(self) -> "SecretStore":
         if self._secret_store is not None:
             return self._secret_store
         from packages.provider_config.secret_store import SecretStore
+
         return SecretStore()
 
     def generate(

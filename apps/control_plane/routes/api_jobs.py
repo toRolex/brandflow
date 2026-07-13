@@ -30,7 +30,11 @@ def _resolve_product_defaults(
         return product, brand
     reader = ConfigReader(config_dir=str(Path(root_dir) / "config"))
     active_id = reader.active_product_id
-    cfg = reader.get_product_config(product_id=active_id) if active_id else reader.get_product_config()
+    cfg = (
+        reader.get_product_config(product_id=active_id)
+        if active_id
+        else reader.get_product_config()
+    )
     default_name = cfg.get("default_name", "")
     if not default_name:
         return product, brand
@@ -250,7 +254,6 @@ def pause_job(request: Request, job_id: str):
 
 @router.post("/api/jobs/{job_id}/retry")
 def retry_job(request: Request, job_id: str):
-    dispatcher = request.app.state.dispatcher
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _find_job_project(repo, job_id)
     if not project_id:

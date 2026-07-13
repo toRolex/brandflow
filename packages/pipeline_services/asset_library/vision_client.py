@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 
 from packages.pipeline_services.asset_library.category_config import default_categories
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +99,7 @@ class VisionClient:
             )
             return result
         except requests.exceptions.Timeout:
-            logger.error(
-                f"[Vision] 请求超时: {image_path.name}, endpoint={endpoint}"
-            )
+            logger.error(f"[Vision] 请求超时: {image_path.name}, endpoint={endpoint}")
             raise
         except requests.exceptions.HTTPError as e:
             logger.error(

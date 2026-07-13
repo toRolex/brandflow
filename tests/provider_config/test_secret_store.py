@@ -12,6 +12,7 @@ from packages.provider_config.secret_store import SecretStore
 # Pure env lookup: get_api_key
 # ---------------------------------------------------------------------------
 
+
 def test_get_api_key_tts_provider() -> None:
     """get_api_key should read provider-specific env var for TTS providers."""
     store = SecretStore(env={"MIMO_API_KEY": "mimo-key-123"})
@@ -73,6 +74,7 @@ def test_get_api_key_empty_when_not_set() -> None:
 # ---------------------------------------------------------------------------
 # Pure env lookup: get_api_base_url
 # ---------------------------------------------------------------------------
+
 
 def test_get_api_base_url_tts_provider() -> None:
     """get_api_base_url should read provider-specific env var for TTS providers."""
@@ -197,7 +199,9 @@ def test_combo_methods_accept_product_id() -> None:
     store = SecretStore(env={"DEEPSEEK_API_KEY": "sk-by-product"})
     with tempfile.TemporaryDirectory() as tmpdir:
         reader = ConfigReader(config_dir=tmpdir)
-        assert store.get_llm_api_key(reader, product_id="nonexistent") == "sk-by-product"
+        assert (
+            store.get_llm_api_key(reader, product_id="nonexistent") == "sk-by-product"
+        )
 
 
 # ---------------------------------------------------------------------------

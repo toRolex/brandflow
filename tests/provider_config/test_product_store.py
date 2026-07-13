@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 
@@ -194,7 +193,10 @@ class TestRenameProduct:
             store = _make_store(tmpdir)
             store.create_product("羊肚菌")
             store.rename_product("羊肚菌", "新鲜羊肚菌")
-            assert store._reader.get_product_config("羊肚菌")["default_name"] == "新鲜羊肚菌"
+            assert (
+                store._reader.get_product_config("羊肚菌")["default_name"]
+                == "新鲜羊肚菌"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +340,9 @@ class TestSetProductConfig:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
             store.create_product("羊肚菌")
-            store.set_product_config({"default_name": "新鲜羊肚菌", "default_brand": "菌王"})
+            store.set_product_config(
+                {"default_name": "新鲜羊肚菌", "default_brand": "菌王"}
+            )
             config = store.get_product_config()
             assert config["default_name"] == "新鲜羊肚菌"
             assert config["default_brand"] == "菌王"
@@ -366,7 +370,9 @@ class TestSaveProductConfig:
             store.set_product("default_name", "竹荪")
             store.save_product_config("prod_001", {"default_name": "羊肚菌尊享版"})
             assert store.get_product_config()["default_name"] == "竹荪"
-            assert store.get_product_config("prod_001")["default_name"] == "羊肚菌尊享版"
+            assert (
+                store.get_product_config("prod_001")["default_name"] == "羊肚菌尊享版"
+            )
 
     def test_save_creates_missing_product(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -434,7 +440,10 @@ class TestSetProduct:
             store = _make_store(tmpdir)
             store.create_product("羊肚菌")
             store.set_product("default_name", "顶级羊肚菌")
-            assert store._reader.get_product_config("羊肚菌")["default_name"] == "顶级羊肚菌"
+            assert (
+                store._reader.get_product_config("羊肚菌")["default_name"]
+                == "顶级羊肚菌"
+            )
 
 
 # ---------------------------------------------------------------------------

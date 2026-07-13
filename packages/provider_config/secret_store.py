@@ -8,7 +8,6 @@ the provider name from the config.
 from __future__ import annotations
 
 import os
-from typing import Any
 
 from packages.provider_config.config_reader import ConfigReader
 
@@ -66,7 +65,9 @@ class SecretStore:
             if provider in self._TTS_PROVIDERS:
                 value = self._env.get("TTS_API_KEY", "").strip().strip('"').strip("'")
             elif provider in self._VISION_PROVIDERS:
-                value = self._env.get("VISION_API_KEY", "").strip().strip('"').strip("'")
+                value = (
+                    self._env.get("VISION_API_KEY", "").strip().strip('"').strip("'")
+                )
             else:
                 value = self._env.get("LLM_API_KEY", "").strip().strip('"').strip("'")
         return value

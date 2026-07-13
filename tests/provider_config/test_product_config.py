@@ -4,7 +4,6 @@ import json
 import tempfile
 from pathlib import Path
 
-from packages.provider_config.config_io import load_config, save_config
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.product_store import ProductStore
 
@@ -42,10 +41,12 @@ def test_set_product_config() -> None:
     """写入 product 配置后读取应返回新值"""
     with tempfile.TemporaryDirectory() as tmpdir:
         store = _make_store(tmpdir)
-        store.set_product_config({
-            "default_name": "测试产品",
-            "default_brand": "测试品牌",
-        })
+        store.set_product_config(
+            {
+                "default_name": "测试产品",
+                "default_brand": "测试品牌",
+            }
+        )
         config = store.get_product_config()
         assert config["default_name"] == "测试产品"
         assert config["default_brand"] == "测试品牌"
@@ -57,12 +58,14 @@ def test_set_product_deep_merge() -> None:
     """set_product_config 应与 DEFAULTS 深度合并"""
     with tempfile.TemporaryDirectory() as tmpdir:
         store = _make_store(tmpdir)
-        store.set_product_config({
-            "script": {
-                "scene": "自定义场景",
-                "material": "自定义素材",
+        store.set_product_config(
+            {
+                "script": {
+                    "scene": "自定义场景",
+                    "material": "自定义素材",
+                }
             }
-        })
+        )
         config = store.get_product_config()
         assert config["script"]["scene"] == "自定义场景"
         assert config["script"]["material"] == "自定义素材"
@@ -105,16 +108,17 @@ def test_product_config_persistence() -> None:
 
 def test_product_config_with_categories() -> None:
     """product 配置应包含 categories 段且返回 CategoryConfig 列表"""
-    from packages.pipeline_services.asset_library.category_config import CategoryConfig
 
     with tempfile.TemporaryDirectory() as tmpdir:
         store = _make_store(tmpdir)
-        store.set_product_config({
-            "categories": [
-                {"id": "unboxing", "name": "开箱展示"},
-                {"id": "tasting", "name": "试吃品尝"},
-            ]
-        })
+        store.set_product_config(
+            {
+                "categories": [
+                    {"id": "unboxing", "name": "开箱展示"},
+                    {"id": "tasting", "name": "试吃品尝"},
+                ]
+            }
+        )
         config = store.get_product_config()
         assert len(config["categories"]) == 2
         assert config["categories"][0]["id"] == "unboxing"
@@ -290,7 +294,7 @@ def test_list_products_falls_back_to_id() -> None:
         assert products[0]["id"] == "snack"
         assert products[0]["name"] == "snack"  # fallback to id
         assert products[1]["id"] == "drink"
-        assert products[1]["name"] == "饮料"   # default_name wins
+        assert products[1]["name"] == "饮料"  # default_name wins
 
 
 def test_set_product_config_keeps_name_consistent(tmp_path) -> None:

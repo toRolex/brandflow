@@ -220,18 +220,20 @@ class TestQualityKnowledgeRules:
     def test_forbidden_words_from_knowledge_satisfied(self, tmp_path: Path) -> None:
         """脚本不含知识库禁词时通过。"""
         store = KnowledgeStore(tmp_path)
-        store.save_items([
-            KnowledgeItem(
-                id="fw_001",
-                document_id="doc_001",
-                type="forbidden_word",
-                title="禁词",
-                content="",
-                priority=1,
-                tags=[],
-                source_document="规则.txt",
-            ),
-        ])
+        store.save_items(
+            [
+                KnowledgeItem(
+                    id="fw_001",
+                    document_id="doc_001",
+                    type="forbidden_word",
+                    title="禁词",
+                    content="",
+                    priority=1,
+                    tags=[],
+                    source_document="规则.txt",
+                ),
+            ]
+        )
         text = _valid_text()
         result = validate_script(
             text,
@@ -249,18 +251,20 @@ class TestQualityKnowledgeRules:
     def test_forbidden_words_from_knowledge_fails(self, tmp_path: Path) -> None:
         """脚本含知识库禁词时失败。"""
         store = KnowledgeStore(tmp_path)
-        store.save_items([
-            KnowledgeItem(
-                id="fw_001",
-                document_id="doc_001",
-                type="forbidden_word",
-                title="禁词",
-                content="劣质",
-                priority=1,
-                tags=[],
-                source_document="规则.txt",
-            ),
-        ])
+        store.save_items(
+            [
+                KnowledgeItem(
+                    id="fw_001",
+                    document_id="doc_001",
+                    type="forbidden_word",
+                    title="禁词",
+                    content="劣质",
+                    priority=1,
+                    tags=[],
+                    source_document="规则.txt",
+                ),
+            ]
+        )
 
         text = _valid_text_no_selling().replace("美味", "劣质")
         result = validate_script(

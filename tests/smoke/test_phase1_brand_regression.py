@@ -1,4 +1,5 @@
 """Phase 1 regression: production code must be free of legacy brand references."""
+
 import subprocess
 from pathlib import Path
 
@@ -53,12 +54,23 @@ def _is_allowed(file_path: str) -> bool:
 
 def test_production_code_has_no_legacy_brand_references() -> None:
     """US16: grep-based regression — production sources must not contain legacy brand strings."""
-    args = ["grep", "-rn"] + BANNED_PATTERNS + ["--include=*.py",
-        "--include=*.ts", "--include=*.tsx",
-        "--include=*.json", "--include=*.yaml",
-        "--include=*.md", "--include=*.txt",
-        "--include=*.html", "--include=*.bat",
-        "--include=*.toml", "--include=*.css"]
+    args = (
+        ["grep", "-rn"]
+        + BANNED_PATTERNS
+        + [
+            "--include=*.py",
+            "--include=*.ts",
+            "--include=*.tsx",
+            "--include=*.json",
+            "--include=*.yaml",
+            "--include=*.md",
+            "--include=*.txt",
+            "--include=*.html",
+            "--include=*.bat",
+            "--include=*.toml",
+            "--include=*.css",
+        ]
+    )
 
     for d in EXCLUDE_DIRS:
         args.extend([f"--exclude-dir={d}"])
@@ -72,7 +84,8 @@ def test_production_code_has_no_legacy_brand_references() -> None:
 
     # Filter out test files and allowed paths
     violations = [
-        line for line in lines
+        line
+        for line in lines
         if "/tests/" not in line and not _is_allowed(line.split(":")[0])
     ]
 

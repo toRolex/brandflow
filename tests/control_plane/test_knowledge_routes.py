@@ -8,8 +8,10 @@ from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
 from packages.knowledge_store.extractor import KnowledgeExtractor
-from packages.knowledge_store.models import KnowledgeItem
-from packages.pipeline_services.script_service.generator import ScriptGenerator, ScriptResult
+from packages.pipeline_services.script_service.generator import (
+    ScriptGenerator,
+    ScriptResult,
+)
 
 MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
 
@@ -53,9 +55,7 @@ class TestKnowledgeUploadExtractGenerate:
         )
         return KnowledgeExtractor(llm_client=mock_client)
 
-    def test_upload_txt_extracts_and_injects_into_script(
-        self, tmp_path: Path
-    ) -> None:
+    def test_upload_txt_extracts_and_injects_into_script(self, tmp_path: Path) -> None:
         client = _client(tmp_path)
         extractor = self._make_extractor()
 

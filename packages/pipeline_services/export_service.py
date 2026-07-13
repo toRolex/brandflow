@@ -92,9 +92,7 @@ def build_export_bundle(
 # ---------------------------------------------------------------------------
 
 
-def _add_audio_to_zip(
-    job_dir: Path, zf: zipfile.ZipFile, zip_prefix: str
-) -> None:
+def _add_audio_to_zip(job_dir: Path, zf: zipfile.ZipFile, zip_prefix: str) -> None:
     """Add audio file to the ZIP.
 
     Prefers ``audio.wav``; if only ``audio.mp3`` exists it is copied but
@@ -135,8 +133,7 @@ def _add_source_clips_to_zip(
         for f in sorted(folder.iterdir()):
             if f.is_file() and f.suffix.lower() in ALLOWED_VIDEO_EXTENSIONS:
                 arc_name = (
-                    f"{zip_prefix}source_clips/"
-                    f"scene_{clip_counter:03d}{f.suffix}"
+                    f"{zip_prefix}source_clips/scene_{clip_counter:03d}{f.suffix}"
                 )
                 zf.write(f, arc_name)
                 clip_counter += 1
@@ -158,8 +155,7 @@ def _add_source_clips_to_zip(
                 if not src.exists():
                     continue
                 arc_name = (
-                    f"{zip_prefix}source_clips/"
-                    f"montage_{clip_counter:03d}{src.suffix}"
+                    f"{zip_prefix}source_clips/montage_{clip_counter:03d}{src.suffix}"
                 )
                 zf.write(src, arc_name)
                 clip_counter += 1

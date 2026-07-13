@@ -46,8 +46,15 @@ class TestConfigPersistence:
         # set_tts() 优先写入活跃产品的 product-level tts
         active_id = saved_data.get("active_product_id", "")
         if active_id:
-            product = next((p for p in saved_data.get("products", []) if p.get("id") == active_id), None)
-            tts = product["tts"] if product and "tts" in product else saved_data.get("tts", {})
+            product = next(
+                (p for p in saved_data.get("products", []) if p.get("id") == active_id),
+                None,
+            )
+            tts = (
+                product["tts"]
+                if product and "tts" in product
+                else saved_data.get("tts", {})
+            )
         else:
             tts = saved_data.get("tts", {})
         assert tts["model"] == "test-persist-model"
@@ -93,8 +100,15 @@ class TestConfigPersistence:
 
         active_id = saved_data.get("active_product_id", "")
         if active_id:
-            product = next((p for p in saved_data.get("products", []) if p.get("id") == active_id), None)
-            tts = product["tts"] if product and "tts" in product else saved_data.get("tts", {})
+            product = next(
+                (p for p in saved_data.get("products", []) if p.get("id") == active_id),
+                None,
+            )
+            tts = (
+                product["tts"]
+                if product and "tts" in product
+                else saved_data.get("tts", {})
+            )
         else:
             tts = saved_data.get("tts", {})
         assert "director" in tts
@@ -115,8 +129,15 @@ class TestConfigPersistence:
 
         active_id = saved_data.get("active_product_id", "")
         if active_id:
-            product = next((p for p in saved_data.get("products", []) if p.get("id") == active_id), None)
-            tts = product["tts"] if product and "tts" in product else saved_data.get("tts", {})
+            product = next(
+                (p for p in saved_data.get("products", []) if p.get("id") == active_id),
+                None,
+            )
+            tts = (
+                product["tts"]
+                if product and "tts" in product
+                else saved_data.get("tts", {})
+            )
         else:
             tts = saved_data.get("tts", {})
         assert "audio_tags" in tts
@@ -144,8 +165,15 @@ class TestConfigPersistence:
 
         active_id = saved_data.get("active_product_id", "")
         if active_id:
-            product = next((p for p in saved_data.get("products", []) if p.get("id") == active_id), None)
-            tts = product["tts"] if product and "tts" in product else saved_data.get("tts", {})
+            product = next(
+                (p for p in saved_data.get("products", []) if p.get("id") == active_id),
+                None,
+            )
+            tts = (
+                product["tts"]
+                if product and "tts" in product
+                else saved_data.get("tts", {})
+            )
         else:
             tts = saved_data.get("tts", {})
         assert tts["model"] == "tts-model"

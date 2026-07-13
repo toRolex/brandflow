@@ -38,7 +38,9 @@ def create_product(request: Request, body: CreateProductBody) -> dict[str, str]:
 
 
 @router.patch("/api/products/{product_id}")
-def rename_product(request: Request, product_id: str, body: RenameProductBody) -> dict[str, str]:
+def rename_product(
+    request: Request, product_id: str, body: RenameProductBody
+) -> dict[str, str]:
     """重命名产品。"""
     store = _product_store(request)
     try:
