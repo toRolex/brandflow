@@ -119,6 +119,8 @@ export interface JobDetail {
   audio_source?: string;
   cover_title?: CoverTitle | null;
   mode?: ProductionMode;
+  tts_model?: string;
+  tts_voice?: string;
 }
 
 export interface CoverTitle {
@@ -143,6 +145,8 @@ export interface BatchJobItem {
   music_volume?: number;
   language?: string;
   cover_title?: CoverTitle | null;
+  tts_model?: string;
+  tts_voice?: string;
 }
 
 export interface BatchCreateRequest {

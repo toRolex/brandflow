@@ -515,13 +515,21 @@ class JobTickService:
                     script_path = job_dir / f"{record.product}口播文案.txt"
                     script_path.write_text(record.manual_script, encoding="utf-8")
 
+            # Inject job-level TTS overrides (tts_model / tts_voice) into options
+            # so the phase orchestrator can apply them in _run_tts
+            merged_options: dict[str, Any] = dict(options or {})
+            if record.tts_model:
+                merged_options["tts_model"] = record.tts_model
+            if record.tts_voice:
+                merged_options["tts_voice"] = record.tts_voice
+
             ctx = PhaseContext(
                 job_id=job_id,
                 project_dir=project_dir,
                 root_dir=root_dir,
                 product=product,
                 brand=record.brand,
-                options=options or {},
+                options=merged_options,
                 scene_folder_paths=scene_folder_paths,
                 transition_duration_ms=transition_duration_ms,
                 scene_config=scene_config,

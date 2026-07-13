@@ -13,6 +13,7 @@ export interface BatchConfig {
   musicVolume: number;
   coverTitleText: string;
   coverHighlightWords: string;
+  ttsVoice?: string;
 }
 
 export function defaultBatchConfig(): BatchConfig {
