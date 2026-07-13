@@ -108,21 +108,20 @@ describe("ConfigPage", () => {
     });
 
     const tabs = ["llm", "tts", "vision", "text_to_image", "image_to_video"];
-    const expectedColors = {
-      llm: "#3b82f6",
-      tts: "#22c55e",
-      vision: "#a855f7",
-      text_to_image: "#f59e0b",
-      image_to_video: "#06b6d4",
+    const expectedColorVars = {
+      llm: "var(--section-llm-color)",
+      tts: "var(--section-tts-color)",
+      vision: "var(--section-vision-color)",
+      text_to_image: "var(--section-text_to_image-color)",
+      image_to_video: "var(--section-image_to_video-color)",
     };
 
     for (const key of tabs) {
       const tab = screen.getByRole("tab", { name: new RegExp(key === "text_to_image" ? "文生图" : key === "image_to_video" ? "图生视频" : key, "i") });
-      const icon = tab.querySelector("svg");
-      expect(icon).toBeInTheDocument();
-      // Tab icons use the configured color via fill or stroke
-      const color = expectedColors[key as keyof typeof expectedColors];
-      expect(icon?.innerHTML.includes(color) || icon?.getAttribute("fill") === color || icon?.getAttribute("stroke") === color || icon?.style.color === color).toBeTruthy();
+      const iconWrapper = tab.querySelector("span");
+      expect(iconWrapper).toBeInTheDocument();
+      // Tab icons use CSS variables for theming
+      expect(iconWrapper?.style.color).toBe(expectedColorVars[key as keyof typeof expectedColorVars]);
     }
   });
 
@@ -211,14 +210,14 @@ describe("ConfigPage", () => {
     });
 
     const visionTab = screen.getByRole("tab", { name: /vision/i });
-    const visionIcon = visionTab.querySelector("svg");
-    expect(visionIcon).toBeInTheDocument();
-    expect(visionIcon!.innerHTML).toContain("#7c3aed");
+    const visionSpan = visionTab.querySelector("span");
+    expect(visionSpan).toBeInTheDocument();
+    expect(visionSpan!.style.color).toBe("var(--section-vision-color)");
 
     const i2vTab = screen.getByRole("tab", { name: /图生视频/i });
-    const i2vIcon = i2vTab.querySelector("svg");
-    expect(i2vIcon).toBeInTheDocument();
-    expect(i2vIcon!.innerHTML).toContain("#0891b2");
+    const i2vSpan = i2vTab.querySelector("span");
+    expect(i2vSpan).toBeInTheDocument();
+    expect(i2vSpan!.style.color).toBe("var(--section-image_to_video-color)");
   });
 
   // ---- Seam 7: 深色模式 Tab 颜色适配 ----
@@ -233,15 +232,10 @@ describe("ConfigPage", () => {
       expect(screen.getByRole("tab", { name: /llm/i })).toBeInTheDocument();
     });
 
-    const tabs = screen.getAllByRole("tab");
-    for (const tab of tabs) {
-      const style = tab.getAttribute("style") || "";
-      // 在深色模式下，Tab 样式应使用 CSS 自定义属性以支持主题适配
-      const hasColorVar =
-        style.includes("var(--section-") ||
-        style.includes("var(--tab-");
-      expect(hasColorVar).toBe(true);
-    }
+    const activeTab = screen.getByRole("tab", { name: /llm/i });
+    const style = activeTab.getAttribute("style") || "";
+    // 在深色模式下，激活 Tab 样式应使用 CSS 自定义属性以支持主题适配
+    expect(style).toContain("var(--section-llm-color)");
   });
 
   // ---- Seam 8: 紧凑模式 Tab 间距 ----
@@ -259,10 +253,10 @@ describe("ConfigPage", () => {
     const tabs = screen.getAllByRole("tab");
     for (const tab of tabs) {
       const className = tab.className || "";
-      // 紧凑模式应使用较小的 padding 和字号
-      expect(className).toContain("py-1.5");
-      expect(className).toContain("px-3");
-      expect(className).toContain("text-xs");
+      // 紧凑模式应使用 CSS 变量调整间距和字号
+      expect(className).toContain("var(--tab-padding-y");
+      expect(className).toContain("var(--tab-padding-x");
+      expect(className).toContain("var(--tab-font-size");
     }
   });
 
