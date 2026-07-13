@@ -16,7 +16,6 @@ from apps.control_plane.app import create_app
 from packages.pipeline_services.asset_library import (
     AssetRecord,
     AssetRepository,
-    Category,
 )
 
 

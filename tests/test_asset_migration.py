@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
 from packages.file_store.paths import shared_asset_db_path
-from packages.pipeline_services.asset_library import AssetRepository
 
 
 def _create_project_db(project_dir: Path, assets: list[dict], source_videos: list[dict]) -> Path:
