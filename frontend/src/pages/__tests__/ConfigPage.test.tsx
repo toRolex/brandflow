@@ -201,4 +201,101 @@ describe("ConfigPage", () => {
       expect(inputStyle).toContain("color: var(--input-text)");
     }
   });
+
+  // ---- Seam 6: Vision 和 图生视频 颜色值符合 spec ----
+  it("Seam 6: Vision 图标颜色为 #7c3aed，图生视频图标颜色为 #0891b2", async () => {
+    render(<ConfigPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /vision/i })).toBeInTheDocument();
+    });
+
+    const visionTab = screen.getByRole("tab", { name: /vision/i });
+    const visionIcon = visionTab.querySelector("svg");
+    expect(visionIcon).toBeInTheDocument();
+    expect(visionIcon!.innerHTML).toContain("#7c3aed");
+
+    const i2vTab = screen.getByRole("tab", { name: /图生视频/i });
+    const i2vIcon = i2vTab.querySelector("svg");
+    expect(i2vIcon).toBeInTheDocument();
+    expect(i2vIcon!.innerHTML).toContain("#0891b2");
+  });
+
+  // ---- Seam 7: 深色模式 Tab 颜色适配 ----
+  it("Seam 7: dark mode 下 Tab 使用 CSS 自定义属性适配深色背景", async () => {
+    render(
+      <div data-theme="dark">
+        <ConfigPage />
+      </div>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /llm/i })).toBeInTheDocument();
+    });
+
+    const tabs = screen.getAllByRole("tab");
+    for (const tab of tabs) {
+      const style = tab.getAttribute("style") || "";
+      // 在深色模式下，Tab 样式应使用 CSS 自定义属性以支持主题适配
+      const hasColorVar =
+        style.includes("var(--section-") ||
+        style.includes("var(--tab-");
+      expect(hasColorVar).toBe(true);
+    }
+  });
+
+  // ---- Seam 8: 紧凑模式 Tab 间距 ----
+  it("Seam 8: compact mode 下 Tab 间距缩小，字号不溢出", async () => {
+    render(
+      <div data-layout="compact">
+        <ConfigPage />
+      </div>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /llm/i })).toBeInTheDocument();
+    });
+
+    const tabs = screen.getAllByRole("tab");
+    for (const tab of tabs) {
+      const className = tab.className || "";
+      // 紧凑模式应使用较小的 padding 和字号
+      expect(className).toContain("py-1.5");
+      expect(className).toContain("px-3");
+      expect(className).toContain("text-xs");
+    }
+  });
+
+  // ---- Seam 9: 三种模式下输入框/下拉框样式一致 ----
+  it("Seam 9: dark 和 compact 模式下输入框/下拉框样式一致使用设计系统变量", async () => {
+    const { rerender } = render(
+      <div data-theme="dark">
+        <ConfigPage />
+      </div>
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
+    });
+
+    const darkSelectStyle = screen.getAllByRole("combobox")[0].getAttribute("style") || "";
+    expect(darkSelectStyle).toContain("var(--bg-input)");
+    expect(darkSelectStyle).toContain("var(--input-border)");
+    expect(darkSelectStyle).toContain("var(--input-text)");
+
+    rerender(
+      <div data-layout="compact">
+        <ConfigPage />
+      </div>
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
+    });
+
+    const compactSelectStyle = screen.getAllByRole("combobox")[0].getAttribute("style") || "";
+    expect(compactSelectStyle).toContain("var(--bg-input)");
+    expect(compactSelectStyle).toContain("var(--input-border)");
+    expect(compactSelectStyle).toContain("var(--input-text)");
+  });
 });

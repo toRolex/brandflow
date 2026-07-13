@@ -7,6 +7,7 @@ interface SectionDef {
   label: string;
   color: string;
   icon: (color: string) => React.ReactNode;
+  cssVar: string;
 }
 
 const SECTIONS: SectionDef[] = [
@@ -14,6 +15,7 @@ const SECTIONS: SectionDef[] = [
     key: "llm",
     label: "LLM",
     color: "#3b82f6",
+    cssVar: "--section-llm-color",
     icon: (color: string) => (
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -26,6 +28,7 @@ const SECTIONS: SectionDef[] = [
     key: "tts",
     label: "TTS",
     color: "#22c55e",
+    cssVar: "--section-tts-color",
     icon: (color: string) => (
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -37,7 +40,8 @@ const SECTIONS: SectionDef[] = [
   {
     key: "vision",
     label: "Vision",
-    color: "#a855f7",
+    color: "#7c3aed",
+    cssVar: "--section-vision-color",
     icon: (color: string) => (
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
@@ -49,6 +53,7 @@ const SECTIONS: SectionDef[] = [
     key: "text_to_image",
     label: "文生图",
     color: "#f59e0b",
+    cssVar: "--section-text_to_image-color",
     icon: (color: string) => (
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -60,7 +65,8 @@ const SECTIONS: SectionDef[] = [
   {
     key: "image_to_video",
     label: "图生视频",
-    color: "#06b6d4",
+    color: "#0891b2",
+    cssVar: "--section-image_to_video-color",
     icon: (color: string) => (
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="6" width="20" height="12" rx="2" ry="2" />
@@ -175,22 +181,24 @@ export default function ConfigPage() {
       )}
 
       <div className="flex gap-2 mb-6 border-b" style={{ borderColor: "var(--border-default)" }} role="tablist">
-        {SECTIONS.map(({ key: sectionKey, label, color, icon }) => {
+        {SECTIONS.map(({ key: sectionKey, label, cssVar, icon }) => {
           const active = activeTab === sectionKey;
+          const sectionColorVar = `var(${cssVar})`;
+          const sectionColorMutedVar = `var(${cssVar}-muted)`;
           return (
             <button
               key={sectionKey}
               role="tab"
               aria-selected={active}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors"
+              className="flex items-center gap-[var(--tab-gap,8px)] px-[var(--tab-padding-x,16px)] py-[var(--tab-padding-y,10px)] text-[var(--tab-font-size,0.875rem)] font-medium border-b-2 transition-colors"
               style={{
-                borderColor: active ? color : "transparent",
-                color: active ? color : "var(--text-secondary)",
-                background: active ? `${color}14` : "transparent",
+                borderColor: active ? sectionColorVar : "transparent",
+                color: active ? sectionColorVar : "var(--text-secondary)",
+                background: active ? sectionColorMutedVar : "transparent",
               }}
               onClick={() => setActiveTab(sectionKey)}
             >
-              <span style={{ color }}>{icon(color)}</span>
+              <span style={{ color: sectionColorVar }}>{icon(sectionColorVar)}</span>
               {label}
             </button>
           );
