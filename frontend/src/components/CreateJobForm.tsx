@@ -83,17 +83,23 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 
   const [coverTitleCooldown, setCoverTitleCooldown] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [ttsVoices, setTtsVoices] = useState<Array<{ id: string; label: string; note: string }>>([]);
+  const [ttsVoices, setTtsVoices] = useState<Array<{ id: string; label: string; note: string; model: string }>>([]);
   const [ttsVoice, setTtsVoice] = useState("");
+  const [ttsModel, setTtsModel] = useState("");
   const [ttsVoicesLoading, setTtsVoicesLoading] = useState(false);
   const isImport = productionMode === "import";
 
-  // Load TTS voices when audio mode changes to "tts"
-  const loadTTSVoices = async () => {
-    if (ttsVoices.length > 0) return; // already loaded
+  // Load TTS voices for a given model/provider
+  const loadTTSVoices = async (model?: string) => {
     setTtsVoicesLoading(true);
     try {
-      const res = await api.getTTSVoices();
+      let provider = "mimo";
+      let modelParam: string | undefined;
+      if (model === "qwen3-tts-instruct-flash") {
+        provider = "qwen";
+        modelParam = model;
+      }
+      const res = await api.getTTSVoices(provider, modelParam);
       setTtsVoices(res.preset_voices);
     } catch {
       onError("无法加载 TTS 音色列表");
@@ -102,8 +108,15 @@ export default function CreateJobForm(props: CreateJobFormProps) {
     }
   };
 
-  // Load TTS voices on mount
+  // Load default TTS voices on mount
   useEffect(() => { loadTTSVoices(); }, []);
+
+  // Handle model change: reload voices and reset voice selection
+  const handleTtsModelChange = async (model: string) => {
+    setTtsModel(model);
+    setTtsVoice("");
+    await loadTTSVoices(model || undefined);
+  };
 
   const handleApplyTemplate = async () => {
     if (!selectedTemplateId) return;
@@ -153,6 +166,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
       skip_subtitle: skipSubtitle,
       cover_title_text: coverTitleText.trim(),
       cover_highlight_words: coverHighlightWords,
+      tts_model: ttsModel || undefined,
       tts_voice: ttsVoice || undefined,
     });
   };
@@ -434,6 +448,20 @@ export default function CreateJobForm(props: CreateJobFormProps) {
           </div>
           {audioMode === "tts" && (
             <div className="ml-2 mb-3 flex items-center gap-3 flex-wrap">
+              <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                TTS 模型
+                <select
+                  className="border rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
+                  style={{ background: "var(--bg-input)", borderColor: "var(--border-default)", color: "var(--text-primary)" }}
+                  value={ttsModel}
+                  onChange={(e) => handleTtsModelChange(e.target.value)}
+                  disabled={ttsVoicesLoading}
+                >
+                  <option value="">-- 使用默认模型 --</option>
+                  <option value="mimo-v2.5-tts">MiMo TTS (mimo-v2.5-tts)</option>
+                  <option value="qwen3-tts-instruct-flash">通义千问 TTS (qwen3-tts-instruct-flash)</option>
+                </select>
+              </label>
               <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
                 TTS 音色
                 <select
