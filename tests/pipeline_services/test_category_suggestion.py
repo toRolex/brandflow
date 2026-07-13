@@ -472,7 +472,7 @@ class TestSuggestEndpoint:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data["categories"]) == 1
+        assert len(data["suggestions"]) == 1
         assert data["sampled_assets"] == 5
         assert data["errors"] == []
 
@@ -516,7 +516,7 @@ class TestSuggestEndpoint:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["categories"] == []
+        assert data["suggestions"] == []
         assert data["sampled_assets"] == 0
         assert len(data["errors"]) > 0
 
