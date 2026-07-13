@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 
 from packages.pipeline_services.asset_library.category_config import get_categories
+from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
 from fastapi.responses import FileResponse, StreamingResponse
 
 from apps.control_plane.index_tasks import index_task_manager, TaskStatus
@@ -217,21 +218,43 @@ async def index_assets(
     if async_mode:
         task = index_task_manager.create_task(len(new_videos))
         print(f"[INDEX] 创建异步任务: {task.task_id}, 待处理 {len(new_videos)} 个视频")
+        secret_store = request.app.state.secret_store
+        active_id = config_reader.active_product_id
+        category_names = [
+            c.name for c in get_categories(config_reader, product_id=active_id or None)
+        ]
         bg_task = asyncio.create_task(
-            _run_index_task(task.task_id, root_dir, new_videos, db_path, product_value, config_reader)
+            _run_index_task(
+                task.task_id,
+                root_dir,
+                new_videos,
+                db_path,
+                product_value,
+                config_reader,
+                secret_store,
+                category_names,
+            )
         )
         _background_tasks.add(bg_task)
         bg_task.add_done_callback(_background_tasks.discard)
         return {"task_id": task.task_id, "total_videos": len(new_videos)}
 
     repository = AssetRepository(db_path)
-    vision_config = config_reader.get_vision_config()
+    secret_store = request.app.state.secret_store
+    active_id = config_reader.active_product_id
+    vision_config = resolve_vision_config(
+        {}, secrets=secret_store, reader=config_reader
+    )
+    category_names = [
+        c.name for c in get_categories(config_reader, product_id=active_id or None)
+    ]
     ffmpeg_path = _resolve_ffmpeg_path()
     indexer = AssetIndexer(
         ffmpeg_path=ffmpeg_path,
         repository=repository,
         vision_config=vision_config,
         product=product_value,
+        category_names=category_names,
     )
     output_base = shared_indexed_dir(root_dir)
     for video in new_videos:
@@ -255,8 +278,14 @@ async def index_assets(
 
 
 async def _run_index_task(
-    task_id: str, root_dir: Path, videos: list[Path], db_path: Path, product: str,
+    task_id: str,
+    root_dir: Path,
+    videos: list[Path],
+    db_path: Path,
+    product: str,
     config_reader: "ConfigReader | None" = None,
+    secret_store: "SecretStore | None" = None,
+    category_names: list[str] | None = None,
 ):
     task = index_task_manager.get_task(task_id)
     if not task:
@@ -270,10 +299,15 @@ async def _run_index_task(
         repository = AssetRepository(db_path)
 
         if config_reader is not None:
-            vision_config = config_reader.get_vision_config()
+            vision_config = resolve_vision_config(
+                {}, secrets=secret_store, reader=config_reader
+            )
         else:
             from packages.provider_config.config_reader import ConfigReader
-            vision_config = ConfigReader(config_dir=str(root_dir / "config")).get_vision_config()
+            vision_config = resolve_vision_config(
+                {}, secrets=secret_store,
+                reader=ConfigReader(config_dir=str(root_dir / "config")),
+            )
 
         ffmpeg_path = _resolve_ffmpeg_path()
         indexer = AssetIndexer(
@@ -281,6 +315,7 @@ async def _run_index_task(
             repository=repository,
             vision_config=vision_config,
             product=product,
+            category_names=category_names,
         )
         output_base = shared_indexed_dir(root_dir)
 

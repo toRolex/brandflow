@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import uuid
 
@@ -12,6 +11,8 @@ from pydantic import BaseModel
 
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
+from packages.pipeline_services.asset_library.category_config import get_categories
+from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
 from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 
 router = APIRouter(prefix="/api/projects", tags=["api-projects"])
@@ -212,17 +213,28 @@ def index_assets(request: Request, project_id: str):
         from packages.provider_config.config_reader import ConfigReader
 
         reader = ConfigReader(config_dir=str(request.app.state.root_dir / "config"))
-        vision_config = reader.get_vision_config()
+        secret_store = request.app.state.secret_store
+        active_id = reader.active_product_id
+        vision_config = resolve_vision_config(
+            {}, secrets=secret_store, reader=reader
+        )
+        category_names = [
+            c.name for c in get_categories(reader, product_id=active_id or None)
+        ]
 
         repo = FileStoreRepository(request.app.state.root_dir)
         meta = repo.load_project_meta(project_id)
-        product = meta.get("product", os.environ.get("PRODUCT", ""))
+        product = meta.get("product", "")
+        if not product:
+            config = reader.get_product_config()
+            product = config.get("name") or config.get("default_name") or config.get("id", "")
 
         indexer = AssetIndexer(
             ffmpeg_path=_resolve_ffmpeg_path(),
             repository=repository,
             vision_config=vision_config,
             product=product,
+            category_names=category_names,
         )
         output_base = project_dir / "runtime" / "indexed_clips"
         succeeded = 0

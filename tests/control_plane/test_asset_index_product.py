@@ -1,4 +1,4 @@
-"""Test POST /api/assets/index product resolution (issue #58)."""
+"""Test POST /api/assets/index product resolution (issue #58) and vision config wiring (issue #96)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
+from packages.pipeline_services.asset_library import AssetIndexer
 from packages.pipeline_services.asset_library.models import AssetRecord
 
 
@@ -248,3 +249,102 @@ def test_index_falls_back_to_id(tmp_path: Path, monkeypatch) -> None:
 
     assert resp.status_code == 200
     assert captured_product == ["snack-prod"]
+
+
+# ── Issue #96: resolve_vision_config + category_names wiring ──
+
+
+def test_sync_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> None:
+    """同步路径应调用 resolve_vision_config()，传入 category_names 给 AssetIndexer。"""
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    resolve_called: list[dict] = []
+    category_names_captured: list[list[str] | None] = []
+
+    def _fake_resolve(providers_payload, secrets=None, reader=None):
+        resolve_called.append({"secrets": secrets, "reader": reader})
+        return {
+            "provider": "xiaomi",
+            "api_key": "test-vision-key",
+            "endpoint": "https://test.api.com",
+            "model": "test-vision-model",
+        }
+
+    def _fake_init(self, ffmpeg_path, repository, vision_config=None, product="", category_names=None):
+        category_names_captured.append(category_names)
+        self.ffmpeg_path = ffmpeg_path
+        self.repository = repository
+        self.vision_config = vision_config or {}
+        self.product = product
+        self.category_names = category_names
+
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        _fake_resolve,
+    )
+    monkeypatch.setattr(AssetIndexer, "__init__", _fake_init)
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        lambda self, video_path, output_base, log_callback=None: [],
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": False})
+
+    assert resp.status_code == 200
+    assert len(resolve_called) == 1, "应调用 resolve_vision_config() 而非 get_vision_config()"
+    assert resolve_called[0]["reader"] is not None, "应传入 ConfigReader"
+    assert len(category_names_captured) == 1
+    assert category_names_captured[0] is not None, "应传入 category_names"
+    assert len(category_names_captured[0]) > 0, "category_names 不应为空"
+
+
+def test_async_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> None:
+    """异步路径 _run_index_task 应调用 resolve_vision_config() 并传入 category_names。"""
+    import asyncio
+
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    resolve_called: list[bool] = []
+    category_names_captured: list[list[str] | None] = []
+
+    def _fake_resolve(providers_payload, secrets=None, reader=None):
+        resolve_called.append(True)
+        return {
+            "provider": "xiaomi",
+            "api_key": "test-vision-key",
+            "endpoint": "https://test.api.com",
+            "model": "test-vision-model",
+        }
+
+    def _fake_init(self, ffmpeg_path, repository, vision_config=None, product="", category_names=None):
+        category_names_captured.append(category_names)
+        self.ffmpeg_path = ffmpeg_path
+        self.repository = repository
+        self.vision_config = vision_config or {}
+        self.product = product
+        self.category_names = category_names
+
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        _fake_resolve,
+    )
+    monkeypatch.setattr(AssetIndexer, "__init__", _fake_init)
+    monkeypatch.setattr(
+        "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
+        lambda self, video_path, output_base, log_callback=None: [],
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": True})
+
+    assert resp.status_code == 200
+    assert "task_id" in resp.json()
+
+    # 等待后台异步任务完成（_ingest_one_video 被 mock 为 no-op，会很快）
+    asyncio.run(asyncio.sleep(0.2))
+
+    assert len(resolve_called) > 0, "异步路径应调用 resolve_vision_config()"
+    assert len(category_names_captured) > 0, "异步路径应向 AssetIndexer 传入 category_names"
+    assert category_names_captured[0] is not None
+    assert len(category_names_captured[0]) > 0, "category_names 不应为空"
