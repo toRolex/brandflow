@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import shutil
 import subprocess
 import tempfile
@@ -12,8 +11,8 @@ from pathlib import Path
 
 from packages.pipeline_services.asset_library.models import AssetRecord
 from packages.pipeline_services.asset_library.repository import AssetRepository
-from packages.pipeline_services.asset_library.thumbnail import _resolve_tool_path
 from packages.pipeline_services.asset_library.vision_client import VisionClient
+from packages.pipeline_services.media_utils import _resolve_ffprobe_path
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +33,8 @@ class AssetIndexer:
         product: str = "",
         category_names: list[str] | None = None,
     ) -> None:
-        self.ffmpeg_path = _resolve_tool_path(ffmpeg_path)
-        ffprobe_path = os.environ.get(
-            "FFPROBE_PATH", ffmpeg_path.replace("ffmpeg", "ffprobe")
-        )
-        self.ffprobe_path = _resolve_tool_path(ffprobe_path)
+        self.ffmpeg_path = ffmpeg_path
+        self.ffprobe_path = _resolve_ffprobe_path()
         self.repository = repository
         self.vision_config = vision_config or {}
         self.product = product

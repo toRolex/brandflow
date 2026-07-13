@@ -48,10 +48,11 @@ export const api = {
     request<import("../types").AssetFile[]>(`/api/projects/${projectId}/assets`),
 
   // Asset Library
-  listIndexedAssets: async (projectId: string, params?: { category?: string; q?: string }) => {
+  listIndexedAssets: async (projectId: string, params?: { category?: string; q?: string; product?: string }) => {
     const qs = new URLSearchParams();
     if (params?.category) qs.set("category", params.category);
     if (params?.q) qs.set("q", params.q);
+    if (params?.product) qs.set("product", params.product);
     const res = await request<{
       assets: import("../types").AssetRecord[];
       stats: {
@@ -92,10 +93,11 @@ export const api = {
   uploadAssetShared: (file: File) =>
     uploadFile<import("../types").AssetFile>("/api/assets/upload", file),
 
-  listIndexedAssetsShared: async (params?: { category?: string; q?: string }) => {
+  listIndexedAssetsShared: async (params?: { category?: string; q?: string; product?: string }) => {
     const qs = new URLSearchParams();
     if (params?.category) qs.set("category", params.category);
     if (params?.q) qs.set("q", params.q);
+    if (params?.product) qs.set("product", params.product);
     const res = await request<{
       assets: import("../types").AssetRecord[];
       stats: {
@@ -291,6 +293,23 @@ export const api = {
   // Multi-Product Management
   listProducts: () =>
     request<Array<{ id: string; name: string }>>("/api/products"),
+
+  createProduct: (name: string) =>
+    request<{ id: string; name: string }>("/api/products", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+
+  renameProduct: (productId: string, name: string) =>
+    request<{ id: string; name: string }>(`/api/products/${productId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteProduct: (productId: string) =>
+    request<{ status: string; active_product_id: string }>(`/api/products/${productId}`, {
+      method: "DELETE",
+    }),
 
   switchProduct: (productId: string) =>
     request<{ active_product_id: string }>(`/api/products/${productId}/switch`, {

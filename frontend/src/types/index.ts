@@ -63,6 +63,7 @@ export interface AssetRecord {
 }
 
 export interface AssetFilters {
+  product: string;
   category: string;
   status: string;
   keyword: string;
@@ -272,6 +273,7 @@ export interface ProductConfig {
 }
 
 export interface CategoryConfig {
+  id: string;
   name: string;
   description: string;
   vision_prompt: string;

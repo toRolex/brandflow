@@ -230,11 +230,16 @@ class TTSConfigManager:
         return self._load_file_config(project_id)
 
     def _load_global_config(self) -> TTSConfig:
-        from packages.provider_config.app_config import AppConfigManager
+        from packages.provider_config.config_reader import ConfigReader
 
-        app_manager = AppConfigManager(config_dir=self.config_dir)
-        if app_manager.config_path.exists():
-            data = app_manager.get_tts_config()
+        config_path = self.config_dir / "app_config.json"
+        if config_path.exists():
+            reader = ConfigReader(config_dir=str(self.config_dir))
+            active_id = reader.active_product_id
+            if active_id:
+                data = reader.get_tts_config(product_id=active_id)
+            else:
+                data = reader.get_tts_config()
             return TTSConfig.from_dict(self._flatten_tts_config(data))
         file_path = self._get_config_path(None)
         if file_path.exists():
@@ -264,13 +269,37 @@ class TTSConfigManager:
             self._save_file_config(config, project_id)
 
     def _save_global_config(self, config: TTSConfig) -> None:
-        from packages.provider_config.app_config import AppConfigManager
+        from packages.provider_config.config_io import load_config, save_config
+        from packages.provider_config.config_constants import _set_nested
 
-        app_manager = AppConfigManager(config_dir=self.config_dir)
+        config_path = self.config_dir / "app_config.json"
+        raw = load_config(config_path)
+
+        # Write to active product when one is set, otherwise top-level tts
+        active_id = raw.get("active_product_id", "")
+        if active_id:
+            for i, p in enumerate(raw.get("products", [])):
+                if p.get("id") == active_id:
+                    if "tts" not in raw["products"][i]:
+                        raw["products"][i]["tts"] = {}
+                    for key, value in config.to_dict().items():
+                        if value is None:
+                            continue
+                        _set_nested(
+                            raw["products"][i]["tts"],
+                            self._FLAT_TO_NESTED.get(key, key),
+                            value,
+                        )
+                    save_config(config_path, raw)
+                    return
+
+        if "tts" not in raw:
+            raw["tts"] = {}
         for key, value in config.to_dict().items():
             if value is None:
                 continue
-            app_manager.set_tts(self._FLAT_TO_NESTED.get(key, key), value)
+            _set_nested(raw["tts"], self._FLAT_TO_NESTED.get(key, key), value)
+        save_config(config_path, raw)
 
     def _save_file_config(self, config: TTSConfig, project_id: str) -> None:
         file_path = self._get_config_path(project_id)

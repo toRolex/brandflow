@@ -7,12 +7,146 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from packages.provider_config.app_config import AppConfigManager
+if TYPE_CHECKING:
+    from packages.provider_config.config_reader import ConfigReader
 
 
 TARGET_VIDEO_WIDTH = 1080
 TARGET_VIDEO_HEIGHT = 1920
+
+
+class ToolNotFoundError(FileNotFoundError):
+    """Raised when a required external media tool cannot be located."""
+
+    def __init__(
+        self,
+        tool_name: str,
+        attempted: list[str],
+        suggestion: str,
+    ) -> None:
+        self.tool_name = tool_name
+        self.attempted = attempted
+        self.suggestion = suggestion
+        message = (
+            f"{tool_name} not found. "
+            f"Attempted: {', '.join(attempted) if attempted else '(none)'}. "
+            f"{suggestion}"
+        )
+        super().__init__(message)
+
+
+def _resolve_tool_path(
+    tool_name: str,
+    env_var: str,
+    default_candidates: list[str],
+    config_path: str | None = None,
+) -> str:
+    """Resolve an external media tool path with a clear, actionable error.
+
+    Resolution order:
+      1. ``os.environ[env_var]`` (must exist as a file or be available in PATH)
+      2. ``config_path`` (from ``app_config.json``, if provided and exists as a file)
+      3. Each path in ``default_candidates`` (resolved relative to CWD)
+      4. ``shutil.which(tool_name)``
+
+    Raises
+    ------
+    ToolNotFoundError
+        If the tool cannot be found anywhere in the search chain.
+    """
+    attempted: list[str] = []
+
+    env_value = os.environ.get(env_var, "").strip()
+    if env_value:
+        attempted.append(f"{env_var}={env_value}")
+        if Path(env_value).exists():
+            return env_value
+        if shutil.which(env_value):
+            return env_value
+
+    if config_path:
+        attempted.append(f"config:{config_path}")
+        if Path(config_path).exists():
+            return config_path
+
+    cwd = Path.cwd()
+    for candidate in default_candidates:
+        path = Path(candidate)
+        if not path.is_absolute():
+            path = cwd / path
+        attempted.append(str(path))
+        if path.exists():
+            return str(path)
+
+    which_path = shutil.which(tool_name)
+    if which_path:
+        attempted.append(f"PATH:{which_path}")
+        return which_path
+
+    raise ToolNotFoundError(
+        tool_name=tool_name,
+        attempted=attempted,
+        suggestion=(
+            f"Set {env_var} to the executable path, place {tool_name} in "
+            f"tools/bin/{tool_name}(.exe), or ensure it is available in PATH."
+        ),
+    )
+
+
+def _resolve_ffmpeg_path(reader: ConfigReader | None = None) -> str:
+    """Resolve the ffmpeg executable path.
+
+    Priority: ``FFMPEG_PATH`` env > ``app_config.json`` media.ffmpeg_path >
+    ``tools/bin/ffmpeg(.exe)`` > ``shutil.which('ffmpeg')``.
+    """
+    config_path: str | None = None
+    if reader is not None:
+        media = reader.get_media_config()
+        config_path = media.get("ffmpeg_path") or None
+    return _resolve_tool_path(
+        tool_name="ffmpeg",
+        env_var="FFMPEG_PATH",
+        default_candidates=["tools/bin/ffmpeg", "tools/bin/ffmpeg.exe"],
+        config_path=config_path,
+    )
+
+
+def _resolve_ffprobe_path(reader: ConfigReader | None = None) -> str:
+    """Resolve the ffprobe executable path.
+
+    Priority: ``FFPROBE_PATH`` env > ``app_config.json`` media.ffprobe_path >
+    ``tools/bin/ffprobe(.exe)`` > ``shutil.which('ffprobe')``.
+    """
+    config_path: str | None = None
+    if reader is not None:
+        media = reader.get_media_config()
+        config_path = media.get("ffprobe_path") or None
+    return _resolve_tool_path(
+        tool_name="ffprobe",
+        env_var="FFPROBE_PATH",
+        default_candidates=["tools/bin/ffprobe", "tools/bin/ffprobe.exe"],
+        config_path=config_path,
+    )
+
+
+def _resolve_whisper_cli_path(reader: ConfigReader | None = None) -> str:
+    """Resolve the whisper-cli executable path.
+
+    Priority: ``WHISPER_CLI_PATH`` env > ``app_config.json`` media.whisper_cli_path >
+    ``tools/bin/whisper-cli(.exe)`` > ``shutil.which('whisper-cli')``.
+    """
+    config_path: str | None = None
+    if reader is not None:
+        media = reader.get_media_config()
+        config_path = media.get("whisper_cli_path") or None
+    return _resolve_tool_path(
+        tool_name="whisper-cli",
+        env_var="WHISPER_CLI_PATH",
+        default_candidates=["tools/bin/whisper-cli", "tools/bin/whisper-cli.exe"],
+        config_path=config_path,
+    )
 
 
 def write_concat_file(list_path: Path, clips: list[Path]) -> None:
@@ -24,7 +158,7 @@ def write_concat_file(list_path: Path, clips: list[Path]) -> None:
 
 
 def get_media_duration(file_path: Path) -> float:
-    ffprobe = os.environ.get("FFPROBE_PATH", "ffprobe")
+    ffprobe = _resolve_ffprobe_path()
     result = subprocess.run(
         [
             ffprobe,
@@ -156,40 +290,18 @@ def assemble_vertical_base_video(
 
 
 def get_ffmpeg_path() -> str:
-    """解析 ffmpeg 可执行文件路径。
-
-    优先级：环境变量 FFMPEG_PATH > app_config.json media.ffmpeg_path > "ffmpeg"
-    """
-    import os
-
-    env_path = os.getenv("FFMPEG_PATH", "").strip()
-    if env_path:
-        return env_path
-    config = AppConfigManager()
-    media = config.get_media_config() if hasattr(config, "get_media_config") else {}
-    path = media.get("ffmpeg_path") or "ffmpeg"
-    return path
+    """Resolve ffmpeg executable path (backwards-compatible alias)."""
+    return _resolve_ffmpeg_path()
 
 
 def get_ffprobe_path() -> str:
-    """解析 ffprobe 可执行文件路径。
-
-    优先级：环境变量 FFPROBE_PATH > app_config.json media.ffprobe_path > "ffprobe"
-    """
-    import os
-
-    env_path = os.getenv("FFPROBE_PATH", "").strip()
-    if env_path:
-        return env_path
-    config = AppConfigManager()
-    media = config.get_media_config() if hasattr(config, "get_media_config") else {}
-    path = media.get("ffprobe_path") or "ffprobe"
-    return path
+    """Resolve ffprobe executable path (backwards-compatible alias)."""
+    return _resolve_ffprobe_path()
 
 
 def get_video_size(video_path: Path) -> tuple[int, int]:
     """获取视频分辨率 (width, height)。"""
-    ffprobe = get_ffprobe_path()
+    ffprobe = _resolve_ffprobe_path()
     result = subprocess.run(
         [
             ffprobe,
@@ -215,9 +327,63 @@ def get_video_size(video_path: Path) -> tuple[int, int]:
     return int(parts[0]), int(parts[1])
 
 
+def _resolve_executable(
+    name_or_path: str, extra_search_dirs: list[Path] | None = None
+) -> str | None:
+    """解析外部工具可执行文件的绝对路径。
+
+    解析优先级：
+    1. 如果是绝对路径且可执行，直接返回。
+    2. 在 ``extra_search_dirs`` 中查找。
+    3. 在 ``PATH`` 环境变量中查找。
+
+    Args:
+        name_or_path: 工具名称（如 ``ffmpeg``）或绝对/相对路径。
+        extra_search_dirs: 额外搜索目录，优先级高于 PATH。
+
+    Returns:
+        可执行文件的绝对路径；未找到时返回 ``None``。
+    """
+    candidate = Path(name_or_path.strip())
+    if candidate.is_absolute():
+        if (
+            candidate.exists()
+            and candidate.is_file()
+            and os.access(str(candidate), os.X_OK)
+        ):
+            return str(candidate.resolve())
+        return None
+
+    search_dirs: list[Path] = list(extra_search_dirs or [])
+    path_env = os.environ.get("PATH", "")
+    search_dirs.extend(Path(d) for d in path_env.split(os.pathsep) if d)
+    if not search_dirs:
+        return None
+
+    search_path = os.pathsep.join(str(d) for d in search_dirs)
+    found = shutil.which(name_or_path, path=search_path)
+    if found:
+        return str(Path(found).resolve())
+    return None
+
+
+def get_whisper_cli_path(reader: ConfigReader | None = None) -> str:
+    """Resolve whisper-cli executable path.
+
+    Priority: ``WHISPER_CLI_PATH`` env > ``ConfigReader`` media.whisper_cli_path >
+    ``tools/bin/whisper-cli(.exe)`` > ``shutil.which('whisper-cli')``.
+
+    Args:
+        reader: Optional ``ConfigReader`` instance. When provided, reads
+                ``media.whisper_cli_path`` from ``app_config.json`` as part
+                of the resolution chain.
+    """
+    return _resolve_whisper_cli_path(reader=reader)
+
+
 def run_ffmpeg(args: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
     """运行 ffmpeg 命令。"""
-    ffmpeg = get_ffmpeg_path()
+    ffmpeg = _resolve_ffmpeg_path()
     return subprocess.run(
         [ffmpeg] + args,
         capture_output=True,

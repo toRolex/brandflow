@@ -4,6 +4,8 @@ AI 驱动的短视频自动化生产系统，基于 `control-plane + runtime-wor
 
 ## 快速启动
 
+### macOS / Linux
+
 ```bash
 # 1. 安装后端依赖
 uv sync
@@ -15,9 +17,24 @@ cp .env.example .env
 cd frontend && npm install && cd ..
 ```
 
+### Windows
+
+```cmd
+# 1. 初始化目录、体检、生成 .env 模板
+packaging\windows\init.bat
+
+# 2. 编辑 .env 填入 API Key
+
+# 3. 安装前端依赖
+cd frontend && npm install && cd ..
+
+# 4. 同时启动后端和前端
+packaging\windows\start.bat
+```
+
 ### 启动
 
-**需要同时开两个终端窗口** — 一个跑后端，一个跑前端。
+**macOS / Linux 需要同时开两个终端窗口** — 一个跑后端，一个跑前端。
 
 **终端 1 — 后端：**
 ```bash
@@ -30,6 +47,8 @@ uv run python -m apps.control_plane
 cd frontend && npm run dev
 ```
 看到 `Local: http://localhost:5173/` 即成功。
+
+**Windows** 直接运行 `packaging\windows\start.bat`，后端日志写入 `logs/backend.log`，前端日志写入 `logs/frontend.log`。
 
 然后打开浏览器访问 **http://localhost:5173**。
 
@@ -164,6 +183,7 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 ├── packages/
 │   ├── domain_core/          # 领域模型 + 状态机 + worker 协议
 │   ├── file_store/           # 文件系统轻持久化
+│   ├── deploy_health/        # 部署体检：CLI + /api/health?deploy_check=true（Issue #76）
 │   ├── knowledge_store/      # 知识库：文档、items、LLM 提取（Issue #28）
 │   ├── pipeline_services/    # 业务能力（独立 service：脚本/TTS/字幕/视频）
 │   ├── provider_config/      # 统一配置入口与 provider 配置桥接
@@ -183,6 +203,12 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 ## 可用命令
 
 ```bash
+# 部署体检（Issue #76）
+uv run python -m packages.deploy_health            # CLI 输出 JSON 体检结果
+
+# 健康接口
+# GET /api/health?deploy_check=true
+
 # 测试
 uv run pytest tests/ -q                # 全量测试
 

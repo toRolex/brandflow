@@ -1,6 +1,10 @@
 """Asset library — semantic clip indexing and retrieval."""
 
-from packages.pipeline_services.asset_library.category_config import CategoryConfig
+from packages.pipeline_services.asset_library.category_config import (
+    CategoryConfig,
+    default_categories,
+    get_categories,
+)
 from packages.pipeline_services.asset_library.models import (
     AssetRecord,
     AssetStatus,
@@ -19,5 +23,7 @@ __all__ = [
     "AssetStatus",
     "Category",
     "CategoryConfig",
+    "default_categories",
     "load_keyword_map",
+    "get_categories",
 ]

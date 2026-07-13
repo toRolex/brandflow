@@ -13,6 +13,9 @@ interface ProductContextValue {
   loading: boolean;
   switchProduct: (productId: string) => Promise<void>;
   refreshProducts: () => Promise<void>;
+  createProduct: (name: string) => Promise<void>;
+  renameProduct: (productId: string, name: string) => Promise<void>;
+  deleteProduct: (productId: string) => Promise<void>;
 }
 
 const ProductContext = createContext<ProductContextValue>({
@@ -22,6 +25,9 @@ const ProductContext = createContext<ProductContextValue>({
   loading: false,
   switchProduct: async () => {},
   refreshProducts: async () => {},
+  createProduct: async () => {},
+  renameProduct: async () => {},
+  deleteProduct: async () => {},
 });
 
 export function ProductProvider({ children }: { children: ReactNode }) {
@@ -58,6 +64,21 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     await refreshProducts();
   }, [refreshProducts]);
 
+  const createProduct = useCallback(async (name: string) => {
+    await api.createProduct(name);
+    await refreshProducts();
+  }, [refreshProducts]);
+
+  const renameProduct = useCallback(async (productId: string, name: string) => {
+    await api.renameProduct(productId, name);
+    await refreshProducts();
+  }, [refreshProducts]);
+
+  const deleteProduct = useCallback(async (productId: string) => {
+    await api.deleteProduct(productId);
+    await refreshProducts();
+  }, [refreshProducts]);
+
   return (
     <ProductContext.Provider
       value={{
@@ -67,6 +88,9 @@ export function ProductProvider({ children }: { children: ReactNode }) {
         loading,
         switchProduct,
         refreshProducts,
+        createProduct,
+        renameProduct,
+        deleteProduct,
       }}
     >
       {children}

@@ -10,6 +10,9 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
+
+from packages.pipeline_services.asset_library.category_config import get_categories
+from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
 from fastapi.responses import FileResponse, StreamingResponse
 
 from apps.control_plane.index_tasks import index_task_manager, TaskStatus
@@ -21,11 +24,8 @@ from packages.file_store.paths import (
     shared_source_dir,
 )
 from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
-from packages.pipeline_services.asset_library.thumbnail import (
-    ThumbnailGenerator,
-    _resolve_tool_path,
-    _get_default,
-)
+from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerator
+from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 
 router = APIRouter(prefix="/api/assets", tags=["api-assets"])
 
@@ -35,6 +35,52 @@ _background_tasks: set[asyncio.Task] = set()
 
 def _sanitize_filename(filename: str) -> str:
     return Path(filename).name
+
+
+def _resolve_product_name(config_reader, explicit_product: str = "") -> str:
+    """Resolve product name with fallback chain.
+
+    Priority: explicit_product > active product name > default_name > id.
+    """
+    if explicit_product:
+        return explicit_product
+    active_id = config_reader.active_product_id
+    if active_id:
+        config = config_reader.get_product_config(product_id=active_id)
+    else:
+        config = config_reader.get_product_config()
+    name = config.get("name", "")
+    if name:
+        return name
+    default = config.get("default_name", "")
+    if default:
+        return default
+    return config.get("id", "")
+
+
+def _get_valid_category_names(root_dir: Path) -> set[str]:
+    """Return the set of category names that are currently valid.
+
+    Uses get_categories with ConfigReader so it respects product-config
+    -> instance-config -> default-food-categories priority chain.
+    """
+    from packages.provider_config.config_reader import ConfigReader
+
+    reader = ConfigReader(config_dir=str(root_dir / "config"))
+    active_id = reader.active_product_id
+    return {c.name for c in get_categories(reader, product_id=active_id or None)}
+
+
+def _validate_category(category: str | None, root_dir: Path) -> None:
+    """Raise 400 if *category* is not None and not in the allowed set."""
+    if category is None:
+        return
+    allowed = _get_valid_category_names(root_dir)
+    if category not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"无效分类: '{category}'，当前允许的分类: {', '.join(sorted(allowed))}",
+        )
 
 
 @router.post("/upload")
@@ -69,6 +115,7 @@ def get_indexed_assets(
     request: Request,
     category: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    product: str | None = Query(default=None),
 ):
     root_dir: Path = request.app.state.root_dir
     db_path = shared_asset_db_path(root_dir)
@@ -96,6 +143,9 @@ def get_indexed_assets(
         conditions.append("(file_path LIKE ? OR source_video LIKE ? OR tags LIKE ?)")
         like_q = f"%{q}%"
         params.extend([like_q, like_q, like_q])
+    if product:
+        conditions.append("product = ?")
+        params.append(product)
 
     if conditions:
         base_query += " WHERE " + " AND ".join(conditions)
@@ -162,29 +212,49 @@ async def index_assets(
             conn.close()
         return {"indexed": 0, "skipped": len(videos), "total_clips": total_clips}
 
-    from packages.provider_config.app_config import AppConfigManager
-
-    app_config = AppConfigManager()
-    product_value = product or app_config.get_product_config().get("name", "")
+    config_reader = request.app.state.config_reader
+    product_value = _resolve_product_name(config_reader, product or "")
 
     if async_mode:
         task = index_task_manager.create_task(len(new_videos))
         print(f"[INDEX] 创建异步任务: {task.task_id}, 待处理 {len(new_videos)} 个视频")
+        secret_store = request.app.state.secret_store
+        active_id = config_reader.active_product_id
+        category_names = [
+            c.name for c in get_categories(config_reader, product_id=active_id or None)
+        ]
         bg_task = asyncio.create_task(
-            _run_index_task(task.task_id, root_dir, new_videos, db_path, product_value)
+            _run_index_task(
+                task.task_id,
+                root_dir,
+                new_videos,
+                db_path,
+                product_value,
+                config_reader,
+                secret_store,
+                category_names,
+            )
         )
         _background_tasks.add(bg_task)
         bg_task.add_done_callback(_background_tasks.discard)
         return {"task_id": task.task_id, "total_videos": len(new_videos)}
 
     repository = AssetRepository(db_path)
-    vision_config = app_config.get_vision_config()
-    ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
+    secret_store = request.app.state.secret_store
+    active_id = config_reader.active_product_id
+    vision_config = resolve_vision_config(
+        {}, secrets=secret_store, reader=config_reader
+    )
+    category_names = [
+        c.name for c in get_categories(config_reader, product_id=active_id or None)
+    ]
+    ffmpeg_path = _resolve_ffmpeg_path()
     indexer = AssetIndexer(
         ffmpeg_path=ffmpeg_path,
         repository=repository,
         vision_config=vision_config,
         product=product_value,
+        category_names=category_names,
     )
     output_base = shared_indexed_dir(root_dir)
     for video in new_videos:
@@ -208,7 +278,14 @@ async def index_assets(
 
 
 async def _run_index_task(
-    task_id: str, root_dir: Path, videos: list[Path], db_path: Path, product: str
+    task_id: str,
+    root_dir: Path,
+    videos: list[Path],
+    db_path: Path,
+    product: str,
+    config_reader: "ConfigReader | None" = None,
+    secret_store: "SecretStore | None" = None,
+    category_names: list[str] | None = None,
 ):
     task = index_task_manager.get_task(task_id)
     if not task:
@@ -220,16 +297,25 @@ async def _run_index_task(
 
     try:
         repository = AssetRepository(db_path)
-        from packages.provider_config.app_config import AppConfigManager
 
-        app_config = AppConfigManager()
-        vision_config = app_config.get_vision_config()
-        ffmpeg_path = _resolve_tool_path(_get_default("FFMPEG_PATH", "ffmpeg"))
+        if config_reader is not None:
+            vision_config = resolve_vision_config(
+                {}, secrets=secret_store, reader=config_reader
+            )
+        else:
+            from packages.provider_config.config_reader import ConfigReader
+            vision_config = resolve_vision_config(
+                {}, secrets=secret_store,
+                reader=ConfigReader(config_dir=str(root_dir / "config")),
+            )
+
+        ffmpeg_path = _resolve_ffmpeg_path()
         indexer = AssetIndexer(
             ffmpeg_path=ffmpeg_path,
             repository=repository,
             vision_config=vision_config,
             product=product,
+            category_names=category_names,
         )
         output_base = shared_indexed_dir(root_dir)
 
@@ -357,6 +443,8 @@ async def batch_update_fields(request: Request):
         return {"updated": 0}
 
     root_dir: Path = request.app.state.root_dir
+    _validate_category(new_category, root_dir)
+
     db_path = shared_asset_db_path(root_dir)
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
@@ -444,6 +532,8 @@ async def patch_asset_fields(request: Request, asset_id: str):
 
     new_product = body.get("product")
     new_category = body.get("category")
+
+    _validate_category(new_category, root_dir)
 
     if not new_product and not new_category:
         return {"updated": 0}

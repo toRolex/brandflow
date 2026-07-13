@@ -1,26 +1,21 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
+from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 from packages.runtime_adapters.base import BaseRuntimeAdapter
 
 
 class WindowsProdRuntimeAdapter(BaseRuntimeAdapter):
     """Runtime adapter for the Windows production environment.
 
-    Locates ffmpeg by probing, in order:
+    Locates ffmpeg using the shared resolver:
       1. ``FFMPEG_PATH`` environment variable
       2. ``tools/bin/ffmpeg.exe`` relative to CWD
-      3. Chocolatey install path
+      3. ``shutil.which('ffmpeg')`` (system PATH)
     """
 
     profile_name = "windows-prod"
-
-    _FFMPEG_CANDIDATES: tuple[str, ...] = (
-        "tools/bin/ffmpeg.exe",
-        "C:/ProgramData/chocolatey/bin/ffmpeg.exe",
-    )
 
     # ------------------------------------------------------------------
     # Public interface
@@ -29,23 +24,9 @@ class WindowsProdRuntimeAdapter(BaseRuntimeAdapter):
     def ffmpeg_path(self) -> Path:
         """Return the resolved path to ``ffmpeg.exe``.
 
-        Raises :class:`FileNotFoundError` if no candidate exists on disk.
+        Raises :class:`ToolNotFoundError` if ffmpeg cannot be located.
         """
-        env = os.environ.get("FFMPEG_PATH")
-        if env is not None:
-            path = Path(env)
-            if path.exists():
-                return path
-
-        for candidate in self._FFMPEG_CANDIDATES:
-            path = Path(candidate)
-            if path.exists():
-                return path
-
-        raise FileNotFoundError(
-            "ffmpeg not found. Set FFMPEG_PATH env var, add tools/bin/ffmpeg.exe, "
-            "or install via Chocolatey"
-        )
+        return Path(_resolve_ffmpeg_path())
 
     def ensure_tools(self) -> None:
         return None
