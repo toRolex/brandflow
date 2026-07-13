@@ -455,6 +455,15 @@ class PhaseOrchestrator:
                 try:
                     tts_cfg = self._resolve_tts_config(ctx)
 
+                    # Apply job-level TTS overrides (tts_model / tts_voice)
+                    # Priority: job override > provider defaults > global/product config
+                    job_tts_model: str = ctx.options.get("tts_model", "")
+                    job_tts_voice: str = ctx.options.get("tts_voice", "")
+                    if job_tts_model:
+                        tts_cfg["model"] = job_tts_model
+                    if job_tts_voice:
+                        tts_cfg["voice"] = job_tts_voice
+
                     config = _TTSConfigShim(tts_cfg)
                     tts_provider = self._build_tts_provider(tts_cfg)
                     audio_bytes = tts_provider.synthesize(existing_script, config)

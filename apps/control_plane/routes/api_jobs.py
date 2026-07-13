@@ -71,6 +71,8 @@ class CreateJobRequest(BaseModel):
     cover_title: CoverTitleRequest | None = None
     music_track_path: str = ""
     music_volume: int = 80
+    tts_model: str = ""
+    tts_voice: str = ""
 
 
 class BatchJobItem(BaseModel):
@@ -83,6 +85,8 @@ class BatchJobItem(BaseModel):
     cover_title: CoverTitleRequest | None = None
     music_track_path: str = ""
     music_volume: int = 80
+    tts_model: str = ""
+    tts_voice: str = ""
 
 
 class BatchCreateRequest(BaseModel):
@@ -136,6 +140,8 @@ def _make_job_response(
         "cover_title": record.cover_title.model_dump(),
         "music_track_path": record.music_track_path,
         "music_volume": record.music_volume,
+        "tts_model": record.tts_model,
+        "tts_voice": record.tts_voice,
         "display_index": display_index,
     }
 
@@ -167,6 +173,8 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         cover_title=_cover_title_from_request(payload.cover_title),
         music_track_path=payload.music_track_path,
         music_volume=payload.music_volume,
+        tts_model=payload.tts_model,
+        tts_voice=payload.tts_voice,
     )
     repo.save_job(project_id, record)
 
@@ -209,6 +217,8 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             cover_title=cover_title,
             music_track_path=item.music_track_path,
             music_volume=item.music_volume,
+            tts_model=item.tts_model,
+            tts_voice=item.tts_voice,
         )
         repo.save_job(project_id, record)
         display_index = f"{existing_count + i + 1:03d}"
