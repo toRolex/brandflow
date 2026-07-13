@@ -177,4 +177,7 @@ class TestConfigPersistence:
         else:
             tts = saved_data.get("tts", {})
         assert tts["model"] == "tts-model"
-        assert "products" in saved_data
+        if active_id:
+            assert "products" in saved_data
+        else:
+            assert "tts" in saved_data

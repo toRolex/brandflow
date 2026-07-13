@@ -16,7 +16,6 @@ from apps.control_plane.app import create_app
 from packages.pipeline_services.asset_library import (
     AssetRecord,
     AssetRepository,
-    Category,
 )
 
 
@@ -67,7 +66,9 @@ def _create_project_with_assets(
 def test_migrate_rewrites_file_path_to_shared_assets(tmp_path: Path) -> None:
     """After migration, assets.file_path must point to shared_assets/indexed."""
     client = _make_client(tmp_path)
-    old_db, old_file_path = _create_project_with_assets(tmp_path, asset_id="asset_mig_001")
+    old_db, old_file_path = _create_project_with_assets(
+        tmp_path, asset_id="asset_mig_001"
+    )
 
     resp = client.post("/api/assets/migrate")
     assert resp.status_code == 200
@@ -104,9 +105,7 @@ def test_migrate_rewrites_file_path_to_shared_assets(tmp_path: Path) -> None:
 
     # Verify the file exists at the new path
     new_path = Path(new_file_path)
-    assert new_path.exists(), (
-        f"file should exist at new path: {new_file_path}"
-    )
+    assert new_path.exists(), f"file should exist at new path: {new_file_path}"
 
     # Verify the file content is intact
     assert new_path.read_bytes() == b"fake clip content for migration test"
@@ -115,10 +114,12 @@ def test_migrate_rewrites_file_path_to_shared_assets(tmp_path: Path) -> None:
 def test_migrate_rewrite_multiple_products(tmp_path: Path) -> None:
     """Migration rewrites file_path for multiple products correctly."""
     client = _make_client(tmp_path)
-    _create_project_with_assets(tmp_path, "prj_a", product="荔枝菌", category="成品展示",
-                                asset_id="asset_prj_a")
-    _create_project_with_assets(tmp_path, "prj_b", product="羊肚菌", category="产品特写",
-                                asset_id="asset_prj_b")
+    _create_project_with_assets(
+        tmp_path, "prj_a", product="荔枝菌", category="成品展示", asset_id="asset_prj_a"
+    )
+    _create_project_with_assets(
+        tmp_path, "prj_b", product="羊肚菌", category="产品特写", asset_id="asset_prj_b"
+    )
 
     resp = client.post("/api/assets/migrate")
     assert resp.status_code == 200
@@ -145,7 +146,9 @@ def test_migrate_rewrite_multiple_products(tmp_path: Path) -> None:
 def test_migrate_skip_when_asset_id_already_exists(tmp_path: Path) -> None:
     """Re-running migration should skip already-migrated records (INSERT OR IGNORE)."""
     client = _make_client(tmp_path)
-    old_db, old_file_path = _create_project_with_assets(tmp_path, asset_id="asset_mig_002")
+    old_db, old_file_path = _create_project_with_assets(
+        tmp_path, asset_id="asset_mig_002"
+    )
 
     # First migration
     resp1 = client.post("/api/assets/migrate")
@@ -176,4 +179,6 @@ def test_migrate_skip_when_asset_id_already_exists(tmp_path: Path) -> None:
     conn2.close()
 
     assert count == 1, "should not duplicate asset records"
-    assert file_path == correct_path, "file_path should remain unchanged on re-migration"
+    assert file_path == correct_path, (
+        "file_path should remain unchanged on re-migration"
+    )

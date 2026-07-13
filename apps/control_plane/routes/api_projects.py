@@ -116,7 +116,9 @@ def get_indexed_assets(
     project_id: str,
     category: str | None = Query(default=None),
     q: str | None = Query(default=None),
-    product: str | None = Query(default=None),  # DEPRECATED: 全局端点 /api/assets/indexed 已支持
+    product: str | None = Query(
+        default=None
+    ),  # DEPRECATED: 全局端点 /api/assets/indexed 已支持
 ):
     """DEPRECATED — 请使用全局端点 GET /api/assets/indexed。保留仅用于兼容旧项目。"""
     project_dir = _project_dir(request.app.state.root_dir, project_id)

@@ -609,9 +609,9 @@ def migrate_project_assets(request: Request):
         if old_db.exists():
             try:
                 old_conn = sqlite3.connect(str(old_db))
-                old_count += old_conn.execute(
-                    "SELECT COUNT(*) FROM assets"
-                ).fetchone()[0]
+                old_count += old_conn.execute("SELECT COUNT(*) FROM assets").fetchone()[
+                    0
+                ]
                 old_conn.close()
             except sqlite3.Error:
                 pass  # silently skip corrupt DBs
@@ -660,7 +660,9 @@ def migrate_project_assets(request: Request):
                     d = dict(row)
                     # Rewrite file_path from per-project dir to shared_assets/indexed
                     old_fp = Path(d["file_path"])
-                    d["file_path"] = str(shared_idx / d["product"] / d["category"] / old_fp.name)
+                    d["file_path"] = str(
+                        shared_idx / d["product"] / d["category"] / old_fp.name
+                    )
                     cursor = new_conn.execute(
                         """INSERT OR IGNORE INTO assets
                            (asset_id, file_path, category, product, confidence, duration_seconds,
@@ -721,9 +723,7 @@ def migrate_project_assets(request: Request):
     if shared_db.exists():
         try:
             verify_conn = sqlite3.connect(str(shared_db))
-            new_count = verify_conn.execute(
-                "SELECT COUNT(*) FROM assets"
-            ).fetchone()[0]
+            new_count = verify_conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
             verify_conn.close()
         except sqlite3.Error:
             pass
