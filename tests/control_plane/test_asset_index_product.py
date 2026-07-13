@@ -297,6 +297,10 @@ def test_sync_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> N
         "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
         lambda self, video_path, output_base, log_callback=None: [],
     )
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.validate_vision_config",
+        lambda *a, **kw: None,
+    )
 
     resp = client.post("/api/assets/index", params={"async_mode": False})
 
@@ -352,6 +356,10 @@ def test_async_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> 
     monkeypatch.setattr(
         "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
         lambda self, video_path, output_base, log_callback=None: [],
+    )
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.validate_vision_config",
+        lambda *a, **kw: None,
     )
 
     resp = client.post("/api/assets/index", params={"async_mode": True})

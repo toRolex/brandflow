@@ -14,6 +14,10 @@ from packages.pipeline_services.asset_library.models import (
 from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_library.indexer import AssetIndexer
 from packages.pipeline_services.asset_library.retriever import AssetRetriever
+from packages.pipeline_services.asset_library.vision_utils import (
+    VisionConfigError,
+    validate_vision_config,
+)
 
 __all__ = [
     "AssetIndexer",
@@ -26,4 +30,6 @@ __all__ = [
     "default_categories",
     "load_keyword_map",
     "get_categories",
+    "VisionConfigError",
+    "validate_vision_config",
 ]

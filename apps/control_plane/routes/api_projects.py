@@ -12,7 +12,10 @@ from pydantic import BaseModel
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
 from packages.pipeline_services.asset_library.category_config import get_categories
-from packages.pipeline_services.asset_library.indexer import VisionConfigError
+from packages.pipeline_services.asset_library.vision_utils import (
+    VisionConfigError,
+    validate_vision_config,
+)
 from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
 from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 
@@ -230,15 +233,12 @@ def index_assets(request: Request, project_id: str):
         vision_config = resolve_vision_config({}, secrets=secret_store, reader=reader)
         # 仅当 Vision 被显式配置（有 api_key）时才校验完整性
         if vision_config.get("api_key"):
-            missing = [
-                key
-                for key in ("provider", "endpoint", "model", "api_key")
-                if not vision_config.get(key)
-            ]
-            if missing:
+            try:
+                validate_vision_config(reader, secret_store)
+            except VisionConfigError as e:
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Vision 配置不完整，缺失字段: {', '.join(missing)}",
+                    detail=str(e),
                 )
         category_names = [
             c.name for c in get_categories(reader, product_id=active_id or None)
