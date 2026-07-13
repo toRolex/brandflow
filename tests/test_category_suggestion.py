@@ -9,6 +9,45 @@ from fastapi.testclient import TestClient
 from apps.control_plane.app import create_app
 
 
+def test_suggest_empty_library() -> None:
+    """POST /api/assets/categories/suggest returns ``{"suggestions": []}``
+    when there are no assets in the library, instead of raising an error.
+    """
+    mock_empty_result = {
+        "categories": [],
+        "sampled_assets": 0,
+        "model_used": "",
+        "descriptions": [],
+        "errors": ["No available assets found in the library"],
+    }
+
+    target = (
+        "apps.control_plane.routes.category_suggestion"
+        ".suggest_categories"
+    )
+
+    with patch(target, return_value=mock_empty_result):
+        app = create_app(root_dir=Path.cwd())
+        client = TestClient(app)
+        resp = client.post("/api/assets/categories/suggest", json={})
+
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # ---- outer key: ``suggestions`` (not ``categories``) ----
+    assert "suggestions" in data, (
+        "Empty response must contain 'suggestions' key, got %s" % list(data.keys())
+    )
+    assert "categories" not in data, (
+        "Empty response must NOT contain 'categories' key"
+    )
+
+    suggestions = data["suggestions"]
+    assert isinstance(suggestions, list)
+    assert len(suggestions) == 0, (
+        "Empty library should produce empty suggestions list"
+    )
+
 def test_suggest_response_contract() -> None:
     """POST /api/assets/categories/suggest returns ``{"suggestions": [...]}``
     with each item containing ``label``/``description``/``vision_prompt``.
