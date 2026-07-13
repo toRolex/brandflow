@@ -46,3 +46,6 @@ frontend/package-lock.json
 skills-lock.json
 node_modules
 data/
+.impeccable/
+DESIGN.md
+PRODUCT.md
