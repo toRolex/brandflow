@@ -696,6 +696,40 @@ export default function SmartAssetLibrary({ projectId }: Props) {
         />
       )}
 
+      {filteredAssets.length > 0 && (
+        <div className="flex items-center gap-3 text-sm">
+          {selectedIds.size === filteredAssets.length ? (
+            <button
+              className="px-2 py-1 border rounded"
+              style={{ color: "var(--accent)", borderColor: "var(--border-default)" }}
+              onClick={() => setSelectedIds(new Set())}
+            >
+              取消全选
+            </button>
+          ) : (
+            <button
+              className="px-2 py-1 border rounded"
+              style={{ color: "var(--accent)", borderColor: "var(--border-default)" }}
+              onClick={() => setSelectedIds(new Set(filteredAssets.map((a) => a.asset_id)))}
+            >
+              全选当前筛选结果
+            </button>
+          )}
+          {selectedIds.size > 0 && (
+            <>
+              <span style={{ color: "var(--text-secondary)" }}>已选 {selectedIds.size} 项</span>
+              <button
+                className="px-2 py-1 border rounded"
+                style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
+                onClick={() => setSelectedIds(new Set())}
+              >
+                清空选择
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4 items-start">
         {filteredAssets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20" style={{ color: "var(--text-secondary)" }}>

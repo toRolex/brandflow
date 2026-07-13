@@ -71,6 +71,159 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
+describe("SmartAssetLibrary select-all features", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.listIndexedAssetsShared).mockResolvedValue({ assets: mockAssets, stats: mockStats });
+    vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
+    vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
+    vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
+    vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
+    vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
+    vi.mocked(api.batchDeleteAssets).mockResolvedValue({ deleted: 1, files_deleted: 1 });
+    vi.mocked(api.uploadAssetShared).mockResolvedValue({ name: "test.mp4", size_bytes: 1000, in_use: false });
+    vi.mocked(api.indexAssetsShared).mockResolvedValue({ indexed: 1, skipped: 0, total_clips: 1 });
+  });
+
+  function renderLibrary() {
+    return render(
+      <ProductProvider>
+        <SmartAssetLibrary />
+      </ProductProvider>
+    );
+  }
+
+  it("Seam 1: 过滤区渲染'全选当前筛选结果'按钮", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // The select-all button should be in the document when filtered assets exist
+    await waitFor(() => {
+      expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+    });
+  });
+
+  it("Seam 2: 点击'全选当前筛选结果'选中所有可见素材", async () => {
+    renderLibrary();
+
+    // Wait for product filter to take effect (shows 2 of 3 assets)
+    await waitFor(() => {
+      expect(screen.getByText("共 2 / 3 条素材")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // BatchActionBar should appear with count 2
+    await waitFor(() => {
+      expect(screen.getByText("已选择 2 张卡片")).toBeInTheDocument();
+    });
+  });
+
+  it("Seam 3: 全选后按钮变为'取消全选'，再次点击清除选择", async () => {
+    renderLibrary();
+
+    // Wait for product filter to take effect
+    await waitFor(() => {
+      expect(screen.getByText("共 2 / 3 条素材")).toBeInTheDocument();
+    });
+
+    // Click select-all
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // Button text should change to "取消全选"
+    await waitFor(() => {
+      expect(screen.getByText("取消全选")).toBeInTheDocument();
+    });
+
+    // Click again to deselect
+    fireEvent.click(screen.getByText("取消全选"));
+
+    // BatchActionBar should disappear
+    await waitFor(() => {
+      expect(screen.queryByText(/已选择/)).not.toBeInTheDocument();
+    });
+
+    // Button text should revert to "全选当前筛选结果"
+    expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+  });
+
+  it("Seam 4: 选中后出现'清空选择'按钮，点击清除所有选择", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // Click select-all
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // "清空选择" button should appear
+    await waitFor(() => {
+      expect(screen.getByText("清空选择")).toBeInTheDocument();
+    });
+
+    // Click clear
+    fireEvent.click(screen.getByText("清空选择"));
+
+    // Both BatchActionBar and selection controls should show no selection
+    await waitFor(() => {
+      expect(screen.queryByText(/已选择/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("Seam 5: 全选只选中当前筛选结果（非全部素材）", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // Filter by category "产地" — only a2 matches
+    const selects = screen.getAllByRole("combobox");
+    const catSelect = selects[1]; // category select is the second combobox
+    fireEvent.change(catSelect, { target: { value: "产地" } });
+
+    // Click select-all
+    await waitFor(() => {
+      expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // Only 1 asset (a2, category: 产地) should be selected
+    await waitFor(() => {
+      expect(screen.getByText("已选择 1 张卡片")).toBeInTheDocument();
+    });
+  });
+
+  it("Seam 6: 已选数量实时显示在过滤区", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // Initially no selected count should be visible (no selection yet)
+    expect(screen.queryByText(/已选/)).not.toBeInTheDocument();
+
+    // Select one asset via grid click
+    await waitFor(() => {
+      expect(screen.getByText("a1.mp4")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("a1.mp4"));
+
+    // Now selected count should be visible in the filter area
+    await waitFor(() => {
+      expect(screen.getByText("已选 1 项")).toBeInTheDocument();
+    });
+  });
+});
+
 describe("SmartAssetLibrary product filtering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
