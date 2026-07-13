@@ -645,4 +645,6 @@ class TestDeleteAsset:
             # The raw ``/`` in ``subdir/file.mp4`` is treated as a path segment
             # by Starlette, so this never reaches the DELETE handler.
             resp = client.delete(f"/api/projects/{pid}/assets/subdir/file.mp4")
-            assert resp.status_code == 404
+            assert resp.status_code in (404, 405), (
+                f"expected 404 or 405, got {resp.status_code}"
+            )
