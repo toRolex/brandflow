@@ -29,8 +29,14 @@ class SuggestRequest(BaseModel):
     )
 
 
+class SuggestResponseItem(BaseModel):
+    label: str = Field(default="")
+    description: str = Field(default="")
+    vision_prompt: str = Field(default="")
+
+
 class SuggestResponse(BaseModel):
-    categories: list[dict] = Field(default_factory=list)
+    suggestions: list[SuggestResponseItem] = Field(default_factory=list)
     sampled_assets: int = 0
     model_used: str = ""
     descriptions: list[str] = Field(default_factory=list)
@@ -68,8 +74,18 @@ async def suggest(request: Request, body: SuggestRequest) -> SuggestResponse:
         llm_config=llm_config,
     )
 
+    raw_categories = result.get("categories", [])
+    mapped_suggestions = [
+        SuggestResponseItem(
+            label=str(c.get("name", "")),
+            description=str(c.get("description", "")),
+            vision_prompt=str(c.get("vision_prompt", "")),
+        )
+        for c in raw_categories
+    ]
+
     return SuggestResponse(
-        categories=result.get("categories", []),
+        suggestions=mapped_suggestions,
         sampled_assets=result.get("sampled_assets", 0),
         model_used=result.get("model_used", llm_model),
         descriptions=result.get("descriptions", []),
