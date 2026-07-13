@@ -158,6 +158,12 @@ export const api = {
       body: JSON.stringify({ asset_ids: assetIds }),
     }),
 
+  batchReclassifyAssets: (assetIds: string[], category: string) =>
+    request<{ updated: number }>("/api/assets/categories", {
+      method: "PATCH",
+      body: JSON.stringify({ asset_ids: assetIds, category }),
+    }),
+
   migrateAssets: () =>
     request<{ migrated_projects: number; migrated_clips: number; migrated_sources: number }>(
       "/api/assets/migrate",

@@ -451,3 +451,159 @@ def test_async_index_task_fails_on_invalid_vision_config(tmp_path, monkeypatch):
     assert "Vision" in data.get("error", ""), (
         f"错误信息应包含 Vision 相关描述，实际: {data.get('error')}"
     )
+
+
+# ── Issue #139: 批量重分类未映射素材 ─────────────────────────────────────────
+
+import sqlite3
+
+
+def test_batch_update_categories(tmp_path: Path) -> None:
+    """PATCH /api/assets/categories 批量更新素材分类。"""
+    from packages.file_store.paths import shared_asset_db_path
+    from packages.pipeline_services.asset_library.repository import AssetRepository
+
+    client = _client(tmp_path)
+
+    # Insert test assets into the DB
+    db_path = shared_asset_db_path(tmp_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    AssetRepository(db_path)  # Initialize tables
+
+    conn = sqlite3.connect(str(db_path))
+    now = "2025-01-01T00:00:00"
+    test_assets = [
+        ("a1", "/path/to/a1.mp4", "旧分类", "龙井茶", 0.9, 5.0, "available", 0, "v1.mp4"),
+        ("a2", "/path/to/a2.mp4", "旧分类", "龙井茶", 0.85, 3.0, "available", 0, "v1.mp4"),
+        ("a3", "/path/to/a3.mp4", "冲泡", "龙井茶", 0.8, 7.0, "available", 0, "v2.mp4"),
+    ]
+    for asset in test_assets:
+        conn.execute(
+            """INSERT INTO assets
+               (asset_id, file_path, category, product, confidence, duration_seconds,
+                status, usage_count, source_video, created_at, last_used_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (*asset, now, now),
+        )
+    conn.commit()
+    conn.close()
+
+    # Call the endpoint
+    resp = client.patch(
+        "/api/assets/categories",
+        json={"asset_ids": ["a1", "a2"], "category": "产品特写"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"updated": 2}
+
+    # Verify in DB
+    conn = sqlite3.connect(str(db_path))
+    rows = conn.execute(
+        "SELECT asset_id, category FROM assets ORDER BY asset_id"
+    ).fetchall()
+    conn.close()
+    assert dict(rows) == {"a1": "产品特写", "a2": "产品特写", "a3": "冲泡"}
+
+
+def test_batch_update_categories_idempotent(tmp_path: Path) -> None:
+    """相同请求重复执行返回相同 updated 计数。"""
+    from packages.file_store.paths import shared_asset_db_path
+    from packages.pipeline_services.asset_library.repository import AssetRepository
+
+    client = _client(tmp_path)
+    db_path = shared_asset_db_path(tmp_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    AssetRepository(db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    now = "2025-01-01T00:00:00"
+    conn.execute(
+        """INSERT INTO assets
+           (asset_id, file_path, category, product, confidence, duration_seconds,
+            status, usage_count, source_video, tags, created_at, last_used_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        ("a1", "/p.mp4", "旧分类", "测试", 0.9, 5.0, "available", 0, "v.mp4", "[]", now, now),
+    )
+    conn.commit()
+    conn.close()
+
+    # First call
+    resp1 = client.patch(
+        "/api/assets/categories",
+        json={"asset_ids": ["a1"], "category": "新分类"},
+    )
+    assert resp1.status_code == 200
+    assert resp1.json() == {"updated": 1}
+
+    # Second call — same request, same result
+    resp2 = client.patch(
+        "/api/assets/categories",
+        json={"asset_ids": ["a1"], "category": "新分类"},
+    )
+    assert resp2.status_code == 200
+    assert resp2.json() == {"updated": 1}
+
+
+def test_batch_update_categories_ignores_nonexistent(tmp_path: Path) -> None:
+    """不存在的 asset_id 被静默忽略。"""
+    from packages.file_store.paths import shared_asset_db_path
+    from packages.pipeline_services.asset_library.repository import AssetRepository
+
+    client = _client(tmp_path)
+    db_path = shared_asset_db_path(tmp_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    AssetRepository(db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    now = "2025-01-01T00:00:00"
+    conn.execute(
+        """INSERT INTO assets
+           (asset_id, file_path, category, product, confidence, duration_seconds,
+            status, usage_count, source_video, tags, created_at, last_used_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        ("a1", "/p.mp4", "旧分类", "测试", 0.9, 5.0, "available", 0, "v.mp4", "[]", now, now),
+    )
+    conn.commit()
+    conn.close()
+
+    resp = client.patch(
+        "/api/assets/categories",
+        json={"asset_ids": ["a1", "nonexistent"], "category": "新分类"},
+    )
+    assert resp.status_code == 200
+    # a1 is updated, nonexistent is silently skipped
+    assert resp.json() == {"updated": 1}
+
+
+def test_batch_update_categories_validates_asset_ids(tmp_path: Path) -> None:
+    """asset_ids 为空或非法时返回 400。"""
+    client = _client(tmp_path)
+
+    resp = client.patch(
+        "/api/assets/categories",
+        json={"asset_ids": [], "category": "产品特写"},
+    )
+    assert resp.status_code == 400
+
+    resp = client.patch(
+        "/api/assets/categories",
+        json={"asset_ids": "not_a_list", "category": "产品特写"},
+    )
+    assert resp.status_code == 400
+
+
+def test_batch_update_categories_validates_category(tmp_path: Path) -> None:
+    """category 为空时返回 400。"""
+    client = _client(tmp_path)
+
+    resp = client.patch(
+        "/api/assets/categories",
+        json={"asset_ids": ["a1"], "category": ""},
+    )
+    assert resp.status_code == 400
+
+    resp = client.patch(
+        "/api/assets/categories",
+        json={"asset_ids": ["a1"]},  # missing category
+    )
+    assert resp.status_code == 400
