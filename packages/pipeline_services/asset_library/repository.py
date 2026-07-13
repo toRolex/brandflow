@@ -243,6 +243,28 @@ class AssetRepository:
     def close(self) -> None:
         pass
 
+    def backfill_source_videos(self) -> int:
+        """Read distinct source_video values from assets table and write missing ones to source_videos.
+
+        This covers any source_video references that were added through INSERT OR IGNORE
+        conflicts or other indirect means. Returns the number of new rows inserted.
+        """
+        conn = sqlite3.connect(str(self.db_path))
+        before = conn.execute("SELECT COUNT(*) FROM source_videos").fetchone()[0]
+        rows = conn.execute(
+            "SELECT DISTINCT source_video FROM assets WHERE source_video != ''"
+        ).fetchall()
+        now = datetime.now(timezone.utc).isoformat()
+        for (source_path,) in rows:
+            conn.execute(
+                "INSERT OR IGNORE INTO source_videos (source_path, indexed_at) VALUES (?, ?)",
+                (source_path, now),
+            )
+        conn.commit()
+        after = conn.execute("SELECT COUNT(*) FROM source_videos").fetchone()[0]
+        conn.close()
+        return after - before
+
 
 def row_to_record(row: sqlite3.Row) -> AssetRecord:
     return AssetRecord(

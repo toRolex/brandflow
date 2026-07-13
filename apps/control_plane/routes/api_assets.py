@@ -588,6 +588,7 @@ def migrate_project_assets(request: Request):
     migrated_projects = 0
     migrated_clips = 0
     migrated_sources = 0
+    migrated_video_source_records = 0
 
     for project_dir in sorted(projects_root.iterdir()):
         if not project_dir.is_dir():
@@ -609,6 +610,22 @@ def migrate_project_assets(request: Request):
             old_conn = sqlite3.connect(str(old_db))
             old_conn.row_factory = sqlite3.Row
             rows = old_conn.execute("SELECT * FROM assets").fetchall()
+
+            # Migrate source_videos table from old DB
+            old_source_rows = old_conn.execute(
+                "SELECT source_path, indexed_at FROM source_videos"
+            ).fetchall()
+            if old_source_rows:
+                new_conn = sqlite3.connect(str(shared_db_path))
+                for source_path, indexed_at in old_source_rows:
+                    new_conn.execute(
+                        "INSERT OR IGNORE INTO source_videos (source_path, indexed_at) VALUES (?, ?)",
+                        (source_path, indexed_at),
+                    )
+                new_conn.commit()
+                new_conn.close()
+                migrated_video_source_records += len(old_source_rows)
+
             old_conn.close()
 
             if rows:
@@ -662,10 +679,17 @@ def migrate_project_assets(request: Request):
                             if not dest.exists():
                                 shutil.copy2(str(clip), str(dest))
 
+    # Backfill any source_video references from assets that were added
+    # via INSERT OR IGNORE conflicts
+    repo = AssetRepository(shared_db_path)
+    backfilled = repo.backfill_source_videos()
+    migrated_video_source_records += backfilled
+
     return {
         "migrated_projects": migrated_projects,
         "migrated_clips": migrated_clips,
         "migrated_sources": migrated_sources,
+        "migrated_video_source_records": migrated_video_source_records,
     }
 
 
