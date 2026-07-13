@@ -12,7 +12,6 @@ from fastapi.staticfiles import StaticFiles
 from apps.control_plane.routes.api_assets import router as api_assets_router
 from apps.control_plane.routes.api_jobs import router as api_jobs_router
 from apps.control_plane.routes.api_projects import router as api_projects_router
-from apps.control_plane.routes.api_schedule import router as api_schedule_router
 from apps.control_plane.routes.category_suggestion import (
     router as category_suggestion_router,
 )
@@ -22,7 +21,7 @@ from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.routes.knowledge import router as knowledge_router
-from apps.control_plane.routes.scene import router as scene_router
+from apps.control_plane.routes.knowledge import router as knowledge_router
 from apps.control_plane.routes.templates import router as templates_router
 from apps.control_plane.routes.products import router as products_router
 from apps.control_plane.services.dispatch import Dispatcher
@@ -149,14 +148,12 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)
-    app.include_router(api_schedule_router)
     app.include_router(category_suggestion_router)
     app.include_router(config_router)
     app.include_router(workers_router)
     app.include_router(reviews_router)
     app.include_router(tts_router)
     app.include_router(metrics_router)
-    app.include_router(scene_router)
     app.include_router(knowledge_router)
     app.include_router(templates_router)
     app.include_router(products_router)

@@ -265,7 +265,7 @@ class TestImportModeSkipReviews:
 class TestRunPhasesParallel:
     def test_executes_all_phases(self) -> None:
         """run_phases_parallel executes every phase in the list."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 4)
+        orch = PhaseOrchestrator(*[MagicMock()] * 3)
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -278,7 +278,7 @@ class TestRunPhasesParallel:
 
     def test_returns_dict_of_lists(self) -> None:
         """Returns dict[str, list[ArtifactPointer]]."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 4)
+        orch = PhaseOrchestrator(*[MagicMock()] * 3)
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -291,7 +291,7 @@ class TestRunPhasesParallel:
 
     def test_no_one_phase_crash_kills_all(self) -> None:
         """One failing phase should not prevent other phases from completing."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 4)
+        orch = PhaseOrchestrator(*[MagicMock()] * 3)
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -345,7 +345,7 @@ class TestRunPhasesParallel:
 class TestSkeletonHandlers:
     def test_scene_assembly_returns_empty_list(self) -> None:
         """scene_assembling skeleton returns []."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 4)
+        orch = PhaseOrchestrator(*[MagicMock()] * 3)
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -357,7 +357,7 @@ class TestSkeletonHandlers:
 
     def test_montage_assembly_returns_empty_list(self) -> None:
         """montage_assembling skeleton returns []."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 4)
+        orch = PhaseOrchestrator(*[MagicMock()] * 3)
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -369,7 +369,7 @@ class TestSkeletonHandlers:
 
     def test_handlers_are_registered_in_map(self) -> None:
         """Both new handlers are registered in the handler map."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 4)
+        orch = PhaseOrchestrator(*[MagicMock()] * 3)
         assert "scene_assembling" in orch._handlers
         assert "montage_assembling" in orch._handlers
 
