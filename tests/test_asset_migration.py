@@ -15,7 +15,9 @@ from apps.control_plane.app import create_app
 from packages.file_store.paths import shared_asset_db_path
 
 
-def _create_project_db(project_dir: Path, assets: list[dict], source_videos: list[dict]) -> Path:
+def _create_project_db(
+    project_dir: Path, assets: list[dict], source_videos: list[dict]
+) -> Path:
     """Create a project asset_index.db with assets and source_videos tables."""
     db_path = project_dir / "asset_index.db"
     conn = sqlite3.connect(str(db_path))
@@ -68,7 +70,10 @@ def _create_project_db(project_dir: Path, assets: list[dict], source_videos: lis
     for sv in source_videos:
         conn.execute(
             "INSERT OR IGNORE INTO source_videos (source_path, indexed_at) VALUES (?, ?)",
-            (sv["source_path"], sv.get("indexed_at", datetime.now(timezone.utc).isoformat())),
+            (
+                sv["source_path"],
+                sv.get("indexed_at", datetime.now(timezone.utc).isoformat()),
+            ),
         )
 
     conn.commit()
@@ -114,7 +119,9 @@ def test_migrate_source_videos_direct_transfer(tmp_path: Path) -> None:
     # Verify source_videos table in global DB
     global_db = shared_asset_db_path(tmp_path)
     conn = sqlite3.connect(str(global_db))
-    rows = conn.execute("SELECT source_path FROM source_videos ORDER BY source_path").fetchall()
+    rows = conn.execute(
+        "SELECT source_path FROM source_videos ORDER BY source_path"
+    ).fetchall()
     conn.close()
     paths = [r[0] for r in rows]
     assert "/videos/cut.mp4" in paths
@@ -153,7 +160,9 @@ def test_migrate_source_videos_multi_project(tmp_path: Path) -> None:
 
     global_db = shared_asset_db_path(tmp_path)
     conn = sqlite3.connect(str(global_db))
-    rows = conn.execute("SELECT source_path FROM source_videos ORDER BY source_path").fetchall()
+    rows = conn.execute(
+        "SELECT source_path FROM source_videos ORDER BY source_path"
+    ).fetchall()
     conn.close()
     paths = [r[0] for r in rows]
     assert "/videos/prj_a_1.mp4" in paths
@@ -170,13 +179,15 @@ def test_migrate_source_videos_backfill_conflict(tmp_path: Path) -> None:
     (prj_a / "runtime" / "source_assets").mkdir(parents=True, exist_ok=True)
     _create_project_db(
         prj_a,
-        assets=[{
-            "asset_id": "shared_a1",
-            "source_video": "/videos/cut.mp4",
-            "category": "产品特写",
-            "product": "荔枝菌",
-            "created_at": now,
-        }],
+        assets=[
+            {
+                "asset_id": "shared_a1",
+                "source_video": "/videos/cut.mp4",
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            }
+        ],
         source_videos=[{"source_path": "/videos/cut.mp4"}],
     )
 
@@ -189,13 +200,15 @@ def test_migrate_source_videos_backfill_conflict(tmp_path: Path) -> None:
     (prj_b / "runtime" / "source_assets").mkdir(parents=True, exist_ok=True)
     _create_project_db(
         prj_b,
-        assets=[{
-            "asset_id": "shared_a1",  # same id — INSERT OR IGNORE will skip
-            "source_video": "/videos/stir.mp4",  # different source
-            "category": "产品特写",
-            "product": "荔枝菌",
-            "created_at": now,
-        }],
+        assets=[
+            {
+                "asset_id": "shared_a1",  # same id — INSERT OR IGNORE will skip
+                "source_video": "/videos/stir.mp4",  # different source
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            }
+        ],
         source_videos=[{"source_path": "/videos/stir.mp4"}],
     )
 
@@ -212,7 +225,9 @@ def test_migrate_source_videos_backfill_conflict(tmp_path: Path) -> None:
     assert asset_count == 1, "Only 1 asset should exist (the 2nd was INSERT OR IGNORE)"
 
     # But source_videos should have BOTH entries
-    rows = conn.execute("SELECT source_path FROM source_videos ORDER BY source_path").fetchall()
+    rows = conn.execute(
+        "SELECT source_path FROM source_videos ORDER BY source_path"
+    ).fetchall()
     conn.close()
     paths = [r[0] for r in rows]
     assert "/videos/cut.mp4" in paths, "Project A's source_video should exist"
@@ -260,7 +275,9 @@ def test_migrate_source_videos_parity_with_old_project(tmp_path: Path) -> None:
 
     global_db = shared_asset_db_path(tmp_path)
     conn = sqlite3.connect(str(global_db))
-    rows = conn.execute("SELECT source_path, indexed_at FROM source_videos ORDER BY source_path").fetchall()
+    rows = conn.execute(
+        "SELECT source_path, indexed_at FROM source_videos ORDER BY source_path"
+    ).fetchall()
     conn.close()
 
     migrated = {r[0]: r[1] for r in rows}
@@ -336,13 +353,15 @@ def test_migrate_source_videos_response_count(tmp_path: Path) -> None:
     (project_dir / "runtime" / "source_assets").mkdir(parents=True, exist_ok=True)
     _create_project_db(
         project_dir,
-        assets=[{
-            "asset_id": "a1",
-            "source_video": "/videos/cut.mp4",
-            "category": "产品特写",
-            "product": "荔枝菌",
-            "created_at": now,
-        }],
+        assets=[
+            {
+                "asset_id": "a1",
+                "source_video": "/videos/cut.mp4",
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            }
+        ],
         source_videos=[{"source_path": "/videos/cut.mp4"}],
     )
 
@@ -364,10 +383,20 @@ def test_migrate_conflict_tracking_and_skipped_ids(tmp_path: Path) -> None:
     _create_project_db(
         prj_a,
         assets=[
-            {"asset_id": "shared_001", "source_video": "/videos/a.mp4",
-             "category": "产品特写", "product": "荔枝菌", "created_at": now},
-            {"asset_id": "shared_002", "source_video": "/videos/b.mp4",
-             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+            {
+                "asset_id": "shared_001",
+                "source_video": "/videos/a.mp4",
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            },
+            {
+                "asset_id": "shared_002",
+                "source_video": "/videos/b.mp4",
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            },
         ],
         source_videos=[],
     )
@@ -388,12 +417,20 @@ def test_migrate_conflict_tracking_and_skipped_ids(tmp_path: Path) -> None:
     _create_project_db(
         prj_b,
         assets=[
-            {"asset_id": "shared_001",  # conflict!
-             "source_video": "/videos/a.mp4",
-             "category": "产品特写", "product": "荔枝菌", "created_at": now},
-            {"asset_id": "unique_003",
-             "source_video": "/videos/c.mp4",
-             "category": "成品展示", "product": "荔枝菌", "created_at": now},
+            {
+                "asset_id": "shared_001",  # conflict!
+                "source_video": "/videos/a.mp4",
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            },
+            {
+                "asset_id": "unique_003",
+                "source_video": "/videos/c.mp4",
+                "category": "成品展示",
+                "product": "荔枝菌",
+                "created_at": now,
+            },
         ],
         source_videos=[],
     )
@@ -423,10 +460,20 @@ def test_migrate_verification_block(tmp_path: Path) -> None:
     _create_project_db(
         prj,
         assets=[
-            {"asset_id": "v001", "source_video": "/videos/a.mp4",
-             "category": "产品特写", "product": "荔枝菌", "created_at": now},
-            {"asset_id": "v002", "source_video": "/videos/b.mp4",
-             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+            {
+                "asset_id": "v001",
+                "source_video": "/videos/a.mp4",
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            },
+            {
+                "asset_id": "v002",
+                "source_video": "/videos/b.mp4",
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            },
         ],
         source_videos=[],
     )
@@ -459,8 +506,13 @@ def test_migrate_verification_shows_loss_on_conflict(tmp_path: Path) -> None:
     _create_project_db(
         prj_a,
         assets=[
-            {"asset_id": "loss_001", "source_video": "/videos/a.mp4",
-             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+            {
+                "asset_id": "loss_001",
+                "source_video": "/videos/a.mp4",
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            },
         ],
         source_videos=[],
     )
@@ -478,9 +530,13 @@ def test_migrate_verification_shows_loss_on_conflict(tmp_path: Path) -> None:
     _create_project_db(
         prj_b,
         assets=[
-            {"asset_id": "loss_001",  # conflict
-             "source_video": "/videos/b.mp4",
-             "category": "产品特写", "product": "荔枝菌", "created_at": now},
+            {
+                "asset_id": "loss_001",  # conflict
+                "source_video": "/videos/b.mp4",
+                "category": "产品特写",
+                "product": "荔枝菌",
+                "created_at": now,
+            },
         ],
         source_videos=[],
     )

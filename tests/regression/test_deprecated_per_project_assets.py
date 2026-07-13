@@ -19,6 +19,7 @@ from packages.file_store.repository import FileStoreRepository
 # Helpers
 # ------------------------------------------------------------------
 
+
 def _build_app_with_project(root_dir: Path, project_id: str = "test-prj"):
     """Create app + project, return (app, project_id)."""
     app = create_app(root_dir=root_dir)
@@ -246,10 +247,23 @@ class TestGetIndexedAssets:
             client = TestClient(app)
 
             project_dir = root / "workspace" / "projects" / pid
-            _create_asset_db(project_dir, [
-                {"asset_id": "a1", "file_path": "/tmp/a1.mp4", "category": "冲泡", "product": "龙井茶"},
-                {"asset_id": "a2", "file_path": "/tmp/a2.mp4", "category": "产地", "product": "龙井茶"},
-            ])
+            _create_asset_db(
+                project_dir,
+                [
+                    {
+                        "asset_id": "a1",
+                        "file_path": "/tmp/a1.mp4",
+                        "category": "冲泡",
+                        "product": "龙井茶",
+                    },
+                    {
+                        "asset_id": "a2",
+                        "file_path": "/tmp/a2.mp4",
+                        "category": "产地",
+                        "product": "龙井茶",
+                    },
+                ],
+            )
 
             resp = client.get(f"/api/projects/{pid}/assets/indexed")
             assert resp.status_code == 200
@@ -265,11 +279,29 @@ class TestGetIndexedAssets:
             client = TestClient(app)
 
             project_dir = root / "workspace" / "projects" / pid
-            _create_asset_db(project_dir, [
-                {"asset_id": "a1", "file_path": "/tmp/a1.mp4", "product": "龙井茶", "category": "冲泡"},
-                {"asset_id": "a2", "file_path": "/tmp/a2.mp4", "product": "龙井茶", "category": "产地"},
-                {"asset_id": "a3", "file_path": "/tmp/a3.mp4", "product": "普洱茶", "category": "冲泡"},
-            ])
+            _create_asset_db(
+                project_dir,
+                [
+                    {
+                        "asset_id": "a1",
+                        "file_path": "/tmp/a1.mp4",
+                        "product": "龙井茶",
+                        "category": "冲泡",
+                    },
+                    {
+                        "asset_id": "a2",
+                        "file_path": "/tmp/a2.mp4",
+                        "product": "龙井茶",
+                        "category": "产地",
+                    },
+                    {
+                        "asset_id": "a3",
+                        "file_path": "/tmp/a3.mp4",
+                        "product": "普洱茶",
+                        "category": "冲泡",
+                    },
+                ],
+            )
 
             resp = client.get(
                 f"/api/projects/{pid}/assets/indexed",
@@ -288,11 +320,29 @@ class TestGetIndexedAssets:
             client = TestClient(app)
 
             project_dir = root / "workspace" / "projects" / pid
-            _create_asset_db(project_dir, [
-                {"asset_id": "a1", "file_path": "/tmp/a1.mp4", "product": "龙井茶", "category": "冲泡"},
-                {"asset_id": "a2", "file_path": "/tmp/a2.mp4", "product": "龙井茶", "category": "产地"},
-                {"asset_id": "a3", "file_path": "/tmp/a3.mp4", "product": "普洱茶", "category": "冲泡"},
-            ])
+            _create_asset_db(
+                project_dir,
+                [
+                    {
+                        "asset_id": "a1",
+                        "file_path": "/tmp/a1.mp4",
+                        "product": "龙井茶",
+                        "category": "冲泡",
+                    },
+                    {
+                        "asset_id": "a2",
+                        "file_path": "/tmp/a2.mp4",
+                        "product": "龙井茶",
+                        "category": "产地",
+                    },
+                    {
+                        "asset_id": "a3",
+                        "file_path": "/tmp/a3.mp4",
+                        "product": "普洱茶",
+                        "category": "冲泡",
+                    },
+                ],
+            )
 
             resp = client.get(
                 f"/api/projects/{pid}/assets/indexed",
@@ -311,10 +361,13 @@ class TestGetIndexedAssets:
             client = TestClient(app)
 
             project_dir = root / "workspace" / "projects" / pid
-            _create_asset_db(project_dir, [
-                {"asset_id": "a1", "file_path": "/tmp/hero.mp4"},
-                {"asset_id": "a2", "file_path": "/tmp/background.mp4"},
-            ])
+            _create_asset_db(
+                project_dir,
+                [
+                    {"asset_id": "a1", "file_path": "/tmp/hero.mp4"},
+                    {"asset_id": "a2", "file_path": "/tmp/background.mp4"},
+                ],
+            )
 
             resp = client.get(
                 f"/api/projects/{pid}/assets/indexed",
@@ -375,9 +428,16 @@ class TestPatchAssetStatus:
             client = TestClient(app)
 
             project_dir = root / "workspace" / "projects" / pid
-            _create_asset_db(project_dir, [
-                {"asset_id": "a1", "file_path": "/tmp/a1.mp4", "status": "available"},
-            ])
+            _create_asset_db(
+                project_dir,
+                [
+                    {
+                        "asset_id": "a1",
+                        "file_path": "/tmp/a1.mp4",
+                        "status": "available",
+                    },
+                ],
+            )
 
             resp = client.patch(
                 f"/api/projects/{pid}/assets/a1",
@@ -402,11 +462,26 @@ class TestPatchAssetStatus:
             client = TestClient(app)
 
             project_dir = root / "workspace" / "projects" / pid
-            _create_asset_db(project_dir, [
-                {"asset_id": "a1", "file_path": "/tmp/a1.mp4", "status": "available"},
-                {"asset_id": "a2", "file_path": "/tmp/a2.mp4", "status": "available"},
-                {"asset_id": "a3", "file_path": "/tmp/a3.mp4", "status": "available"},
-            ])
+            _create_asset_db(
+                project_dir,
+                [
+                    {
+                        "asset_id": "a1",
+                        "file_path": "/tmp/a1.mp4",
+                        "status": "available",
+                    },
+                    {
+                        "asset_id": "a2",
+                        "file_path": "/tmp/a2.mp4",
+                        "status": "available",
+                    },
+                    {
+                        "asset_id": "a3",
+                        "file_path": "/tmp/a3.mp4",
+                        "status": "available",
+                    },
+                ],
+            )
 
             resp = client.patch(
                 f"/api/projects/{pid}/assets/batch",
@@ -473,9 +548,16 @@ class TestPatchAssetStatus:
             client = TestClient(app)
 
             project_dir = root / "workspace" / "projects" / pid
-            _create_asset_db(project_dir, [
-                {"asset_id": "a1", "file_path": "/tmp/a1.mp4", "status": "available"},
-            ])
+            _create_asset_db(
+                project_dir,
+                [
+                    {
+                        "asset_id": "a1",
+                        "file_path": "/tmp/a1.mp4",
+                        "status": "available",
+                    },
+                ],
+            )
 
             resp = client.patch(
                 f"/api/projects/{pid}/assets/a1",
@@ -531,7 +613,9 @@ class TestDeleteAsset:
             app, pid = _build_app_with_project(root)
             client = TestClient(app)
 
-            source_dir = root / "workspace" / "projects" / pid / "runtime" / "source_assets"
+            source_dir = (
+                root / "workspace" / "projects" / pid / "runtime" / "source_assets"
+            )
             source_dir.mkdir(parents=True, exist_ok=True)
             (source_dir / "test.mp4").write_bytes(b"content")
 

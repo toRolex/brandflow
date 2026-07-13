@@ -74,7 +74,10 @@ def _create_project_db(
     for sv in source_videos:
         conn.execute(
             "INSERT OR IGNORE INTO source_videos (source_path, indexed_at) VALUES (?, ?)",
-            (sv["source_path"], sv.get("indexed_at", datetime.now(timezone.utc).isoformat())),
+            (
+                sv["source_path"],
+                sv.get("indexed_at", datetime.now(timezone.utc).isoformat()),
+            ),
         )
 
     conn.commit()
@@ -82,7 +85,9 @@ def _create_project_db(
     return db_path
 
 
-def _create_old_clip_file(project_dir: Path, product: str, category: str, filename: str) -> Path:
+def _create_old_clip_file(
+    project_dir: Path, product: str, category: str, filename: str
+) -> Path:
     """Create a fake indexed clip file at the old per-project path and return its path."""
     clip_dir = project_dir / "runtime" / "indexed_clips" / product / category
     clip_dir.mkdir(parents=True, exist_ok=True)
@@ -236,7 +241,9 @@ def test_migration_e2e_two_projects(tmp_path: Path) -> None:
             f"Expected 4 source_video records, got {len(sv_paths)}"
         )
         for path in expected_sv:
-            assert path in sv_paths, f"Expected source_video '{path}' to exist in global DB"
+            assert path in sv_paths, (
+                f"Expected source_video '{path}' to exist in global DB"
+            )
 
         # ── Verify specific asset data integrity ──
         a001 = conn.execute(

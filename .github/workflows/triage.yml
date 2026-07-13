@@ -1,0 +1,39 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened, reopened]
+
+jobs:
+  auto-triage:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Apply needs-triage label
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: needs-triage
+
+      - name: Add triage comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              "感谢提交 issue 🙌 已进入 triage 流程。",
+              "",
+              "**接下来会发生什么：**",
+              "- 维护者会尽快评估这个 issue",
+              "- 如果信息不足，可能会打上 `needs-info` 标签并等待补充",
+              "- 评估完成后会标记为 `ready-for-agent` 或 `ready-for-human`",
+              "",
+              "作为提交者，你可以通过更新 issue body 来补充更多上下文。"
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

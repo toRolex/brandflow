@@ -1,4 +1,5 @@
 """Tests for the AI category suggestion endpoint contract."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -21,10 +22,7 @@ def test_suggest_empty_library() -> None:
         "errors": ["No available assets found in the library"],
     }
 
-    target = (
-        "apps.control_plane.routes.category_suggestion"
-        ".suggest_categories"
-    )
+    target = "apps.control_plane.routes.category_suggestion.suggest_categories"
 
     with patch(target, return_value=mock_empty_result):
         app = create_app(root_dir=Path.cwd())
@@ -38,15 +36,12 @@ def test_suggest_empty_library() -> None:
     assert "suggestions" in data, (
         "Empty response must contain 'suggestions' key, got %s" % list(data.keys())
     )
-    assert "categories" not in data, (
-        "Empty response must NOT contain 'categories' key"
-    )
+    assert "categories" not in data, "Empty response must NOT contain 'categories' key"
 
     suggestions = data["suggestions"]
     assert isinstance(suggestions, list)
-    assert len(suggestions) == 0, (
-        "Empty library should produce empty suggestions list"
-    )
+    assert len(suggestions) == 0, "Empty library should produce empty suggestions list"
+
 
 def test_suggest_response_contract() -> None:
     """POST /api/assets/categories/suggest returns ``{"suggestions": [...]}``
@@ -76,10 +71,7 @@ def test_suggest_response_contract() -> None:
         "errors": [],
     }
 
-    target = (
-        "apps.control_plane.routes.category_suggestion"
-        ".suggest_categories"
-    )
+    target = "apps.control_plane.routes.category_suggestion.suggest_categories"
 
     with patch(target, return_value=mock_suggest_result):
         app = create_app(root_dir=Path.cwd())
@@ -93,9 +85,7 @@ def test_suggest_response_contract() -> None:
     assert "suggestions" in data, (
         "Response must contain 'suggestions' key, got %s" % list(data.keys())
     )
-    assert "categories" not in data, (
-        "Response must NOT contain 'categories' key"
-    )
+    assert "categories" not in data, "Response must NOT contain 'categories' key"
 
     suggestions = data["suggestions"]
     assert isinstance(suggestions, list)
@@ -105,13 +95,9 @@ def test_suggest_response_contract() -> None:
     for item in suggestions:
         assert "label" in item, "Each suggestion must have 'label'"
         assert "description" in item, "Each suggestion must have 'description'"
-        assert "vision_prompt" in item, (
-            "Each suggestion must have 'vision_prompt'"
-        )
+        assert "vision_prompt" in item, "Each suggestion must have 'vision_prompt'"
         # Fields from the internal model that must NOT leak
-        assert "name" not in item, (
-            "Suggestion must NOT contain 'name' (use 'label')"
-        )
+        assert "name" not in item, "Suggestion must NOT contain 'name' (use 'label')"
         assert "id" not in item, "Suggestion must NOT contain 'id'"
 
     # ---- verify specific values are mapped correctly ----
