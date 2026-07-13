@@ -124,7 +124,7 @@ class TestPhaseOrchestratorInit:
         assert orch._schedule_store is not None
 
     def test_has_handler_map(self):
-        orch = PhaseOrchestrator(*[MagicMock()] * 4)
+        orch = PhaseOrchestrator(*[MagicMock()] * 3)
         assert isinstance(orch._handlers, dict)
         assert "script_generating" in orch._handlers
 
