@@ -361,6 +361,41 @@ export default function SmartAssetLibrary({ projectId }: Props) {
     [isBatchUpdating, loadAssets, selectedIds]
   );
 
+  const configuredCategoryNames = useMemo(
+    () => configuredCategories.map((c) => c.name),
+    [configuredCategories],
+  );
+
+  const hasUnmappedInSelection = useMemo(() => {
+    const configuredNames = new Set(configuredCategoryNames);
+    for (const id of selectedIds) {
+      const asset = productFilteredAssets.find((a) => a.asset_id === id);
+      if (asset && !configuredNames.has(asset.category)) {
+        return true;
+      }
+    }
+    return false;
+  }, [selectedIds, productFilteredAssets, configuredCategoryNames]);
+
+  const handleBatchReclassify = useCallback(
+    async (category: string) => {
+      if (selectedIds.size === 0 || isBatchUpdating) {
+        return;
+      }
+
+      setIsBatchUpdating(true);
+      try {
+        await api.batchReclassifyAssets(Array.from(selectedIds), category);
+        setSelectedIds(new Set());
+        await loadAssets();
+        await loadCategories();
+      } finally {
+        setIsBatchUpdating(false);
+      }
+    },
+    [isBatchUpdating, loadAssets, loadCategories, selectedIds],
+  );
+
   const handleDelete = useCallback(
     (assetId: string) => {
       setConfirmDelete({ assetId });
@@ -713,7 +748,9 @@ export default function SmartAssetLibrary({ projectId }: Props) {
           onDelete={() => void handleBatchDelete()}
           onClear={() => setSelectedIds(new Set())}
           onBatchEdit={handleBatchEdit}
-          categories={configuredCategories.map((c) => c.name)}
+          onReclassify={handleBatchReclassify}
+          categories={configuredCategoryNames}
+          hasUnmappedReclassifyTargets={hasUnmappedInSelection}
         />
       )}
 
