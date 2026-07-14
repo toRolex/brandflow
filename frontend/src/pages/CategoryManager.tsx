@@ -37,6 +37,7 @@ export default function CategoryManager() {
   const [suggestions, setSuggestions] = useState<SuggestCategory[] | null>(null);
   const [pendingSuggestionNames, setPendingSuggestionNames] = useState<Set<string>>(new Set());
   const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const loadConfig = useCallback(async () => {
@@ -162,14 +163,16 @@ export default function CategoryManager() {
     if (!config) return;
     setSuggestLoading(true);
     setSuggestions(null);
+    setSuggestError(null);
     try {
       const result = await api.suggestCategories();
       setSuggestions(result.suggestions);
-      // All suggestions checked by default
       setPendingSuggestionNames(new Set(result.suggestions.map((s) => s.label)));
+      if (result.errors && result.errors.length > 0) {
+        setSuggestError(result.errors.join("；"));
+      }
     } catch {
-      setSaveMsg("获取 AI 建议失败");
-      setTimeout(() => setSaveMsg(null), 3000);
+      setSuggestError("获取 AI 建议失败");
     }
     setSuggestLoading(false);
   };
@@ -190,6 +193,7 @@ export default function CategoryManager() {
     if (!config || !suggestions) return;
     setSaving(true);
     setSaveMsg(null);
+    setSuggestError(null);
 
     const checked = suggestions.filter((s) => pendingSuggestionNames.has(s.label));
     const newCategories: CategoryConfig[] = checked.map((s) => ({
@@ -224,6 +228,7 @@ export default function CategoryManager() {
 
   const cancelSuggestions = () => {
     setSuggestions(null);
+    setSuggestError(null);
     setPendingSuggestionNames(new Set());
   };
 
@@ -263,6 +268,12 @@ export default function CategoryManager() {
           {suggestLoading ? "获取建议中..." : "AI 建议"}
         </button>
       </div>
+
+      {suggestError && (
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]">
+          {suggestError}
+        </div>
+      )}
 
       {/* AI Suggestions Panel */}
       {suggestions && (
