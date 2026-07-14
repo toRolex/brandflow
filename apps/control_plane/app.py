@@ -21,7 +21,6 @@ from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.routes.knowledge import router as knowledge_router
-from apps.control_plane.routes.knowledge import router as knowledge_router
 from apps.control_plane.routes.templates import router as templates_router
 from apps.control_plane.routes.products import router as products_router
 from apps.control_plane.services.dispatch import Dispatcher

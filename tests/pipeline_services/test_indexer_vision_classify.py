@@ -12,7 +12,6 @@ from packages.pipeline_services.asset_library.indexer import (
     AssetIndexer,
     VisionClassifyError,
 )
-from packages.pipeline_services.asset_library.models import AssetRecord
 from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_library.vision_utils import (
     VisionConfigError,

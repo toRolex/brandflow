@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 
 from fastapi.testclient import TestClient
 
@@ -454,8 +455,6 @@ def test_async_index_task_fails_on_invalid_vision_config(tmp_path, monkeypatch):
 
 
 # ── Issue #139: 批量重分类未映射素材 ─────────────────────────────────────────
-
-import sqlite3
 
 
 def test_batch_update_categories(tmp_path: Path) -> None:
