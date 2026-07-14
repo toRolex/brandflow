@@ -285,7 +285,8 @@ export default function SmartAssetLibrary({ projectId }: Props) {
           setIndexProgress(100);
           setTimeout(() => setIndexStatus("idle"), 2000);
         } else {
-          const result = await api.indexAssetsSharedAsync();
+          const fileNames = files.map((f) => f.name);
+          const result = await api.indexAssetsSharedAsync(fileNames);
 
           if (!result.task_id) {
             await loadAssets();
