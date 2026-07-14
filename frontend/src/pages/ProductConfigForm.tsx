@@ -69,12 +69,6 @@ const hintStyle = {
   color: "var(--text-tertiary)",
 } as React.CSSProperties;
 
-const errorTextStyle = {
-  marginTop: "4px",
-  fontSize: "var(--font-size-sm)",
-  color: "var(--danger)",
-} as React.CSSProperties;
-
 export default function ProductConfigForm() {
   const { products, activeProductId, activeProductName, refreshProducts, createProduct, renameProduct, deleteProduct } = useProducts();
   const [config, setConfig] = useState<ProductConfig>(DEFAULT_CONFIG);
@@ -441,34 +435,18 @@ export default function ProductConfigForm() {
       </div>
 
       {loadError && (
-        <div
-          className="mb-4 px-4 py-3 rounded-lg text-sm"
-          style={{
-            background: "var(--danger-bg)",
-            borderColor: "var(--danger-border)",
-            color: "var(--danger)",
-          }}
-        >
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]">
           {loadError}
         </div>
       )}
 
       {saveMsg && (
         <div
-          className="mb-4 px-4 py-3 rounded-lg text-sm"
-          style={
+          className={`mb-4 px-4 py-3 rounded-lg text-sm ${
             saveMsg.includes("失败")
-              ? {
-                  background: "var(--danger-bg)",
-                  borderColor: "var(--danger-border)",
-                  color: "var(--danger)",
-                }
-              : {
-                  background: "var(--success-bg)",
-                  borderColor: "var(--success-border)",
-                  color: "var(--success)",
-                }
-          }
+              ? "bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]"
+              : "bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success)]"
+          }`}
         >
           {saveMsg}
         </div>
@@ -649,7 +627,7 @@ export default function ProductConfigForm() {
                       onChange={(e) => updateField("default_name", e.target.value)}
                     />
                     {errors.default_name && (
-                      <p style={errorTextStyle}>{errors.default_name}</p>
+                      <p className="mt-1 text-xs text-[var(--danger)]">{errors.default_name}</p>
                     )}
                     <p style={hintStyle}>
                       用于脚本生成和素材检索的默认产品名
@@ -674,7 +652,7 @@ export default function ProductConfigForm() {
                       onChange={(e) => updateField("default_brand", e.target.value)}
                     />
                     {errors.default_brand && (
-                      <p style={errorTextStyle}>{errors.default_brand}</p>
+                      <p className="mt-1 text-xs text-[var(--danger)]">{errors.default_brand}</p>
                     )}
                     <p style={hintStyle}>
                       品牌名，用于脚本生成
@@ -824,15 +802,7 @@ export default function ProductConfigForm() {
             )}
 
             {suggestError && (
-              <div
-                className="mb-4 px-4 py-3 rounded-lg text-sm"
-                style={{
-                  background: "var(--danger-bg)",
-                  borderColor: "var(--danger-border)",
-                  color: "var(--danger)",
-                  border: "1px solid var(--danger-border)",
-                }}
-              >
+              <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]">
                 {suggestError}
               </div>
             )}
@@ -928,7 +898,7 @@ export default function ProductConfigForm() {
                       }}
                     />
                     {catFormErrors.name && (
-                      <p style={errorTextStyle}>{catFormErrors.name}</p>
+                      <p className="mt-1 text-xs text-[var(--danger)]">{catFormErrors.name}</p>
                     )}
                   </div>
                   <div>
