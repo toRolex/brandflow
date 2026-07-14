@@ -230,11 +230,13 @@ class TestIngestOneVideoClassificationFailure:
             c.write_bytes(b"fake clip data")
 
         monkeypatch.setattr(indexer, "_scene_detect_and_cut", lambda v, d: clips)
+
         # Create frame files and return them by clip stem
         def _fake_extract_mid_frame(clip_path, temp_dir):
             fp = tmp_path / f"{clip_path.stem}_frame.jpg"
             fp.write_bytes(b"fake frame")
             return fp
+
         monkeypatch.setattr(indexer, "_extract_mid_frame", _fake_extract_mid_frame)
         monkeypatch.setattr(indexer, "_get_duration", lambda p: 3.0)
 

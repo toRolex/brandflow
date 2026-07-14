@@ -391,7 +391,7 @@ def test_sync_index_fails_on_invalid_vision_config(tmp_path, monkeypatch):
         return {
             "provider": "xiaomi",
             "api_key": "sk-test",  # 有 api_key 说明 Vision 被显式配置
-            "endpoint": "",        # 但 endpoint 缺失 = 配置不完整
+            "endpoint": "",  # 但 endpoint 缺失 = 配置不完整
             "model": "",
         }
 
@@ -409,9 +409,7 @@ def test_sync_index_fails_on_invalid_vision_config(tmp_path, monkeypatch):
     assert data["detail"]["code"] == "vision_config_invalid", (
         f"响应应包含 detail.code=vision_config_invalid，实际: {data}"
     )
-    assert "Vision" in resp.text, (
-        f"响应应包含 Vision 错误信息，实际: {resp.text}"
-    )
+    assert "Vision" in resp.text, f"响应应包含 Vision 错误信息，实际: {resp.text}"
 
 
 def test_async_index_task_fails_on_invalid_vision_config(tmp_path, monkeypatch):
@@ -425,7 +423,7 @@ def test_async_index_task_fails_on_invalid_vision_config(tmp_path, monkeypatch):
         return {
             "provider": "xiaomi",
             "api_key": "sk-test",  # 有 api_key 说明 Vision 被显式配置
-            "endpoint": "",        # 但 endpoint 缺失 = 配置不完整
+            "endpoint": "",  # 但 endpoint 缺失 = 配置不完整
             "model": "",
         }
 
@@ -472,8 +470,28 @@ def test_batch_update_categories(tmp_path: Path) -> None:
     conn = sqlite3.connect(str(db_path))
     now = "2025-01-01T00:00:00"
     test_assets = [
-        ("a1", "/path/to/a1.mp4", "旧分类", "龙井茶", 0.9, 5.0, "available", 0, "v1.mp4"),
-        ("a2", "/path/to/a2.mp4", "旧分类", "龙井茶", 0.85, 3.0, "available", 0, "v1.mp4"),
+        (
+            "a1",
+            "/path/to/a1.mp4",
+            "旧分类",
+            "龙井茶",
+            0.9,
+            5.0,
+            "available",
+            0,
+            "v1.mp4",
+        ),
+        (
+            "a2",
+            "/path/to/a2.mp4",
+            "旧分类",
+            "龙井茶",
+            0.85,
+            3.0,
+            "available",
+            0,
+            "v1.mp4",
+        ),
         ("a3", "/path/to/a3.mp4", "冲泡", "龙井茶", 0.8, 7.0, "available", 0, "v2.mp4"),
     ]
     for asset in test_assets:
@@ -521,7 +539,20 @@ def test_batch_update_categories_idempotent(tmp_path: Path) -> None:
            (asset_id, file_path, category, product, confidence, duration_seconds,
             status, usage_count, source_video, tags, created_at, last_used_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        ("a1", "/p.mp4", "旧分类", "测试", 0.9, 5.0, "available", 0, "v.mp4", "[]", now, now),
+        (
+            "a1",
+            "/p.mp4",
+            "旧分类",
+            "测试",
+            0.9,
+            5.0,
+            "available",
+            0,
+            "v.mp4",
+            "[]",
+            now,
+            now,
+        ),
     )
     conn.commit()
     conn.close()
@@ -560,7 +591,20 @@ def test_batch_update_categories_ignores_nonexistent(tmp_path: Path) -> None:
            (asset_id, file_path, category, product, confidence, duration_seconds,
             status, usage_count, source_video, tags, created_at, last_used_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        ("a1", "/p.mp4", "旧分类", "测试", 0.9, 5.0, "available", 0, "v.mp4", "[]", now, now),
+        (
+            "a1",
+            "/p.mp4",
+            "旧分类",
+            "测试",
+            0.9,
+            5.0,
+            "available",
+            0,
+            "v.mp4",
+            "[]",
+            now,
+            now,
+        ),
     )
     conn.commit()
     conn.close()
