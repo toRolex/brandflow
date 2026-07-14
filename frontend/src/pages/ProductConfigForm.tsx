@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../api/client";
 import { useProducts } from "../ProductContext";
-import type { CategoryConfig, ProductConfig, SuggestCategory } from "../types";
+import { useCategorySuggestions, generateCategoryId } from "../hooks/useCategorySuggestions";
+import type { CategoryConfig, ProductConfig } from "../types";
 
 interface FormErrors {
   default_name?: string;
@@ -16,15 +17,6 @@ interface CatFormData {
 
 interface CatFormErrors {
   name?: string;
-}
-
-/** Generate a stable machine-readable id from a category name. */
-function generateCategoryId(name: string): string {
-  const cleaned = name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-  if (!cleaned.replace(/_/g, "")) {
-    return `cat_${Date.now().toString(36)}`;
-  }
-  return cleaned;
 }
 
 const EMPTY_CAT_FORM: CatFormData = { name: "", description: "", vision_prompt: "" };
@@ -87,12 +79,39 @@ export default function ProductConfigForm() {
   const [editingCatIndex, setEditingCatIndex] = useState<number | null>(null);
   const [catFormData, setCatFormData] = useState<CatFormData>(EMPTY_CAT_FORM);
   const [catFormErrors, setCatFormErrors] = useState<CatFormErrors>({});
-  const [suggestions, setSuggestions] = useState<SuggestCategory[] | null>(null);
-  const [pendingSuggestionNames, setPendingSuggestionNames] = useState<Set<string>>(new Set());
-  const [suggestLoading, setSuggestLoading] = useState(false);
-  const [suggestError, setSuggestError] = useState<string | null>(null);
 
   const categories: CategoryConfig[] = (config.categories as CategoryConfig[]) ?? [];
+
+  const onConfirmSuggestions = useCallback(async (merged: CategoryConfig[]) => {
+    setSaving(true);
+    setSaveMsg(null);
+    const updatedConfig = { ...config, categories: merged };
+    try {
+      let result: ProductConfig;
+      if (editingProductId && editingProductId !== activeProductId) {
+        result = await api.saveProductConfigById(editingProductId, updatedConfig);
+      } else {
+        result = await api.saveProductConfig(updatedConfig);
+      }
+      setConfig(result);
+      setSaveMsg("分类已更新");
+      setTimeout(() => setSaveMsg(null), 3000);
+    } catch {
+      setSaveMsg("保存失败");
+    }
+    setSaving(false);
+  }, [config, editingProductId, activeProductId]);
+
+  const {
+    suggestions,
+    suggestLoading,
+    suggestError,
+    pendingSuggestionNames,
+    handleSuggest,
+    toggleSuggestion,
+    confirmSuggestions,
+    cancelSuggestions,
+  } = useCategorySuggestions(categories, onConfirmSuggestions);
 
   const loadConfig = useCallback(async (productId?: string) => {
     setLoading(true);
@@ -256,81 +275,6 @@ export default function ProductConfigForm() {
   const handleDeleteCategory = async (index: number) => {
     const updated = categories.filter((_, i) => i !== index);
     await handleSaveCategories(updated);
-  };
-
-  const handleSuggest = async () => {
-    setSuggestLoading(true);
-    setSuggestions(null);
-    setSuggestError(null);
-    try {
-      const result = await api.suggestCategories();
-      setSuggestions(result.suggestions);
-      setPendingSuggestionNames(new Set(result.suggestions.map((s) => s.label)));
-      if (result.errors && result.errors.length > 0) {
-        setSuggestError(result.errors.join("；"));
-      }
-    } catch {
-      setSuggestError("获取 AI 建议失败");
-    }
-    setSuggestLoading(false);
-  };
-
-  const toggleSuggestion = (label: string) => {
-    setPendingSuggestionNames((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) {
-        next.delete(label);
-      } else {
-        next.add(label);
-      }
-      return next;
-    });
-  };
-
-  const confirmSuggestions = async () => {
-    if (!suggestions) return;
-    setSaving(true);
-    setSaveMsg(null);
-    setSuggestError(null);
-
-    const checked = suggestions.filter((s) => pendingSuggestionNames.has(s.label));
-    const newCategories: CategoryConfig[] = checked.map((s) => ({
-      id: generateCategoryId(s.label),
-      name: s.label,
-      description: s.description,
-      vision_prompt: s.vision_prompt,
-    }));
-
-    // Merge with existing categories, avoid duplicates by id then by name
-    const existingIds = new Set(categories.map((c) => c.id));
-    const existingNames = new Set(categories.map((c) => c.name));
-    const merged = [
-      ...categories,
-      ...newCategories.filter((c) => !existingIds.has(c.id) && !existingNames.has(c.name)),
-    ];
-
-    try {
-      const updatedConfig = { ...config, categories: merged };
-      let result: ProductConfig;
-      if (editingProductId && editingProductId !== activeProductId) {
-        result = await api.saveProductConfigById(editingProductId, updatedConfig);
-      } else {
-        result = await api.saveProductConfig(updatedConfig);
-      }
-      setConfig(result);
-      setSuggestions(null);
-      setSaveMsg("分类已更新");
-      setTimeout(() => setSaveMsg(null), 3000);
-    } catch {
-      setSaveMsg("保存失败");
-    }
-    setSaving(false);
-  };
-
-  const cancelSuggestions = () => {
-    setSuggestions(null);
-    setSuggestError(null);
-    setPendingSuggestionNames(new Set());
   };
 
   if (loading) {
