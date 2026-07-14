@@ -121,8 +121,11 @@ export const api = {
   indexAssetsShared: () =>
     request<import("../types").IndexResult>("/api/assets/index", { method: "POST" }),
 
-  indexAssetsSharedAsync: () =>
-    request<{ task_id: string; total_videos: number }>("/api/assets/index?async_mode=true", { method: "POST" }),
+  indexAssetsSharedAsync: (sourcePaths?: string[]) =>
+    request<{ task_id: string; total_videos: number }>("/api/assets/index?async_mode=true", {
+      method: "POST",
+      body: sourcePaths ? JSON.stringify({ source_paths: sourcePaths }) : undefined,
+    }),
 
   getIndexStatus: (taskId: string) =>
     request<import("../types").IndexTaskState>(`/api/assets/index/${taskId}/status`),

@@ -69,6 +69,7 @@ vi.mock("../../api/client", () => ({
     batchDeleteAssets: vi.fn(),
     uploadAssetShared: vi.fn(),
     indexAssetsShared: vi.fn(),
+    indexAssetsSharedAsync: vi.fn(),
   },
 }));
 
@@ -87,6 +88,7 @@ describe("SmartAssetLibrary select-all features", () => {
     vi.mocked(api.batchDeleteAssets).mockResolvedValue({ deleted: 1, files_deleted: 1 });
     vi.mocked(api.uploadAssetShared).mockResolvedValue({ name: "test.mp4", size_bytes: 1000, in_use: false });
     vi.mocked(api.indexAssetsShared).mockResolvedValue({ indexed: 1, skipped: 0, total_clips: 1 });
+    vi.mocked(api.indexAssetsSharedAsync).mockResolvedValue({ task_id: "test-task", total_videos: 1 });
   });
 
   function renderLibrary() {
@@ -256,6 +258,36 @@ describe("SmartAssetLibrary select-all features", () => {
     // No assets selected, BatchActionBar should not be rendered
     expect(screen.queryByText("归类到...")).not.toBeInTheDocument();
   });
+
+  it("Issue #144: 确认入库时只 index 本次上传文件", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // Simulate upload confirm with 2 files
+    const file1 = new File(["dummy"], "uploaded_a.mp4", { type: "video/mp4" });
+    const file2 = new File(["dummy"], "uploaded_b.mp4", { type: "video/mp4" });
+
+    // Fire a drop event on AssetUploadZone (find by the dashed border text)
+    const dropZone = screen.getByText(/拖拽文件到此处/);
+    fireEvent.drop(dropZone, {
+      dataTransfer: { files: [file1, file2] },
+    });
+
+    // Confirm button should appear
+    await waitFor(() => {
+      expect(screen.getByText("确认入库")).toBeEnabled();
+    });
+    fireEvent.click(screen.getByText("确认入库"));
+
+    // indexAssetsSharedAsync 应被调用，且包含上传的文件名
+    await waitFor(() => {
+      expect(api.uploadAssetShared).toHaveBeenCalledTimes(2);
+      expect(api.indexAssetsSharedAsync).toHaveBeenCalledWith(["uploaded_a.mp4", "uploaded_b.mp4"]);
+    });
+  });
 });
 
 describe("SmartAssetLibrary product filtering", () => {
@@ -273,6 +305,7 @@ describe("SmartAssetLibrary product filtering", () => {
     vi.mocked(api.batchDeleteAssets).mockResolvedValue({ deleted: 1, files_deleted: 1 });
     vi.mocked(api.uploadAssetShared).mockResolvedValue({ name: "test.mp4", size_bytes: 1000, in_use: false });
     vi.mocked(api.indexAssetsShared).mockResolvedValue({ indexed: 1, skipped: 0, total_clips: 1 });
+    vi.mocked(api.indexAssetsSharedAsync).mockResolvedValue({ task_id: "test-task", total_videos: 1 });
   });
 
   function renderLibrary() {
@@ -461,6 +494,7 @@ describe("unmapped/historical categories (#124)", () => {
     vi.mocked(api.uploadAssetShared).mockResolvedValue({ name: "test.mp4", size_bytes: 1000, in_use: false });
     vi.mocked(api.indexAssetsShared).mockResolvedValue({ indexed: 1, skipped: 0, total_clips: 1 });
     vi.mocked(api.batchReclassifyAssets).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.indexAssetsSharedAsync).mockResolvedValue({ task_id: "test-task", total_videos: 1 });
   });
 
   it("未映射分类显示在下拉列表中，与配置分类并列且可区分", async () => {
@@ -577,6 +611,7 @@ describe("batch reclassify unmapped assets (Issue #139)", () => {
     vi.mocked(api.batchDeleteAssets).mockResolvedValue({ deleted: 1, files_deleted: 1 });
     vi.mocked(api.uploadAssetShared).mockResolvedValue({ name: "test.mp4", size_bytes: 1000, in_use: false });
     vi.mocked(api.indexAssetsShared).mockResolvedValue({ indexed: 1, skipped: 0, total_clips: 1 });
+    vi.mocked(api.indexAssetsSharedAsync).mockResolvedValue({ task_id: "test-task", total_videos: 1 });
   });
 
   it("选中未映射素材后可点击归类到并选择分类确认", async () => {
