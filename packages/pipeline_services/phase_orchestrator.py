@@ -734,7 +734,6 @@ class PhaseOrchestrator:
         skip_subtitle = False
         music_path: Path | None = None
         music_volume = 80
-        platform = ""
         cover_title_data: dict | None = None
 
         if job_json_path.exists():
@@ -742,7 +741,6 @@ class PhaseOrchestrator:
             skip_subtitle = job_data.get("skip_subtitle", False)
             music_track = job_data.get("music_track_path", "")
             music_volume = job_data.get("music_volume", 80)
-            platform = job_data.get("platform", "")
             ct = job_data.get("cover_title")
             if ct and ct.get("text"):
                 cover_title_data = ct

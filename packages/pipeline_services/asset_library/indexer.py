@@ -152,7 +152,9 @@ class AssetIndexer:
                     product=self.product,
                     confidence=confidence,
                     duration_seconds=duration,
-                    status="classification_failed" if classification_failed else "available",
+                    status="classification_failed"
+                    if classification_failed
+                    else "available",
                     source_video=str(video_path.resolve()),
                     created_at=now,
                 )

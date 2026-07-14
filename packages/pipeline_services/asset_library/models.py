@@ -28,7 +28,9 @@ class Category(str, Enum):
     MACRO = "产品特写"
 
 
-AssetStatus = Literal["pending_review", "available", "disabled", "classification_failed"]
+AssetStatus = Literal[
+    "pending_review", "available", "disabled", "classification_failed"
+]
 
 
 class AssetRecord(BaseModel):
