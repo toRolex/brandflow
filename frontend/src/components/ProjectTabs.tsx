@@ -15,7 +15,6 @@ interface ProjectTabsProps {
 }
 
 export default function ProjectTabs({
-  tab,
   jobs,
   selectedJobIds,
   onSelectionChange,
