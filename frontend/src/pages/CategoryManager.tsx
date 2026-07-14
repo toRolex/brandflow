@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../api/client";
-import type { CategoryConfig, SuggestCategory, ProductConfig } from "../types";
+import { useCategorySuggestions, generateCategoryId } from "../hooks/useCategorySuggestions";
+import type { CategoryConfig, ProductConfig } from "../types";
 
 interface FormData {
   name: string;
@@ -14,17 +15,6 @@ interface FormErrors {
 
 const EMPTY_FORM: FormData = { name: "", description: "", vision_prompt: "" };
 
-/** Generate a stable machine-readable id from a category name.
- *  Lowercase, replace spaces with underscores, strip non-alphanumeric chars.
- *  Falls back to a timestamp-based id for pure-Chinese names. */
-function generateCategoryId(name: string): string {
-  const cleaned = name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-  if (!cleaned.replace(/_/g, "")) {
-    return `cat_${Date.now().toString(36)}`;
-  }
-  return cleaned;
-}
-
 export default function CategoryManager() {
   const [config, setConfig] = useState<ProductConfig | null>(null);
   const [loading, setLoading] = useState(false);
@@ -34,10 +24,6 @@ export default function CategoryManager() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
-  const [suggestions, setSuggestions] = useState<SuggestCategory[] | null>(null);
-  const [pendingSuggestionNames, setPendingSuggestionNames] = useState<Set<string>>(new Set());
-  const [suggestLoading, setSuggestLoading] = useState(false);
-  const [suggestError, setSuggestError] = useState<string | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const loadConfig = useCallback(async () => {
@@ -57,6 +43,32 @@ export default function CategoryManager() {
   }, [loadConfig]);
 
   const categories = config?.categories ?? [];
+
+  const onConfirmSuggestions = useCallback(async (merged: CategoryConfig[]) => {
+    if (!config) return;
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      const updated = await api.saveProductConfig({ ...config, categories: merged });
+      setConfig(updated);
+      setSaveMsg("分类已更新");
+      setTimeout(() => setSaveMsg(null), 3000);
+    } catch {
+      setSaveMsg("保存失败");
+    }
+    setSaving(false);
+  }, [config]);
+
+  const {
+    suggestions,
+    suggestLoading,
+    suggestError,
+    pendingSuggestionNames,
+    handleSuggest,
+    toggleSuggestion,
+    confirmSuggestions,
+    cancelSuggestions,
+  } = useCategorySuggestions(categories, onConfirmSuggestions);
 
   const validateForm = (): boolean => {
     const errors: FormErrors = {};
@@ -157,79 +169,6 @@ export default function CategoryManager() {
       setSaveMsg("保存失败");
     }
     setSaving(false);
-  };
-
-  const handleSuggest = async () => {
-    if (!config) return;
-    setSuggestLoading(true);
-    setSuggestions(null);
-    setSuggestError(null);
-    try {
-      const result = await api.suggestCategories();
-      setSuggestions(result.suggestions);
-      setPendingSuggestionNames(new Set(result.suggestions.map((s) => s.label)));
-      if (result.errors && result.errors.length > 0) {
-        setSuggestError(result.errors.join("；"));
-      }
-    } catch {
-      setSuggestError("获取 AI 建议失败");
-    }
-    setSuggestLoading(false);
-  };
-
-  const toggleSuggestion = (label: string) => {
-    setPendingSuggestionNames((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) {
-        next.delete(label);
-      } else {
-        next.add(label);
-      }
-      return next;
-    });
-  };
-
-  const confirmSuggestions = async () => {
-    if (!config || !suggestions) return;
-    setSaving(true);
-    setSaveMsg(null);
-    setSuggestError(null);
-
-    const checked = suggestions.filter((s) => pendingSuggestionNames.has(s.label));
-    const newCategories: CategoryConfig[] = checked.map((s) => ({
-      id: generateCategoryId(s.label),
-      name: s.label,
-      description: s.description,
-      vision_prompt: s.vision_prompt,
-    }));
-
-    // Merge with existing categories, avoid duplicates by id then by name
-    const existingIds = new Set(categories.map((c) => c.id));
-    const existingNames = new Set(categories.map((c) => c.name));
-    const merged = [
-      ...categories,
-      ...newCategories.filter((c) => !existingIds.has(c.id) && !existingNames.has(c.name)),
-    ];
-
-    try {
-      const updated = await api.saveProductConfig({
-        ...config,
-        categories: merged,
-      });
-      setConfig(updated);
-      setSuggestions(null);
-      setSaveMsg("分类已更新");
-      setTimeout(() => setSaveMsg(null), 3000);
-    } catch {
-      setSaveMsg("保存失败");
-    }
-    setSaving(false);
-  };
-
-  const cancelSuggestions = () => {
-    setSuggestions(null);
-    setSuggestError(null);
-    setPendingSuggestionNames(new Set());
   };
 
   if (loading) {
