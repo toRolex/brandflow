@@ -321,6 +321,83 @@ def test_batch_create_jobs_top_level_auto_approve(tmp_path: Path) -> None:
         assert raw["auto_approve"] is True
 
 
+def test_create_job_tts_model_and_voice(tmp_path: Path) -> None:
+    """单次 create_job 将 tts_model/tts_voice 写入 JobRecord 并返回。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "tts_model": "mimo-v2.5-tts",
+            "tts_voice": "茉莉",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tts_model"] == "mimo-v2.5-tts"
+    assert data["tts_voice"] == "茉莉"
+
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{data['job_id']}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["tts_model"] == "mimo-v2.5-tts"
+    assert raw["tts_voice"] == "茉莉"
+
+
+def test_create_job_tts_defaults_empty(tmp_path: Path) -> None:
+    """未传 tts_model/tts_voice 时默认值为空字符串。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"]},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tts_model"] == ""
+    assert data["tts_voice"] == ""
+
+
+def test_batch_create_jobs_tts_model_and_voice(tmp_path: Path) -> None:
+    """批量创建时 per-job 的 tts_model/tts_voice 持久化到磁盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "荔枝菌",
+            "platforms": ["douyin"],
+            "jobs": [
+                {"name": "默认音色"},
+                {"name": "指定音色", "tts_voice": "冰糖"},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert results[0]["tts_voice"] == ""
+    assert results[1]["tts_voice"] == "冰糖"
+
+    for r, expected_voice in zip(results, ["", "冰糖"]):
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "control"
+            / "jobs"
+            / f"{r['job_id']}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["tts_voice"] == expected_voice
+
+
 def test_batch_create_jobs_empty_list(tmp_path: Path) -> None:
     """空 jobs 列表返回空 results，不算错误。"""
     client = _make_client(tmp_path)

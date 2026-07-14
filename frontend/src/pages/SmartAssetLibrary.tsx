@@ -9,7 +9,7 @@ import IndexProgress from "../components/IndexProgress";
 import BatchActionBar from "../components/BatchActionBar";
 import ConfirmDialog from "../components/ConfirmDialog";
 
-const STATUS_OPTIONS = ["available", "disabled", "pending_review"] as const;
+const STATUS_OPTIONS = ["available", "disabled", "pending_review", "classification_failed"] as const;
 
 const STATUS_LABELS: Record<string, string> = {
   available: "可用",
@@ -122,6 +122,17 @@ export default function SmartAssetLibrary({ projectId }: Props) {
       counts.set(asset.category, (counts.get(asset.category) || 0) + 1);
     }
     return counts;
+  }, [productFilteredAssets, configuredCategories]);
+
+  const unmappedCategoryNames = useMemo(() => {
+    const configuredNames = new Set(configuredCategories.map((c) => c.name));
+    const found = new Set<string>();
+    for (const asset of productFilteredAssets) {
+      if (asset.category && !configuredNames.has(asset.category)) {
+        found.add(asset.category);
+      }
+    }
+    return Array.from(found).sort();
   }, [productFilteredAssets, configuredCategories]);
 
   const durationRange = useMemo(() => {
@@ -350,6 +361,41 @@ export default function SmartAssetLibrary({ projectId }: Props) {
     [isBatchUpdating, loadAssets, selectedIds]
   );
 
+  const configuredCategoryNames = useMemo(
+    () => configuredCategories.map((c) => c.name),
+    [configuredCategories],
+  );
+
+  const hasUnmappedInSelection = useMemo(() => {
+    const configuredNames = new Set(configuredCategoryNames);
+    for (const id of selectedIds) {
+      const asset = productFilteredAssets.find((a) => a.asset_id === id);
+      if (asset && !configuredNames.has(asset.category)) {
+        return true;
+      }
+    }
+    return false;
+  }, [selectedIds, productFilteredAssets, configuredCategoryNames]);
+
+  const handleBatchReclassify = useCallback(
+    async (category: string) => {
+      if (selectedIds.size === 0 || isBatchUpdating) {
+        return;
+      }
+
+      setIsBatchUpdating(true);
+      try {
+        await api.batchReclassifyAssets(Array.from(selectedIds), category);
+        setSelectedIds(new Set());
+        await loadAssets();
+        await loadCategories();
+      } finally {
+        setIsBatchUpdating(false);
+      }
+    },
+    [isBatchUpdating, loadAssets, loadCategories, selectedIds],
+  );
+
   const handleDelete = useCallback(
     (assetId: string) => {
       setConfirmDelete({ assetId });
@@ -513,12 +559,22 @@ export default function SmartAssetLibrary({ projectId }: Props) {
             value={filters.category}
             onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
           >
-            <option value="">全部分类 ({stats.total})</option>
+            <option value="">全部分类 ({productFilteredAssets.length})</option>
             {configuredCategories.map((cat) => (
               <option key={cat.id} value={cat.name}>
                 {cat.name} ({categoryCounts.get(cat.name) ?? 0})
               </option>
             ))}
+            {unmappedCategoryNames.length > 0 && (
+              <>
+                <option disabled>── 未映射/历史分类 ──</option>
+                {unmappedCategoryNames.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat} ({categoryCounts.get(cat) ?? 0})
+                  </option>
+                ))}
+              </>
+            )}
           </select>
 
           <select
@@ -692,8 +748,44 @@ export default function SmartAssetLibrary({ projectId }: Props) {
           onDelete={() => void handleBatchDelete()}
           onClear={() => setSelectedIds(new Set())}
           onBatchEdit={handleBatchEdit}
-          categories={configuredCategories.map((c) => c.name)}
+          onReclassify={handleBatchReclassify}
+          categories={configuredCategoryNames}
+          hasUnmappedReclassifyTargets={hasUnmappedInSelection}
         />
+      )}
+
+      {filteredAssets.length > 0 && (
+        <div className="flex items-center gap-3 text-sm">
+          {selectedIds.size === filteredAssets.length ? (
+            <button
+              className="px-2 py-1 border rounded"
+              style={{ color: "var(--accent)", borderColor: "var(--border-default)" }}
+              onClick={() => setSelectedIds(new Set())}
+            >
+              取消全选
+            </button>
+          ) : (
+            <button
+              className="px-2 py-1 border rounded"
+              style={{ color: "var(--accent)", borderColor: "var(--border-default)" }}
+              onClick={() => setSelectedIds(new Set(filteredAssets.map((a) => a.asset_id)))}
+            >
+              全选当前筛选结果
+            </button>
+          )}
+          {selectedIds.size > 0 && (
+            <>
+              <span style={{ color: "var(--text-secondary)" }}>已选 {selectedIds.size} 项</span>
+              <button
+                className="px-2 py-1 border rounded"
+                style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
+                onClick={() => setSelectedIds(new Set())}
+              >
+                清空选择
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4 items-start">

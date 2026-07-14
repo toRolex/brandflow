@@ -54,7 +54,7 @@ export interface AssetRecord {
   product: string;
   confidence: number;
   duration_seconds: number;
-  status: "available" | "disabled" | "pending_review";
+  status: "available" | "disabled" | "pending_review" | "classification_failed";
   usage_count: number;
   source_video: string;
   tags: string[];
@@ -119,6 +119,8 @@ export interface JobDetail {
   audio_source?: string;
   cover_title?: CoverTitle | null;
   mode?: ProductionMode;
+  tts_model?: string;
+  tts_voice?: string;
 }
 
 export interface CoverTitle {
@@ -143,6 +145,8 @@ export interface BatchJobItem {
   music_volume?: number;
   language?: string;
   cover_title?: CoverTitle | null;
+  tts_model?: string;
+  tts_voice?: string;
 }
 
 export interface BatchCreateRequest {
@@ -177,16 +181,6 @@ export interface ScriptCheckResult {
   has_emoji: boolean;
   forbidden_terms: string[];
   passed: boolean;
-}
-
-export interface ScheduleEntry {
-  id: number;
-  job_id: string;
-  platform: string;
-  title: string;
-  description: string;
-  status: "pending" | "published";
-  created_at: string;
 }
 
 export interface ProviderSection {
@@ -290,26 +284,6 @@ export interface MusicTrack {
   relative_path: string;
   duration_seconds: number | null;
   size_bytes: number;
-}
-
-// ── Scene Upload ───────────────────────────────────
-
-export interface SceneFolder {
-  name: string;
-  file_count: number;
-}
-
-export interface SceneFolderFile {
-  name: string;
-  size_bytes: number;
-}
-
-export interface SceneFoldersResponse {
-  folders: SceneFolder[];
-}
-
-export interface SceneFolderFilesResponse {
-  files: SceneFolderFile[];
 }
 
 // ── Script Template ────────────────────────────────

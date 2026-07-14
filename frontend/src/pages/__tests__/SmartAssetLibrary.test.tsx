@@ -64,12 +64,199 @@ vi.mock("../../api/client", () => ({
     updateAssetStatus: vi.fn(),
     updateAssetFields: vi.fn(),
     batchUpdateAssetFields: vi.fn(),
+    batchReclassifyAssets: vi.fn(),
     deleteAssetShared: vi.fn(),
     batchDeleteAssets: vi.fn(),
     uploadAssetShared: vi.fn(),
     indexAssetsShared: vi.fn(),
   },
 }));
+
+describe("SmartAssetLibrary select-all features", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.listIndexedAssetsShared).mockResolvedValue({ assets: mockAssets, stats: mockStats });
+    vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
+    vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
+    vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
+    vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
+    vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
+    vi.mocked(api.batchDeleteAssets).mockResolvedValue({ deleted: 1, files_deleted: 1 });
+    vi.mocked(api.uploadAssetShared).mockResolvedValue({ name: "test.mp4", size_bytes: 1000, in_use: false });
+    vi.mocked(api.indexAssetsShared).mockResolvedValue({ indexed: 1, skipped: 0, total_clips: 1 });
+  });
+
+  function renderLibrary() {
+    return render(
+      <ProductProvider>
+        <SmartAssetLibrary />
+      </ProductProvider>
+    );
+  }
+
+  it("Seam 1: 过滤区渲染'全选当前筛选结果'按钮", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // The select-all button should be in the document when filtered assets exist
+    await waitFor(() => {
+      expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+    });
+  });
+
+  it("Seam 2: 点击'全选当前筛选结果'选中所有可见素材", async () => {
+    renderLibrary();
+
+    // Wait for product filter to take effect (shows 2 of 3 assets)
+    await waitFor(() => {
+      expect(screen.getByText("共 2 / 3 条素材")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // BatchActionBar should appear with count 2
+    await waitFor(() => {
+      expect(screen.getByText("已选择 2 张卡片")).toBeInTheDocument();
+    });
+  });
+
+  it("Seam 3: 全选后按钮变为'取消全选'，再次点击清除选择", async () => {
+    renderLibrary();
+
+    // Wait for product filter to take effect
+    await waitFor(() => {
+      expect(screen.getByText("共 2 / 3 条素材")).toBeInTheDocument();
+    });
+
+    // Click select-all
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // Button text should change to "取消全选"
+    await waitFor(() => {
+      expect(screen.getByText("取消全选")).toBeInTheDocument();
+    });
+
+    // Click again to deselect
+    fireEvent.click(screen.getByText("取消全选"));
+
+    // BatchActionBar should disappear
+    await waitFor(() => {
+      expect(screen.queryByText(/已选择/)).not.toBeInTheDocument();
+    });
+
+    // Button text should revert to "全选当前筛选结果"
+    expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+  });
+
+  it("Seam 4: 选中后出现'清空选择'按钮，点击清除所有选择", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // Click select-all
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // "清空选择" button should appear
+    await waitFor(() => {
+      expect(screen.getByText("清空选择")).toBeInTheDocument();
+    });
+
+    // Click clear
+    fireEvent.click(screen.getByText("清空选择"));
+
+    // Both BatchActionBar and selection controls should show no selection
+    await waitFor(() => {
+      expect(screen.queryByText(/已选择/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("Seam 5: 全选只选中当前筛选结果（非全部素材）", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // Filter by category "产地" — only a2 matches
+    const selects = screen.getAllByRole("combobox");
+    const catSelect = selects[1]; // category select is the second combobox
+    fireEvent.change(catSelect, { target: { value: "产地" } });
+
+    // Click select-all
+    await waitFor(() => {
+      expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // Only 1 asset (a2, category: 产地) should be selected
+    await waitFor(() => {
+      expect(screen.getByText("已选择 1 张卡片")).toBeInTheDocument();
+    });
+  });
+
+  it("Seam 6: 已选数量实时显示在过滤区", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // Initially no selected count should be visible (no selection yet)
+    expect(screen.queryByText(/已选/)).not.toBeInTheDocument();
+
+    // Select one asset via grid click
+    await waitFor(() => {
+      expect(screen.getByText("a1.mp4")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("a1.mp4"));
+
+    // Now selected count should be visible in the filter area
+    await waitFor(() => {
+      expect(screen.getByText("已选 1 项")).toBeInTheDocument();
+    });
+  });
+
+  it("选中但所有素材已分类时归类到按钮不显示", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // Select all assets
+    await waitFor(() => {
+      expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // BatchActionBar should appear with selection
+    await waitFor(() => {
+      expect(screen.getByText(/已选择/)).toBeInTheDocument();
+    });
+
+    // "归类到..." should NOT be present (all assets have mapped categories)
+    expect(screen.queryByText("归类到...")).not.toBeInTheDocument();
+  });
+
+  it("空选择状态下归类到不可见", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+    });
+
+    // No assets selected, BatchActionBar should not be rendered
+    expect(screen.queryByText("归类到...")).not.toBeInTheDocument();
+  });
+});
 
 describe("SmartAssetLibrary product filtering", () => {
   beforeEach(() => {
@@ -226,5 +413,207 @@ describe("SmartAssetLibrary product filtering", () => {
     await waitFor(() => {
       expect(screen.getByText("冲泡 (1)")).toBeInTheDocument();
     });
+  });
+});
+
+describe("unmapped/historical categories (#124)", () => {
+  const mockAssetsWithUnmapped: AssetRecord[] = [
+    ...mockAssets,
+    {
+      asset_id: "a4",
+      file_path: "/workspace/shared_assets/indexed/longjing/legacy/a4.mp4",
+      category: "旧分类",
+      product: "龙井茶",
+      confidence: 0.7,
+      duration_seconds: 4.0,
+      status: "available",
+      usage_count: 0,
+      source_video: "v3.mp4",
+      tags: [],
+      created_at: "2025-01-01T00:00:00",
+      last_used_at: "2025-01-01T00:00:00",
+    },
+  ];
+
+  function renderLibrary() {
+    return render(
+      <ProductProvider>
+        <SmartAssetLibrary />
+      </ProductProvider>
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.listIndexedAssetsShared).mockResolvedValue({
+      assets: mockAssetsWithUnmapped,
+      stats: { total: 4, available: 4, disabled: 0, source_videos: 3 },
+    });
+    vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
+    vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
+    vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
+    vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
+    vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
+    vi.mocked(api.batchDeleteAssets).mockResolvedValue({ deleted: 1, files_deleted: 1 });
+    vi.mocked(api.uploadAssetShared).mockResolvedValue({ name: "test.mp4", size_bytes: 1000, in_use: false });
+    vi.mocked(api.indexAssetsShared).mockResolvedValue({ indexed: 1, skipped: 0, total_clips: 1 });
+    vi.mocked(api.batchReclassifyAssets).mockResolvedValue({ updated: 1 });
+  });
+
+  it("未映射分类显示在下拉列表中，与配置分类并列且可区分", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(api.listCategories).toHaveBeenCalled();
+    });
+
+    // productFilteredAssets (龙井茶 active) = [a1, a2, a4]
+    // Configured categories: 冲泡 (1), 产地 (1), 品鉴 (0)
+    // Unmapped category: 旧分类 (1)
+    await waitFor(() => {
+      expect(screen.getByText("冲泡 (1)")).toBeInTheDocument();
+      expect(screen.getByText("产地 (1)")).toBeInTheDocument();
+      expect(screen.getByText("品鉴 (0)")).toBeInTheDocument();
+    });
+
+    // Unmapped category should appear with correct count
+    expect(screen.getByText("旧分类 (1)")).toBeInTheDocument();
+    // Separator text should exist
+    expect(screen.getByText(/未映射/)).toBeInTheDocument();
+  });
+
+  it("选择未映射分类正确筛选素材", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(screen.getByText("旧分类 (1)")).toBeInTheDocument();
+    });
+
+    const selects = screen.getAllByRole("combobox");
+    const catSelect = selects[1];
+    fireEvent.change(catSelect, { target: { value: "旧分类" } });
+
+    await waitFor(() => {
+      // Only a4 (旧分类) should be shown, total assets = 4
+      expect(screen.getByText("共 1 / 4 条素材")).toBeInTheDocument();
+      expect(screen.getByText("a4.mp4")).toBeInTheDocument();
+    });
+  });
+
+  it("全部分类计数与各分类计数来源一致", async () => {
+    renderLibrary();
+
+    // productFilteredAssets (龙井茶 active) = [a1, a2, a4] = 3 items
+    await waitFor(() => {
+      expect(screen.getByText("全部分类 (3)")).toBeInTheDocument();
+    });
+  });
+
+  it("切换产品时未映射分类基于目标产品重新计算", async () => {
+    renderLibrary();
+
+    await waitFor(() => {
+      expect(screen.getByText("旧分类 (1)")).toBeInTheDocument();
+    });
+
+    // Switch to 普洱茶
+    const selects = screen.getAllByRole("combobox");
+    fireEvent.change(selects[0], { target: { value: "普洱茶" } });
+
+    // 普洱茶 only has a3 (冲泡), no unmapped assets
+    await waitFor(() => {
+      expect(screen.getByText("全部分类 (1)")).toBeInTheDocument();
+      // Unmapped separator should be gone since 普洱茶 has no unmapped categories
+      expect(screen.queryByText(/未映射/)).not.toBeInTheDocument();
+    });
+  });
+});
+
+describe("batch reclassify unmapped assets (Issue #139)", () => {
+  const mockAssetsWithUnmapped: AssetRecord[] = [
+    ...mockAssets,
+    {
+      asset_id: "a4",
+      file_path: "/workspace/shared_assets/indexed/longjing/legacy/a4.mp4",
+      category: "旧分类",
+      product: "龙井茶",
+      confidence: 0.7,
+      duration_seconds: 4.0,
+      status: "available",
+      usage_count: 0,
+      source_video: "v3.mp4",
+      tags: [],
+      created_at: "2025-01-01T00:00:00",
+      last_used_at: "2025-01-01T00:00:00",
+    },
+  ];
+
+  function renderLibrary() {
+    return render(
+      <ProductProvider>
+        <SmartAssetLibrary />
+      </ProductProvider>
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.listIndexedAssetsShared).mockResolvedValue({
+      assets: mockAssetsWithUnmapped,
+      stats: { total: 4, available: 4, disabled: 0, source_videos: 3 },
+    });
+    vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
+    vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
+    vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
+    vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
+    vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.batchReclassifyAssets).mockResolvedValue({ updated: 1 });
+    vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
+    vi.mocked(api.batchDeleteAssets).mockResolvedValue({ deleted: 1, files_deleted: 1 });
+    vi.mocked(api.uploadAssetShared).mockResolvedValue({ name: "test.mp4", size_bytes: 1000, in_use: false });
+    vi.mocked(api.indexAssetsShared).mockResolvedValue({ indexed: 1, skipped: 0, total_clips: 1 });
+  });
+
+  it("选中未映射素材后可点击归类到并选择分类确认", async () => {
+    renderLibrary();
+
+    // Wait for product filter to take effect (龙井茶 active → 3 assets)
+    await waitFor(() => {
+      expect(screen.getByText("全部分类 (3)")).toBeInTheDocument();
+    });
+
+    // Select all filtered assets (龙井茶: a1, a2, a4)
+    fireEvent.click(screen.getByText("全选当前筛选结果"));
+
+    // "归类到..." button should appear (has unmapped in selection)
+    await waitFor(() => {
+      expect(screen.getByText("归类到...")).toBeInTheDocument();
+    });
+
+    // Click "归类到..." to expand selector
+    fireEvent.click(screen.getByText("归类到..."));
+
+    // Select category "冲泡"
+    const selects = screen.getAllByRole("combobox");
+    const catSelect = selects[selects.length - 1];
+    fireEvent.change(catSelect, { target: { value: "冲泡" } });
+
+    // Confirm
+    fireEvent.click(screen.getByText("确认归类"));
+
+    await waitFor(() => {
+      expect(api.batchReclassifyAssets).toHaveBeenCalledWith(
+        ["a1", "a2", "a4"],
+        "冲泡",
+      );
+    });
+
+    // Selection should be cleared after success
+    expect(screen.queryByText(/已选择/)).not.toBeInTheDocument();
   });
 });

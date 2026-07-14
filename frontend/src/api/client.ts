@@ -158,6 +158,12 @@ export const api = {
       body: JSON.stringify({ asset_ids: assetIds }),
     }),
 
+  batchReclassifyAssets: (assetIds: string[], category: string) =>
+    request<{ updated: number }>("/api/assets/categories", {
+      method: "PATCH",
+      body: JSON.stringify({ asset_ids: assetIds, category }),
+    }),
+
   migrateAssets: () =>
     request<{ migrated_projects: number; migrated_clips: number; migrated_sources: number }>(
       "/api/assets/migrate",
@@ -165,7 +171,7 @@ export const api = {
     ),
 
   // Jobs
-  createJob: (projectId: string, body: { product: string; brand?: string; platforms: string[]; name?: string; mode?: import("../types").ProductionMode; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string; cover_title?: { text: string; highlight_words?: string[] } | null }) =>
+  createJob: (projectId: string, body: { product: string; brand?: string; platforms: string[]; name?: string; mode?: import("../types").ProductionMode; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string; cover_title?: { text: string; highlight_words?: string[] } | null; tts_model?: string; tts_voice?: string }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {
       method: "POST",
       body: JSON.stringify(body),
@@ -250,18 +256,6 @@ export const api = {
     );
   },
 
-  // Schedule
-  getSchedule: (params?: { project_id?: string; platform?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.project_id) qs.set("project_id", params.project_id);
-    if (params?.platform) qs.set("platform", params.platform);
-    return request<import("../types").ScheduleEntry[]>(`/api/schedule?${qs.toString()}`);
-  },
-
-  exportSchedule: () => {
-    window.open(`${BASE}/api/schedule/export`, "_blank");
-  },
-
   // Config
   getConfig: () =>
     request<import("../types").ProviderConfig>("/api/config"),
@@ -335,10 +329,15 @@ export const api = {
       body: JSON.stringify(config),
     }),
 
-  getTTSVoices: (provider?: string) =>
-    request<{ preset_voices: Array<{ id: string; label: string; note: string }> }>(
-      `/api/tts/voices${provider ? `?provider=${provider}` : ""}`
-    ),
+  getTTSVoices: (provider?: string, model?: string) => {
+    const params = new URLSearchParams();
+    if (provider) params.set("provider", provider);
+    if (model) params.set("model", model);
+    const qs = params.toString();
+    return request<{ preset_voices: Array<{ id: string; label: string; note: string; model: string }> }>(
+      `/api/tts/voices${qs ? `?${qs}` : ""}`
+    );
+  },
 
   previewTTS: async (requestBody: { text: string; model?: string; voice?: string; style_prompt?: string; voice_design_prompt?: string; instructions?: string; optimize_instructions?: boolean; language_type?: string }) => {
     const res = await fetch("/api/tts/preview", {
@@ -448,36 +447,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ slot_contents: slotContents, variable_values: variableValues }),
     }),
-
-  // Scene folders
-  getSceneFolders: () =>
-    request<import("../types").SceneFoldersResponse>("/api/scene/folders"),
-
-  // Scene upload
-  uploadSceneVideo: async (folderName: string, file: File) => {
-    const form = new FormData();
-    form.append("folder", folderName);
-    form.append("file", file);
-    const res = await fetch("/api/scene/upload", { method: "POST", body: form });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`${res.status}: ${text}`);
-    }
-    return res.json();
-  },
-
-  // Scene folder files
-  getSceneFolderFiles: (folderName: string) =>
-    request<import("../types").SceneFolderFilesResponse>(
-      `/api/scene/folders/${encodeURIComponent(folderName)}/files`
-    ),
-
-  // Delete scene file
-  deleteSceneFile: (folderName: string, fileName: string) =>
-    request<{ status: string }>(
-      `/api/scene/folders/${encodeURIComponent(folderName)}/files/${encodeURIComponent(fileName)}`,
-      { method: "DELETE" }
-    ),
 
   // Categories
   listCategories: () =>

@@ -5,6 +5,7 @@ type AssetCardData = AssetFile & {
   asset_id?: string;
   category?: string;
   confidence?: number;
+  status?: string;
 };
 
 interface Props {
@@ -22,6 +23,7 @@ export default function AssetCard({ asset, onDelete, selected = false, onSelect 
   const confidence = typeof asset.confidence === "number"
     ? `${Math.round(asset.confidence * 100)}%`
     : null;
+  const isClassificationFailed = asset.status === "classification_failed";
 
   const containerStyle: React.CSSProperties = selected
     ? { borderColor: "var(--accent)", background: "var(--bg-nav-active)" }
@@ -53,16 +55,27 @@ export default function AssetCard({ asset, onDelete, selected = false, onSelect 
       </div>
       <div className="p-2 text-xs">
         <div className="font-medium truncate" title={asset.name}>{asset.name}</div>
-        {asset.category && (
+        {isClassificationFailed ? (
           <div
             className="inline-flex mt-1 px-1.5 py-0.5 rounded"
-            style={{ background: "var(--bg-nav-active)", color: "var(--text-secondary)" }}
+            style={{ background: "var(--danger-bg, #fef2f2)", color: "var(--danger, #dc2626)" }}
           >
-            {asset.category}
+            分类失败/待复核
           </div>
+        ) : (
+          <>
+            {asset.category && (
+              <div
+                className="inline-flex mt-1 px-1.5 py-0.5 rounded"
+                style={{ background: "var(--bg-nav-active)", color: "var(--text-secondary)" }}
+              >
+                {asset.category}
+              </div>
+            )}
+            {confidence && <div className="mt-0.5" style={{ color: "var(--accent)" }}>置信度 {confidence}</div>}
+          </>
         )}
         {seconds > 0 && <div className="mt-1" style={{ color: "var(--text-secondary)" }}>{min}:{sec}</div>}
-        {confidence && <div className="mt-0.5" style={{ color: "var(--accent)" }}>置信度 {confidence}</div>}
         {asset.in_use && <div className="mt-0.5" style={{ color: "var(--success)" }}>&#10003; 使用中</div>}
         {selected && <div className="mt-0.5" style={{ color: "var(--accent)" }}>&#10003; 已选中</div>}
         <div className="mt-1 flex items-center gap-2">

@@ -78,6 +78,12 @@ class JobRecord(BaseModel):
     cover_title: CoverTitle = Field(default_factory=CoverTitle)
     music_track_path: str = ""
     music_volume: int = 80
+    tts_model: str = (
+        ""  # job-level TTS model override, empty = use global/product config
+    )
+    tts_voice: str = (
+        ""  # job-level TTS voice override, empty = use global/product config
+    )
     used_asset_ids: list[str] = []
     scene_folder_ids: list[str] = Field(default_factory=list)
     transition_duration_ms: int = 500

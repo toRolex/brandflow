@@ -52,6 +52,8 @@ queued → script_generating → script_review → tts_generating → tts_review
 ### Asset（素材）
 已索引的视频片段。原始视频经 ffmpeg 场景切片、Vision 模型分类后，按产品和 Category 归档到 SQLite 索引。素材在 `asset_retrieving` 阶段被检索并匹配到脚本句子。
 
+SmartAssetLibrary 前端页面支持全选当前筛选结果、取消全选和清空选择，已选数量实时显示。批量操作（启用/禁用/编辑/删除）作用于当前已选素材 ID。
+
 ### Category（素材分类）
 素材片段的语义分类，由 Instance 级配置定义（而非硬编码枚举）。每个 Instance 拥有自己的分类体系。分类有两种建立方式：
 - **运营手动配置** — 部署时在配置中定义分类名和对应的 Vision prompt，AI 按此规则自动标注素材

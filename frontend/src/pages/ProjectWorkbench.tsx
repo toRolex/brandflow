@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobSummary, ScheduleEntry, MusicTrack, ProductionMode, ScriptTemplate } from "../types";
+import type { JobSummary, MusicTrack, ProductionMode, ScriptTemplate } from "../types";
 import type { SingleJobFormData } from "../components/CreateJobForm";
 import type { BatchConfig } from "../utils/batchScriptSplit";
 import WorkbenchShell from "../components/WorkbenchShell";
@@ -10,7 +10,7 @@ import BatchCreateForm from "../components/BatchCreateForm";
 import ProjectTabs from "../components/ProjectTabs";
 import ConfirmDialog from "../components/ConfirmDialog";
 
-type TabKey = "jobs" | "schedule" | "scene";
+type TabKey = "jobs";
 
 export default function ProjectWorkbench() {
   const { id } = useParams<{ id: string }>();
@@ -18,7 +18,6 @@ export default function ProjectWorkbench() {
 
   /* ── 共享状态 ── */
   const [jobs, setJobs] = useState<JobSummary[]>([]);
-  const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [projectName, setProjectName] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<TabKey>("jobs");
@@ -62,13 +61,6 @@ export default function ProjectWorkbench() {
     } catch (e) {
       console.error("load project failed", e);
       setError("加载项目数据失败");
-    }
-    try {
-      const sched = await api.getSchedule({ project_id: id });
-      setSchedule(sched);
-    } catch (e) {
-      console.error("load schedule failed", e);
-      setError("加载排期数据失败");
     }
   }, [id]);
 
@@ -158,6 +150,8 @@ export default function ProjectWorkbench() {
         cover_title: form.cover_title_text
           ? { text: form.cover_title_text, highlight_words: form.cover_highlight_words.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
           : undefined,
+        tts_model: form.tts_model || undefined,
+        tts_voice: form.tts_voice || undefined,
       });
       if (form.audio_source === "upload" && form.audioFile) {
         try {
@@ -179,6 +173,8 @@ export default function ProjectWorkbench() {
     brand?: string;
     platforms: string[];
     autoApprove: boolean;
+    ttsModel?: string;
+    ttsVoice?: string;
     jobs: BatchConfig[];
   }) => {
     if (!id) return;
@@ -200,6 +196,8 @@ export default function ProjectWorkbench() {
           cover_title: c.coverTitleText.trim()
             ? { text: c.coverTitleText.trim(), highlight_words: c.coverHighlightWords.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
             : undefined,
+          tts_model: payload.ttsModel || undefined,
+          tts_voice: payload.ttsVoice || undefined,
         })),
       });
       load();
@@ -242,14 +240,6 @@ export default function ProjectWorkbench() {
       await api.renameJob(jobId, name);
     } catch {
       setError("重命名 Job 失败");
-    }
-  };
-
-  const handleExportSchedule = async () => {
-    try {
-      await api.exportSchedule();
-    } catch {
-      setError("导出排期失败");
     }
   };
 
@@ -358,13 +348,11 @@ export default function ProjectWorkbench() {
         tab={tab}
         onTabChange={setTab}
         jobs={jobs}
-        schedule={schedule}
         selectedJobIds={selectedJobIds}
         onSelectionChange={setSelectedJobIds}
         onRetry={handleRetry}
         onDeleteJob={handleDeleteJob}
         onRenameJob={handleRenameJob}
-        onExportSchedule={handleExportSchedule}
       />
 
       {/* ── ConfirmDialog ── */}

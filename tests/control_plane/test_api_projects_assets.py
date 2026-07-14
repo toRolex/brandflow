@@ -260,6 +260,7 @@ def test_project_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -
         "packages.pipeline_services.asset_library.indexer.AssetIndexer._ingest_one_video",
         lambda self, video_path, output_base, log_callback=None: [],
     )
+    monkeypatch.setattr(ap_mod, "validate_vision_config", lambda *a, **kw: None)
 
     resp = client.post(f"/api/projects/{project_id}/assets/index")
 

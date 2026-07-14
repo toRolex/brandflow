@@ -27,6 +27,10 @@ from packages.file_store.paths import (
 )
 from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
 from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerator
+from packages.pipeline_services.asset_library.vision_utils import (
+    VisionConfigError,
+    validate_vision_config,
+)
 from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 
 router = APIRouter(prefix="/api/assets", tags=["api-assets"])
@@ -247,6 +251,18 @@ async def index_assets(
     vision_config = resolve_vision_config(
         {}, secrets=secret_store, reader=config_reader
     )
+    # 仅当 Vision 被显式配置（有 api_key）时才校验完整性
+    if vision_config.get("api_key"):
+        try:
+            validate_vision_config(config_reader, secret_store)
+        except VisionConfigError as e:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "vision_config_invalid",
+                    "message": str(e),
+                },
+            )
     category_names = [
         c.name for c in get_categories(config_reader, product_id=active_id or None)
     ]
@@ -312,6 +328,10 @@ async def _run_index_task(
                 secrets=secret_store,
                 reader=ConfigReader(config_dir=str(root_dir / "config")),
             )
+
+        # 仅当 Vision 被显式配置（有 api_key）时才校验完整性
+        if vision_config.get("api_key"):
+            validate_vision_config(config_reader, secret_store)
 
         ffmpeg_path = _resolve_ffmpeg_path()
         indexer = AssetIndexer(
@@ -385,6 +405,55 @@ async def get_index_logs(task_id: str):
         index_task_manager.get_log_stream(task_id),
         media_type="text/event-stream",
     )
+
+
+@router.patch("/categories")
+async def batch_update_categories(request: Request):
+    """PATCH /api/assets/categories — 批量重分类素材（用于未映射素材归类）。
+
+    幂等：相同请求重复执行返回相同 updated 计数。
+    只更新 asset_ids 中实际存在的素材。
+    不校验 category 是否在配置分类列表中。
+    限制单次最多 500 个 asset_id。
+    """
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="request body must be object")
+
+    asset_ids = body.get("asset_ids")
+    category = body.get("category")
+
+    if (
+        not isinstance(asset_ids, list)
+        or not asset_ids
+        or any(not isinstance(i, str) for i in asset_ids)
+    ):
+        raise HTTPException(
+            status_code=400, detail="asset_ids must be a non-empty string array"
+        )
+    if not isinstance(category, str) or not category.strip():
+        raise HTTPException(status_code=400, detail="category is required")
+
+    # Limit to 500 per request
+    if len(asset_ids) > 500:
+        asset_ids = asset_ids[:500]
+
+    root_dir: Path = request.app.state.root_dir
+    db_path = shared_asset_db_path(root_dir)
+    if not db_path.exists():
+        return {"updated": 0}
+
+    conn = sqlite3.connect(str(db_path))
+    updated = 0
+    for aid in asset_ids:
+        cursor = conn.execute(
+            "UPDATE assets SET category = ? WHERE asset_id = ?",
+            (category.strip(), aid),
+        )
+        updated += cursor.rowcount
+    conn.commit()
+    conn.close()
+    return {"updated": updated}
 
 
 @router.patch("/batch")

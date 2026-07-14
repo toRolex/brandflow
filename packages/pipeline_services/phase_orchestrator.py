@@ -44,7 +44,6 @@ def create_orchestrator(
 
     *config_reader* is required — all config reads go through it.
     """
-    from apps.control_plane.services.schedule_store import ScheduleStore
     from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
     from packages.pipeline_services.subtitle_service import SubtitleService
     from packages.pipeline_services.video_service import VideoService
@@ -53,7 +52,6 @@ def create_orchestrator(
         script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
-        schedule_store=ScheduleStore(root_dir),
         config_reader=config_reader,
     )
 
@@ -128,8 +126,8 @@ class PhaseOrchestrator:
         script_bridge: LegacyScriptBridge,
         subtitle_svc: SubtitleService,
         video_svc: VideoService,
-        schedule_store: Any,
         *,
+        schedule_store: Any = None,
         config_reader: ConfigReader | None = None,
         secret_store: SecretStore | None = None,
         get_tts_config: Callable[[], dict[str, Any]] | None = None,
@@ -455,6 +453,15 @@ class PhaseOrchestrator:
                 try:
                     tts_cfg = self._resolve_tts_config(ctx)
 
+                    # Apply job-level TTS overrides (tts_model / tts_voice)
+                    # Priority: job override > provider defaults > global/product config
+                    job_tts_model: str = ctx.options.get("tts_model", "")
+                    job_tts_voice: str = ctx.options.get("tts_voice", "")
+                    if job_tts_model:
+                        tts_cfg["model"] = job_tts_model
+                    if job_tts_voice:
+                        tts_cfg["voice"] = job_tts_voice
+
                     config = _TTSConfigShim(tts_cfg)
                     tts_provider = self._build_tts_provider(tts_cfg)
                     audio_bytes = tts_provider.synthesize(existing_script, config)
@@ -727,7 +734,6 @@ class PhaseOrchestrator:
         skip_subtitle = False
         music_path: Path | None = None
         music_volume = 80
-        platform = ""
         cover_title_data: dict | None = None
 
         if job_json_path.exists():
@@ -735,7 +741,6 @@ class PhaseOrchestrator:
             skip_subtitle = job_data.get("skip_subtitle", False)
             music_track = job_data.get("music_track_path", "")
             music_volume = job_data.get("music_volume", 80)
-            platform = job_data.get("platform", "")
             ct = job_data.get("cover_title")
             if ct and ct.get("text"):
                 cover_title_data = ct
@@ -770,12 +775,6 @@ class PhaseOrchestrator:
             print(
                 f"[FINAL] {ctx.job_id}: final.mp4 produced ({final_path.stat().st_size} bytes)",
                 flush=True,
-            )
-            self._schedule_store.add(
-                job_id=ctx.job_id,
-                platform=platform,
-                title=ctx.product,
-                description="",
             )
             return [self._to_artifact("final_video", final_path, workspace_dir)]
         print(f"[FINAL] {ctx.job_id}: final.mp4 NOT produced", flush=True)
