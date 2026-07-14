@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { api } from "../api/client";
 import type { SuggestCategory, CategoryConfig } from "../types";
 
@@ -17,7 +17,9 @@ export interface UseCategorySuggestionsReturn {
   suggestions: SuggestCategory[] | null;
   suggestLoading: boolean;
   suggestError: string | null;
+  backendErrors: string[];
   pendingSuggestionNames: Set<string>;
+  dismissSuggestError: () => void;
   handleSuggest: () => Promise<void>;
   toggleSuggestion: (label: string) => void;
   confirmSuggestions: () => Promise<void>;
@@ -39,22 +41,46 @@ export function useCategorySuggestions(
   const [pendingSuggestionNames, setPendingSuggestionNames] = useState<Set<string>>(new Set());
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [backendErrors, setBackendErrors] = useState<string[]>([]);
+  const backendErrorsRef = useRef<string[]>([]);
+
+  // Auto-dismiss suggestError after 3 seconds
+  useEffect(() => {
+    if (suggestError) {
+      const timer = setTimeout(() => setSuggestError(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [suggestError]);
 
   const handleSuggest = useCallback(async () => {
     setSuggestLoading(true);
     setSuggestions(null);
-    setSuggestError(null);
     try {
       const result = await api.suggestCategories();
       setSuggestions(result.suggestions);
       setPendingSuggestionNames(new Set(result.suggestions.map((s) => s.label)));
       if (result.errors && result.errors.length > 0) {
+        backendErrorsRef.current = result.errors;
+        setBackendErrors(result.errors);
         setSuggestError(result.errors.join("；"));
+      } else {
+        backendErrorsRef.current = [];
+        setBackendErrors([]);
+        setSuggestError(null);
       }
     } catch {
-      setSuggestError("获取 AI 建议失败");
+      // Network failure: don't overwrite informative backend errors
+      if (backendErrorsRef.current.length > 0) {
+        setSuggestError(backendErrorsRef.current.join("；"));
+      } else {
+        setSuggestError("获取 AI 建议失败");
+      }
     }
     setSuggestLoading(false);
+  }, []);
+
+  const dismissSuggestError = useCallback(() => {
+    setSuggestError(null);
   }, []);
 
   const toggleSuggestion = useCallback((label: string) => {
@@ -103,6 +129,8 @@ export function useCategorySuggestions(
   const cancelSuggestions = useCallback(() => {
     setSuggestions(null);
     setSuggestError(null);
+    setBackendErrors([]);
+    backendErrorsRef.current = [];
     setPendingSuggestionNames(new Set());
   }, []);
 
@@ -110,7 +138,9 @@ export function useCategorySuggestions(
     suggestions,
     suggestLoading,
     suggestError,
+    backendErrors,
     pendingSuggestionNames,
+    dismissSuggestError,
     handleSuggest,
     toggleSuggestion,
     confirmSuggestions,

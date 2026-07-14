@@ -298,4 +298,134 @@ describe("useCategorySuggestions", () => {
 
     expect(onConfirm).not.toHaveBeenCalled();
   });
+
+  // ── S12: backendErrors ──
+
+  it("S12: backendErrors 保存后端返回的 errors 数组", async () => {
+    vi.mocked(api.suggestCategories).mockResolvedValue({
+      suggestions: [],
+      errors: ["错误1", "错误2"],
+    });
+
+    const { result } = renderHook(() => useCategorySuggestions([], onConfirm));
+
+    await act(async () => {
+      await result.current.handleSuggest();
+    });
+
+    expect(result.current.backendErrors).toEqual(["错误1", "错误2"]);
+    expect(result.current.suggestError).toBe("错误1；错误2");
+    expect(result.current.suggestLoading).toBe(false);
+  });
+
+  it("S13: 网络失败时 backendErrors 保持空数组", async () => {
+    vi.mocked(api.suggestCategories).mockRejectedValue(new Error("Network Error"));
+
+    const { result } = renderHook(() => useCategorySuggestions([], onConfirm));
+
+    await act(async () => {
+      await result.current.handleSuggest();
+    });
+
+    expect(result.current.backendErrors).toEqual([]);
+    expect(result.current.suggestError).toBe("获取 AI 建议失败");
+    expect(result.current.suggestLoading).toBe(false);
+  });
+
+  it("S14: 先有后端错误时网络失败不覆盖 suggestError", async () => {
+    // First call: backend returns errors
+    vi.mocked(api.suggestCategories).mockResolvedValueOnce({
+      suggestions: [],
+      errors: ["Vision API 调用失败"],
+    });
+
+    const { result } = renderHook(() => useCategorySuggestions([], onConfirm));
+
+    await act(async () => {
+      await result.current.handleSuggest();
+    });
+    expect(result.current.backendErrors).toEqual(["Vision API 调用失败"]);
+    expect(result.current.suggestError).toBe("Vision API 调用失败");
+
+    // Second call: network fails
+    vi.mocked(api.suggestCategories).mockRejectedValueOnce(new Error("Network Error"));
+
+    await act(async () => {
+      await result.current.handleSuggest();
+    });
+
+    // suggestError should still show backend error, not "获取 AI 建议失败"
+    expect(result.current.suggestError).toBe("Vision API 调用失败");
+    expect(result.current.backendErrors).toEqual(["Vision API 调用失败"]);
+  });
+
+  // ── S15/S16: dismissSuggestError ──
+
+  it("S15: dismissSuggestError 清除 suggestError", async () => {
+    vi.mocked(api.suggestCategories).mockResolvedValue({
+      suggestions: [],
+      errors: ["错误提示"],
+    });
+
+    const { result } = renderHook(() => useCategorySuggestions([], onConfirm));
+
+    await act(async () => {
+      await result.current.handleSuggest();
+    });
+    expect(result.current.suggestError).toBe("错误提示");
+
+    act(() => {
+      result.current.dismissSuggestError();
+    });
+
+    expect(result.current.suggestError).toBeNull();
+  });
+
+  it("S16: dismissSuggestError 不清除 backendErrors", async () => {
+    vi.mocked(api.suggestCategories).mockResolvedValue({
+      suggestions: [],
+      errors: ["错误提示"],
+    });
+
+    const { result } = renderHook(() => useCategorySuggestions([], onConfirm));
+
+    await act(async () => {
+      await result.current.handleSuggest();
+    });
+    expect(result.current.backendErrors).toEqual(["错误提示"]);
+
+    act(() => {
+      result.current.dismissSuggestError();
+    });
+
+    // backendErrors preserved for retry context
+    expect(result.current.backendErrors).toEqual(["错误提示"]);
+    expect(result.current.suggestions).not.toBeNull();
+  });
+
+  // ── S17: auto-dismiss ──
+
+  it("S17: suggestError 3 秒后自动消失", async () => {
+    vi.useFakeTimers();
+    vi.mocked(api.suggestCategories).mockResolvedValue({
+      suggestions: [],
+      errors: ["自动消失测试"],
+    });
+
+    const { result } = renderHook(() => useCategorySuggestions([], onConfirm));
+
+    await act(async () => {
+      await result.current.handleSuggest();
+    });
+    expect(result.current.suggestError).toBe("自动消失测试");
+
+    // Advance past 3 seconds
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    expect(result.current.suggestError).toBeNull();
+
+    vi.useRealTimers();
+  });
 });
