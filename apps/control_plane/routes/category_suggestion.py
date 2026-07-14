@@ -44,7 +44,9 @@ class SuggestResponse(BaseModel):
 
 
 @router.post("/suggest")
-async def suggest(request: Request, body: SuggestRequest) -> SuggestResponse:
+async def suggest(
+    request: Request, body: SuggestRequest | None = None
+) -> SuggestResponse:
     """Use AI to analyze the asset library and suggest a category system.
 
     Scans a random sample of video assets, extracts frames, analyzes them
@@ -56,9 +58,11 @@ async def suggest(request: Request, body: SuggestRequest) -> SuggestResponse:
     secret_store: SecretStore = request.app.state.secret_store
 
     sample_size = (
-        body.sample_size or config_reader.get_category_suggestion_sample_size()
-    )
-    llm_model = body.model or config_reader.get_category_suggestion_model()
+        body.sample_size if body is not None else None
+    ) or config_reader.get_category_suggestion_sample_size()
+    llm_model = (
+        body.model if body is not None else None
+    ) or config_reader.get_category_suggestion_model()
 
     # Build LLM config override with the specified model
     llm_config = {
