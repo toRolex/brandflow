@@ -108,3 +108,49 @@ def test_suggest_response_contract() -> None:
     assert suggestions[1]["label"] == "使用场景"
     assert suggestions[1]["description"] == "用户实际使用产品的画面"
     assert suggestions[1]["vision_prompt"] == "person using the product"
+
+
+def test_suggest_empty_body_returns_200() -> None:
+    """POST with empty JSON body must be accepted and use defaults."""
+    target = "apps.control_plane.routes.category_suggestion.suggest_categories"
+
+    with patch(target, return_value={
+        "categories": [],
+        "sampled_assets": 0,
+        "model_used": "default-model",
+        "descriptions": [],
+        "errors": ["No available assets found in the library"],
+    }) as mock_suggest:
+        app = create_app(root_dir=Path.cwd())
+        client = TestClient(app)
+        resp = client.post("/api/assets/categories/suggest", json={})
+
+    assert resp.status_code == 200
+    mock_suggest.assert_called_once()
+    data = resp.json()
+    assert "suggestions" in data
+    assert "errors" in data
+    assert data["errors"] == ["No available assets found in the library"]
+
+
+def test_suggest_errors_are_returned() -> None:
+    """Backend errors are surfaced in the response ``errors`` array."""
+    target = "apps.control_plane.routes.category_suggestion.suggest_categories"
+
+    with patch(target, return_value={
+        "categories": [
+            {"id": "a", "name": "A", "description": "desc", "vision_prompt": "prompt"},
+        ],
+        "sampled_assets": 3,
+        "model_used": "model",
+        "descriptions": ["d1"],
+        "errors": ["Vision API 超时", "部分素材无法读取"],
+    }):
+        app = create_app(root_dir=Path.cwd())
+        client = TestClient(app)
+        resp = client.post("/api/assets/categories/suggest", json={})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["suggestions"]
+    assert data["errors"] == ["Vision API 超时", "部分素材无法读取"]

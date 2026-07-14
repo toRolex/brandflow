@@ -456,9 +456,9 @@ export const api = {
     request<import("../types").CategoryItem[]>("/api/assets/categories"),
 
   suggestCategories: () =>
-    request<{ suggestions: import("../types").SuggestCategory[] }>(
+    request<{ suggestions: import("../types").SuggestCategory[]; errors: string[] }>(
       "/api/assets/categories/suggest",
-      { method: "POST" }
+      { method: "POST", body: JSON.stringify({}) }
     ),
 
   // Export download (returns blob)

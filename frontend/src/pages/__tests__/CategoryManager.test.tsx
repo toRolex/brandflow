@@ -167,6 +167,7 @@ describe("CategoryManager", () => {
         { label: "产品细节", description: "产品特写", vision_prompt: "product display" },
         { label: "调味过程", description: "加入调料", vision_prompt: "seasoning process" },
       ],
+      errors: [],
     });
 
     render(<CategoryManager />);
@@ -188,12 +189,32 @@ describe("CategoryManager", () => {
     expect(screen.getByText("调味过程")).toBeInTheDocument();
   });
 
+  it("AI 建议返回 errors 时显示错误提示", async () => {
+    vi.mocked(api.suggestCategories).mockResolvedValue({
+      suggestions: [],
+      errors: ["未找到可用素材", "Vision API 调用失败"],
+    });
+
+    render(<CategoryManager />);
+
+    await waitFor(() => {
+      expect(screen.getByText("产品展示")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("AI 建议"));
+
+    await waitFor(() => {
+      expect(screen.getByText("未找到可用素材；Vision API 调用失败")).toBeInTheDocument();
+    });
+  });
+
   it("AI 建议可勾选后确认添加", async () => {
     vi.mocked(api.suggestCategories).mockResolvedValue({
       suggestions: [
         { label: "产品细节", description: "产品特写", vision_prompt: "product display" },
         { label: "调味过程", description: "加入调料", vision_prompt: "seasoning process" },
       ],
+      errors: [],
     });
 
     const updatedCategories = [
@@ -591,6 +612,7 @@ describe("CategoryManager - id handling", () => {
       suggestions: [
         { label: "纯中文名称", description: "测试", vision_prompt: "test" },
       ],
+      errors: [],
     });
 
     vi.mocked(api.getProductConfig).mockResolvedValue({

@@ -96,6 +96,7 @@ export default function ProductConfigForm() {
   const [suggestions, setSuggestions] = useState<SuggestCategory[] | null>(null);
   const [pendingSuggestionNames, setPendingSuggestionNames] = useState<Set<string>>(new Set());
   const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
 
   const categories: CategoryConfig[] = (config.categories as CategoryConfig[]) ?? [];
 
@@ -266,13 +267,16 @@ export default function ProductConfigForm() {
   const handleSuggest = async () => {
     setSuggestLoading(true);
     setSuggestions(null);
+    setSuggestError(null);
     try {
       const result = await api.suggestCategories();
       setSuggestions(result.suggestions);
       setPendingSuggestionNames(new Set(result.suggestions.map((s) => s.label)));
+      if (result.errors && result.errors.length > 0) {
+        setSuggestError(result.errors.join("；"));
+      }
     } catch {
-      setSaveMsg("获取 AI 建议失败");
-      setTimeout(() => setSaveMsg(null), 3000);
+      setSuggestError("获取 AI 建议失败");
     }
     setSuggestLoading(false);
   };
@@ -293,6 +297,7 @@ export default function ProductConfigForm() {
     if (!suggestions) return;
     setSaving(true);
     setSaveMsg(null);
+    setSuggestError(null);
 
     const checked = suggestions.filter((s) => pendingSuggestionNames.has(s.label));
     const newCategories: CategoryConfig[] = checked.map((s) => ({
@@ -330,6 +335,7 @@ export default function ProductConfigForm() {
 
   const cancelSuggestions = () => {
     setSuggestions(null);
+    setSuggestError(null);
     setPendingSuggestionNames(new Set());
   };
 
@@ -814,6 +820,20 @@ export default function ProductConfigForm() {
                     取消
                   </button>
                 </div>
+              </div>
+            )}
+
+            {suggestError && (
+              <div
+                className="mb-4 px-4 py-3 rounded-lg text-sm"
+                style={{
+                  background: "var(--danger-bg)",
+                  borderColor: "var(--danger-border)",
+                  color: "var(--danger)",
+                  border: "1px solid var(--danger-border)",
+                }}
+              >
+                {suggestError}
               </div>
             )}
 
