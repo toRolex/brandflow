@@ -350,9 +350,26 @@ async def save_tts_config(request: TTSConfigRequest, project_id: str | None = No
     return {"success": True}
 
 
+MODEL_TO_PROVIDER = {
+    "mimo-v2.5-tts": "mimo",
+    "mimo-v2.5-tts-voicedesign": "mimo",
+    "mimo-v2.5-tts-voiceclone": "mimo",
+    "qwen3-tts-flash": "qwen",
+    "qwen3-tts-instruct-flash": "qwen",
+}
+
+
 @router.get("/voices")
 async def get_voices(provider: str = "mimo", model: str | None = None):
-    if provider not in ("mimo", "qwen"):
+    if model is not None:
+        resolved = MODEL_TO_PROVIDER.get(model)
+        if resolved is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown TTS model: {model}",
+            )
+        provider = resolved
+    elif provider not in ("mimo", "qwen"):
         raise HTTPException(
             status_code=400, detail=f"Unsupported TTS provider: {provider}"
         )
