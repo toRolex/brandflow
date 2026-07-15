@@ -356,22 +356,6 @@ export const api = {
     return URL.createObjectURL(blob);
   },
 
-  getTTSMetrics: (projectId?: string, range?: string) => {
-    const qs = new URLSearchParams();
-    if (projectId) qs.set("project_id", projectId);
-    if (range) qs.set("range", range);
-    return request<Record<string, unknown>>(`/api/tts/metrics?${qs.toString()}`);
-  },
-
-  getTTSLogs: (params?: { project_id?: string; limit?: number; offset?: number; status?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.project_id) qs.set("project_id", params.project_id);
-    if (params?.limit) qs.set("limit", String(params.limit));
-    if (params?.offset) qs.set("offset", String(params.offset));
-    if (params?.status) qs.set("status", params.status);
-    return request<Array<Record<string, unknown>>>(`/api/tts/logs?${qs.toString()}`);
-  },
-
   // Music Library
   listMusic: () =>
     request<{ tracks: import("../types").MusicTrack[] }>("/api/music"),

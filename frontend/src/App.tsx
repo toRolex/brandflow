@@ -13,7 +13,6 @@ import ScriptTemplateEditor from "./pages/ScriptTemplateEditor";
 import QualityRulesForm from "./pages/QualityRulesForm";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
 import TTSConfig from "./pages/TTSConfig";
-import TTSMonitor from "./pages/TTSMonitor";
 import AnalyticsPage from "./pages/AnalyticsPage";
 
 export default function App() {
@@ -33,7 +32,6 @@ export default function App() {
             <Route path="/system/config/quality" element={<QualityRulesForm />} />
             <Route path="/system/config/knowledge" element={<KnowledgeBasePage />} />
             <Route path="/tts-config" element={<TTSConfig />} />
-            <Route path="/tts-monitor" element={<TTSMonitor />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
           </Routes>
         </Layout>

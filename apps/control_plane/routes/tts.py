@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pathlib import Path
@@ -9,14 +7,12 @@ from pydantic import BaseModel
 
 from packages.provider_config.secret_store import SecretStore
 from packages.provider_config.tts_config import TTSConfigManager
-from packages.pipeline_services.tts_monitor import TTSMonitor
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 
 _secret_store = SecretStore()
 app_config = _secret_store  # backward compatibility alias
 config_manager = TTSConfigManager()
-monitor = TTSMonitor()
 
 
 class TTSConfigRequest(BaseModel):
@@ -379,56 +375,6 @@ async def get_voices(provider: str = "mimo", model: str | None = None):
             voices = [v for v in voices if v["id"] not in INSTRUCT_UNSUPPORTED_VOICES]
         return {"preset_voices": voices}
     return {"preset_voices": PRESET_VOICES}
-
-
-@router.get("/metrics")
-async def get_tts_metrics(
-    project_id: str | None = None, range: str = "24h"
-) -> dict[str, Any]:
-    metrics = monitor.get_metrics(project_id, range)
-    return {
-        "time_range": metrics.time_range,
-        "total_requests": metrics.total_requests,
-        "success_count": metrics.success_count,
-        "failure_count": metrics.failure_count,
-        "success_rate": metrics.success_rate,
-        "avg_latency_ms": metrics.avg_latency_ms,
-        "avg_audio_duration_ms": metrics.avg_audio_duration_ms,
-        "total_audio_duration_ms": metrics.total_audio_duration_ms,
-        "error_distribution": metrics.error_distribution,
-        "voice_distribution": metrics.voice_distribution,
-    }
-
-
-@router.get("/logs")
-async def get_tts_logs(
-    project_id: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
-    status: str | None = None,
-) -> list[dict[str, Any]]:
-    logs = monitor.get_logs(project_id, limit, offset, status)
-    return [log.to_dict() for log in logs]
-
-
-@router.get("/errors/distribution")
-async def get_error_distribution(
-    project_id: str | None = None, range: str = "7d"
-) -> dict[str, Any]:
-    metrics = monitor.get_metrics(project_id, range)
-    total_errors = sum(metrics.error_distribution.values())
-
-    distribution = []
-    for error_type, count in metrics.error_distribution.items():
-        distribution.append(
-            {
-                "type": error_type,
-                "count": count,
-                "percentage": count / total_errors if total_errors > 0 else 0,
-            }
-        )
-
-    return {"distribution": distribution, "total": total_errors}
 
 
 @router.post("/preview")

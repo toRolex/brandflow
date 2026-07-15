@@ -17,21 +17,14 @@ describe("Layout — TTS nav entries (#151)", () => {
     expect(screen.getByText("TTS 配置")).toBeInTheDocument();
   });
 
-  it("renders sub-nav with TTS 监控 link when at /tts-monitor", () => {
-    renderWithRouter("/tts-monitor");
-    expect(screen.getByText("TTS 监控")).toBeInTheDocument();
-  });
-
-  it("renders TTS 配置 and TTS 监控 in sub-nav when at /config", () => {
+  it("renders TTS 配置 in sub-nav when at /config", () => {
     renderWithRouter("/config");
     expect(screen.getByText("TTS 配置")).toBeInTheDocument();
-    expect(screen.getByText("TTS 监控")).toBeInTheDocument();
   });
 
   it("does not render sub-nav for non-config paths", () => {
     renderWithRouter("/");
     expect(screen.queryByText("TTS 配置")).not.toBeInTheDocument();
-    expect(screen.queryByText("TTS 监控")).not.toBeInTheDocument();
     expect(screen.queryByText("系统配置")).not.toBeInTheDocument();
   });
 

@@ -62,37 +62,6 @@ class TestTTSConfigBlackBox:
             assert "note" in voice
 
 
-class TestTTSMetricsBlackBox:
-    def test_get_metrics_returns_required_fields(self, client):
-        response = client.get("/api/tts/metrics")
-        assert response.status_code == 200
-        data = response.json()
-        required_fields = [
-            "time_range",
-            "total_requests",
-            "success_count",
-            "failure_count",
-            "success_rate",
-            "avg_latency_ms",
-            "error_distribution",
-            "voice_distribution",
-        ]
-        for field in required_fields:
-            assert field in data
-
-    def test_get_logs_returns_list(self, client):
-        response = client.get("/api/tts/logs")
-        assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-
-    def test_get_logs_with_limit(self, client):
-        response = client.get("/api/tts/logs?limit=5")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) <= 5
-
-
 class TestTTSPreviewBlackBox:
     def test_preview_without_api_key_returns_error(self, client, monkeypatch):
         monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
