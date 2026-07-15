@@ -196,11 +196,30 @@ async def index_assets(
     source_dir = shared_source_dir(root_dir)
     source_dir.mkdir(parents=True, exist_ok=True)
 
-    videos = [
-        f
-        for f in sorted(source_dir.iterdir())
-        if f.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv"}
-    ]
+    # 读取可选的 source_paths（Issue #144），只索引指定文件
+    body: dict = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    source_paths: list[str] | None = (
+        body.get("source_paths") if isinstance(body, dict) else None
+    )
+
+    if source_paths is not None:
+        videos = []
+        for name in source_paths:
+            safe = _sanitize_filename(name)
+            f = source_dir / safe
+            if f.exists() and f.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv"}:
+                videos.append(f)
+        videos.sort()
+    else:
+        videos = [
+            f
+            for f in sorted(source_dir.iterdir())
+            if f.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv"}
+        ]
 
     db_path = shared_asset_db_path(root_dir)
     indexed_sources: set[str] = set()

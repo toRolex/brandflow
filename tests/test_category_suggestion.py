@@ -3,18 +3,45 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
 
 
-def test_suggest_empty_library() -> None:
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def suggest_client() -> tuple[TestClient, Mock]:
+    """Create a TestClient with ``suggest_categories`` patched.
+
+    The mock is active for the duration of the test.  Assign
+    ``mock.return_value`` in each test to control what the route
+    returns, then call ``client.post(...)``.
+    """
+    target = "apps.control_plane.routes.category_suggestion.suggest_categories"
+    with patch(target) as mock:
+        app = create_app(root_dir=Path.cwd())
+        client = TestClient(app)
+        yield client, mock
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+def test_suggest_empty_library(suggest_client: tuple[TestClient, Mock]) -> None:
     """POST /api/assets/categories/suggest returns ``{"suggestions": []}``
     when there are no assets in the library, instead of raising an error.
     """
-    mock_empty_result = {
+    client, mock = suggest_client
+    mock.return_value = {
         "categories": [],
         "sampled_assets": 0,
         "model_used": "",
@@ -22,12 +49,7 @@ def test_suggest_empty_library() -> None:
         "errors": ["No available assets found in the library"],
     }
 
-    target = "apps.control_plane.routes.category_suggestion.suggest_categories"
-
-    with patch(target, return_value=mock_empty_result):
-        app = create_app(root_dir=Path.cwd())
-        client = TestClient(app)
-        resp = client.post("/api/assets/categories/suggest", json={})
+    resp = client.post("/api/assets/categories/suggest", json={})
 
     assert resp.status_code == 200
     data = resp.json()
@@ -43,14 +65,17 @@ def test_suggest_empty_library() -> None:
     assert len(suggestions) == 0, "Empty library should produce empty suggestions list"
 
 
-def test_suggest_response_contract() -> None:
+def test_suggest_response_contract(
+    suggest_client: tuple[TestClient, Mock],
+) -> None:
     """POST /api/assets/categories/suggest returns ``{"suggestions": [...]}``
     with each item containing ``label``/``description``/``vision_prompt``.
 
     This test validates the backend response matches the frontend
     ``SuggestCategory`` type and the ``api.suggestCategories()`` caller.
     """
-    mock_suggest_result = {
+    client, mock = suggest_client
+    mock.return_value = {
         "categories": [
             {
                 "id": "product_display",
@@ -71,12 +96,7 @@ def test_suggest_response_contract() -> None:
         "errors": [],
     }
 
-    target = "apps.control_plane.routes.category_suggestion.suggest_categories"
-
-    with patch(target, return_value=mock_suggest_result):
-        app = create_app(root_dir=Path.cwd())
-        client = TestClient(app)
-        resp = client.post("/api/assets/categories/suggest", json={})
+    resp = client.post("/api/assets/categories/suggest", json={})
 
     assert resp.status_code == 200
     data = resp.json()
@@ -108,3 +128,77 @@ def test_suggest_response_contract() -> None:
     assert suggestions[1]["label"] == "使用场景"
     assert suggestions[1]["description"] == "用户实际使用产品的画面"
     assert suggestions[1]["vision_prompt"] == "person using the product"
+
+
+def test_suggest_empty_body_returns_200(
+    suggest_client: tuple[TestClient, Mock],
+) -> None:
+    """POST with empty JSON body must be accepted and use defaults."""
+    client, mock = suggest_client
+    mock.return_value = {
+        "categories": [],
+        "sampled_assets": 0,
+        "model_used": "default-model",
+        "descriptions": [],
+        "errors": ["No available assets found in the library"],
+    }
+
+    resp = client.post("/api/assets/categories/suggest", json={})
+
+    assert resp.status_code == 200
+    mock.assert_called_once()
+    data = resp.json()
+    assert "suggestions" in data
+    assert "errors" in data
+    assert data["errors"] == ["No available assets found in the library"]
+
+
+def test_suggest_truly_empty_body(
+    suggest_client: tuple[TestClient, Mock],
+) -> None:
+    """POST with truly empty body (``content=b""``) must return 200
+    with ``suggestions`` and ``errors`` keys.
+    """
+    client, mock = suggest_client
+    mock.return_value = {
+        "categories": [],
+        "sampled_assets": 0,
+        "model_used": "default-model",
+        "descriptions": [],
+        "errors": ["No available assets found in the library"],
+    }
+
+    resp = client.post(
+        "/api/assets/categories/suggest",
+        content=b"",
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert resp.status_code == 200
+    mock.assert_called_once()
+    data = resp.json()
+    assert "suggestions" in data
+    assert "errors" in data
+
+
+def test_suggest_errors_are_returned(
+    suggest_client: tuple[TestClient, Mock],
+) -> None:
+    """Backend errors are surfaced in the response ``errors`` array."""
+    client, mock = suggest_client
+    mock.return_value = {
+        "categories": [
+            {"id": "a", "name": "A", "description": "desc", "vision_prompt": "prompt"},
+        ],
+        "sampled_assets": 3,
+        "model_used": "model",
+        "descriptions": ["d1"],
+        "errors": ["Vision API 超时", "部分素材无法读取"],
+    }
+
+    resp = client.post("/api/assets/categories/suggest", json={})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["suggestions"]
+    assert data["errors"] == ["Vision API 超时", "部分素材无法读取"]

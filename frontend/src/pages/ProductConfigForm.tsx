@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../api/client";
 import { useProducts } from "../ProductContext";
-import type { CategoryConfig, ProductConfig, SuggestCategory } from "../types";
+import { useCategorySuggestions, generateCategoryId } from "../hooks/useCategorySuggestions";
+import type { CategoryConfig, ProductConfig } from "../types";
 
 interface FormErrors {
   default_name?: string;
@@ -16,15 +17,6 @@ interface CatFormData {
 
 interface CatFormErrors {
   name?: string;
-}
-
-/** Generate a stable machine-readable id from a category name. */
-function generateCategoryId(name: string): string {
-  const cleaned = name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-  if (!cleaned.replace(/_/g, "")) {
-    return `cat_${Date.now().toString(36)}`;
-  }
-  return cleaned;
 }
 
 const EMPTY_CAT_FORM: CatFormData = { name: "", description: "", vision_prompt: "" };
@@ -69,12 +61,6 @@ const hintStyle = {
   color: "var(--text-tertiary)",
 } as React.CSSProperties;
 
-const errorTextStyle = {
-  marginTop: "4px",
-  fontSize: "var(--font-size-sm)",
-  color: "var(--danger)",
-} as React.CSSProperties;
-
 export default function ProductConfigForm() {
   const { products, activeProductId, activeProductName, refreshProducts, createProduct, renameProduct, deleteProduct } = useProducts();
   const [config, setConfig] = useState<ProductConfig>(DEFAULT_CONFIG);
@@ -93,11 +79,39 @@ export default function ProductConfigForm() {
   const [editingCatIndex, setEditingCatIndex] = useState<number | null>(null);
   const [catFormData, setCatFormData] = useState<CatFormData>(EMPTY_CAT_FORM);
   const [catFormErrors, setCatFormErrors] = useState<CatFormErrors>({});
-  const [suggestions, setSuggestions] = useState<SuggestCategory[] | null>(null);
-  const [pendingSuggestionNames, setPendingSuggestionNames] = useState<Set<string>>(new Set());
-  const [suggestLoading, setSuggestLoading] = useState(false);
 
   const categories: CategoryConfig[] = (config.categories as CategoryConfig[]) ?? [];
+
+  const onConfirmSuggestions = useCallback(async (merged: CategoryConfig[]) => {
+    setSaving(true);
+    setSaveMsg(null);
+    const updatedConfig = { ...config, categories: merged };
+    try {
+      let result: ProductConfig;
+      if (editingProductId && editingProductId !== activeProductId) {
+        result = await api.saveProductConfigById(editingProductId, updatedConfig);
+      } else {
+        result = await api.saveProductConfig(updatedConfig);
+      }
+      setConfig(result);
+      setSaveMsg("分类已更新");
+      setTimeout(() => setSaveMsg(null), 3000);
+    } catch {
+      setSaveMsg("保存失败");
+    }
+    setSaving(false);
+  }, [config, editingProductId, activeProductId]);
+
+  const {
+    suggestions,
+    suggestLoading,
+    suggestError,
+    pendingSuggestionNames,
+    handleSuggest,
+    toggleSuggestion,
+    confirmSuggestions,
+    cancelSuggestions,
+  } = useCategorySuggestions(categories, onConfirmSuggestions);
 
   const loadConfig = useCallback(async (productId?: string) => {
     setLoading(true);
@@ -263,76 +277,6 @@ export default function ProductConfigForm() {
     await handleSaveCategories(updated);
   };
 
-  const handleSuggest = async () => {
-    setSuggestLoading(true);
-    setSuggestions(null);
-    try {
-      const result = await api.suggestCategories();
-      setSuggestions(result.suggestions);
-      setPendingSuggestionNames(new Set(result.suggestions.map((s) => s.label)));
-    } catch {
-      setSaveMsg("获取 AI 建议失败");
-      setTimeout(() => setSaveMsg(null), 3000);
-    }
-    setSuggestLoading(false);
-  };
-
-  const toggleSuggestion = (label: string) => {
-    setPendingSuggestionNames((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) {
-        next.delete(label);
-      } else {
-        next.add(label);
-      }
-      return next;
-    });
-  };
-
-  const confirmSuggestions = async () => {
-    if (!suggestions) return;
-    setSaving(true);
-    setSaveMsg(null);
-
-    const checked = suggestions.filter((s) => pendingSuggestionNames.has(s.label));
-    const newCategories: CategoryConfig[] = checked.map((s) => ({
-      id: generateCategoryId(s.label),
-      name: s.label,
-      description: s.description,
-      vision_prompt: s.vision_prompt,
-    }));
-
-    // Merge with existing categories, avoid duplicates by id then by name
-    const existingIds = new Set(categories.map((c) => c.id));
-    const existingNames = new Set(categories.map((c) => c.name));
-    const merged = [
-      ...categories,
-      ...newCategories.filter((c) => !existingIds.has(c.id) && !existingNames.has(c.name)),
-    ];
-
-    try {
-      const updatedConfig = { ...config, categories: merged };
-      let result: ProductConfig;
-      if (editingProductId && editingProductId !== activeProductId) {
-        result = await api.saveProductConfigById(editingProductId, updatedConfig);
-      } else {
-        result = await api.saveProductConfig(updatedConfig);
-      }
-      setConfig(result);
-      setSuggestions(null);
-      setSaveMsg("分类已更新");
-      setTimeout(() => setSaveMsg(null), 3000);
-    } catch {
-      setSaveMsg("保存失败");
-    }
-    setSaving(false);
-  };
-
-  const cancelSuggestions = () => {
-    setSuggestions(null);
-    setPendingSuggestionNames(new Set());
-  };
-
   if (loading) {
     return <div className="text-center py-12" style={{ color: "var(--text-secondary)" }}>加载配置中...</div>;
   }
@@ -435,34 +379,18 @@ export default function ProductConfigForm() {
       </div>
 
       {loadError && (
-        <div
-          className="mb-4 px-4 py-3 rounded-lg text-sm"
-          style={{
-            background: "var(--danger-bg)",
-            borderColor: "var(--danger-border)",
-            color: "var(--danger)",
-          }}
-        >
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]">
           {loadError}
         </div>
       )}
 
       {saveMsg && (
         <div
-          className="mb-4 px-4 py-3 rounded-lg text-sm"
-          style={
+          className={`mb-4 px-4 py-3 rounded-lg text-sm ${
             saveMsg.includes("失败")
-              ? {
-                  background: "var(--danger-bg)",
-                  borderColor: "var(--danger-border)",
-                  color: "var(--danger)",
-                }
-              : {
-                  background: "var(--success-bg)",
-                  borderColor: "var(--success-border)",
-                  color: "var(--success)",
-                }
-          }
+              ? "bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]"
+              : "bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success)]"
+          }`}
         >
           {saveMsg}
         </div>
@@ -643,7 +571,7 @@ export default function ProductConfigForm() {
                       onChange={(e) => updateField("default_name", e.target.value)}
                     />
                     {errors.default_name && (
-                      <p style={errorTextStyle}>{errors.default_name}</p>
+                      <p className="mt-1 text-xs text-[var(--danger)]">{errors.default_name}</p>
                     )}
                     <p style={hintStyle}>
                       用于脚本生成和素材检索的默认产品名
@@ -668,7 +596,7 @@ export default function ProductConfigForm() {
                       onChange={(e) => updateField("default_brand", e.target.value)}
                     />
                     {errors.default_brand && (
-                      <p style={errorTextStyle}>{errors.default_brand}</p>
+                      <p className="mt-1 text-xs text-[var(--danger)]">{errors.default_brand}</p>
                     )}
                     <p style={hintStyle}>
                       品牌名，用于脚本生成
@@ -817,6 +745,12 @@ export default function ProductConfigForm() {
               </div>
             )}
 
+            {suggestError && (
+              <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger)]">
+                {suggestError}
+              </div>
+            )}
+
             {categories.length === 0 ? (
               <div className="text-center py-8" style={{ color: "var(--text-tertiary)" }}>
                 暂无分类配置，点击"新增分类"添加
@@ -908,7 +842,7 @@ export default function ProductConfigForm() {
                       }}
                     />
                     {catFormErrors.name && (
-                      <p style={errorTextStyle}>{catFormErrors.name}</p>
+                      <p className="mt-1 text-xs text-[var(--danger)]">{catFormErrors.name}</p>
                     )}
                   </div>
                   <div>
