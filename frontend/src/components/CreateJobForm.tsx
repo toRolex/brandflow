@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { ProductionMode, MusicTrack, ScriptTemplate } from "../types";
 import { api } from "../api/client";
 import { PLATFORMS } from "../constants/platforms";
@@ -62,8 +62,6 @@ export interface SingleJobFormData {
   skip_subtitle: boolean;
   cover_title_text: string;
   cover_highlight_words: string;
-  tts_model?: string;
-  tts_voice?: string;
 }
 
 export default function CreateJobForm(props: CreateJobFormProps) {
@@ -83,40 +81,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 
   const [coverTitleCooldown, setCoverTitleCooldown] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [ttsVoices, setTtsVoices] = useState<Array<{ id: string; label: string; note: string; model: string }>>([]);
-  const [ttsVoice, setTtsVoice] = useState("");
-  const [ttsModel, setTtsModel] = useState("");
-  const [ttsVoicesLoading, setTtsVoicesLoading] = useState(false);
   const isImport = productionMode === "import";
-
-  // Load TTS voices for a given model/provider
-  const loadTTSVoices = async (model?: string) => {
-    setTtsVoicesLoading(true);
-    try {
-      let provider = "mimo";
-      let modelParam: string | undefined;
-      if (model === "qwen3-tts-instruct-flash") {
-        provider = "qwen";
-        modelParam = model;
-      }
-      const res = await api.getTTSVoices(provider, modelParam);
-      setTtsVoices(res.preset_voices);
-    } catch {
-      onError("无法加载 TTS 音色列表");
-    } finally {
-      setTtsVoicesLoading(false);
-    }
-  };
-
-  // Load default TTS voices on mount
-  useEffect(() => { loadTTSVoices(); }, []);
-
-  // Handle model change: reload voices and reset voice selection
-  const handleTtsModelChange = async (model: string) => {
-    setTtsModel(model);
-    setTtsVoice("");
-    await loadTTSVoices(model || undefined);
-  };
 
   const handleApplyTemplate = async () => {
     if (!selectedTemplateId) return;
@@ -166,8 +131,6 @@ export default function CreateJobForm(props: CreateJobFormProps) {
       skip_subtitle: skipSubtitle,
       cover_title_text: coverTitleText.trim(),
       cover_highlight_words: coverHighlightWords,
-      tts_model: ttsModel || undefined,
-      tts_voice: ttsVoice || undefined,
     });
   };
 
@@ -446,47 +409,6 @@ export default function CreateJobForm(props: CreateJobFormProps) {
               上传音频
             </label>
           </div>
-          {audioMode === "tts" && (
-            <div className="ml-2 mb-3 flex items-center gap-3 flex-wrap">
-              <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                TTS 模型
-                <select
-                  className="border rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
-                  style={{ background: "var(--bg-input)", borderColor: "var(--border-default)", color: "var(--text-primary)" }}
-                  value={ttsModel}
-                  onChange={(e) => handleTtsModelChange(e.target.value)}
-                  disabled={ttsVoicesLoading}
-                >
-                  <option value="">-- 使用默认模型 --</option>
-                  <option value="mimo-v2.5-tts">MiMo TTS (mimo-v2.5-tts)</option>
-                  <option value="qwen3-tts-instruct-flash">通义千问 TTS (qwen3-tts-instruct-flash)</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                TTS 音色
-                <select
-                  className="border rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
-                  style={{ background: "var(--bg-input)", borderColor: "var(--border-default)", color: "var(--text-primary)" }}
-                  value={ttsVoice}
-                  onChange={(e) => setTtsVoice(e.target.value)}
-                  disabled={ttsVoicesLoading}
-                >
-                  <option value="">-- 使用默认音色 --</option>
-                  {ttsVoices.map((v) => (
-                    <option key={v.id} value={v.id}>{v.label}</option>
-                  ))}
-                </select>
-              </label>
-              {ttsVoice && (
-                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  {ttsVoices.find((v) => v.id === ttsVoice)?.note || ""}
-                </span>
-              )}
-              {ttsVoicesLoading && (
-                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>加载中...</span>
-              )}
-            </div>
-          )}
           {audioMode === "upload" && (
             <div className="flex items-center gap-3">
               <label
