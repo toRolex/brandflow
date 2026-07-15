@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import requests
 import shutil
 import sqlite3
 import tempfile
@@ -281,18 +282,16 @@ async def index_assets(
     vision_config = resolve_vision_config(
         {}, secrets=secret_store, reader=config_reader
     )
-    # 仅当 Vision 被显式配置（有 api_key）时才校验完整性
-    if vision_config.get("api_key"):
-        try:
-            validate_vision_config(config_reader, secret_store)
-        except VisionConfigError as e:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "code": "vision_config_invalid",
-                    "message": str(e),
-                },
-            )
+    try:
+        validate_vision_config(config_reader, secret_store)
+    except VisionConfigError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "vision_config_invalid",
+                "message": str(e),
+            },
+        )
     category_names = [
         c.name for c in get_categories(config_reader, product_id=active_id or None)
     ]
@@ -359,9 +358,11 @@ async def _run_index_task(
                 reader=ConfigReader(config_dir=str(root_dir / "config")),
             )
 
-        # 仅当 Vision 被显式配置（有 api_key）时才校验完整性
-        if vision_config.get("api_key"):
+        # 索引前必须校验 Vision 配置完整性
+        try:
             validate_vision_config(config_reader, secret_store)
+        except VisionConfigError as e:
+            raise RuntimeError(f"Vision 配置无效: {e}")
 
         ffmpeg_path = _resolve_ffmpeg_path()
         indexer = AssetIndexer(
@@ -506,7 +507,7 @@ def _reclassify_asset_internal(
     """Shared reclassify logic: validate config, extract frame, call Vision.
 
     Returns (category, confidence) on success.
-    Raises HTTPException on failure (vision_config_invalid, zero_confidence).
+    Raises HTTPException on failure (vision_config_invalid, vision_key_invalid, zero_confidence).
     Does NOT update the DB — caller's responsibility.
     """
     # 1. Vision config pre-check
@@ -538,7 +539,26 @@ def _reclassify_asset_internal(
             model=vision_config.get("model", ""),
             provider=vision_config.get("provider", ""),
         )
-        result = client.classify_frame(frame_path)
+        try:
+            result = client.classify_frame(frame_path)
+        except requests.exceptions.HTTPError as e:
+            status_code = getattr(e.response, "status_code", 0)
+            if status_code in (401, 403):
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "vision_key_invalid",
+                        "message": "Vision API key 无效或鉴权失败",
+                    },
+                ) from e
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "vision_request_failed",
+                    "message": f"Vision 请求失败: {e}",
+                },
+            ) from e
+
         category = result.get("category", "产品特写")
         confidence = float(result.get("confidence", 0.0))
 
@@ -1139,7 +1159,26 @@ def _reclassify_single_asset(
             model=vision_config.get("model", ""),
             provider=vision_config.get("provider", ""),
         )
-        result = client.classify_frame(frame_path)
+        try:
+            result = client.classify_frame(frame_path)
+        except requests.exceptions.HTTPError as e:
+            status_code = getattr(e.response, "status_code", 0)
+            if status_code in (401, 403):
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "vision_key_invalid",
+                        "message": "Vision API key 无效或鉴权失败",
+                    },
+                ) from e
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "vision_request_failed",
+                    "message": f"Vision 请求失败: {e}",
+                },
+            ) from e
+
         category = result.get("category", "产品特写")
         confidence = float(result.get("confidence", 0.0))
 
