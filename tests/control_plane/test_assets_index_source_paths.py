@@ -107,7 +107,9 @@ def test_index_source_paths_skips_nonexistent(tmp_path: Path, monkeypatch) -> No
     assert resp.json()["indexed"] == 1
 
 
-def test_index_source_paths_empty_produces_no_videos(tmp_path: Path, monkeypatch) -> None:
+def test_index_source_paths_empty_produces_no_videos(
+    tmp_path: Path, monkeypatch
+) -> None:
     """source_paths 为空列表时，不索引任何文件。"""
     client = _client(tmp_path)
     source_dir = tmp_path / "workspace" / "shared_assets" / "source"
