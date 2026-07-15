@@ -4,15 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import shutil
 import sqlite3
+import tempfile
 
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 
 from packages.pipeline_services.asset_library.category_config import get_categories
-from packages.pipeline_services.asset_library.vision_client import resolve_vision_config
+from packages.pipeline_services.asset_library.vision_client import (
+    VisionClient,
+    resolve_vision_config,
+)
 from fastapi.responses import FileResponse, StreamingResponse
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
@@ -32,6 +37,8 @@ from packages.pipeline_services.asset_library.vision_utils import (
     validate_vision_config,
 )
 from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/assets", tags=["api-assets"])
 
@@ -953,3 +960,87 @@ async def delete_asset(request: Request, asset_id: str):
     conn.close()
 
     return {"status": "deleted"}
+
+
+@router.post("/{asset_id}/reclassify")
+async def reclassify_asset(request: Request, asset_id: str):
+    """POST /api/assets/{asset_id}/reclassify — 单素材重跑 Vision 分类。
+
+    Vision 配置预检 → 提取帧 → Vision 分类 → 更新素材。
+    """
+    root_dir: Path = request.app.state.root_dir
+    config_reader = request.app.state.config_reader
+    secret_store = request.app.state.secret_store
+
+    # 1. Vision 配置预检
+    try:
+        validate_vision_config(config_reader, secret_store)
+    except VisionConfigError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "vision_config_invalid", "message": str(e)},
+        )
+
+    # 2. 获取素材
+    db_path = shared_asset_db_path(root_dir)
+    if not db_path.exists():
+        raise HTTPException(status_code=404, detail="asset db not found")
+
+    repo = AssetRepository(db_path)
+    record = repo.query_one(asset_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="asset not found")
+
+    video_path = Path(record.file_path)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="video file not found")
+
+    # 3. 提取帧并调用 Vision 分类
+    temp_dir = Path(tempfile.mkdtemp(prefix="reclassify_"))
+    try:
+        frame_path = temp_dir / "frame.jpg"
+        generator = ThumbnailGenerator()
+        if not generator.generate(video_path, frame_path):
+            raise HTTPException(status_code=500, detail="failed to extract video frame")
+
+        vision_config = resolve_vision_config(
+            {}, secrets=secret_store, reader=config_reader
+        )
+        client = VisionClient(
+            api_key=vision_config.get("api_key", ""),
+            endpoint=vision_config.get("endpoint", ""),
+            model=vision_config.get("model", ""),
+            provider=vision_config.get("provider", ""),
+        )
+        result = client.classify_frame(frame_path)
+        category = result.get("category", "产品特写")
+        confidence = float(result.get("confidence", 0.0))
+
+        if confidence == 0:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "zero_confidence", "message": "Vision 返回置信度为 0"},
+            )
+
+        # 4. 更新素材
+        status = "available"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(
+            "UPDATE assets SET category = ?, confidence = ?, status = ? WHERE asset_id = ?",
+            (category, confidence, status, asset_id),
+        )
+        conn.commit()
+        conn.close()
+
+        logger.info(
+            "[Reclassify] %s → %s (confidence: %.2f)", asset_id, category, confidence
+        )
+
+        return {
+            "asset_id": asset_id,
+            "category": category,
+            "confidence": confidence,
+            "status": status,
+        }
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
