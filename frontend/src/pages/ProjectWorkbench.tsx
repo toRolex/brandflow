@@ -150,8 +150,6 @@ export default function ProjectWorkbench() {
         cover_title: form.cover_title_text
           ? { text: form.cover_title_text, highlight_words: form.cover_highlight_words.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
           : undefined,
-        tts_model: form.tts_model || undefined,
-        tts_voice: form.tts_voice || undefined,
       });
       if (form.audio_source === "upload" && form.audioFile) {
         try {
@@ -173,8 +171,6 @@ export default function ProjectWorkbench() {
     brand?: string;
     platforms: string[];
     autoApprove: boolean;
-    ttsModel?: string;
-    ttsVoice?: string;
     jobs: BatchConfig[];
   }) => {
     if (!id) return;
@@ -196,8 +192,6 @@ export default function ProjectWorkbench() {
           cover_title: c.coverTitleText.trim()
             ? { text: c.coverTitleText.trim(), highlight_words: c.coverHighlightWords.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
             : undefined,
-          tts_model: payload.ttsModel || undefined,
-          tts_voice: payload.ttsVoice || undefined,
         })),
       });
       load();
