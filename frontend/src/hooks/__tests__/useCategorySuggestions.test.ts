@@ -15,10 +15,6 @@ const MOCK_SUGGESTIONS: SuggestCategory[] = [
   { label: "调味过程", description: "加入调料的过程", vision_prompt: "seasoning process" },
 ];
 
-const MOCK_CATEGORIES: CategoryConfig[] = [
-  { id: "chanpinzhanshi", name: "产品展示", description: "产品特写", vision_prompt: "product showcase" },
-];
-
 describe("generateCategoryId", () => {
   it("英文名生成有效 id", () => {
     expect(generateCategoryId("Test Category")).toBe("test_category");
