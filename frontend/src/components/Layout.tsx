@@ -160,6 +160,8 @@ const CONFIG_ITEMS = [
   { path: "/system/config/templates", label: "脚本模板" },
   { path: "/system/config/quality", label: "质检规则" },
   { path: "/system/config/knowledge", label: "知识库" },
+  { path: "/tts-config", label: "TTS 配置" },
+  { path: "/tts-monitor", label: "TTS 监控" },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -168,7 +170,10 @@ export default function Layout({ children }: { children: ReactNode }) {
   const active = location.pathname;
 
   const inSystemConfig =
-    active.startsWith("/system/config/") || active === "/config";
+    active.startsWith("/system/config/") ||
+    active === "/config" ||
+    active === "/tts-config" ||
+    active === "/tts-monitor";
 
   return (
     <div
