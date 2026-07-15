@@ -99,12 +99,12 @@ export default function SmartAssetLibrary({ projectId }: Props) {
     void loadAssets();
   }, [loadAssets]);
 
-  // Initialize product filter from active product context
+  // Initialize product filter from active product context on mount
   useEffect(() => {
     if (activeProductName && !filters.product) {
       setFilters((f) => ({ ...f, product: activeProductName }));
     }
-  }, [activeProductName, filters.product]);
+  }, [activeProductName]);
 
   const productFilteredAssets = useMemo(() => {
     if (!filters.product) return assets;
