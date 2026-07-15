@@ -30,7 +30,11 @@ from packages.file_store.paths import (
     shared_indexed_dir,
     shared_source_dir,
 )
-from packages.pipeline_services.asset_library import AssetIndexer, AssetRepository
+from packages.pipeline_services.asset_library import (
+    AssetIndexer,
+    AssetRecord,
+    AssetRepository,
+)
 from packages.pipeline_services.asset_library.thumbnail import ThumbnailGenerator
 from packages.pipeline_services.asset_library.vision_utils import (
     VisionConfigError,
@@ -482,6 +486,76 @@ async def batch_update_categories(request: Request):
     return {"updated": updated}
 
 
+def _needs_reclassify(record: AssetRecord, root_dir: Path) -> bool:
+    """Return True if this asset needs reclassification before enable."""
+    if record.status == "classification_failed":
+        return True
+    if record.confidence <= 0:
+        return True
+    valid_categories = _get_valid_category_names(root_dir)
+    if record.category not in valid_categories:
+        return True
+    return False
+
+
+def _reclassify_asset_internal(
+    config_reader: ConfigReader,
+    secret_store: SecretStore,
+    record: AssetRecord,
+) -> tuple[str, float]:
+    """Shared reclassify logic: validate config, extract frame, call Vision.
+
+    Returns (category, confidence) on success.
+    Raises HTTPException on failure (vision_config_invalid, zero_confidence).
+    Does NOT update the DB — caller's responsibility.
+    """
+    # 1. Vision config pre-check
+    try:
+        validate_vision_config(config_reader, secret_store)
+    except VisionConfigError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "vision_config_invalid", "message": str(e)},
+        )
+
+    video_path = Path(record.file_path)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="video file not found")
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="reclassify_"))
+    try:
+        frame_path = temp_dir / "frame.jpg"
+        generator = ThumbnailGenerator()
+        if not generator.generate(video_path, frame_path):
+            raise HTTPException(status_code=500, detail="failed to extract video frame")
+
+        vision_config = resolve_vision_config(
+            {}, secrets=secret_store, reader=config_reader
+        )
+        client = VisionClient(
+            api_key=vision_config.get("api_key", ""),
+            endpoint=vision_config.get("endpoint", ""),
+            model=vision_config.get("model", ""),
+            provider=vision_config.get("provider", ""),
+        )
+        result = client.classify_frame(frame_path)
+        category = result.get("category", "产品特写")
+        confidence = float(result.get("confidence", 0.0))
+
+        if confidence == 0:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "zero_confidence",
+                    "message": "Vision 返回置信度为 0",
+                },
+            )
+
+        return category, confidence
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 @router.patch("/batch")
 async def batch_update_status(request: Request):
     body = await request.json()
@@ -507,11 +581,57 @@ async def batch_update_status(request: Request):
     if not db_path.exists():
         return {"updated": 0}
 
+    if status != "available":
+        # Simple batch update for non-available statuses
+        conn = sqlite3.connect(str(db_path))
+        updated = 0
+        for aid in asset_ids:
+            cursor = conn.execute(
+                "UPDATE assets SET status = ? WHERE asset_id = ?", (status, aid)
+            )
+            updated += cursor.rowcount
+        conn.commit()
+        conn.close()
+        return {"updated": updated}
+
+    # status == "available": check each asset, auto-reclassify if needed
+    config_reader = request.app.state.config_reader
+    secret_store = request.app.state.secret_store
+
+    repo = AssetRepository(db_path)
+
+    # First pass: check all assets
+    updates: list[tuple[str, str, float]] = []
+    for aid in asset_ids:
+        record = repo.query_one(aid)
+        if not record:
+            continue
+
+        if _needs_reclassify(record, root_dir):
+            category, confidence = _reclassify_asset_internal(
+                config_reader, secret_store, record
+            )
+            # Validate result category against active list
+            valid_categories = _get_valid_category_names(root_dir)
+            if category not in valid_categories:
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "unknown_category",
+                        "message": f"Vision 返回的分类 '{category}' 不在有效分类列表中",
+                    },
+                )
+            updates.append((aid, category, confidence))
+        else:
+            updates.append((aid, record.category, record.confidence))
+
+    # Second pass: apply all updates
     conn = sqlite3.connect(str(db_path))
     updated = 0
-    for aid in asset_ids:
+    for aid, category, confidence in updates:
         cursor = conn.execute(
-            "UPDATE assets SET status = ? WHERE asset_id = ?", (status, aid)
+            "UPDATE assets SET status = ?, category = ?, confidence = ? WHERE asset_id = ?",
+            ("available", category, confidence, aid),
         )
         updated += cursor.rowcount
     conn.commit()
@@ -602,6 +722,40 @@ async def patch_asset_status(request: Request, asset_id: str):
     db_path = shared_asset_db_path(root_dir)
     if not db_path.exists():
         return {"updated": 0}
+
+    repo = AssetRepository(db_path)
+    record = repo.query_one(asset_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="asset not found")
+
+    # Auto-reclassify when enabling on a failing / low-confidence / invalid-category asset
+    if status == "available" and _needs_reclassify(record, root_dir):
+        config_reader = request.app.state.config_reader
+        secret_store = request.app.state.secret_store
+
+        category, confidence = _reclassify_asset_internal(
+            config_reader, secret_store, record
+        )
+
+        # Validate result category against active list
+        valid_categories = _get_valid_category_names(root_dir)
+        if category not in valid_categories:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "unknown_category",
+                    "message": f"Vision 返回的分类 '{category}' 不在有效分类列表中",
+                },
+            )
+
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(
+            "UPDATE assets SET status = ?, category = ?, confidence = ? WHERE asset_id = ?",
+            ("available", category, confidence, asset_id),
+        )
+        conn.commit()
+        conn.close()
+        return {"updated": 1}
 
     conn = sqlite3.connect(str(db_path))
     cursor = conn.execute(
@@ -1138,7 +1292,6 @@ async def reclassify_asset(request: Request, asset_id: str):
             detail={"code": "vision_config_invalid", "message": str(e)},
         )
 
-    # 2. 获取素材
     db_path = shared_asset_db_path(root_dir)
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
@@ -1152,7 +1305,6 @@ async def reclassify_asset(request: Request, asset_id: str):
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="video file not found")
 
-    # 3. 共享分类逻辑
     vision_config = resolve_vision_config(
         {}, secrets=secret_store, reader=config_reader
     )
