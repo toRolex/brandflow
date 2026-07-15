@@ -174,7 +174,7 @@ export const api = {
     ),
 
   // Jobs
-  createJob: (projectId: string, body: { product: string; brand?: string; platforms: string[]; name?: string; mode?: import("../types").ProductionMode; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string; cover_title?: { text: string; highlight_words?: string[] } | null; tts_model?: string; tts_voice?: string }) =>
+  createJob: (projectId: string, body: { product: string; brand?: string; platforms: string[]; name?: string; mode?: import("../types").ProductionMode; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string; cover_title?: { text: string; highlight_words?: string[] } | null }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {
       method: "POST",
       body: JSON.stringify(body),
