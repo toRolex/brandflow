@@ -18,8 +18,6 @@ interface BatchCreateFormProps {
     brand?: string;
     platforms: string[];
     autoApprove: boolean;
-    ttsModel?: string;
-    ttsVoice?: string;
     jobs: BatchConfig[];
   }) => Promise<void>;
   onError: (msg: string) => void;
@@ -40,39 +38,6 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
   const [batchSkipSubtitle, setBatchSkipSubtitle] = useState(false);
   const [batchCreating, setBatchCreating] = useState(false);
   const [batchCoverCooldown, setBatchCoverCooldown] = useState<Set<number>>(new Set());
-  const [batchTtsVoices, setBatchTtsVoices] = useState<Array<{ id: string; label: string; note: string; model: string }>>([]);
-  const [batchTtsModel, setBatchTtsModel] = useState("");
-  const [batchTtsVoice, setBatchTtsVoice] = useState("");
-  const [batchTtsVoicesLoading, setBatchTtsVoicesLoading] = useState(false);
-
-  // Load TTS voices for batch form (shared config)
-  const loadBatchTTSVoices = async (model?: string) => {
-    setBatchTtsVoicesLoading(true);
-    try {
-      let provider = "mimo";
-      let modelParam: string | undefined;
-      if (model === "qwen3-tts-instruct-flash") {
-        provider = "qwen";
-        modelParam = model;
-      }
-      const res = await api.getTTSVoices(provider, modelParam);
-      setBatchTtsVoices(res.preset_voices);
-    } catch {
-      onError("无法加载 TTS 音色列表");
-    } finally {
-      setBatchTtsVoicesLoading(false);
-    }
-  };
-
-  // Load default TTS voices on mount for batch
-  useEffect(() => { loadBatchTTSVoices(); }, []);
-
-  const handleBatchTtsModelChange = async (model: string) => {
-    setBatchTtsModel(model);
-    setBatchTtsVoice("");
-    await loadBatchTTSVoices(model || undefined);
-  };
-
   useEffect(() => {
     setBatchConfigs((prev) => {
       if (prev.length === batchCount) return prev;
@@ -113,8 +78,6 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
         brand: brand || undefined,
         platforms,
         autoApprove,
-        ttsModel: batchTtsModel || undefined,
-        ttsVoice: batchTtsVoice || undefined,
         jobs: batchConfigs,
       });
     } finally {
@@ -207,50 +170,6 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
           onError={onError}
         />
       ))}
-
-      {/* shared TTS config for all batch jobs */}
-      <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--border-default)" }}>
-        <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>TTS 配置（所有任务共享）</span>
-        <div className="flex items-center gap-3 flex-wrap mt-2">
-          <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-            TTS 模型
-            <select
-              className="border rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
-              style={{ background: "var(--bg-input)", borderColor: "var(--border-default)", color: "var(--text-primary)" }}
-              value={batchTtsModel}
-              onChange={(e) => handleBatchTtsModelChange(e.target.value)}
-              disabled={batchTtsVoicesLoading}
-            >
-              <option value="">-- 使用默认模型 --</option>
-              <option value="mimo-v2.5-tts">MiMo TTS (mimo-v2.5-tts)</option>
-              <option value="qwen3-tts-instruct-flash">通义千问 TTS (qwen3-tts-instruct-flash)</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-            TTS 音色
-            <select
-              className="border rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
-              style={{ background: "var(--bg-input)", borderColor: "var(--border-default)", color: "var(--text-primary)" }}
-              value={batchTtsVoice}
-              onChange={(e) => setBatchTtsVoice(e.target.value)}
-              disabled={batchTtsVoicesLoading}
-            >
-              <option value="">-- 使用默认音色 --</option>
-              {batchTtsVoices.map((v) => (
-                <option key={v.id} value={v.id}>{v.label}</option>
-              ))}
-            </select>
-          </label>
-          {batchTtsVoice && (
-            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-              {batchTtsVoices.find((v) => v.id === batchTtsVoice)?.note || ""}
-            </span>
-          )}
-          {batchTtsVoicesLoading && (
-            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>加载中...</span>
-          )}
-        </div>
-      </div>
 
       {/* batch global toggles */}
       <div className="mt-4 flex items-center gap-4">
