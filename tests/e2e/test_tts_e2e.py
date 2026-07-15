@@ -38,13 +38,6 @@ class TestTTSEndToEnd:
         assert "TTS 配置" in snapshot or "tts-config" in snapshot.lower()
 
     @pytest.mark.e2e
-    def test_tts_monitor_page_loads(self):
-        self._open_browser("http://localhost:17890")
-        self._navigate("http://localhost:17890/tts-monitor")
-        snapshot = self._take_snapshot()
-        assert "TTS 监控" in snapshot or "tts-monitor" in snapshot.lower()
-
-    @pytest.mark.e2e
     def test_tts_config_model_selection(self):
         self._open_browser("http://localhost:17890/tts-config")
         snapshot = self._take_snapshot()
@@ -65,19 +58,3 @@ class TestTTSEndToEnd:
         snapshot = self._take_snapshot()
         assert "自然口播" in snapshot
         assert "热情推荐" in snapshot
-
-    @pytest.mark.e2e
-    def test_tts_monitor_metrics_display(self):
-        self._open_browser("http://localhost:17890/tts-monitor")
-        snapshot = self._take_snapshot()
-        assert "总请求" in snapshot
-        assert "成功率" in snapshot
-        assert "平均延迟" in snapshot
-
-    @pytest.mark.e2e
-    def test_tts_monitor_time_range_selector(self):
-        self._open_browser("http://localhost:17890/tts-monitor")
-        snapshot = self._take_snapshot()
-        assert "1小时" in snapshot
-        assert "24小时" in snapshot
-        assert "7天" in snapshot

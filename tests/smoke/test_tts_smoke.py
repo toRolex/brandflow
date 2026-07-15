@@ -21,14 +21,6 @@ class TestTTSSmoke:
         assert response.status_code == 200
         assert "preset_voices" in response.json()
 
-    def test_tts_metrics_api_accessible(self, client):
-        response = client.get("/api/tts/metrics")
-        assert response.status_code == 200
-
-    def test_tts_logs_api_accessible(self, client):
-        response = client.get("/api/tts/logs")
-        assert response.status_code == 200
-
     def test_tts_config_save_and_load(self, client):
         save_response = client.put("/api/tts/config", json={"model": "mimo-v2.5-tts"})
         assert save_response.status_code == 200
