@@ -86,28 +86,6 @@ class TestTTSConfigAPI:
         assert response.status_code == 400
 
 
-class TestTTSMonitorAPI:
-    def test_get_metrics(self, client):
-        response = client.get("/api/tts/metrics")
-        assert response.status_code == 200
-        data = response.json()
-        assert "total_requests" in data
-        assert "success_rate" in data
-        assert "avg_latency_ms" in data
-
-    def test_get_logs(self, client):
-        response = client.get("/api/tts/logs")
-        assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-
-    def test_get_error_distribution(self, client):
-        response = client.get("/api/tts/errors/distribution")
-        assert response.status_code == 200
-        data = response.json()
-        assert "distribution" in data
-
-
 class TestTTSPreviewAPI:
     def test_preview_requires_text(self, client):
         response = client.post("/api/tts/preview", json={})

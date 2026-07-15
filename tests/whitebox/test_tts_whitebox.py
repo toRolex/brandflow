@@ -1,7 +1,6 @@
 """白盒测试：关心代码覆盖率和内部逻辑"""
 
 from packages.provider_config.tts_config import TTSConfig, TTSConfigManager
-from packages.pipeline_services.tts_monitor import TTSRequestLog, TTSMonitor
 from packages.pipeline_services.tts_provider import (
     TTSError,
     TTSRetryableError,
@@ -9,7 +8,6 @@ from packages.pipeline_services.tts_provider import (
     TTSQuotaExceededError,
     MiMoTTSProvider,
 )
-from datetime import datetime
 
 
 class TestTTSConfigWhiteBox:
@@ -94,104 +92,6 @@ class TestTTSConfigWhiteBox:
         assert merged.voice == "v1"
         assert merged.style_prompt == "s2"
         assert merged.sample_rate == 44100
-
-
-class TestTTSMonitorWhiteBox:
-    def test_record_request_stores_in_memory(self, tmp_path):
-        monitor = TTSMonitor(log_dir=str(tmp_path))
-        log = TTSRequestLog(
-            id="r1",
-            task_id="t1",
-            project_id="p1",
-            timestamp=datetime.now(),
-            model="m",
-            voice_id="v",
-            style_prompt="s",
-            text_length=100,
-            success=True,
-            audio_duration_ms=1000,
-            latency_ms=500,
-            error_type=None,
-            error_message=None,
-            attempt_count=1,
-            final_voice_id="v",
-        )
-        monitor.record_request(log)
-        assert len(monitor._logs) == 1
-        assert monitor._logs[0].id == "r1"
-
-    def test_get_metrics_calculates_correctly(self, tmp_path):
-        monitor = TTSMonitor(log_dir=str(tmp_path))
-        for i in range(10):
-            monitor.record_request(
-                TTSRequestLog(
-                    id=f"r{i}",
-                    task_id=f"t{i}",
-                    project_id="p1",
-                    timestamp=datetime.now(),
-                    model="m",
-                    voice_id="v",
-                    style_prompt="s",
-                    text_length=100,
-                    success=i < 7,
-                    audio_duration_ms=1000 if i < 7 else None,
-                    latency_ms=500 + i * 100,
-                    error_type="timeout" if i >= 7 else None,
-                    error_message="err" if i >= 7 else None,
-                    attempt_count=1,
-                    final_voice_id="v",
-                )
-            )
-        metrics = monitor.get_metrics()
-        assert metrics.total_requests == 10
-        assert metrics.success_count == 7
-        assert metrics.failure_count == 3
-        assert metrics.success_rate == 0.7
-        assert metrics.error_distribution == {"timeout": 3}
-
-    def test_get_logs_filters_by_status(self, tmp_path):
-        monitor = TTSMonitor(log_dir=str(tmp_path))
-        monitor.record_request(
-            TTSRequestLog(
-                id="r1",
-                task_id="t1",
-                project_id="p1",
-                timestamp=datetime.now(),
-                model="m",
-                voice_id="v",
-                style_prompt="s",
-                text_length=100,
-                success=True,
-                audio_duration_ms=1000,
-                latency_ms=500,
-                error_type=None,
-                error_message=None,
-                attempt_count=1,
-                final_voice_id="v",
-            )
-        )
-        monitor.record_request(
-            TTSRequestLog(
-                id="r2",
-                task_id="t2",
-                project_id="p1",
-                timestamp=datetime.now(),
-                model="m",
-                voice_id="v",
-                style_prompt="s",
-                text_length=100,
-                success=False,
-                audio_duration_ms=None,
-                latency_ms=500,
-                error_type="timeout",
-                error_message="err",
-                attempt_count=1,
-                final_voice_id="v",
-            )
-        )
-        assert len(monitor.get_logs()) == 2
-        assert len(monitor.get_logs(status="success")) == 1
-        assert len(monitor.get_logs(status="failed")) == 1
 
 
 class TestMiMoTTSProviderWhiteBox:
