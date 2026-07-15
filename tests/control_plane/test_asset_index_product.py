@@ -23,8 +23,17 @@ def _setup_source_videos(tmp_path: Path) -> Path:
     return source_dir
 
 
+def _mock_vision_config_ok(monkeypatch) -> None:
+    """Make validate_vision_config a no-op so product-resolution tests can focus."""
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.validate_vision_config",
+        lambda *a, **kw: None,
+    )
+
+
 def test_index_uses_explicit_product_param(tmp_path: Path, monkeypatch) -> None:
     """参数显式传入 product="零食测试" 时，AssetIndexer 使用该值。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     _setup_source_videos(tmp_path)
 
@@ -49,6 +58,7 @@ def test_index_uses_explicit_product_param(tmp_path: Path, monkeypatch) -> None:
 
 def test_index_falls_back_to_active_product(tmp_path: Path, monkeypatch) -> None:
     """未传 product 时，从 ConfigReader 活跃产品名读取。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     _setup_source_videos(tmp_path)
 
@@ -80,6 +90,7 @@ def test_index_falls_back_to_active_product(tmp_path: Path, monkeypatch) -> None
 
 def test_index_explicit_product_wins_over_config(tmp_path: Path, monkeypatch) -> None:
     """显式传入 product 时，忽略 ConfigReader 的值。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     _setup_source_videos(tmp_path)
 
@@ -113,6 +124,7 @@ def test_index_explicit_product_wins_over_config(tmp_path: Path, monkeypatch) ->
 
 def test_indexed_asset_has_non_empty_product(tmp_path: Path, monkeypatch) -> None:
     """索引后的素材 product 字段非空，可被 AssetRetriever 匹配。"""
+    _mock_vision_config_ok(monkeypatch)
     from packages.pipeline_services.asset_library.repository import AssetRepository
     from packages.file_store.paths import shared_asset_db_path
 
@@ -163,6 +175,7 @@ def test_indexed_asset_has_non_empty_product(tmp_path: Path, monkeypatch) -> Non
 
 def test_index_uses_resolve_product_name(tmp_path: Path, monkeypatch) -> None:
     """api_assets 应使用 resolve_product_name 做产品名解析。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     _setup_source_videos(tmp_path)
 
@@ -195,6 +208,7 @@ def test_index_uses_resolve_product_name(tmp_path: Path, monkeypatch) -> None:
 
 def test_index_falls_back_to_default_name(tmp_path: Path, monkeypatch) -> None:
     """name 为空但 default_name 有值时，素材入库应使用 default_name。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     _setup_source_videos(tmp_path)
 
@@ -226,6 +240,7 @@ def test_index_falls_back_to_default_name(tmp_path: Path, monkeypatch) -> None:
 
 def test_index_falls_back_to_id(tmp_path: Path, monkeypatch) -> None:
     """name 和 default_name 都为空时，素材入库应使用 product id。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     _setup_source_videos(tmp_path)
 
@@ -446,6 +461,73 @@ def test_async_index_task_fails_on_invalid_vision_config(tmp_path, monkeypatch):
     data = status_resp.json()
     assert data["status"] == "failed", (
         f"无效 Vision 配置时任务应失败，实际 status: {data['status']}, error: {data.get('error')}"
+    )
+    assert "Vision" in data.get("error", ""), (
+        f"错误信息应包含 Vision 相关描述，实际: {data.get('error')}"
+    )
+
+
+def test_sync_index_fails_when_vision_not_configured(tmp_path, monkeypatch):
+    """同步路径：Vision 完全未配置时索引任务应直接 422。"""
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    def _fake_resolve(providers_payload, secrets=None, reader=None):
+        return {
+            "provider": "",
+            "api_key": "",
+            "endpoint": "",
+            "model": "",
+        }
+
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        _fake_resolve,
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": False})
+
+    assert resp.status_code == 422, (
+        f"Vision 未配置时应返回 422，实际: {resp.status_code}, body: {resp.text}"
+    )
+    data = resp.json()
+    assert data["detail"]["code"] == "vision_config_invalid", (
+        f"响应应包含 detail.code=vision_config_invalid，实际: {data}"
+    )
+
+
+def test_async_index_fails_when_vision_not_configured(tmp_path, monkeypatch):
+    """异步路径：Vision 完全未配置时后台任务应标记为 FAILED。"""
+    import asyncio
+
+    client = _client(tmp_path)
+    _setup_source_videos(tmp_path)
+
+    def _fake_resolve(providers_payload, secrets=None, reader=None):
+        return {
+            "provider": "",
+            "api_key": "",
+            "endpoint": "",
+            "model": "",
+        }
+
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        _fake_resolve,
+    )
+
+    resp = client.post("/api/assets/index", params={"async_mode": True})
+
+    assert resp.status_code == 200
+    task_id = resp.json()["task_id"]
+
+    asyncio.run(asyncio.sleep(0.3))
+
+    status_resp = client.get(f"/api/assets/index/{task_id}/status")
+    assert status_resp.status_code == 200
+    data = status_resp.json()
+    assert data["status"] == "failed", (
+        f"Vision 未配置时任务应失败，实际 status: {data['status']}, error: {data.get('error')}"
     )
     assert "Vision" in data.get("error", ""), (
         f"错误信息应包含 Vision 相关描述，实际: {data.get('error')}"

@@ -16,8 +16,16 @@ def _client(tmp_path: Path) -> TestClient:
     return TestClient(create_app(tmp_path))
 
 
+def _mock_vision_config_ok(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "apps.control_plane.routes.api_assets.validate_vision_config",
+        lambda *a, **kw: None,
+    )
+
+
 def test_index_respects_source_paths(tmp_path: Path, monkeypatch) -> None:
     """source_paths 只索引指定文件，不索引其他文件。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     source_dir = tmp_path / "workspace" / "shared_assets" / "source"
     source_dir.mkdir(parents=True, exist_ok=True)
@@ -51,6 +59,7 @@ def test_index_respects_source_paths(tmp_path: Path, monkeypatch) -> None:
 
 def test_index_without_source_paths_indexes_all(tmp_path: Path, monkeypatch) -> None:
     """不传 source_paths 时，全目录扫描（向后兼容）。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     source_dir = tmp_path / "workspace" / "shared_assets" / "source"
     source_dir.mkdir(parents=True, exist_ok=True)
@@ -80,6 +89,7 @@ def test_index_without_source_paths_indexes_all(tmp_path: Path, monkeypatch) -> 
 
 def test_index_source_paths_skips_nonexistent(tmp_path: Path, monkeypatch) -> None:
     """source_paths 包含不存在的文件时只索引已存在的。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     source_dir = tmp_path / "workspace" / "shared_assets" / "source"
     source_dir.mkdir(parents=True, exist_ok=True)
@@ -111,6 +121,7 @@ def test_index_source_paths_empty_produces_no_videos(
     tmp_path: Path, monkeypatch
 ) -> None:
     """source_paths 为空列表时，不索引任何文件。"""
+    _mock_vision_config_ok(monkeypatch)
     client = _client(tmp_path)
     source_dir = tmp_path / "workspace" / "shared_assets" / "source"
     source_dir.mkdir(parents=True, exist_ok=True)
