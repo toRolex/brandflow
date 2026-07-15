@@ -145,8 +145,6 @@ export interface BatchJobItem {
   music_volume?: number;
   language?: string;
   cover_title?: CoverTitle | null;
-  tts_model?: string;
-  tts_voice?: string;
 }
 
 export interface BatchCreateRequest {
