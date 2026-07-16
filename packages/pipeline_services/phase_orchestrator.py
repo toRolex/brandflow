@@ -23,6 +23,7 @@ from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
+from packages.provider_config.config_resolver import ConfigResolver
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
 
@@ -42,7 +43,8 @@ def create_orchestrator(
 ) -> "PhaseOrchestrator":
     """Factory: build a PhaseOrchestrator with real service dependencies.
 
-    *config_reader* is required — all config reads go through it.
+    *config_reader* is required — all config reads go through a ConfigResolver
+    wrapping it.
     """
     from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
     from packages.pipeline_services.subtitle_service import SubtitleService
@@ -52,7 +54,7 @@ def create_orchestrator(
         script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
-        config_reader=config_reader,
+        config_resolver=ConfigResolver(reader=config_reader),
     )
 
 
@@ -130,6 +132,7 @@ class PhaseOrchestrator:
         schedule_store: Any = None,
         config_reader: ConfigReader | None = None,
         secret_store: SecretStore | None = None,
+        config_resolver: ConfigResolver | None = None,
         get_tts_config: Callable[[], dict[str, Any]] | None = None,
         get_llm_config: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
@@ -141,6 +144,16 @@ class PhaseOrchestrator:
         self._secrets = secret_store if secret_store is not None else SecretStore()
         self._get_tts_config = get_tts_config
         self._get_llm_config = get_llm_config
+
+        # High-level config resolver: preferred path for all config queries.
+        if config_resolver is not None:
+            self._config_resolver = config_resolver
+        elif config_reader is not None:
+            self._config_resolver = ConfigResolver(
+                reader=config_reader, secrets=self._secrets
+            )
+        else:
+            self._config_resolver = None
 
         self._handlers: dict[str, Callable[[PhaseContext], list[ArtifactPointer]]] = {
             "script_generating": self._run_script,
@@ -213,59 +226,56 @@ class PhaseOrchestrator:
             size_bytes=path.stat().st_size if path.exists() else 0,
         )
 
-    # -- config resolution helpers (ConfigReader-first, fallback to callbacks) --
+    # -- config resolution helpers (internal delegates to ConfigResolver) --
 
     def _resolve_tts_config(self, ctx: PhaseContext) -> dict[str, Any]:
-        """Resolve TTS config via ConfigReader."""
-        if self._config is not None:
-            return self._config.get_tts_config(product_id=ctx.product)
+        """Resolve TTS config via ConfigResolver (internal delegate)."""
+        if self._config_resolver is not None:
+            return self._config_resolver.tts(product_id=ctx.product)
         if self._get_tts_config is not None:
             return self._get_tts_config()
         raise RuntimeError(
-            "No ConfigReader or TTS config callback available; "
+            "No ConfigResolver or TTS config callback available; "
             "create_orchestrator() requires a ConfigReader"
         )
 
     def _resolve_llm_config(self, ctx: PhaseContext) -> dict[str, Any]:
-        """Resolve LLM config via ConfigReader."""
-        if self._config is not None:
-            return self._config.get_llm_config(product_id=ctx.product)
+        """Resolve LLM config via ConfigResolver (internal delegate)."""
+        if self._config_resolver is not None:
+            return self._config_resolver.llm(product_id=ctx.product)[0]
         if self._get_llm_config is not None:
             return self._get_llm_config()
         raise RuntimeError(
-            "No ConfigReader or LLM config callback available; "
+            "No ConfigResolver or LLM config callback available; "
             "create_orchestrator() requires a ConfigReader"
         )
 
     def _resolve_api_key(self, llm_config: dict[str, Any]) -> str:
-        """Resolve API key via SecretStore (replaces _resolve_llm_api_key + _resolve_asset_api_key)."""
+        """Resolve API key via ConfigResolver (internal delegate)."""
+        if self._config_resolver is not None:
+            provider = llm_config.get("provider", "deepseek")
+            return self._config_resolver._api_key_for(provider)
         provider = llm_config.get("provider", "deepseek")
         return self._secrets.get_api_key(provider)
 
     def _resolve_api_url(self, llm_config: dict[str, Any]) -> str:
-        """Resolve API base URL via SecretStore (replaces _resolve_llm_endpoint + _resolve_asset_api_url)."""
+        """Resolve chat-completions URL via ConfigResolver (internal delegate)."""
+        if self._config_resolver is not None:
+            provider = llm_config.get("provider", "deepseek")
+            return self._config_resolver._chat_completions_url_for(provider)
         provider = llm_config.get("provider", "deepseek")
-        return self._secrets.get_api_base_url(provider)
+        url = self._secrets.get_api_base_url(provider)
+        if url and not url.endswith("/chat/completions"):
+            url = f"{url}/chat/completions"
+        return url
 
-    @staticmethod
-    def _resolve_categories(
-        config_reader: ConfigReader | None, ctx: PhaseContext
-    ) -> list[str]:
-        """Resolve category names for asset classification.
+    def _resolve_categories(self, ctx: PhaseContext) -> list[str]:
+        """Resolve category names for asset classification via ConfigResolver.
 
         Priority: product-level categories > asset_library categories > defaults.
-        Uses ConfigReader when available; otherwise returns default food categories.
         """
-        if config_reader is not None:
-            product_config = config_reader.get_product_config(product_id=ctx.product)
-            product_cats: list[dict] = product_config.get("categories", [])
-            if product_cats:
-                return [c.get("name", "") for c in product_cats if c.get("name")]
-
-            al_config = config_reader.get_asset_library_config()
-            raw: list[dict] = al_config.get("categories", [])
-            if raw:
-                return [c.get("name", "") for c in raw if c.get("name")]
+        if self._config_resolver is not None:
+            return self._config_resolver.categories(product_id=ctx.product)
 
         # Default food category names
         from packages.pipeline_services.asset_library.category_config import (
@@ -550,17 +560,17 @@ class PhaseOrchestrator:
 
         classify_fn = None
         if api_key and api_url:
-            if not api_url.endswith("/chat/completions"):
-                api_url = f"{api_url}/chat/completions"
-
-            category_names = self._resolve_categories(self._config, ctx)
+            category_names = self._resolve_categories(ctx)
+            category_model = (
+                self._config.get_category_suggestion_model()
+                if self._config is not None
+                else _fallback_category_suggestion_model()
+            )
 
             classify_fn = create_classify_fn(
                 api_url=api_url,
                 api_key=api_key,
-                model=self._config.get_category_suggestion_model()
-                if self._config is not None
-                else _fallback_category_suggestion_model(),
+                model=category_model,
                 category_names=category_names,
             )
 

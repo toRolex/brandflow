@@ -5,6 +5,7 @@ from packages.provider_config.catalog import (
     provider_options_payload,
 )
 from packages.provider_config.config_io import load_config, save_config
+from packages.provider_config.config_resolver import ConfigResolver
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.product_store import ProductStore
 from packages.provider_config.runtime_env import (
@@ -22,6 +23,7 @@ from packages.provider_config.store import (
 
 __all__ = [
     "ConfigReader",
+    "ConfigResolver",
     "ProductStore",
     "SecretStore",
     "default_provider_document",
