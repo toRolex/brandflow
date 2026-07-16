@@ -518,6 +518,8 @@ class JobTickService:
             # Inject job-level TTS overrides (tts_model / tts_voice) into options
             # so the phase orchestrator can apply them in _run_tts
             merged_options: dict[str, Any] = dict(options or {})
+            if record.manual_script:
+                merged_options["manual_script"] = record.manual_script
             if record.tts_model:
                 merged_options["tts_model"] = record.tts_model
             if record.tts_voice:

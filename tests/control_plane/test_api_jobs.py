@@ -44,6 +44,37 @@ def test_update_manual_script_preserves_import_mode(tmp_path: Path) -> None:
 # ── 单个 create_job ──────────────────────────────────────────────
 
 
+def test_create_job_persists_manual_script_in_generate_mode(tmp_path: Path) -> None:
+    """单次 create_job 在 generate 模式下保留 manual_script 字段。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "generate",
+            "manual_script": "这是用户手动输入的口播文案",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mode"] == "generate"
+    assert data["manual_script"] == "这是用户手动输入的口播文案"
+
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{data['job_id']}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["manual_script"] == "这是用户手动输入的口播文案"
+    assert raw["mode"] == "generate"
+
+
 def test_create_job_persists_skip_subtitle(tmp_path: Path) -> None:
     """单次 create_job 将 skip_subtitle=True 写入 JobRecord。"""
     client = _make_client(tmp_path)

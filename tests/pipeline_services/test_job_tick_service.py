@@ -32,6 +32,8 @@ def make_record(
     review_status: str = "none",
     skip_subtitle: bool = False,
     auto_approve: bool = False,
+    mode: str = "generate",
+    manual_script: str = "",
 ) -> JobRecord:
     """Factory for concise test construction."""
     return JobRecord(
@@ -39,10 +41,12 @@ def make_record(
         project_id="proj-001",
         product="羊肚菌",
         phase=phase,  # type: ignore[arg-type]
+        mode=mode,  # type: ignore[arg-type]
         review_status=review_status,  # type: ignore[arg-type]
         last_error=last_error,
         skip_subtitle=skip_subtitle,
         auto_approve=auto_approve,
+        manual_script=manual_script,
     )
 
 
@@ -506,6 +510,62 @@ class TestJobTickService:
             )
         assert exc.value.job_id == "test-job"
         assert exc.value.phase == "script_generating"
+
+    def test_tick_injects_manual_script_for_generate_mode(self) -> None:
+        """Generate mode 下 tick() 自动将 JobRecord.manual_script 注入 options。"""
+        record = make_record(
+            phase="queued",
+            mode="generate",
+            manual_script="手动文案走 generate 路径",
+        )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.run_phase.return_value = [
+            ArtifactPointer(kind="script", relative_path="script.txt")
+        ]
+
+        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.action in ("advanced", "completed")
+        ctx_arg = mock_orch.run_phase.call_args[0][1]
+        assert ctx_arg.options["manual_script"] == "手动文案走 generate 路径"
+
+    def test_generate_manual_script_advances_to_script_review_not_scene_assembling(
+        self,
+    ) -> None:
+        """Generate + manual_script 从 queued 进入 script_generating，产物出来后到 script_review，不去 scene_assembling。"""
+        record = make_record(
+            phase="queued",
+            mode="generate",
+            manual_script="手动文案",
+        )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.run_phase.return_value = [
+            ArtifactPointer(kind="script", relative_path="script.txt")
+        ]
+
+        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.to_phase == "script_review"
+        mock_orch.run_phase.assert_called_once()
+        assert mock_orch.run_phase.call_args[0][0] == "script_generating"
 
 
 # ---------------------------------------------------------------------------

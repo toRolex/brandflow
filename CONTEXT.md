@@ -47,7 +47,7 @@ queued → script_generating → script_review → tts_generating → tts_review
 一条口播文案，对应一个待生产的短视频。脚本有两种来源，由 Job 的 `mode` 字段显式控制：
 
 - **Import 模式（`mode="import"`）** — 通过 `BatchJobItem.manual_script` 字段直接传入预写文案。系统跳过 LLM 生成，直接进入 TTS、字幕和视频生产。
-- **Generate 模式（`mode="generate"`）** — 系统通过 LLM 两段式生成脚本。保留旧系统的质检能力。`manual_script` 为空时自动使用此模式。
+- **Generate 模式（`mode="generate"`）** — 默认由 LLM 两段式生成脚本；当 `manual_script` 非空时，直接使用该文案并跳过 LLM 生成，继续走 TTS、字幕和智能素材检索的完整流水线。保留旧系统的质检能力。`manual_script` 为空时自动使用 LLM 生成。
 
 ### Asset（素材）
 已索引的视频片段。原始视频经 ffmpeg 场景切片、Vision 模型分类后，按产品和 Category 归档到 SQLite 索引。素材在 `asset_retrieving` 阶段被检索并匹配到脚本句子。
