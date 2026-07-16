@@ -18,7 +18,10 @@ from packages.pipeline_services.job_tick_service import (
     _compute_transition,
     _transition_after_artifacts,
 )
-from packages.pipeline_services.phase_orchestrator import PhaseOrchestrator
+from packages.pipeline_services.phase_orchestrator import (
+    PhaseContext,
+    PhaseOrchestrator,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -631,3 +634,66 @@ class TestAdvanceAfterReport:
         saved = mock_repo.save_job.call_args[0][1]
         assert len(saved.artifacts) == 1
         assert saved.artifacts[0].kind == "final_video"
+
+
+# ---------------------------------------------------------------------------
+# 11. Manual script consistency regression test (#188)
+# ---------------------------------------------------------------------------
+
+
+class TestManualScriptConsistency:
+    """Regression: manual_script text preserved through _run_script → _run_tts → _run_subtitle."""
+
+    def test_manual_script_preserved_through_pipeline(self, tmp_path: Path) -> None:
+        manual_text = "这是用户提交的口播文案。用于短视频配音。确保完全一致。"
+        job_id = "test-job-consistency"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+
+        # PhaseOrchestrator with mocked external deps
+        mock_config = Mock()
+        mock_config.get_tts_config.return_value = {
+            "model": "test-model",
+            "voice": "test-voice",
+        }
+        orch = PhaseOrchestrator(
+            script_bridge=Mock(),
+            subtitle_svc=Mock(),
+            video_svc=Mock(),
+            config_reader=mock_config,
+        )
+
+        # Mock TTS provider to avoid real API calls
+        mock_tts = Mock()
+        mock_tts.synthesize.return_value = b"fake_audio_data"
+        orch._build_tts_provider = Mock(return_value=mock_tts)
+
+        ctx = PhaseContext(
+            job_id=job_id,
+            project_dir=project_dir,
+            root_dir=root_dir,
+            product="test_product",
+            options={"manual_script": manual_text},
+        )
+
+        # --- seam A: _run_script writes exact text to disk ---
+        orch._run_script(ctx)
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        txt_path = job_dir / "口播文案.txt"
+        assert txt_path.read_text(encoding="utf-8") == manual_text
+
+        # --- seam B: _discover_script reads it back ---
+        discovered = PhaseOrchestrator._discover_script(job_dir)
+        assert discovered == manual_text
+
+        # --- seam C: _run_tts passes exact text to TTS provider ---
+        orch._run_tts(ctx)
+        mock_tts.synthesize.assert_called_once()
+        tts_text = mock_tts.synthesize.call_args[0][0]
+        assert tts_text == manual_text
+
+        # --- seam D: _run_subtitle passes exact text to subtitle service ---
+        orch._run_subtitle(ctx)
+        orch._subtitle_svc.build_srt.assert_called_once()
+        subtitle_text = orch._subtitle_svc.build_srt.call_args[0][2]
+        assert subtitle_text == manual_text
