@@ -14,6 +14,7 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseOrchestrator,
     to_url_path,
 )
+from packages.provider_config.secret_store import SecretStore
 
 
 # ---------------------------------------------------------------------------
@@ -780,3 +781,73 @@ class TestRunVideo:
 
         assert artifacts == []
         orchestrator._video_svc.build_base_video.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Network-boundary regression test for #202
+# ---------------------------------------------------------------------------
+
+
+class TestTTSRegressionNestedConfig:
+    """Real MiMo provider + nested director/audio_tags config must not crash.
+
+    Mocks requests.post at tts_provider module boundary (the only network call).
+    Uses real create_tts_provider and real synthesize — does NOT mock synthesize.
+    """
+
+    @patch("packages.pipeline_services.tts_provider.requests.post")
+    def test_nested_config_does_not_crash(self, mock_post: MagicMock, tmp_path: Path):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"audio": {"data": "dGVzdA=="}}}]
+        }
+        mock_post.return_value = mock_resp
+
+        # Real config shape from ConfigReader: nested director/audio_tags
+        tts_cfg = {
+            "model": "mimo-v2.5-tts",
+            "voice": "Mia",
+            "provider": "mimo",
+            "director": {"character": "女主播", "scene": "直播间"},
+            "audio_tags": {"enabled": False, "tags": ""},
+        }
+
+        config_resolver = MagicMock()
+        config_resolver.tts.return_value = tts_cfg
+        # Real SecretStore so create_tts_provider builds a real MiMo provider
+        config_resolver.secrets = SecretStore(env={"MIMO_API_KEY": "test-key"})
+
+        orch = PhaseOrchestrator(
+            script_generator=MagicMock(),
+            subtitle_svc=MagicMock(),
+            video_svc=MagicMock(),
+            media_compositor=MagicMock(),
+            config_resolver=config_resolver,
+        )
+
+        project_dir = tmp_path / "workspace" / "projects" / "proj-001"
+        project_dir.mkdir(parents=True)
+        job_dir = project_dir / "runtime" / "jobs" / "job-001"
+        job_dir.mkdir(parents=True)
+        (job_dir / "口播文案.txt").write_text("测试文案内容。", encoding="utf-8")
+
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_path,
+            product="测试产品",
+        )
+
+        # Act — must NOT raise AttributeError
+        artifacts = orch.run_phase("tts_generating", ctx)
+
+        assert len(artifacts) == 1
+        assert artifacts[0].kind == "tts_audio"
+
+        # Verify the payload sent over the wire
+        mock_post.assert_called_once()
+        payload = mock_post.call_args[1]["json"]
+        assert payload["model"] == "mimo-v2.5-tts"
+        assert "messages" in payload
+        assert "audio" in payload

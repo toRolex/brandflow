@@ -177,3 +177,72 @@ class TestCreateTTSProvider:
         provider = create_tts_provider({"model": "mimo-v2.5-tts"}, secrets)
         assert isinstance(provider, MiMoTTSProvider)
         assert provider.api_key == "fallback-key"
+
+
+# ---------------------------------------------------------------------------
+# TTSConfigShim — regression guard: missing flat keys must not crash
+# ---------------------------------------------------------------------------
+
+
+class TestTTSConfigShimDefaults:
+    """TTSConfigShim supplies defaults for all optional flat attributes."""
+
+    def test_empty_dict_gets_all_defaults(self):
+        """Empty dict → every expected attribute gets its default value."""
+        from packages.pipeline_services.tts_provider import TTSConfigShim
+
+        shim = TTSConfigShim({})
+        assert shim.model == "mimo-v2.5-tts"
+        assert shim.voice == "Mia"
+        assert shim.style_control_mode == "simple"
+        assert shim.style_prompt == "自然 清晰"
+        assert shim.audio_format == "wav"
+        assert shim.director_character == ""
+        assert shim.director_scene == ""
+        assert shim.director_guidance == ""
+        assert shim.audio_tags_enabled is False
+        assert shim.audio_tags == ""
+
+    def test_missing_nested_keys_get_defaults(self):
+        """A config dict with nested director/audio_tags but no flat keys
+        must supply defaults for the flat key access that MiMo provider uses."""
+        from packages.pipeline_services.tts_provider import TTSConfigShim
+
+        cfg = {
+            "model": "mimo-v2.5-tts",
+            "voice": "Mia",
+            "director": {
+                "character": "女主播",
+                "scene": "直播间",
+                "guidance": "语速适中",
+            },
+            "audio_tags": {"enabled": True, "tags": "(温柔)"},
+        }
+        shim = TTSConfigShim(cfg)
+        # Flat keys that don't exist in dict get defaults
+        assert shim.director_character == ""
+        assert shim.director_scene == ""
+        assert shim.director_guidance == ""
+        assert shim.audio_tags_enabled is False
+        # audio_tags key exists as nested dict in input – shim returns dict as-is
+        # ponytail: no flattening, see AC
+        assert isinstance(shim.audio_tags, dict)
+        # Explicitly set keys are preserved
+        assert shim.model == "mimo-v2.5-tts"
+        assert shim.voice == "Mia"
+
+    def test_flat_keys_are_preserved(self):
+        """When the dict has flat keys, those values are used."""
+        from packages.pipeline_services.tts_provider import TTSConfigShim
+
+        cfg = {
+            "model": "qwen-tts",
+            "voice": "Cherry",
+            "director_character": "男主播",
+            "audio_tags_enabled": True,
+        }
+        shim = TTSConfigShim(cfg)
+        assert shim.model == "qwen-tts"
+        assert shim.voice == "Cherry"
+        assert shim.director_character == "男主播"
+        assert shim.audio_tags_enabled is True
