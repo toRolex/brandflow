@@ -661,7 +661,6 @@ class TestRunVideo:
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
         """Import mode: assembled.mp4 + selected_clips → built clip base + concat."""
-        import subprocess
         from unittest.mock import patch
 
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
@@ -686,8 +685,13 @@ class TestRunVideo:
 
         orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
 
-        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
-            with patch.object(subprocess, "run") as mock_run:
+        with patch(
+            "packages.pipeline_services.media_compositor.get_ffmpeg_path",
+            return_value="ffmpeg",
+        ):
+            with patch(
+                "packages.pipeline_services.media_compositor.subprocess.run"
+            ) as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
 
                 def _concat_effect(*args, **kwargs):

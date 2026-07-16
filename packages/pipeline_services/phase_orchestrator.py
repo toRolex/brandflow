@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +19,7 @@ from typing import Any, Callable
 
 from packages.domain_core.models import ArtifactPointer
 from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+from packages.pipeline_services.media_compositor import MediaCompositor
 from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
@@ -631,44 +631,7 @@ class PhaseOrchestrator:
 
         if assembled_exists and clip_base_built:
             # Import mode: concat scene segment + montage clips
-            # ponytail: normalize both inputs before concat to ensure matching
-            # resolution/fps/pix_fmt (assembled.mp4 is 720x1280 from scene_assembling,
-            # _clip_base.mp4 is 1080x1920 from normalize_clip_to_vertical).
-            ffmpeg = self._get_ffmpeg_path()
-            subprocess.run(
-                [
-                    ffmpeg,
-                    "-y",
-                    "-i",
-                    str(assembled_path),
-                    "-i",
-                    str(clip_base_path),
-                    "-filter_complex",
-                    "[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
-                    "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v0];"
-                    "[1:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
-                    "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v1];"
-                    "[v0][v1]concat=n=2:v=1:a=0",
-                    "-map",
-                    "[v]",
-                    "-an",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "ultrafast",
-                    "-crf",
-                    "23",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    str(base_path),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
+            MediaCompositor.concat_two(assembled_path, clip_base_path, base_path)
             print(
                 f"[VIDEO] Concatenated assembled + clip base for {ctx.job_id}",
                 flush=True,
@@ -848,68 +811,8 @@ class PhaseOrchestrator:
             shutil.copy2(clips[0], scene_path)
             print(f"[SCENE] Single clip copied to {scene_path}", flush=True)
         else:
-            # Build ffmpeg xfade chain
-            ffmpeg = self._get_ffmpeg_path()
-            durations = [self._get_media_duration(c) for c in clips]
-
-            # Filter chain: settb on all inputs, then chained xfade
-            filter_parts: list[str] = []
-            accumulated = durations[0]
-            for i in range(1, len(clips)):
-                offset = accumulated - transition_duration
-                prev_label = f"r{i - 1}" if i > 1 else "c0"
-                cur_in_label = f"c{i}"
-                out_label = f"t{i}"
-
-                # Build segments
-                filter_parts.append(
-                    f"[{i}:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[{cur_in_label}]"
-                )
-                filter_parts.append(
-                    f"[{prev_label}][{cur_in_label}]"
-                    f"xfade=transition=fade:duration={transition_duration:.3f}:"
-                    f"offset={offset:.3f}[{out_label}]"
-                )
-                if i < len(clips) - 1:
-                    filter_parts.append(
-                        f"[{out_label}]setpts=PTS-STARTPTS,fps=30[r{i}]"
-                    )
-
-                accumulated += durations[i] - transition_duration
-
-            # First input always needs settb + fps + scale normalization
-            filter_complex = (
-                "[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[c0];"
-                + ";".join(filter_parts)
-            )
-            final_label = f"t{len(clips) - 1}"
-
-            cmd = [ffmpeg, "-y"]
-            for clip in clips:
-                cmd.extend(["-i", str(clip)])
-            cmd.extend(
-                [
-                    "-filter_complex",
-                    filter_complex,
-                    "-map",
-                    f"[{final_label}]",
-                    "-an",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "ultrafast",
-                    "-crf",
-                    "23",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    str(scene_path),
-                ]
-            )
-
+            MediaCompositor.crossfade_scene(clips, scene_path, transition_duration)
             print(f"[SCENE] Running ffmpeg xfade for {len(clips)} clips", flush=True)
-            subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
 
         if scene_path.exists():
             print(
@@ -946,38 +849,7 @@ class PhaseOrchestrator:
                 f"[MONTAGE] Concatenating scene_segment + base for {ctx.job_id}",
                 flush=True,
             )
-            ffmpeg = self._get_ffmpeg_path()
-            subprocess.run(
-                [
-                    ffmpeg,
-                    "-y",
-                    "-i",
-                    str(scene_path),
-                    "-i",
-                    str(base_path),
-                    "-filter_complex",
-                    "[0:v]settb=AVTB[sv];[1:v]settb=AVTB[bv];"
-                    "[sv][bv]concat=n=2:v=1:a=0",
-                    "-map",
-                    "[v]",
-                    "-an",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "ultrafast",
-                    "-crf",
-                    "23",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    str(assembled_path),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
+            MediaCompositor.concat_two(scene_path, base_path, assembled_path)
         elif scene_exists:
             print(
                 f"[MONTAGE] Using scene_segment as assembled for {ctx.job_id}",
@@ -1015,22 +887,6 @@ class PhaseOrchestrator:
             text = jdata.get("text", "").strip()
             return text or None
         return None
-
-    # -- ffmpeg helpers (lazy imports) -----------------------------------------
-
-    @staticmethod
-    def _get_ffmpeg_path() -> str:
-        """Resolve ffmpeg path via media_utils."""
-        from packages.pipeline_services.media_utils import get_ffmpeg_path as _gfp
-
-        return _gfp()
-
-    @staticmethod
-    def _get_media_duration(file_path: Path) -> float:
-        """Get media duration in seconds via ffprobe."""
-        from packages.pipeline_services.media_utils import get_media_duration as _gmd
-
-        return _gmd(file_path)
 
 
 def _fallback_category_suggestion_model() -> str:

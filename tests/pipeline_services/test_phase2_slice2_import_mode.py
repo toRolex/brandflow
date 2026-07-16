@@ -219,15 +219,17 @@ class TestSceneAssembling:
         )
 
         # Patch ffmpeg to avoid needing real ffmpeg and mock subprocess
-        with patch.object(
-            orchestrator, "_get_ffmpeg_path", return_value="/usr/bin/false"
+        with patch(
+            "packages.pipeline_services.media_compositor.get_ffmpeg_path",
+            return_value="/usr/bin/false",
         ):
-            with patch.object(
-                orchestrator,
-                "_get_media_duration",
+            with patch(
+                "packages.pipeline_services.media_compositor.get_media_duration",
                 return_value=5.0,
             ):
-                with patch.object(subprocess, "run") as mock_run:
+                with patch(
+                    "packages.pipeline_services.media_compositor.subprocess.run"
+                ) as mock_run:
                     # Make the mocked subprocess not raise
                     mock_run.return_value = MagicMock(returncode=0)
 
@@ -272,9 +274,17 @@ class TestSceneAssembling:
             transition_duration_ms=500,
         )
 
-        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
-            with patch.object(orchestrator, "_get_media_duration", return_value=3.0):
-                with patch.object(subprocess, "run") as mock_run:
+        with patch(
+            "packages.pipeline_services.media_compositor.get_ffmpeg_path",
+            return_value="ffmpeg",
+        ):
+            with patch(
+                "packages.pipeline_services.media_compositor.get_media_duration",
+                return_value=3.0,
+            ):
+                with patch(
+                    "packages.pipeline_services.media_compositor.subprocess.run"
+                ) as mock_run:
                     mock_run.return_value = MagicMock(returncode=0)
 
                     def _make_scene(*args, **kwargs):
@@ -421,8 +431,13 @@ class TestMontageAssembling:
         (job_dir / "scene_segment.mp4").write_text("scene")
         (job_dir / "base.mp4").write_text("base")
 
-        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
-            with patch.object(subprocess, "run") as mock_run:
+        with patch(
+            "packages.pipeline_services.media_compositor.get_ffmpeg_path",
+            return_value="ffmpeg",
+        ):
+            with patch(
+                "packages.pipeline_services.media_compositor.subprocess.run"
+            ) as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
 
                 def _make_assembled(*args, **kwargs):
