@@ -12,7 +12,67 @@ def _make_client(tmp_path: Path):
     return TestClient(create_app(tmp_path))
 
 
+# ── 手动脚本更新不影响模式路由 ────────────────────────────────────
+
+
+def test_update_manual_script_preserves_import_mode(tmp_path: Path) -> None:
+    """修改 manual_script 后，import 模式任务仍保持 import 模式。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "初始文案",
+        },
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+
+    resp = client.post(
+        f"/api/jobs/{job_id}/script",
+        json={"manual_script": "修改后的文案"},
+    )
+    assert resp.status_code == 200
+
+    detail = client.get(f"/api/jobs/{job_id}").json()
+    assert detail["mode"] == "import"
+    assert detail["manual_script"] == "修改后的文案"
+
+
 # ── 单个 create_job ──────────────────────────────────────────────
+
+
+def test_create_job_persists_manual_script_in_generate_mode(tmp_path: Path) -> None:
+    """单次 create_job 在 generate 模式下保留 manual_script 字段。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "generate",
+            "manual_script": "这是用户手动输入的口播文案",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mode"] == "generate"
+    assert data["manual_script"] == "这是用户手动输入的口播文案"
+
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{data['job_id']}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["manual_script"] == "这是用户手动输入的口播文案"
+    assert raw["mode"] == "generate"
 
 
 def test_create_job_persists_skip_subtitle(tmp_path: Path) -> None:
@@ -86,6 +146,53 @@ def test_create_job_persists_language_and_cover_title(tmp_path: Path) -> None:
     assert raw["language"] == "cantonese"
     assert raw["cover_title"]["text"] == "鲜嫩荔枝菌"
     assert raw["cover_title"]["style"]["outline_width"] == 3
+
+
+def test_batch_create_jobs_persists_manual_script_in_generate_mode(
+    tmp_path: Path,
+) -> None:
+    """批量创建多个 generate 模式任务时，每个 JobRecord 都保留对应 manual_script。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "荔枝菌",
+            "platforms": ["douyin"],
+            "jobs": [
+                {
+                    "name": "智能文案一",
+                    "mode": "generate",
+                    "manual_script": "这是第一条手动文案",
+                },
+                {
+                    "name": "智能文案二",
+                    "mode": "generate",
+                    "manual_script": "这是第二条手动文案",
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert len(results) == 2
+    assert results[0]["manual_script"] == "这是第一条手动文案"
+    assert results[1]["manual_script"] == "这是第二条手动文案"
+    assert results[0]["mode"] == "generate"
+    assert results[1]["mode"] == "generate"
+
+    for r, expected in zip(results, ["这是第一条手动文案", "这是第二条手动文案"]):
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "control"
+            / "jobs"
+            / f"{r['job_id']}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["manual_script"] == expected
+        assert raw["mode"] == "generate"
 
 
 def test_batch_create_jobs_persists_cover_title_and_language(tmp_path: Path) -> None:

@@ -18,7 +18,10 @@ from packages.pipeline_services.job_tick_service import (
     _compute_transition,
     _transition_after_artifacts,
 )
-from packages.pipeline_services.phase_orchestrator import PhaseOrchestrator
+from packages.pipeline_services.phase_orchestrator import (
+    PhaseContext,
+    PhaseOrchestrator,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +35,8 @@ def make_record(
     review_status: str = "none",
     skip_subtitle: bool = False,
     auto_approve: bool = False,
+    mode: str = "generate",
+    manual_script: str = "",
 ) -> JobRecord:
     """Factory for concise test construction."""
     return JobRecord(
@@ -39,10 +44,12 @@ def make_record(
         project_id="proj-001",
         product="羊肚菌",
         phase=phase,  # type: ignore[arg-type]
+        mode=mode,  # type: ignore[arg-type]
         review_status=review_status,  # type: ignore[arg-type]
         last_error=last_error,
         skip_subtitle=skip_subtitle,
         auto_approve=auto_approve,
+        manual_script=manual_script,
     )
 
 
@@ -507,6 +514,128 @@ class TestJobTickService:
         assert exc.value.job_id == "test-job"
         assert exc.value.phase == "script_generating"
 
+    def test_tick_injects_manual_script_for_generate_mode(self) -> None:
+        """Generate mode 下 tick() 自动将 JobRecord.manual_script 注入 options。"""
+        record = make_record(
+            phase="queued",
+            mode="generate",
+            manual_script="手动文案走 generate 路径",
+        )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.run_phase.return_value = [
+            ArtifactPointer(kind="script", relative_path="script.txt")
+        ]
+
+        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.action in ("advanced", "completed")
+        ctx_arg = mock_orch.run_phase.call_args[0][1]
+        assert ctx_arg.options["manual_script"] == "手动文案走 generate 路径"
+
+    def test_generate_manual_script_advances_to_script_review_not_scene_assembling(
+        self,
+    ) -> None:
+        """Generate + manual_script 从 queued 进入 script_generating，产物出来后到 script_review，不去 scene_assembling。"""
+        record = make_record(
+            phase="queued",
+            mode="generate",
+            manual_script="手动文案",
+        )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.run_phase.return_value = [
+            ArtifactPointer(kind="script", relative_path="script.txt")
+        ]
+
+        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.to_phase == "script_review"
+        mock_orch.run_phase.assert_called_once()
+        assert mock_orch.run_phase.call_args[0][0] == "script_generating"
+
+    def test_generate_manual_script_full_chain(
+        self,
+    ) -> None:
+        """Generate + manual_script 全程：script_generating → tts_generating → asset_retrieving，不进入 scene_assembling。"""
+        record = make_record(
+            phase="queued",
+            mode="generate",
+            manual_script="手动文案",
+            auto_approve=True,
+            skip_subtitle=True,
+        )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.run_phase.return_value = [
+            ArtifactPointer(kind="artifact", relative_path="out"),
+        ]
+
+        # Persist state across ticks: save → load returns the latest saved record
+        latest: list[JobRecord] = [record]
+
+        def _load(project_id: str, job_id: str) -> JobRecord:
+            return latest[0].model_copy()
+
+        def _save(project_id: str, rec: JobRecord) -> None:
+            latest[0] = rec
+
+        mock_repo.load_job.side_effect = _load
+        mock_repo.save_job.side_effect = _save
+
+        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
+
+        handler_phases: list[str] = []
+
+        for _ in range(10):
+            mock_orch.run_phase.reset_mock()
+            mock_orch.run_phase.return_value = [
+                ArtifactPointer(kind="artifact", relative_path="out"),
+            ]
+
+            summary = svc.tick(
+                "proj-001",
+                "test-job",
+                "羊肚菌",
+                root_dir=Path("/tmp"),
+                project_dir=Path("/tmp/proj"),
+            )
+
+            if mock_orch.run_phase.called:
+                handler_phases.append(mock_orch.run_phase.call_args[0][0])
+
+            if summary.action in ("completed", "failed"):
+                break
+
+        assert len(handler_phases) >= 4
+        assert "scene_assembling" not in handler_phases
+        assert "script_generating" in handler_phases
+        assert "tts_generating" in handler_phases
+        assert "asset_retrieving" in handler_phases
+        # Verify handler call order
+        assert handler_phases.index("script_generating") < handler_phases.index(
+            "tts_generating"
+        )
+        assert handler_phases.index("tts_generating") < handler_phases.index(
+            "asset_retrieving"
+        )
+
 
 # ---------------------------------------------------------------------------
 # JobTickService.advance_after_report
@@ -571,3 +700,66 @@ class TestAdvanceAfterReport:
         saved = mock_repo.save_job.call_args[0][1]
         assert len(saved.artifacts) == 1
         assert saved.artifacts[0].kind == "final_video"
+
+
+# ---------------------------------------------------------------------------
+# 11. Manual script consistency regression test (#188)
+# ---------------------------------------------------------------------------
+
+
+class TestManualScriptConsistency:
+    """Regression: manual_script text preserved through _run_script → _run_tts → _run_subtitle."""
+
+    def test_manual_script_preserved_through_pipeline(self, tmp_path: Path) -> None:
+        manual_text = "这是用户提交的口播文案。用于短视频配音。确保完全一致。"
+        job_id = "test-job-consistency"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+
+        # PhaseOrchestrator with mocked external deps
+        mock_config = Mock()
+        mock_config.get_tts_config.return_value = {
+            "model": "test-model",
+            "voice": "test-voice",
+        }
+        orch = PhaseOrchestrator(
+            script_bridge=Mock(),
+            subtitle_svc=Mock(),
+            video_svc=Mock(),
+            config_reader=mock_config,
+        )
+
+        # Mock TTS provider to avoid real API calls
+        mock_tts = Mock()
+        mock_tts.synthesize.return_value = b"fake_audio_data"
+        orch._build_tts_provider = Mock(return_value=mock_tts)
+
+        ctx = PhaseContext(
+            job_id=job_id,
+            project_dir=project_dir,
+            root_dir=root_dir,
+            product="test_product",
+            options={"manual_script": manual_text},
+        )
+
+        # --- seam A: _run_script writes exact text to disk ---
+        orch._run_script(ctx)
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        txt_path = job_dir / "口播文案.txt"
+        assert txt_path.read_text(encoding="utf-8") == manual_text
+
+        # --- seam B: _discover_script reads it back ---
+        discovered = PhaseOrchestrator._discover_script(job_dir)
+        assert discovered == manual_text
+
+        # --- seam C: _run_tts passes exact text to TTS provider ---
+        orch._run_tts(ctx)
+        mock_tts.synthesize.assert_called_once()
+        tts_text = mock_tts.synthesize.call_args[0][0]
+        assert tts_text == manual_text
+
+        # --- seam D: _run_subtitle passes exact text to subtitle service ---
+        orch._run_subtitle(ctx)
+        orch._subtitle_svc.build_srt.assert_called_once()
+        subtitle_text = orch._subtitle_svc.build_srt.call_args[0][2]
+        assert subtitle_text == manual_text

@@ -1,0 +1,2247 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+            - link "Sign in" [ref=e54] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fchenhg5%2Fcc-connect
+            - link "Sign up" [ref=e55] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E&source=header-repo&source_repo=chenhg5%2Fcc-connect
+            - button "Appearance settings" [ref=e58] [cursor=pointer]:
+              - img
+  - main [ref=e62]:
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e66]:
+          - img [ref=e67]
+          - link "chenhg5" [ref=e70] [cursor=pointer]:
+            - /url: /chenhg5
+          - generic [ref=e71]: /
+          - strong [ref=e72]:
+            - link "cc-connect" [ref=e73] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect
+          - generic [ref=e74]: Public
+        - generic [ref=e75]:
+          - list:
+            - listitem [ref=e76]:
+              - button "Sponsor chenhg5/cc-connect" [ref=e78] [cursor=pointer]:
+                - generic [ref=e80]:
+                  - img [ref=e81]
+                  - text: Sponsor
+            - listitem [ref=e83]:
+              - link "You must be signed in to change notification settings" [ref=e84] [cursor=pointer]:
+                - /url: /login?return_to=%2Fchenhg5%2Fcc-connect
+                - img [ref=e85]
+                - text: Notifications
+            - listitem [ref=e87]:
+              - link "Fork 1.3k" [ref=e88] [cursor=pointer]:
+                - /url: /login?return_to=%2Fchenhg5%2Fcc-connect
+                - img [ref=e89]
+                - text: Fork
+                - generic "1,339" [ref=e91]: 1.3k
+            - listitem [ref=e92]:
+              - link "You must be signed in to star a repository" [ref=e94] [cursor=pointer]:
+                - /url: /login?return_to=%2Fchenhg5%2Fcc-connect
+                - img [ref=e95]
+                - text: Star
+                - generic "14024 users starred this repository" [ref=e97]: 14k
+      - navigation "Repository" [ref=e98]:
+        - list [ref=e99]:
+          - listitem [ref=e100]:
+            - link "Code" [ref=e101] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect
+              - img [ref=e102]
+              - generic [ref=e104]: Code
+          - listitem [ref=e105]:
+            - link "Issues 245" [ref=e106] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/issues
+              - img [ref=e107]
+              - generic [ref=e110]: Issues
+              - generic "245" [ref=e111]
+          - listitem [ref=e112]:
+            - link "Pull requests 242" [ref=e113] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/pulls
+              - img [ref=e114]
+              - generic [ref=e116]: Pull requests
+              - generic "242" [ref=e117]
+          - listitem [ref=e118]:
+            - link "Actions" [ref=e119] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/actions
+              - img [ref=e120]
+              - generic [ref=e122]: Actions
+          - listitem [ref=e123]:
+            - link "Projects" [ref=e124] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/projects
+              - img [ref=e125]
+              - generic [ref=e127]: Projects
+          - listitem [ref=e128]:
+            - link "Security and quality" [ref=e129] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/security
+              - img [ref=e130]
+              - generic [ref=e132]: Security and quality
+          - listitem [ref=e133]:
+            - link "Insights" [ref=e134] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/pulse
+              - img [ref=e135]
+              - generic [ref=e137]: Insights
+    - generic [ref=e150]:
+      - heading "chenhg5/cc-connect" [level=1] [ref=e152]
+      - generic [ref=e153]:
+        - generic [ref=e156]:
+          - generic [ref=e157]:
+            - generic [ref=e158]:
+              - button "main branch" [ref=e160] [cursor=pointer]:
+                - generic [ref=e161]:
+                  - generic [ref=e163]:
+                    - img [ref=e165]
+                    - generic [ref=e168]: main
+                  - generic:
+                    - img
+              - generic [ref=e169]:
+                - link "168 Branches" [ref=e170] [cursor=pointer]:
+                  - /url: /chenhg5/cc-connect/branches
+                  - generic [ref=e171]:
+                    - generic:
+                      - img
+                    - generic [ref=e173]:
+                      - strong [ref=e174]: "168"
+                      - text: Branches
+                - link "44 Tags" [ref=e175] [cursor=pointer]:
+                  - /url: /chenhg5/cc-connect/tags
+                  - generic [ref=e176]:
+                    - generic:
+                      - img
+                    - generic [ref=e178]:
+                      - strong [ref=e179]: "44"
+                      - text: Tags
+            - generic [ref=e180]:
+              - generic [ref=e184]:
+                - img [ref=e186]
+                - combobox "Go to file" [ref=e188]
+              - button "Code" [ref=e189] [cursor=pointer]:
+                - generic [ref=e190]:
+                  - generic:
+                    - img
+                  - generic [ref=e191]: Code
+                  - generic:
+                    - img
+          - generic [ref=e192]:
+            - generic [ref=e193]:
+              - heading "Folders and files" [level=2] [ref=e194]
+              - table "Folders and files" [ref=e195]:
+                - rowgroup:
+                  - row "Name Last commit message Last commit date":
+                    - columnheader "Name"
+                    - columnheader "Last commit message":
+                      - generic "Last commit message"
+                    - columnheader "Last commit date":
+                      - generic "Last commit date"
+                - rowgroup [ref=e196]:
+                  - 'row "Latest commit chenhg5 dev-claudecode cursoragent Show 3 authors fix(codex): surface gpt-5.x in /model chooser (drop stale allowlist) (#… Open commit details success Commit 52dfe8b · Jul 14, 2026yesterday History 1,160 Commits" [ref=e197]':
+                    - 'cell "Latest commit chenhg5 dev-claudecode cursoragent Show 3 authors fix(codex): surface gpt-5.x in /model chooser (drop stale allowlist) (#… Open commit details success Commit 52dfe8b · Jul 14, 2026yesterday History 1,160 Commits" [ref=e198]':
+                      - generic [ref=e199]:
+                        - heading "Latest commit" [level=2] [ref=e200]
+                        - generic [ref=e201]:
+                          - generic [ref=e202]:
+                            - generic [ref=e204]:
+                              - img "chenhg5" [ref=e205]
+                              - img "dev-claudecode" [ref=e206]
+                              - img "cursoragent" [ref=e207]
+                            - button "Show 3 authors" [ref=e208] [cursor=pointer]: 3 people
+                          - generic [ref=e209]:
+                            - generic [ref=e211]:
+                              - 'link "fix(codex): surface gpt-5.x in /model chooser (drop stale allowlist) (" [ref=e212] [cursor=pointer]':
+                                - /url: /chenhg5/cc-connect/commit/52dfe8b7d49c7dc5d6028043cf5dcee8badbd79d
+                              - link "#…" [ref=e213] [cursor=pointer]:
+                                - /url: https://github.com/chenhg5/cc-connect/pull/1546
+                            - button "Open commit details" [ref=e214] [cursor=pointer]:
+                              - img [ref=e215]
+                            - button "success" [ref=e217] [cursor=pointer]:
+                              - img [ref=e218]
+                        - generic [ref=e220]:
+                          - generic [ref=e222]:
+                            - link "Commit 52dfe8b" [ref=e223] [cursor=pointer]:
+                              - /url: /chenhg5/cc-connect/commit/52dfe8b7d49c7dc5d6028043cf5dcee8badbd79d
+                              - text: 52dfe8b
+                            - text: ·
+                            - generic "Jul 14, 2026, 21:55 GMT+8" [ref=e224]: Jul 14, 2026yesterday
+                          - generic [ref=e225]:
+                            - heading "History" [level=2] [ref=e226]
+                            - link "1,160 Commits" [ref=e227] [cursor=pointer]:
+                              - /url: /chenhg5/cc-connect/commits/main/
+                              - generic [ref=e228]:
+                                - generic:
+                                  - img
+                                - generic [ref=e229]: 1,160 Commits
+                  - 'row ".claude, (Directory) feat(observe): mirror terminal Claude Code sessions to a chat channel (… Apr 11, 20263 months ago" [ref=e230]':
+                    - cell ".claude, (Directory)" [ref=e231]:
+                      - generic [ref=e232]:
+                        - img [ref=e233]
+                        - link ".claude, (Directory)" [ref=e238] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/.claude
+                          - text: .claude
+                    - 'cell "feat(observe): mirror terminal Claude Code sessions to a chat channel (…" [ref=e239]':
+                      - generic [ref=e241]:
+                        - 'link "feat(observe): mirror terminal Claude Code sessions to a chat channel (" [ref=e242] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/8dd5868d720ff45b2884d9a32db0acd2a46c15b9
+                        - link "…" [ref=e243] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/559
+                    - cell "Apr 11, 20263 months ago" [ref=e244]:
+                      - generic [ref=e245]: Apr 11, 20263 months ago
+                  - 'row ".github, (Directory) fix(core): /switch no longer loses history; persist user msgs immedia… Jun 15, 2026last month" [ref=e246]':
+                    - cell ".github, (Directory)" [ref=e247]:
+                      - generic [ref=e248]:
+                        - img [ref=e249]
+                        - link ".github, (Directory)" [ref=e254] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/.github
+                          - text: .github
+                    - 'cell "fix(core): /switch no longer loses history; persist user msgs immedia…" [ref=e255]':
+                      - 'link "fix(core): /switch no longer loses history; persist user msgs immedia…" [ref=e258] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/732bb66fb38e5aa5d7c0184d9b1fde0922253708
+                    - cell "Jun 15, 2026last month" [ref=e259]:
+                      - generic [ref=e260]: Jun 15, 2026last month
+                  - 'row "agent, (Directory) fix(codex): surface gpt-5.x in /model chooser (drop stale allowlist) (#… Jul 14, 2026yesterday" [ref=e261]':
+                    - cell "agent, (Directory)" [ref=e262]:
+                      - generic [ref=e263]:
+                        - img [ref=e264]
+                        - link "agent, (Directory)" [ref=e269] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/agent
+                          - text: agent
+                    - 'cell "fix(codex): surface gpt-5.x in /model chooser (drop stale allowlist) (#…" [ref=e270]':
+                      - generic [ref=e272]:
+                        - 'link "fix(codex): surface gpt-5.x in /model chooser (drop stale allowlist) (" [ref=e273] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/52dfe8b7d49c7dc5d6028043cf5dcee8badbd79d
+                        - link "#…" [ref=e274] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1546
+                    - cell "Jul 14, 2026yesterday" [ref=e275]:
+                      - generic [ref=e276]: Jul 14, 2026yesterday
+                  - 'row "assets, (Directory) docs(sponsors): replace top banner with Kimi Jul 13, 20262 days ago" [ref=e277]':
+                    - cell "assets, (Directory)" [ref=e278]:
+                      - generic [ref=e279]:
+                        - img [ref=e280]
+                        - link "assets, (Directory)" [ref=e285] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/assets
+                          - text: assets
+                    - 'cell "docs(sponsors): replace top banner with Kimi" [ref=e286]':
+                      - 'link "docs(sponsors): replace top banner with Kimi" [ref=e289] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/c4a612c2382a37b30a489b3a17f194d3ccd9b7ea
+                    - cell "Jul 13, 20262 days ago" [ref=e290]:
+                      - generic [ref=e291]: Jul 13, 20262 days ago
+                  - 'row "changelogs, (Directory) release: v1.3.3 stable Jun 15, 2026last month" [ref=e292]':
+                    - cell "changelogs, (Directory)" [ref=e293]:
+                      - generic [ref=e294]:
+                        - img [ref=e295]
+                        - link "changelogs, (Directory)" [ref=e300] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/changelogs
+                          - text: changelogs
+                    - 'cell "release: v1.3.3 stable" [ref=e301]':
+                      - 'link "release: v1.3.3 stable" [ref=e304] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/dc1c63b9eb33836668a154305f82e54b4daeb6ad
+                    - cell "Jun 15, 2026last month" [ref=e305]:
+                      - generic [ref=e306]: Jun 15, 2026last month
+                  - row "cmd/cc-connect, (Directory) Integrate WPS Agentspace platform with auto-login and token encryption ( Jul 14, 20262 days ago" [ref=e307]:
+                    - cell "cmd/cc-connect, (Directory)" [ref=e308]:
+                      - generic [ref=e309]:
+                        - img [ref=e310]
+                        - link "cmd/cc-connect, (Directory)" [ref=e315] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/cmd/cc-connect
+                          - text: cmd/cc-connect
+                    - cell "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e316]:
+                      - link "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e319] [cursor=pointer]:
+                        - /url: /chenhg5/cc-connect/commit/72d6fb617d972966c7eb9080b012171ee45dd819
+                    - cell "Jul 14, 20262 days ago" [ref=e320]:
+                      - generic [ref=e321]: Jul 14, 20262 days ago
+                  - row "config, (Directory) Add per-session idle timeout for live agent processes (#1338) Jul 5, 20262 weeks ago" [ref=e322]:
+                    - cell "config, (Directory)" [ref=e323]:
+                      - generic [ref=e324]:
+                        - img [ref=e325]
+                        - link "config, (Directory)" [ref=e330] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/config
+                          - text: config
+                    - cell "Add per-session idle timeout for live agent processes (#1338)" [ref=e331]:
+                      - generic [ref=e333]:
+                        - link "Add per-session idle timeout for live agent processes (" [ref=e334] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/760079bca2021588ab319b8e92f93ca5f361ea54
+                        - link "#1338" [ref=e335] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1338
+                        - link ")" [ref=e336] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/760079bca2021588ab319b8e92f93ca5f361ea54
+                    - cell "Jul 5, 20262 weeks ago" [ref=e337]:
+                      - generic [ref=e338]: Jul 5, 20262 weeks ago
+                  - row "core, (Directory) Add per-session idle timeout for live agent processes (#1338) Jul 5, 20262 weeks ago" [ref=e339]:
+                    - cell "core, (Directory)" [ref=e340]:
+                      - generic [ref=e341]:
+                        - img [ref=e342]
+                        - link "core, (Directory)" [ref=e347] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/core
+                          - text: core
+                    - cell "Add per-session idle timeout for live agent processes (#1338)" [ref=e348]:
+                      - generic [ref=e350]:
+                        - link "Add per-session idle timeout for live agent processes (" [ref=e351] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/760079bca2021588ab319b8e92f93ca5f361ea54
+                        - link "#1338" [ref=e352] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1338
+                        - link ")" [ref=e353] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/760079bca2021588ab319b8e92f93ca5f361ea54
+                    - cell "Jul 5, 20262 weeks ago" [ref=e354]:
+                      - generic [ref=e355]: Jul 5, 20262 weeks ago
+                  - 'row "daemon, (Directory) feat(daemon): add CC_LOG_MAX_BACKUPS env var support (#1260) Jun 16, 2026last month" [ref=e356]':
+                    - cell "daemon, (Directory)" [ref=e357]:
+                      - generic [ref=e358]:
+                        - img [ref=e359]
+                        - link "daemon, (Directory)" [ref=e364] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/daemon
+                          - text: daemon
+                    - 'cell "feat(daemon): add CC_LOG_MAX_BACKUPS env var support (#1260)" [ref=e365]':
+                      - generic [ref=e367]:
+                        - 'link "feat(daemon): add CC_LOG_MAX_BACKUPS env var support (" [ref=e368] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/1c92a03fdcf8fdfc984f1cc5215a79c2400254cb
+                        - link "#1260" [ref=e369] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1260
+                        - link ")" [ref=e370] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/1c92a03fdcf8fdfc984f1cc5215a79c2400254cb
+                    - cell "Jun 16, 2026last month" [ref=e371]:
+                      - generic [ref=e372]: Jun 16, 2026last month
+                  - 'row "docs, (Directory) feat(platform): add cloud_web platform for self-hosted IM gateways (#… Jul 5, 20262 weeks ago" [ref=e373]':
+                    - cell "docs, (Directory)" [ref=e374]:
+                      - generic [ref=e375]:
+                        - img [ref=e376]
+                        - link "docs, (Directory)" [ref=e381] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/docs
+                          - text: docs
+                    - 'cell "feat(platform): add cloud_web platform for self-hosted IM gateways (#…" [ref=e382]':
+                      - generic [ref=e384]:
+                        - 'link "feat(platform): add cloud_web platform for self-hosted IM gateways (" [ref=e385] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/118dd3b6976ab9c22a88527c3343d63070b9c737
+                        - link "#…" [ref=e386] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1282
+                    - cell "Jul 5, 20262 weeks ago" [ref=e387]:
+                      - generic [ref=e388]: Jul 5, 20262 weeks ago
+                  - 'row "npm, (Directory) release: v1.3.3 stable Jun 15, 2026last month" [ref=e389]':
+                    - cell "npm, (Directory)" [ref=e390]:
+                      - generic [ref=e391]:
+                        - img [ref=e392]
+                        - link "npm, (Directory)" [ref=e397] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/npm
+                          - text: npm
+                    - 'cell "release: v1.3.3 stable" [ref=e398]':
+                      - 'link "release: v1.3.3 stable" [ref=e401] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/dc1c63b9eb33836668a154305f82e54b4daeb6ad
+                    - cell "Jun 15, 2026last month" [ref=e402]:
+                      - generic [ref=e403]: Jun 15, 2026last month
+                  - row "platform, (Directory) Integrate WPS Agentspace platform with auto-login and token encryption ( Jul 14, 20262 days ago" [ref=e404]:
+                    - cell "platform, (Directory)" [ref=e405]:
+                      - generic [ref=e406]:
+                        - img [ref=e407]
+                        - link "platform, (Directory)" [ref=e412] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/platform
+                          - text: platform
+                    - cell "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e413]:
+                      - link "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e416] [cursor=pointer]:
+                        - /url: /chenhg5/cc-connect/commit/72d6fb617d972966c7eb9080b012171ee45dd819
+                    - cell "Jul 14, 20262 days ago" [ref=e417]:
+                      - generic [ref=e418]: Jul 14, 20262 days ago
+                  - 'row "tests, (Directory) fix(display): hide agent footer lines (#1416) Jul 5, 20262 weeks ago" [ref=e419]':
+                    - cell "tests, (Directory)" [ref=e420]:
+                      - generic [ref=e421]:
+                        - img [ref=e422]
+                        - link "tests, (Directory)" [ref=e427] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/tests
+                          - text: tests
+                    - 'cell "fix(display): hide agent footer lines (#1416)" [ref=e428]':
+                      - generic [ref=e430]:
+                        - 'link "fix(display): hide agent footer lines (" [ref=e431] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/f943666a53920a5424a349f9a38df66bb23a7074
+                        - link "#1416" [ref=e432] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1416
+                        - link ")" [ref=e433] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/f943666a53920a5424a349f9a38df66bb23a7074
+                    - cell "Jul 5, 20262 weeks ago" [ref=e434]:
+                      - generic [ref=e435]: Jul 5, 20262 weeks ago
+                  - 'row "web, (Directory) feat(yuanbao): add Tencent Yuanbao Bot API platform (#1445) Jul 5, 20262 weeks ago" [ref=e436]':
+                    - cell "web, (Directory)" [ref=e437]:
+                      - generic [ref=e438]:
+                        - img [ref=e439]
+                        - link "web, (Directory)" [ref=e444] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/tree/main/web
+                          - text: web
+                    - 'cell "feat(yuanbao): add Tencent Yuanbao Bot API platform (#1445)" [ref=e445]':
+                      - generic [ref=e447]:
+                        - 'link "feat(yuanbao): add Tencent Yuanbao Bot API platform (" [ref=e448] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/2973210ff3d259597c709eb0d77dcca0b1c5226b
+                        - link "#1445" [ref=e449] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1445
+                        - link ")" [ref=e450] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/2973210ff3d259597c709eb0d77dcca0b1c5226b
+                    - cell "Jul 5, 20262 weeks ago" [ref=e451]:
+                      - generic [ref=e452]: Jul 5, 20262 weeks ago
+                  - 'row ".gitignore, (File) chore(gitignore): add .worktrees/ — local-only multi-agent scratch di… Jun 28, 20262 weeks ago" [ref=e453]':
+                    - cell ".gitignore, (File)" [ref=e454]:
+                      - generic [ref=e455]:
+                        - img [ref=e456]
+                        - link ".gitignore, (File)" [ref=e461] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/.gitignore
+                          - text: .gitignore
+                    - 'cell "chore(gitignore): add .worktrees/ — local-only multi-agent scratch di…" [ref=e462]':
+                      - 'link "chore(gitignore): add .worktrees/ — local-only multi-agent scratch di…" [ref=e465] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/fec094f9f09a1b2173606b4490486aeb452dd186
+                    - cell "Jun 28, 20262 weeks ago" [ref=e466]:
+                      - generic [ref=e467]: Jun 28, 20262 weeks ago
+                  - 'row ".golangci.yml, (File) ci: remove gosimple and unused linters (merged into staticcheck in go… May 28, 20262 months ago" [ref=e468]':
+                    - cell ".golangci.yml, (File)" [ref=e469]:
+                      - generic [ref=e470]:
+                        - img [ref=e471]
+                        - link ".golangci.yml, (File)" [ref=e476] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/.golangci.yml
+                          - text: .golangci.yml
+                    - 'cell "ci: remove gosimple and unused linters (merged into staticcheck in go…" [ref=e477]':
+                      - 'link "ci: remove gosimple and unused linters (merged into staticcheck in go…" [ref=e480] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/54a81dac834018179de81bc4327a79b2cd0d8f97
+                    - cell "May 28, 20262 months ago" [ref=e481]:
+                      - generic [ref=e482]: May 28, 20262 months ago
+                  - 'row "AGENTS.md, (File) feat(platform): add cloud_web platform for self-hosted IM gateways (#… Jul 5, 20262 weeks ago" [ref=e483]':
+                    - cell "AGENTS.md, (File)" [ref=e484]:
+                      - generic [ref=e485]:
+                        - img [ref=e486]
+                        - link "AGENTS.md, (File)" [ref=e491] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/AGENTS.md
+                          - text: AGENTS.md
+                    - 'cell "feat(platform): add cloud_web platform for self-hosted IM gateways (#…" [ref=e492]':
+                      - generic [ref=e494]:
+                        - 'link "feat(platform): add cloud_web platform for self-hosted IM gateways (" [ref=e495] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/118dd3b6976ab9c22a88527c3343d63070b9c737
+                        - link "#…" [ref=e496] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1282
+                    - cell "Jul 5, 20262 weeks ago" [ref=e497]:
+                      - generic [ref=e498]: Jul 5, 20262 weeks ago
+                  - 'row "CHANGELOG.md, (File) fix(codex): surface gpt-5.x in /model chooser (drop stale allowlist) (#… Jul 14, 2026yesterday" [ref=e499]':
+                    - cell "CHANGELOG.md, (File)" [ref=e500]:
+                      - generic [ref=e501]:
+                        - img [ref=e502]
+                        - link "CHANGELOG.md, (File)" [ref=e507] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/CHANGELOG.md
+                          - text: CHANGELOG.md
+                    - 'cell "fix(codex): surface gpt-5.x in /model chooser (drop stale allowlist) (#…" [ref=e508]':
+                      - generic [ref=e510]:
+                        - 'link "fix(codex): surface gpt-5.x in /model chooser (drop stale allowlist) (" [ref=e511] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/52dfe8b7d49c7dc5d6028043cf5dcee8badbd79d
+                        - link "#…" [ref=e512] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1546
+                    - cell "Jul 14, 2026yesterday" [ref=e513]:
+                      - generic [ref=e514]: Jul 14, 2026yesterday
+                  - 'row "CLAUDE.md, (File) feat: add Cisco Webex platform adapter (#1402) Jun 22, 20263 weeks ago" [ref=e515]':
+                    - cell "CLAUDE.md, (File)" [ref=e516]:
+                      - generic [ref=e517]:
+                        - img [ref=e518]
+                        - link "CLAUDE.md, (File)" [ref=e523] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/CLAUDE.md
+                          - text: CLAUDE.md
+                    - 'cell "feat: add Cisco Webex platform adapter (#1402)" [ref=e524]':
+                      - generic [ref=e526]:
+                        - 'link "feat: add Cisco Webex platform adapter (" [ref=e527] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/cb0e2fa172cdd79e66e3db973769f2bd1d98e833
+                        - link "#1402" [ref=e528] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/1402
+                        - link ")" [ref=e529] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/cb0e2fa172cdd79e66e3db973769f2bd1d98e833
+                    - cell "Jun 22, 20263 weeks ago" [ref=e530]:
+                      - generic [ref=e531]: Jun 22, 20263 weeks ago
+                  - 'row "CONTRIBUTING.md, (File) docs: add contributing guide (#388) Apr 2, 20264 months ago" [ref=e532]':
+                    - cell "CONTRIBUTING.md, (File)" [ref=e533]:
+                      - generic [ref=e534]:
+                        - img [ref=e535]
+                        - link "CONTRIBUTING.md, (File)" [ref=e540] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/CONTRIBUTING.md
+                          - text: CONTRIBUTING.md
+                    - 'cell "docs: add contributing guide (#388)" [ref=e541]':
+                      - generic [ref=e543]:
+                        - 'link "docs: add contributing guide (" [ref=e544] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/e332336e6dbbf5795126f5c708e4f7420789d1a3
+                        - link "#388" [ref=e545] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/388
+                        - link ")" [ref=e546] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/e332336e6dbbf5795126f5c708e4f7420789d1a3
+                    - cell "Apr 2, 20264 months ago" [ref=e547]:
+                      - generic [ref=e548]: Apr 2, 20264 months ago
+                  - 'row "INSTALL.md, (File) feat(matrix): add Matrix platform adapter with E2EE support (#834) Jun 16, 2026last month" [ref=e549]':
+                    - cell "INSTALL.md, (File)" [ref=e550]:
+                      - generic [ref=e551]:
+                        - img [ref=e552]
+                        - link "INSTALL.md, (File)" [ref=e557] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/INSTALL.md
+                          - text: INSTALL.md
+                    - 'cell "feat(matrix): add Matrix platform adapter with E2EE support (#834)" [ref=e558]':
+                      - generic [ref=e560]:
+                        - 'link "feat(matrix): add Matrix platform adapter with E2EE support (" [ref=e561] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/6f8d3a2bd87d0b8c7fc3663433c0411c08954e85
+                        - link "#834" [ref=e562] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/834
+                        - link ")" [ref=e563] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/6f8d3a2bd87d0b8c7fc3663433c0411c08954e85
+                    - cell "Jun 16, 2026last month" [ref=e564]:
+                      - generic [ref=e565]: Jun 16, 2026last month
+                  - row "Makefile, (File) Integrate WPS Agentspace platform with auto-login and token encryption ( Jul 14, 20262 days ago" [ref=e566]:
+                    - cell "Makefile, (File)" [ref=e567]:
+                      - generic [ref=e568]:
+                        - img [ref=e569]
+                        - link "Makefile, (File)" [ref=e574] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/Makefile
+                          - text: Makefile
+                    - cell "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e575]:
+                      - link "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e578] [cursor=pointer]:
+                        - /url: /chenhg5/cc-connect/commit/72d6fb617d972966c7eb9080b012171ee45dd819
+                    - cell "Jul 14, 20262 days ago" [ref=e579]:
+                      - generic [ref=e580]: Jul 14, 20262 days ago
+                  - 'row "README.md, (File) docs(sponsors): replace top banner with Kimi Jul 13, 20262 days ago" [ref=e581]':
+                    - cell "README.md, (File)" [ref=e582]:
+                      - generic [ref=e583]:
+                        - img [ref=e584]
+                        - link "README.md, (File)" [ref=e589] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/README.md
+                          - text: README.md
+                    - 'cell "docs(sponsors): replace top banner with Kimi" [ref=e590]':
+                      - 'link "docs(sponsors): replace top banner with Kimi" [ref=e593] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/c4a612c2382a37b30a489b3a17f194d3ccd9b7ea
+                    - cell "Jul 13, 20262 days ago" [ref=e594]:
+                      - generic [ref=e595]: Jul 13, 20262 days ago
+                  - 'row "README.zh-CN.md, (File) docs(sponsors): replace top banner with Kimi Jul 13, 20262 days ago" [ref=e596]':
+                    - cell "README.zh-CN.md, (File)" [ref=e597]:
+                      - generic [ref=e598]:
+                        - img [ref=e599]
+                        - link "README.zh-CN.md, (File)" [ref=e604] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/README.zh-CN.md
+                          - text: README.zh-CN.md
+                    - 'cell "docs(sponsors): replace top banner with Kimi" [ref=e605]':
+                      - 'link "docs(sponsors): replace top banner with Kimi" [ref=e608] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/c4a612c2382a37b30a489b3a17f194d3ccd9b7ea
+                    - cell "Jul 13, 20262 days ago" [ref=e609]:
+                      - generic [ref=e610]: Jul 13, 20262 days ago
+                  - row "config.example.toml, (File) Integrate WPS Agentspace platform with auto-login and token encryption ( Jul 14, 20262 days ago" [ref=e611]:
+                    - cell "config.example.toml, (File)" [ref=e612]:
+                      - generic [ref=e613]:
+                        - img [ref=e614]
+                        - link "config.example.toml, (File)" [ref=e619] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/config.example.toml
+                          - text: config.example.toml
+                    - cell "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e620]:
+                      - link "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e623] [cursor=pointer]:
+                        - /url: /chenhg5/cc-connect/commit/72d6fb617d972966c7eb9080b012171ee45dd819
+                    - cell "Jul 14, 20262 days ago" [ref=e624]:
+                      - generic [ref=e625]: Jul 14, 20262 days ago
+                  - 'row "embed.go, (File) feat(cli): add config-example command and embed config template Mar 7, 20264 months ago" [ref=e626]':
+                    - cell "embed.go, (File)" [ref=e627]:
+                      - generic [ref=e628]:
+                        - img [ref=e629]
+                        - link "embed.go, (File)" [ref=e634] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/embed.go
+                          - text: embed.go
+                    - 'cell "feat(cli): add config-example command and embed config template" [ref=e635]':
+                      - 'link "feat(cli): add config-example command and embed config template" [ref=e638] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/4837dec436b78791b129b3bc2e5833275fe50fdc
+                    - cell "Mar 7, 20264 months ago" [ref=e639]:
+                      - generic [ref=e640]: Mar 7, 20264 months ago
+                  - row "go.mod, (File) Integrate WPS Agentspace platform with auto-login and token encryption ( Jul 14, 20262 days ago" [ref=e641]:
+                    - cell "go.mod, (File)" [ref=e642]:
+                      - generic [ref=e643]:
+                        - img [ref=e644]
+                        - link "go.mod, (File)" [ref=e649] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/go.mod
+                          - text: go.mod
+                    - cell "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e650]:
+                      - link "Integrate WPS Agentspace platform with auto-login and token encryption (" [ref=e653] [cursor=pointer]:
+                        - /url: /chenhg5/cc-connect/commit/72d6fb617d972966c7eb9080b012171ee45dd819
+                    - cell "Jul 14, 20262 days ago" [ref=e654]:
+                      - generic [ref=e655]: Jul 14, 20262 days ago
+                  - 'row "go.sum, (File) feat(matrix): add Matrix platform adapter with E2EE support (#834) Jun 16, 2026last month" [ref=e656]':
+                    - cell "go.sum, (File)" [ref=e657]:
+                      - generic [ref=e658]:
+                        - img [ref=e659]
+                        - link "go.sum, (File)" [ref=e664] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/go.sum
+                          - text: go.sum
+                    - 'cell "feat(matrix): add Matrix platform adapter with E2EE support (#834)" [ref=e665]':
+                      - generic [ref=e667]:
+                        - 'link "feat(matrix): add Matrix platform adapter with E2EE support (" [ref=e668] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/6f8d3a2bd87d0b8c7fc3663433c0411c08954e85
+                        - link "#834" [ref=e669] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/pull/834
+                        - link ")" [ref=e670] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/6f8d3a2bd87d0b8c7fc3663433c0411c08954e85
+                    - cell "Jun 16, 2026last month" [ref=e671]:
+                      - generic [ref=e672]: Jun 16, 2026last month
+                  - 'row "provider-presets.json, (File) feat(presets): add Kimi as #1 provider in provider-presets Jul 13, 20262 days ago" [ref=e673]':
+                    - cell "provider-presets.json, (File)" [ref=e674]:
+                      - generic [ref=e675]:
+                        - img [ref=e676]
+                        - link "provider-presets.json, (File)" [ref=e681] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/provider-presets.json
+                          - text: provider-presets.json
+                    - 'cell "feat(presets): add Kimi as #1 provider in provider-presets" [ref=e682]':
+                      - generic [ref=e684]:
+                        - 'link "feat(presets): add Kimi as" [ref=e685] [cursor=pointer]':
+                          - /url: /chenhg5/cc-connect/commit/c4ef126c0e13ae9f51d77a129c315f89a24f9952
+                        - link "#1" [ref=e686] [cursor=pointer]:
+                          - /url: https://github.com/chenhg5/cc-connect/issues/1
+                        - link "provider in provider-presets" [ref=e687] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/commit/c4ef126c0e13ae9f51d77a129c315f89a24f9952
+                    - cell "Jul 13, 20262 days ago" [ref=e688]:
+                      - generic [ref=e689]: Jul 13, 20262 days ago
+                  - 'row "skill-presets.json, (File) feat: add skill management page with local/recommended tabs Apr 19, 20263 months ago" [ref=e690]':
+                    - cell "skill-presets.json, (File)" [ref=e691]:
+                      - generic [ref=e692]:
+                        - img [ref=e693]
+                        - link "skill-presets.json, (File)" [ref=e698] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/skill-presets.json
+                          - text: skill-presets.json
+                    - 'cell "feat: add skill management page with local/recommended tabs" [ref=e699]':
+                      - 'link "feat: add skill management page with local/recommended tabs" [ref=e702] [cursor=pointer]':
+                        - /url: /chenhg5/cc-connect/commit/345cdd59acdf313789a32f3008c41239377d7b90
+                    - cell "Apr 19, 20263 months ago" [ref=e703]:
+                      - generic [ref=e704]: Apr 19, 20263 months ago
+            - generic [ref=e706]:
+              - generic [ref=e707]:
+                - heading "Repository files navigation" [level=2] [ref=e708]
+                - navigation "Repository files" [ref=e709]:
+                  - list [ref=e710]:
+                    - listitem [ref=e711]:
+                      - link "README" [ref=e712] [cursor=pointer]:
+                        - /url: "#"
+                        - generic [ref=e713]: README
+                    - listitem [ref=e714]:
+                      - link "Contributing" [ref=e715] [cursor=pointer]:
+                        - /url: "#"
+                        - generic [ref=e716]: Contributing
+                - button "Outline" [ref=e717] [cursor=pointer]:
+                  - img [ref=e718]
+              - article [ref=e721]:
+                - paragraph [ref=e722]:
+                  - link "CC-Connect Banner" [ref=e723] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/docs/images/banner.svg
+                    - img "CC-Connect Banner" [ref=e724]
+                - paragraph [ref=e725]:
+                  - link "CI Status" [ref=e726] [cursor=pointer]:
+                    - /url: https://github.com/chenhg5/cc-connect/actions/workflows/ci.yml
+                    - img "CI Status" [ref=e727]
+                  - link "Release" [ref=e728] [cursor=pointer]:
+                    - /url: https://github.com/chenhg5/cc-connect/releases
+                    - img "Release" [ref=e729]
+                  - link "npm downloads" [ref=e730] [cursor=pointer]:
+                    - /url: https://www.npmjs.com/package/cc-connect
+                    - img "npm downloads" [ref=e731]
+                  - link "License" [ref=e732] [cursor=pointer]:
+                    - /url: https://github.com/chenhg5/cc-connect/blob/main/LICENSE
+                    - img "License" [ref=e733]
+                  - link "Go Report Card" [ref=e734] [cursor=pointer]:
+                    - /url: https://goreportcard.com/report/github.com/chenhg5/cc-connect
+                    - img "Go Report Card" [ref=e735]
+                - paragraph [ref=e736]:
+                  - link "Discord" [ref=e737] [cursor=pointer]:
+                    - /url: https://discord.gg/kHpwgaM4kq
+                    - img "Discord" [ref=e738]
+                  - link "Telegram" [ref=e739] [cursor=pointer]:
+                    - /url: https://t.me/+odGNDhCjbjdmMmZl
+                    - img "Telegram" [ref=e740]
+                - paragraph [ref=e741]:
+                  - link "English" [ref=e742] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/README.md
+                  - text: "|"
+                  - link "中文" [ref=e743] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/README.zh-CN.md
+                - paragraph [ref=e744]:
+                  - link "chenhg5/cc-connect | Trendshift" [ref=e745] [cursor=pointer]:
+                    - /url: https://trendshift.io/repositories/23266
+                    - img "chenhg5/cc-connect | Trendshift" [ref=e746]
+                - generic [ref=e747]:
+                  - heading "❤️ Sponsor" [level=2] [ref=e748]
+                  - 'link "Permalink: ❤️ Sponsor" [ref=e749] [cursor=pointer]':
+                    - /url: "#️-sponsor"
+                    - img [ref=e750]
+                - blockquote [ref=e752]:
+                  - paragraph [ref=e753]:
+                    - text: "Want to appear here? Contact:"
+                    - link "chg80333@gmail.com" [ref=e754] [cursor=pointer]:
+                      - /url: mailto:chg80333@gmail.com
+                    - text: "| WeChat: mongorz"
+                - group [ref=e755]:
+                  - generic "Sponsors" [ref=e756] [cursor=pointer]
+                  - paragraph [ref=e757]:
+                    - link "Kimi" [ref=e758] [cursor=pointer]:
+                      - /url: https://www.kimi.com/code/?aff=cc-connect
+                      - img "Kimi" [ref=e759]
+                  - paragraph [ref=e760]:
+                    - text: Thanks to
+                    - link "Kimi" [ref=e761] [cursor=pointer]:
+                      - /url: https://www.kimi.com/code/?aff=cc-connect
+                    - text: for sponsoring this project!
+                    - link "Kimi K2.7 Code" [ref=e762] [cursor=pointer]:
+                      - /url: https://platform.kimi.ai/docs/guide/kimi-k2-7-code-quickstart
+                    - text: is an open-source, coding-focused agentic model developed by Moonshot AI, delivering substantial gains on real-world long-horizon coding tasks and higher end-to-end success across complex software engineering workflows. It also reduces thinking-token usage by approximately 30% compared with K2.6.
+                  - paragraph [ref=e763]: With cc-connect, you can bring Kimi CLI from your local machine into Feishu/Lark, DingTalk, Telegram, Slack, Discord, WeChat Work, and other instant messaging tools. Wherever you are, you can continue working on local projects through chat and ask Kimi to inspect or modify code, troubleshoot issues, run commands, and handle automation tasks.
+                  - paragraph [ref=e764]:
+                    - text: cc-connect already supports Kimi CLI. Try the cost-effective
+                    - link "Kimi Code subscription" [ref=e765] [cursor=pointer]:
+                      - /url: https://www.kimi.com/code/?aff=cc-connect
+                    - text: or use the API through the Kimi Open Platform (
+                    - link "中文站" [ref=e766] [cursor=pointer]:
+                      - /url: https://platform.kimi.com/?aff=cc-connect
+                    - text: ｜
+                    - link "Global" [ref=e767] [cursor=pointer]:
+                      - /url: https://platform.kimi.ai/?aff=cc-connect
+                    - text: ).
+                  - separator [ref=e768]
+                  - table [ref=e770]:
+                    - rowgroup [ref=e771]:
+                      - 'row "APINEBULA Thanks to APINEBULA for sponsoring this project! APINEBULA, an enterprise-grade AI aggregation platform under Galaxy Video Bureau, leverages extensive platform resources to provide developers, teams, and enterprises with stable, cost-effective access to large language model APIs. The platform integrates leading, full-powered models like Claude, GPT, and Gemini—allowing you to connect to the world''s top AI models through a single API, with prices starting as low as 10% of the original cost. Designed for AI programming, Agent development, and business system integration, APINEBULA supports enterprise-grade high concurrency, formal contracts, corporate bank transfers, and invoicing services. APINEBULA provides special discounts for our software users: register using this link and enter the \"ccconnect\" promo code during first recharge to get 10% off." [ref=e772]':
+                        - cell "APINEBULA" [ref=e773]:
+                          - link "APINEBULA" [ref=e774] [cursor=pointer]:
+                            - /url: https://apinebula.com/UrO0q1
+                            - img "APINEBULA" [ref=e775]
+                        - 'cell "Thanks to APINEBULA for sponsoring this project! APINEBULA, an enterprise-grade AI aggregation platform under Galaxy Video Bureau, leverages extensive platform resources to provide developers, teams, and enterprises with stable, cost-effective access to large language model APIs. The platform integrates leading, full-powered models like Claude, GPT, and Gemini—allowing you to connect to the world''s top AI models through a single API, with prices starting as low as 10% of the original cost. Designed for AI programming, Agent development, and business system integration, APINEBULA supports enterprise-grade high concurrency, formal contracts, corporate bank transfers, and invoicing services. APINEBULA provides special discounts for our software users: register using this link and enter the \"ccconnect\" promo code during first recharge to get 10% off." [ref=e776]':
+                          - text: "Thanks to APINEBULA for sponsoring this project! APINEBULA, an enterprise-grade AI aggregation platform under Galaxy Video Bureau, leverages extensive platform resources to provide developers, teams, and enterprises with stable, cost-effective access to large language model APIs. The platform integrates leading, full-powered models like Claude, GPT, and Gemini—allowing you to connect to the world's top AI models through a single API, with prices starting as low as 10% of the original cost. Designed for AI programming, Agent development, and business system integration, APINEBULA supports enterprise-grade high concurrency, formal contracts, corporate bank transfers, and invoicing services. APINEBULA provides special discounts for our software users: register using"
+                          - link "this link" [ref=e777] [cursor=pointer]:
+                            - /url: https://apinebula.com/UrO0q1
+                          - text: and enter the "ccconnect" promo code during first recharge to get 10% off.
+                      - 'row "七牛云 Qiniu Cloud Thanks to Qiniu Cloud AI for sponsoring this project! Qiniu Cloud (HK:02567) is an enterprise-grade LLM MaaS platform offering one-stop access to 150+ leading global models with full protocol compatibility across all major providers. It covers text, image, audio, video, and file processing across all modalities, serving over 1.69 million enterprise and developer users worldwide. Exclusive offer for cc-connect users: enterprise customers get 12 million free tokens, and refer friends to earn up to billions of tokens in bonus." [ref=e778]':
+                        - cell "七牛云 Qiniu Cloud" [ref=e779]:
+                          - link "七牛云 Qiniu Cloud" [ref=e780] [cursor=pointer]:
+                            - /url: https://s.qiniu.com/aUbueu
+                            - img "七牛云 Qiniu Cloud" [ref=e781]
+                        - 'cell "Thanks to Qiniu Cloud AI for sponsoring this project! Qiniu Cloud (HK:02567) is an enterprise-grade LLM MaaS platform offering one-stop access to 150+ leading global models with full protocol compatibility across all major providers. It covers text, image, audio, video, and file processing across all modalities, serving over 1.69 million enterprise and developer users worldwide. Exclusive offer for cc-connect users: enterprise customers get 12 million free tokens, and refer friends to earn up to billions of tokens in bonus." [ref=e782]':
+                          - text: Thanks to
+                          - link "Qiniu Cloud AI" [ref=e783] [cursor=pointer]:
+                            - /url: https://s.qiniu.com/aUbueu
+                          - text: "for sponsoring this project! Qiniu Cloud (HK:02567) is an enterprise-grade LLM MaaS platform offering one-stop access to 150+ leading global models with full protocol compatibility across all major providers. It covers text, image, audio, video, and file processing across all modalities, serving over 1.69 million enterprise and developer users worldwide. Exclusive offer for cc-connect users: enterprise customers get 12 million free tokens, and refer friends to earn up to billions of tokens in bonus."
+                      - 'row "Fenno.ai Thanks to Fenno.ai for sponsoring this project! Fenno.ai is a stable, efficient API relay service currently providing Codex relay with full OpenAI and Anthropic protocol compatibility. It flexibly integrates with mainstream coding tools like Codex, Claude Code, and OpenCode, reliably supporting enterprise-level demands of hundreds of billions of tokens per day. Fenno.ai supports domestic and overseas entity-to-entity settlement and invoicing. Exclusive offer for cc-connect users: subscribe via this link for an unbeatable Coding Plan at ¥9.9 / $150 credit, and earn up to 20% bonus for each friend you refer." [ref=e784]':
+                        - cell "Fenno.ai" [ref=e785]:
+                          - link "Fenno.ai" [ref=e786] [cursor=pointer]:
+                            - /url: https://api.fenno.ai/register?redirect=/purchase?tab=subscription%26group=16&aff=C7KG6WBS7CQJ
+                            - img "Fenno.ai" [ref=e787]
+                        - 'cell "Thanks to Fenno.ai for sponsoring this project! Fenno.ai is a stable, efficient API relay service currently providing Codex relay with full OpenAI and Anthropic protocol compatibility. It flexibly integrates with mainstream coding tools like Codex, Claude Code, and OpenCode, reliably supporting enterprise-level demands of hundreds of billions of tokens per day. Fenno.ai supports domestic and overseas entity-to-entity settlement and invoicing. Exclusive offer for cc-connect users: subscribe via this link for an unbeatable Coding Plan at ¥9.9 / $150 credit, and earn up to 20% bonus for each friend you refer." [ref=e788]':
+                          - text: "Thanks to Fenno.ai for sponsoring this project! Fenno.ai is a stable, efficient API relay service currently providing Codex relay with full OpenAI and Anthropic protocol compatibility. It flexibly integrates with mainstream coding tools like Codex, Claude Code, and OpenCode, reliably supporting enterprise-level demands of hundreds of billions of tokens per day. Fenno.ai supports domestic and overseas entity-to-entity settlement and invoicing. Exclusive offer for cc-connect users: subscribe via"
+                          - link "this link" [ref=e789] [cursor=pointer]:
+                            - /url: https://api.fenno.ai/register?redirect=/purchase?tab=subscription%26group=16&aff=C7KG6WBS7CQJ
+                          - text: for an unbeatable Coding Plan at ¥9.9 / $150 credit, and earn up to 20% bonus for each friend you refer.
+                      - 'row "AIGoCode Thanks to AIGoCode for sponsoring this project! AIGoCode is an all-in-one platform that integrates Claude Code, Codex, and the latest Gemini models, providing you with stable, efficient, and highly cost-effective AI coding services. The platform offers flexible subscription plans, zero risk of account suspension, direct access with no VPN required, and lightning-fast responses. AIGoCode has prepared a special benefit for cc-connect users: if you register via this link, you''ll receive an extra 10% bonus credit on your first top-up!" [ref=e790]':
+                        - cell "AIGoCode" [ref=e791]:
+                          - link "AIGoCode" [ref=e792] [cursor=pointer]:
+                            - /url: https://aigocode.com/invite/CYY3C85C
+                            - img "AIGoCode" [ref=e793]
+                        - 'cell "Thanks to AIGoCode for sponsoring this project! AIGoCode is an all-in-one platform that integrates Claude Code, Codex, and the latest Gemini models, providing you with stable, efficient, and highly cost-effective AI coding services. The platform offers flexible subscription plans, zero risk of account suspension, direct access with no VPN required, and lightning-fast responses. AIGoCode has prepared a special benefit for cc-connect users: if you register via this link, you''ll receive an extra 10% bonus credit on your first top-up!" [ref=e794]':
+                          - text: "Thanks to AIGoCode for sponsoring this project! AIGoCode is an all-in-one platform that integrates Claude Code, Codex, and the latest Gemini models, providing you with stable, efficient, and highly cost-effective AI coding services. The platform offers flexible subscription plans, zero risk of account suspension, direct access with no VPN required, and lightning-fast responses. AIGoCode has prepared a special benefit for cc-connect users: if you register via"
+                          - link "this link" [ref=e795] [cursor=pointer]:
+                            - /url: https://aigocode.com/invite/CYY3C85C
+                          - text: ", you'll receive an extra 10% bonus credit on your first top-up!"
+                      - 'row "DMXAPI Thanks to DMXAPI for sponsoring this project! DMXAPI provides global large model API services to 200+ enterprise users. One API key for all global models. Features include: instant invoicing, unlimited concurrency, starting from $0.15, 24/7 technical support. GPT/Claude/Gemini all at 32% off, domestic models 20-50% off, Claude Code exclusive models at 66% off! Register via this link." [ref=e796]':
+                        - cell "DMXAPI" [ref=e797]:
+                          - link "DMXAPI" [ref=e798] [cursor=pointer]:
+                            - /url: https://www.dmxapi.cn/register?aff=NDln
+                            - img "DMXAPI" [ref=e799]
+                        - 'cell "Thanks to DMXAPI for sponsoring this project! DMXAPI provides global large model API services to 200+ enterprise users. One API key for all global models. Features include: instant invoicing, unlimited concurrency, starting from $0.15, 24/7 technical support. GPT/Claude/Gemini all at 32% off, domestic models 20-50% off, Claude Code exclusive models at 66% off! Register via this link." [ref=e800]':
+                          - text: "Thanks to DMXAPI for sponsoring this project! DMXAPI provides global large model API services to 200+ enterprise users. One API key for all global models. Features include: instant invoicing, unlimited concurrency, starting from $0.15, 24/7 technical support. GPT/Claude/Gemini all at 32% off, domestic models 20-50% off, Claude Code exclusive models at 66% off! Register via"
+                          - link "this link" [ref=e801] [cursor=pointer]:
+                            - /url: https://www.dmxapi.cn/register?aff=NDln
+                          - text: .
+                      - row "APIKEY.FUN Thanks to APIKEY.FUN for sponsoring this project! APIKEY.FUN is a professional enterprise-grade AI relay service, dedicated to providing stable, efficient, and cost-effective AI model API access for enterprises and individual developers. The platform supports Claude, OpenAI, Gemini and other mainstream models, with prices as low as 7% of official rates. Register via this link to enjoy an exclusive permanent 5% discount on all top-ups!" [ref=e802]:
+                        - cell "APIKEY.FUN" [ref=e803]:
+                          - link "APIKEY.FUN" [ref=e804] [cursor=pointer]:
+                            - /url: https://apikey.fun/register?aff=cc_connect
+                            - img "APIKEY.FUN" [ref=e805]
+                        - cell "Thanks to APIKEY.FUN for sponsoring this project! APIKEY.FUN is a professional enterprise-grade AI relay service, dedicated to providing stable, efficient, and cost-effective AI model API access for enterprises and individual developers. The platform supports Claude, OpenAI, Gemini and other mainstream models, with prices as low as 7% of official rates. Register via this link to enjoy an exclusive permanent 5% discount on all top-ups!" [ref=e806]:
+                          - text: Thanks to APIKEY.FUN for sponsoring this project! APIKEY.FUN is a professional enterprise-grade AI relay service, dedicated to providing stable, efficient, and cost-effective AI model API access for enterprises and individual developers. The platform supports Claude, OpenAI, Gemini and other mainstream models, with prices as low as 7% of official rates. Register via
+                          - link "this link" [ref=e807] [cursor=pointer]:
+                            - /url: https://apikey.fun/register?aff=cc_connect
+                          - text: to enjoy an exclusive permanent 5% discount on all top-ups!
+                      - row
+                      - row [ref=e808]:
+                        - cell "Shengsuanyun" [ref=e809]:
+                          - link "Shengsuanyun" [ref=e810] [cursor=pointer]:
+                            - /url: https://www.shengsuanyun.com/?from=CH_67XCLZGS
+                            - img "Shengsuanyun" [ref=e811]
+                        - cell [ref=e812]:
+                          - text: Thanks to Shengsuanyun for sponsoring this project! Shengsuanyun is a super factory dedicated to serving AI Native Teams, an industrial-grade AI task parallel execution platform, and a model marketplace that aggregates and supplies computing power from domestic and international LLM and image/video multimedia models such as Claude, Chatgpt, and Gemini. It guarantees no reverse engineering or data manipulation, boasts a 99.7% SLA availability across the entire site, and its
+                          - link "monitoring interface" [ref=e813] [cursor=pointer]:
+                            - /url: https://watch.shengsuanyun.com/status/shengsuanyun
+                          - text: is consistently green. Furthermore, it offers an enterprise-grade customized gateway for refined cost and access control, featuring intelligent routing, security protection, and BYOK enterprise-provided key hosting. The platform is billed on a pay-as-you-go basis and with a tokens plan (coming soon), and invoices are available. New users who register using
+                          - link "this link" [ref=e814] [cursor=pointer]:
+                            - /url: https://www.shengsuanyun.com/?from=CH_67XCLZGS
+                          - text: will receive 10 yuan in model power and a 10% bonus on their first deposit.
+                      - row "VisionCoder Thanks to VisionCoder for supporting this project. VisionCoder Developer Platform is a reliable and efficient API relay service provider, offering access to mainstream AI models such as Claude Code, Codex, and Gemini. It helps developers and teams integrate AI capabilities more easily and improve productivity. Additionally, VisionCoder now offers retail channels for Claude Max 200 and GPT Pro 200 premium accounts, providing users with instant access to top-tier AI computing power and features." [ref=e815]:
+                        - cell "VisionCoder" [ref=e816]:
+                          - link "VisionCoder" [ref=e817] [cursor=pointer]:
+                            - /url: https://visioncoder.cn
+                            - img "VisionCoder" [ref=e818]
+                        - cell "Thanks to VisionCoder for supporting this project. VisionCoder Developer Platform is a reliable and efficient API relay service provider, offering access to mainstream AI models such as Claude Code, Codex, and Gemini. It helps developers and teams integrate AI capabilities more easily and improve productivity. Additionally, VisionCoder now offers retail channels for Claude Max 200 and GPT Pro 200 premium accounts, providing users with instant access to top-tier AI computing power and features." [ref=e819]:
+                          - text: Thanks to VisionCoder for supporting this project.
+                          - link "VisionCoder Developer Platform" [ref=e820] [cursor=pointer]:
+                            - /url: https://visioncoder.cn
+                          - text: is a reliable and efficient API relay service provider, offering access to mainstream AI models such as Claude Code, Codex, and Gemini. It helps developers and teams integrate AI capabilities more easily and improve productivity. Additionally, VisionCoder now offers retail channels for
+                          - strong [ref=e821]: Claude Max 200
+                          - text: and
+                          - strong [ref=e822]: GPT Pro 200
+                          - strong [ref=e823]: premium accounts
+                          - text: ", providing users with instant access to top-tier AI computing power and features."
+                      - 'row "RunAPI Thanks to RunAPI for sponsoring this project! RunAPI is an efficient and stable API platform—an alternative to OpenRouter. A single API Key gives you access to 150+ leading models, including OpenAI, Claude, Gemini, DeepSeek, Grok, and more, at prices as low as 10% of the original (up to 90% off), with exceptional stability. It''s seamlessly compatible with tools like Claude Code, OpenClaw, and others. RunAPI offers an exclusive perk for cc-connect users: register and contact an administrator to claim ¥7 in free credit." [ref=e824]':
+                        - cell "RunAPI" [ref=e825]:
+                          - link "RunAPI" [ref=e826] [cursor=pointer]:
+                            - /url: https://runapi.co/register?aff=4BXa
+                            - img "RunAPI" [ref=e827]
+                        - 'cell "Thanks to RunAPI for sponsoring this project! RunAPI is an efficient and stable API platform—an alternative to OpenRouter. A single API Key gives you access to 150+ leading models, including OpenAI, Claude, Gemini, DeepSeek, Grok, and more, at prices as low as 10% of the original (up to 90% off), with exceptional stability. It''s seamlessly compatible with tools like Claude Code, OpenClaw, and others. RunAPI offers an exclusive perk for cc-connect users: register and contact an administrator to claim ¥7 in free credit." [ref=e828]'
+                      - 'row "CaMeL Thanks to CaMeL for sponsoring this project! In-depth cooperation with major research institutes and supercomputing centers, self-developed high-stability high-efficiency cache scheduling solution. Exclusive for cc-connect users: New registration authentication immediately receive $10 credit upon registration. Register via this link." [ref=e829]':
+                        - cell "CaMeL" [ref=e830]:
+                          - link "CaMeL" [ref=e831] [cursor=pointer]:
+                            - /url: https://camel.kr777.top/register?aff=V2z8
+                            - img "CaMeL" [ref=e832]
+                        - 'cell "Thanks to CaMeL for sponsoring this project! In-depth cooperation with major research institutes and supercomputing centers, self-developed high-stability high-efficiency cache scheduling solution. Exclusive for cc-connect users: New registration authentication immediately receive $10 credit upon registration. Register via this link." [ref=e833]':
+                          - text: "Thanks to CaMeL for sponsoring this project! In-depth cooperation with major research institutes and supercomputing centers, self-developed high-stability high-efficiency cache scheduling solution. Exclusive for cc-connect users: New registration authentication immediately receive $10 credit upon registration. Register via"
+                          - link "this link" [ref=e834] [cursor=pointer]:
+                            - /url: https://camel.kr777.top/register?aff=V2z8
+                          - text: .
+                      - row "Unity2.ai Thanks to Unity2.ai for sponsoring this project! Unity2.ai is a high-performance AI model API relay platform for individual developers, teams, and enterprises. Long-term service for top domestic enterprises, daily traffic exceeding 30 billion tokens, supporting up to 5000 RPM high concurrency. Offers balance billing, first-top-up bonus, combo subscriptions, enterprise invoicing, and dedicated integration. Register via this link to claim $2 credit, join the official group for an additional $10 credit — up to $12 in free credits!" [ref=e835]:
+                        - cell "Unity2.ai" [ref=e836]:
+                          - link "Unity2.ai" [ref=e837] [cursor=pointer]:
+                            - /url: https://unity2.ai/register?source=ccconnect
+                            - img "Unity2.ai" [ref=e838]
+                        - cell "Thanks to Unity2.ai for sponsoring this project! Unity2.ai is a high-performance AI model API relay platform for individual developers, teams, and enterprises. Long-term service for top domestic enterprises, daily traffic exceeding 30 billion tokens, supporting up to 5000 RPM high concurrency. Offers balance billing, first-top-up bonus, combo subscriptions, enterprise invoicing, and dedicated integration. Register via this link to claim $2 credit, join the official group for an additional $10 credit — up to $12 in free credits!" [ref=e839]:
+                          - text: Thanks to Unity2.ai for sponsoring this project! Unity2.ai is a high-performance AI model API relay platform for individual developers, teams, and enterprises. Long-term service for top domestic enterprises, daily traffic exceeding 30 billion tokens, supporting up to 5000 RPM high concurrency. Offers balance billing, first-top-up bonus, combo subscriptions, enterprise invoicing, and dedicated integration. Register via
+                          - link "this link" [ref=e840] [cursor=pointer]:
+                            - /url: https://unity2.ai/register?source=ccconnect
+                          - text: to claim $2 credit, join the official group for an additional $10 credit — up to $12 in free credits!
+                      - row "二狗 API Thanks to Ergou API (二狗 API) for sponsoring this project! Ergou API is an LLM API relay offering industry-low 0.1x-0.2x rates across the board, with 100% native endpoints for Claude, GPT, Gemini and other top-tier LLMs. Backed by premium IPLC routes plus dual residential ISP redundancy, Ergou API delivers stable, low-latency access nationwide. Developers and studios are welcome to sign up." [ref=e841]:
+                        - cell "二狗 API" [ref=e842]:
+                          - link "二狗 API" [ref=e843] [cursor=pointer]:
+                            - /url: https://ergouapi.com/r/gh-cc-connect
+                            - img "二狗 API" [ref=e844]
+                        - cell "Thanks to Ergou API (二狗 API) for sponsoring this project! Ergou API is an LLM API relay offering industry-low 0.1x-0.2x rates across the board, with 100% native endpoints for Claude, GPT, Gemini and other top-tier LLMs. Backed by premium IPLC routes plus dual residential ISP redundancy, Ergou API delivers stable, low-latency access nationwide. Developers and studios are welcome to sign up." [ref=e845]:
+                          - text: Thanks to Ergou API (二狗 API) for sponsoring this project! Ergou API is an LLM API relay offering industry-low 0.1x-0.2x rates across the board, with 100% native endpoints for Claude, GPT, Gemini and other top-tier LLMs. Backed by premium IPLC routes plus dual residential ISP redundancy, Ergou API delivers stable, low-latency access nationwide. Developers and studios are welcome to
+                          - link "sign up" [ref=e846] [cursor=pointer]:
+                            - /url: https://ergouapi.com/r/gh-cc-connect
+                          - text: .
+                      - row "AnyRoute.io Thanks to AnyRoute.io for sponsoring this project! AnyRoute.io is a reliable, stable, and efficient API relay platform integrating the latest Claude Code and Codex models. Transparent pricing with rates as low as 93% off official prices (just 0.7x), supports invoicing and enterprise-grade high-concurrency usage. Register via this link to get started." [ref=e847]:
+                        - cell "AnyRoute.io" [ref=e848]:
+                          - link "AnyRoute.io" [ref=e849] [cursor=pointer]:
+                            - /url: https://cc.anyroute.io/register?aff=CR455DSQSKEV
+                            - img "AnyRoute.io" [ref=e850]
+                        - cell "Thanks to AnyRoute.io for sponsoring this project! AnyRoute.io is a reliable, stable, and efficient API relay platform integrating the latest Claude Code and Codex models. Transparent pricing with rates as low as 93% off official prices (just 0.7x), supports invoicing and enterprise-grade high-concurrency usage. Register via this link to get started." [ref=e851]:
+                          - text: Thanks to AnyRoute.io for sponsoring this project! AnyRoute.io is a reliable, stable, and efficient API relay platform integrating the latest Claude Code and Codex models. Transparent pricing with rates as low as 93% off official prices (just 0.7x), supports invoicing and enterprise-grade high-concurrency usage. Register via
+                          - link "this link" [ref=e852] [cursor=pointer]:
+                            - /url: https://cc.anyroute.io/register?aff=CR455DSQSKEV
+                          - text: to get started.
+                      - row "aicanapi.com Thanks to aicanapi.com for sponsoring this project! Aican API provides high-performance, low-latency, high-concurrency API services for enterprises and developers. Claude Code models at up to 84% off, other models at 80% off official price. Doubao Seedance 2 real-person generation service with queue-free access for faster responses. Choose Aican API for simpler, more efficient, and more cost-effective enterprise-grade AI services. Register via this link to get started." [ref=e853]:
+                        - cell "aicanapi.com" [ref=e854]:
+                          - link "aicanapi.com" [ref=e855] [cursor=pointer]:
+                            - /url: https://aicanapi.com/register?aff=rIEy
+                            - img "aicanapi.com" [ref=e856]
+                        - cell "Thanks to aicanapi.com for sponsoring this project! Aican API provides high-performance, low-latency, high-concurrency API services for enterprises and developers. Claude Code models at up to 84% off, other models at 80% off official price. Doubao Seedance 2 real-person generation service with queue-free access for faster responses. Choose Aican API for simpler, more efficient, and more cost-effective enterprise-grade AI services. Register via this link to get started." [ref=e857]:
+                          - text: Thanks to aicanapi.com for sponsoring this project! Aican API provides high-performance, low-latency, high-concurrency API services for enterprises and developers. Claude Code models at up to 84% off, other models at 80% off official price. Doubao Seedance 2 real-person generation service with queue-free access for faster responses. Choose Aican API for simpler, more efficient, and more cost-effective enterprise-grade AI services. Register via
+                          - link "this link" [ref=e858] [cursor=pointer]:
+                            - /url: https://aicanapi.com/register?aff=rIEy
+                          - text: to get started.
+                      - row "Pateway Thanks to Pateway for sponsoring this project! PatewayAI is a premium API relay service for serious AI developers, offering 100% official direct access to Claude and Codex models — no reverse engineering, no quality degradation. Transparent billing with token-level verification. Enterprise-grade concurrency, formal contracts and invoicing available. Register via this link to get $3 free trial credit, up to 40% off on top-ups, and referral rewards up to $150!" [ref=e859]:
+                        - cell "Pateway" [ref=e860]:
+                          - link "Pateway" [ref=e861] [cursor=pointer]:
+                            - /url: https://pateway.ai/?ch=2qn568&aff=DRA4VUFS
+                            - img "Pateway" [ref=e862]
+                        - cell "Thanks to Pateway for sponsoring this project! PatewayAI is a premium API relay service for serious AI developers, offering 100% official direct access to Claude and Codex models — no reverse engineering, no quality degradation. Transparent billing with token-level verification. Enterprise-grade concurrency, formal contracts and invoicing available. Register via this link to get $3 free trial credit, up to 40% off on top-ups, and referral rewards up to $150!" [ref=e863]:
+                          - text: Thanks to Pateway for sponsoring this project! PatewayAI is a premium API relay service for serious AI developers, offering 100% official direct access to Claude and Codex models — no reverse engineering, no quality degradation. Transparent billing with token-level verification. Enterprise-grade concurrency, formal contracts and invoicing available. Register via
+                          - link "this link" [ref=e864] [cursor=pointer]:
+                            - /url: https://pateway.ai/?ch=2qn568&aff=DRA4VUFS
+                          - text: to get $3 free trial credit, up to 40% off on top-ups, and referral rewards up to $150!
+                      - row "10点AI Thanks to 10点AI for sponsoring this project! 10dian-AI Enterprise Platform is an AI API gateway for developers and enterprises, aggregating GPT, Claude, Gemini, DeepSeek and more. Optimized for production environments with stable high-concurrency operation, avoiding interface jitter and timeout issues. Affordable pricing, stable uptime, official guarantee. Register via this link to get ¥5 free credit!" [ref=e865]:
+                        - cell "10点AI" [ref=e866]:
+                          - link "10点AI" [ref=e867] [cursor=pointer]:
+                            - /url: https://cy.10dianai.com/register?aff=3FQn
+                            - img "10点AI" [ref=e868]
+                        - cell "Thanks to 10点AI for sponsoring this project! 10dian-AI Enterprise Platform is an AI API gateway for developers and enterprises, aggregating GPT, Claude, Gemini, DeepSeek and more. Optimized for production environments with stable high-concurrency operation, avoiding interface jitter and timeout issues. Affordable pricing, stable uptime, official guarantee. Register via this link to get ¥5 free credit!" [ref=e869]:
+                          - text: Thanks to 10点AI for sponsoring this project! 10dian-AI Enterprise Platform is an AI API gateway for developers and enterprises, aggregating GPT, Claude, Gemini, DeepSeek and more. Optimized for production environments with stable high-concurrency operation, avoiding interface jitter and timeout issues. Affordable pricing, stable uptime, official guarantee. Register via
+                          - link "this link" [ref=e870] [cursor=pointer]:
+                            - /url: https://cy.10dianai.com/register?aff=3FQn
+                          - text: to get ¥5 free credit!
+                      - row "SiliconFlow Thanks to SiliconFlow for supporting this project! SiliconFlow is a high-performance AI infrastructure and model API platform, providing fast and reliable access to language, speech, image, and video models in one place. With pay-as-you-go billing, broad multimodal model support, high-speed inference, and enterprise-grade stability, SiliconFlow helps developers and teams build and scale AI applications more efficiently. Register via this link and complete real-name verification to receive ¥20 in bonus credit!" [ref=e871]:
+                        - cell "SiliconFlow" [ref=e872]:
+                          - link "SiliconFlow" [ref=e873] [cursor=pointer]:
+                            - /url: https://cloud.siliconflow.cn/i/650Yh2Z7
+                            - img "SiliconFlow" [ref=e874]
+                        - cell "Thanks to SiliconFlow for supporting this project! SiliconFlow is a high-performance AI infrastructure and model API platform, providing fast and reliable access to language, speech, image, and video models in one place. With pay-as-you-go billing, broad multimodal model support, high-speed inference, and enterprise-grade stability, SiliconFlow helps developers and teams build and scale AI applications more efficiently. Register via this link and complete real-name verification to receive ¥20 in bonus credit!" [ref=e875]:
+                          - text: Thanks to SiliconFlow for supporting this project! SiliconFlow is a high-performance AI infrastructure and model API platform, providing fast and reliable access to language, speech, image, and video models in one place. With pay-as-you-go billing, broad multimodal model support, high-speed inference, and enterprise-grade stability, SiliconFlow helps developers and teams build and scale AI applications more efficiently. Register via
+                          - link "this link" [ref=e876] [cursor=pointer]:
+                            - /url: https://cloud.siliconflow.cn/i/650Yh2Z7
+                          - text: and complete real-name verification to receive ¥20 in bonus credit!
+                      - row "优云智算 Thanks to 优云智算 for sponsoring this project! 优云智算 (UCloud AI Cloud Platform) provides stable and comprehensive domestic and international model APIs with just one key. Featuring high-value Coding Plan packages (monthly or per-use), plus stable official relay for overseas models. Supports Claude Code, Codex, and API calls. Enterprise features include high concurrency, 7x24 technical support, and self-service invoicing. Register via this link to receive ¥5 free platform credit!" [ref=e877]:
+                        - cell "优云智算" [ref=e878]:
+                          - link "优云智算" [ref=e879] [cursor=pointer]:
+                            - /url: https://passport.compshare.cn/register?referral_code=H65IOClRGu5CM7nn5ykfad&ytag=GPU_YY_YX_git_cc-connect
+                            - img "优云智算" [ref=e880]
+                        - cell "Thanks to 优云智算 for sponsoring this project! 优云智算 (UCloud AI Cloud Platform) provides stable and comprehensive domestic and international model APIs with just one key. Featuring high-value Coding Plan packages (monthly or per-use), plus stable official relay for overseas models. Supports Claude Code, Codex, and API calls. Enterprise features include high concurrency, 7x24 technical support, and self-service invoicing. Register via this link to receive ¥5 free platform credit!" [ref=e881]:
+                          - text: Thanks to 优云智算 for sponsoring this project! 优云智算 (UCloud AI Cloud Platform) provides stable and comprehensive domestic and international model APIs with just one key. Featuring high-value Coding Plan packages (monthly or per-use), plus stable official relay for overseas models. Supports Claude Code, Codex, and API calls. Enterprise features include high concurrency, 7x24 technical support, and self-service invoicing. Register via
+                          - link "this link" [ref=e882] [cursor=pointer]:
+                            - /url: https://passport.compshare.cn/register?referral_code=H65IOClRGu5CM7nn5ykfad&ytag=GPU_YY_YX_git_cc-connect
+                          - text: to receive ¥5 free platform credit!
+                      - 'row "DragonCode Thanks to DragonCode for supporting this project. DragonCode has prepared a special benefit for cc-connect users: register via this link to get started." [ref=e883]':
+                        - cell "DragonCode" [ref=e884]:
+                          - link "DragonCode" [ref=e885] [cursor=pointer]:
+                            - /url: https://dragoncode.codes/register?ref=23ZELCPX
+                            - img "DragonCode" [ref=e886]
+                        - 'cell "Thanks to DragonCode for supporting this project. DragonCode has prepared a special benefit for cc-connect users: register via this link to get started." [ref=e887]':
+                          - text: "Thanks to DragonCode for supporting this project. DragonCode has prepared a special benefit for cc-connect users: register via"
+                          - link "this link" [ref=e888] [cursor=pointer]:
+                            - /url: https://dragoncode.codes/register?ref=23ZELCPX
+                          - text: to get started.
+                      - 'row "Code0 Thanks to Code0 for sponsoring this project! Code0 is an AI model aggregation API relay service for Chinese developers, compatible with OpenAI / Anthropic / Gemini protocols. One key for all mainstream models, stable support for Claude Code, Codex, Gemini CLI, cc-connect and more. Fixed exchange rate: ¥1.5 CNY = $1 USD API credit, transparent pricing, domestic direct connection, ready to use. Register via this link." [ref=e889]':
+                        - cell "Code0" [ref=e890]:
+                          - link "Code0" [ref=e891] [cursor=pointer]:
+                            - /url: https://code0.ai/register?aff=5cGO
+                            - img "Code0" [ref=e892]
+                        - 'cell "Thanks to Code0 for sponsoring this project! Code0 is an AI model aggregation API relay service for Chinese developers, compatible with OpenAI / Anthropic / Gemini protocols. One key for all mainstream models, stable support for Claude Code, Codex, Gemini CLI, cc-connect and more. Fixed exchange rate: ¥1.5 CNY = $1 USD API credit, transparent pricing, domestic direct connection, ready to use. Register via this link." [ref=e893]':
+                          - text: "Thanks to Code0 for sponsoring this project! Code0 is an AI model aggregation API relay service for Chinese developers, compatible with OpenAI / Anthropic / Gemini protocols. One key for all mainstream models, stable support for Claude Code, Codex, Gemini CLI, cc-connect and more. Fixed exchange rate: ¥1.5 CNY = $1 USD API credit, transparent pricing, domestic direct connection, ready to use. Register via"
+                          - link "this link" [ref=e894] [cursor=pointer]:
+                            - /url: https://code0.ai/register?aff=5cGO
+                          - text: .
+                      - row "claudeapi.com Thanks to claudeapi.com for sponsoring this project! claudeapi is a high-quality direct Claude connection service for mid-to-high-end users. It is fully integrated with Anthropic's official first-party Keys and AWS Bedrock official channels — no reverse engineering, no intelligence degradation, no stitching. It fully preserves the official capabilities, long context, and tool-calling performance of Opus / Sonnet / Haiku. Designed specifically for Claude Code power users, Agent developers, and enterprise teams, it focuses on out-of-the-box usability and enterprise-grade stability. Invoicing and team onboarding are supported. Register via this link." [ref=e895]:
+                        - cell "claudeapi.com" [ref=e896]:
+                          - link "claudeapi.com" [ref=e897] [cursor=pointer]:
+                            - /url: https://console.claudeapi.com/register?aff=GDbA
+                            - img "claudeapi.com" [ref=e898]
+                        - cell "Thanks to claudeapi.com for sponsoring this project! claudeapi is a high-quality direct Claude connection service for mid-to-high-end users. It is fully integrated with Anthropic's official first-party Keys and AWS Bedrock official channels — no reverse engineering, no intelligence degradation, no stitching. It fully preserves the official capabilities, long context, and tool-calling performance of Opus / Sonnet / Haiku. Designed specifically for Claude Code power users, Agent developers, and enterprise teams, it focuses on out-of-the-box usability and enterprise-grade stability. Invoicing and team onboarding are supported. Register via this link." [ref=e899]:
+                          - text: Thanks to claudeapi.com for sponsoring this project! claudeapi is a high-quality direct Claude connection service for mid-to-high-end users. It is fully integrated with Anthropic's official first-party Keys and AWS Bedrock official channels — no reverse engineering, no intelligence degradation, no stitching. It fully preserves the official capabilities, long context, and tool-calling performance of Opus / Sonnet / Haiku. Designed specifically for Claude Code power users, Agent developers, and enterprise teams, it focuses on out-of-the-box usability and enterprise-grade stability. Invoicing and team onboarding are supported. Register via
+                          - link "this link" [ref=e900] [cursor=pointer]:
+                            - /url: https://console.claudeapi.com/register?aff=GDbA
+                          - text: .
+                - separator [ref=e901]
+                - paragraph [ref=e902]: Control your local AI agents from any chat app. Anywhere, anytime.
+                - paragraph [ref=e903]:
+                  - text: cc-connect bridges AI agents running on your machine to the messaging platforms you already use.
+                  - text: Code review, research, automation, data analysis — anything an AI agent can do,
+                  - text: now accessible from your phone, tablet, or any device with a chat app.
+                - paragraph [ref=e904]:
+                  - link "CC-Connect Architecture" [ref=e905] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/docs/images/connector.png
+                    - img "CC-Connect Architecture" [ref=e906]
+                - generic [ref=e907]:
+                  - heading "🆕 What’s New in v1.3.3" [level=2] [ref=e908]
+                  - 'link "Permalink: 🆕 What’s New in v1.3.3" [ref=e909] [cursor=pointer]':
+                    - /url: "#-whats-new-in-v133"
+                    - img [ref=e910]
+                - paragraph [ref=e912]: "First stable of the 1.3.3 series — stabilizes beta.1 → beta.5 (≈ 235 PRs since v1.3.2) plus 7 post-beta fixes. Highlights:"
+                - list [ref=e913]:
+                  - listitem [ref=e914]:
+                    - strong [ref=e915]: New agents
+                    - text: — Devin CLI, Google Antigravity (
+                    - code [ref=e916]: agy
+                    - text: "), GitHub Copilot CLI as first-class agents (#672, #1123, #865). Hardened Cursor / OpenCode / Qoder / Kimi / Pi coverage."
+                  - listitem [ref=e917]:
+                    - strong [ref=e918]: Platform expansion
+                    - text: — QQ (OneBot) file send & receive (#323), QQ Bot inline keyboards (#1131), WeCom
+                    - code [ref=e919]: SendFile
+                    - text: "in WebSocket (#1199), Feishu audio + video native media (#1202), Slack Assistant API (#844), MAX webhook delivery (#818), DingTalk @mentions / richText / image / file inbound (#1188, #828, #1357), broader Weibo DM, WPS Xiezuo (金山协作)."
+                  - listitem [ref=e920]:
+                    - strong [ref=e921]: Long-running turn hardening
+                    - text: — new
+                    - code [ref=e922]: max_turn_time_mins
+                    - text: wall-clock cap with soft-stop + force-kill + auto-resume so a long bash / test command can no longer lock a session indefinitely (#1091).
+                  - listitem [ref=e923]:
+                    - strong [ref=e924]: New core commands
+                    - text: —
+                    - code [ref=e925]: /timer
+                    - text: (one-shot delayed task),
+                    - code [ref=e926]: /cancel
+                    - text: (interrupt current turn),
+                    - code [ref=e927]: /ps
+                    - text: (replaces
+                    - code [ref=e928]: /btw
+                    - text: ", kept as alias),"
+                    - code [ref=e929]: cron add --silent
+                    - text: ", agent-driven TTS."
+                  - listitem [ref=e930]:
+                    - strong [ref=e931]: Multi-user / permissions
+                    - text: — reply-to-unauthorized-IM-senders option,
+                    - code [ref=e932]: "@Bot/permit"
+                    - text: ≡
+                    - code [ref=e933]: /permit
+                    - text: keyword matching, Bridge requires token when enabled.
+                  - listitem [ref=e934]:
+                    - strong [ref=e935]: Provider ecosystem
+                    - text: — NekoCode, VisionCoder, AIHubMix, MiniMax M3 presets; Claude Code 1M-context Opus +
+                    - code [ref=e936]: append_system_prompt
+                    - text: + PermissionRequest hooks; Codex
+                    - code [ref=e937]: request_user_input
+                    - text: app-server events; configurable
+                    - code [ref=e938]: shell
+                    - text: + shell profile for
+                    - code [ref=e939]: exec
+                    - text: .
+                  - listitem [ref=e940]:
+                    - strong [ref=e941]: Observability
+                    - text: — blackbox testing framework (P0/P1/P2 + config-switch matrix), CUJ test framework, provider-resume regression suite for codex/opencode/kimi, Pi context-usage reporter in reply footer.
+                - paragraph [ref=e942]:
+                  - generic [ref=e943]: ⚠️
+                  - strong [ref=e944]: Behavior changes (action may be required)
+                  - text: ": Telegram/Discord"
+                  - code [ref=e945]: progress_style
+                  - text: defaults to
+                  - code [ref=e946]: compact
+                  - text: (set
+                  - code [ref=e947]: legacy
+                  - text: to revert); QQ Bot default
+                  - code [ref=e948]: intents
+                  - text: now include
+                  - code [ref=e949]: INTERACTION_CREATE
+                  - text: (custom values must include
+                  - code [ref=e950]: 1<<26
+                  - text: ); DingTalk
+                  - code [ref=e951]: msgtype=file
+                  - text: inbound now reaches the agent; engine permission keywords are @mention-tolerant;
+                  - code [ref=e952]: reset_on_idle_mins
+                  - text: defaults to 30 min; Bridge with no token configured refuses to start. See
+                  - code [ref=e953]: changelogs/v1.3.3.md
+                  - text: for the full themed summary.
+                - paragraph [ref=e954]: No breaking changes. Coming from a v1.3.3-beta.*, this is a small fix-only upgrade.
+                - generic [ref=e955]:
+                  - heading "🧩 Platform feature snapshot" [level=2] [ref=e956]
+                  - 'link "Permalink: 🧩 Platform feature snapshot" [ref=e957] [cursor=pointer]':
+                    - /url: "#-platform-feature-snapshot"
+                    - img [ref=e958]
+                - paragraph [ref=e960]:
+                  - text: High-level view of what each
+                  - strong [ref=e961]: built-in platform
+                  - text: can do in cc-connect.
+                - paragraph [ref=e962]:
+                  - strong [ref=e963]: Legend
+                - table [ref=e965]:
+                  - rowgroup [ref=e966]:
+                    - row "Symbol Meaning" [ref=e967]:
+                      - columnheader "Symbol" [ref=e968]
+                      - columnheader "Meaning" [ref=e969]
+                  - rowgroup [ref=e970]:
+                    - row "✅ Works in stable cc-connect with typical configuration" [ref=e971]:
+                      - cell "✅" [ref=e972]
+                      - cell "Works in stable cc-connect with typical configuration" [ref=e973]:
+                        - text: Works in
+                        - strong [ref=e974]: stable
+                        - text: cc-connect with typical configuration
+                    - row "⚠️ Partial, needs extra config (e.g. speech / ASR), or limited by the vendor app or API" [ref=e975]:
+                      - cell "⚠️" [ref=e976]:
+                        - generic [ref=e977]: ⚠️
+                      - cell "Partial, needs extra config (e.g. speech / ASR), or limited by the vendor app or API" [ref=e978]
+                    - row "❌ Not supported or not applicable in practice" [ref=e979]:
+                      - cell "❌" [ref=e980]
+                      - cell "Not supported or not applicable in practice" [ref=e981]
+                - paragraph [ref=e982]:
+                  - text: †
+                  - strong [ref=e983]: QQ (NapCat / OneBot)
+                  - text: — unofficial self-hosted bridge; behaviour depends on your NapCat / network setup.
+                - table [ref=e985]:
+                  - rowgroup [ref=e986]:
+                    - row "Capability Feishu WPS Xiezuo DingTalk Telegram Slack Discord LINE WeCom Weibo Weixin (personal) QQ† QQ Bot Matrix" [ref=e987]:
+                      - columnheader "Capability" [ref=e988]
+                      - columnheader "Feishu" [ref=e989]
+                      - columnheader "WPS Xiezuo" [ref=e990]
+                      - columnheader "DingTalk" [ref=e991]
+                      - columnheader "Telegram" [ref=e992]
+                      - columnheader "Slack" [ref=e993]
+                      - columnheader "Discord" [ref=e994]
+                      - columnheader "LINE" [ref=e995]
+                      - columnheader "WeCom" [ref=e996]
+                      - columnheader "Weibo" [ref=e997]
+                      - columnheader "Weixin (personal)" [ref=e998]:
+                        - strong [ref=e999]: Weixin
+                        - emphasis [ref=e1000]: (personal)
+                      - columnheader "QQ†" [ref=e1001]
+                      - columnheader "QQ Bot" [ref=e1002]
+                      - columnheader "Matrix" [ref=e1003]
+                  - rowgroup [ref=e1004]:
+                    - row "Text & slash commands ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅" [ref=e1005]:
+                      - cell "Text & slash commands" [ref=e1006]
+                      - cell "✅" [ref=e1007]
+                      - cell "✅" [ref=e1008]
+                      - cell "✅" [ref=e1009]
+                      - cell "✅" [ref=e1010]
+                      - cell "✅" [ref=e1011]
+                      - cell "✅" [ref=e1012]
+                      - cell "✅" [ref=e1013]
+                      - cell "✅" [ref=e1014]
+                      - cell "✅" [ref=e1015]
+                      - cell "✅" [ref=e1016]
+                      - cell "✅" [ref=e1017]
+                      - cell "✅" [ref=e1018]
+                      - cell "✅" [ref=e1019]
+                    - row "Markdown / cards ✅ ✅ ✅ ✅ ✅ ✅ ⚠️ ⚠️ ❌ ✅ ✅ ✅ ⚠️" [ref=e1020]:
+                      - cell "Markdown / cards" [ref=e1021]
+                      - cell "✅" [ref=e1022]
+                      - cell "✅" [ref=e1023]
+                      - cell "✅" [ref=e1024]
+                      - cell "✅" [ref=e1025]
+                      - cell "✅" [ref=e1026]
+                      - cell "✅" [ref=e1027]
+                      - cell "⚠️" [ref=e1028]:
+                        - generic [ref=e1029]: ⚠️
+                      - cell "⚠️" [ref=e1030]:
+                        - generic [ref=e1031]: ⚠️
+                      - cell "❌" [ref=e1032]
+                      - cell "✅" [ref=e1033]
+                      - cell "✅" [ref=e1034]
+                      - cell "✅" [ref=e1035]
+                      - cell "⚠️" [ref=e1036]:
+                        - generic [ref=e1037]: ⚠️
+                    - row "Streaming / chunked replies ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅" [ref=e1038]:
+                      - cell "Streaming / chunked replies" [ref=e1039]
+                      - cell "✅" [ref=e1040]
+                      - cell "✅" [ref=e1041]
+                      - cell "✅" [ref=e1042]
+                      - cell "✅" [ref=e1043]
+                      - cell "✅" [ref=e1044]
+                      - cell "✅" [ref=e1045]
+                      - cell "✅" [ref=e1046]
+                      - cell "✅" [ref=e1047]
+                      - cell "✅" [ref=e1048]
+                      - cell "✅" [ref=e1049]
+                      - cell "✅" [ref=e1050]
+                      - cell "✅" [ref=e1051]
+                      - cell "✅" [ref=e1052]
+                    - row "Images & files ✅ ❌ ✅ ✅ ✅ ✅ ⚠️ ✅ ❌ ✅ ✅ ✅ ✅" [ref=e1053]:
+                      - cell "Images & files" [ref=e1054]
+                      - cell "✅" [ref=e1055]
+                      - cell "❌" [ref=e1056]
+                      - cell "✅" [ref=e1057]
+                      - cell "✅" [ref=e1058]
+                      - cell "✅" [ref=e1059]
+                      - cell "✅" [ref=e1060]
+                      - cell "⚠️" [ref=e1061]:
+                        - generic [ref=e1062]: ⚠️
+                      - cell "✅" [ref=e1063]
+                      - cell "❌" [ref=e1064]
+                      - cell "✅" [ref=e1065]
+                      - cell "✅" [ref=e1066]
+                      - cell "✅" [ref=e1067]
+                      - cell "✅" [ref=e1068]
+                    - row "Voice / STT / TTS ⚠️ ❌ ⚠️ ✅ ⚠️ ⚠️ ❌ ⚠️ ❌ ✅ ⚠️ ⚠️ ❌" [ref=e1069]:
+                      - cell "Voice / STT / TTS" [ref=e1070]
+                      - cell "⚠️" [ref=e1071]:
+                        - generic [ref=e1072]: ⚠️
+                      - cell "❌" [ref=e1073]
+                      - cell "⚠️" [ref=e1074]:
+                        - generic [ref=e1075]: ⚠️
+                      - cell "✅" [ref=e1076]
+                      - cell "⚠️" [ref=e1077]:
+                        - generic [ref=e1078]: ⚠️
+                      - cell "⚠️" [ref=e1079]:
+                        - generic [ref=e1080]: ⚠️
+                      - cell "❌" [ref=e1081]
+                      - cell "⚠️" [ref=e1082]:
+                        - generic [ref=e1083]: ⚠️
+                      - cell "❌" [ref=e1084]
+                      - cell "✅" [ref=e1085]
+                      - cell "⚠️" [ref=e1086]:
+                        - generic [ref=e1087]: ⚠️
+                      - cell "⚠️" [ref=e1088]:
+                        - generic [ref=e1089]: ⚠️
+                      - cell "❌" [ref=e1090]
+                    - row "Private (DM) ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅ ✅" [ref=e1091]:
+                      - cell "Private (DM)" [ref=e1092]
+                      - cell "✅" [ref=e1093]
+                      - cell "✅" [ref=e1094]
+                      - cell "✅" [ref=e1095]
+                      - cell "✅" [ref=e1096]
+                      - cell "✅" [ref=e1097]
+                      - cell "✅" [ref=e1098]
+                      - cell "✅" [ref=e1099]
+                      - cell "✅" [ref=e1100]
+                      - cell "✅" [ref=e1101]
+                      - cell "✅" [ref=e1102]
+                      - cell "✅" [ref=e1103]
+                      - cell "✅" [ref=e1104]
+                      - cell "✅" [ref=e1105]
+                    - row "Group / channel ✅ ✅ ✅ ✅ ✅ ✅ ⚠️ ✅ ❌ ✅ ✅ ✅ ✅" [ref=e1106]:
+                      - cell "Group / channel" [ref=e1107]
+                      - cell "✅" [ref=e1108]
+                      - cell "✅" [ref=e1109]
+                      - cell "✅" [ref=e1110]
+                      - cell "✅" [ref=e1111]
+                      - cell "✅" [ref=e1112]
+                      - cell "✅" [ref=e1113]
+                      - cell "⚠️" [ref=e1114]:
+                        - generic [ref=e1115]: ⚠️
+                      - cell "✅" [ref=e1116]
+                      - cell "❌" [ref=e1117]
+                      - cell "✅" [ref=e1118]
+                      - cell "✅" [ref=e1119]
+                      - cell "✅" [ref=e1120]
+                      - cell "✅" [ref=e1121]
+                - blockquote [ref=e1122]:
+                  - paragraph [ref=e1123]:
+                    - strong [ref=e1124]: "WeCom:"
+                    - text: Webhook mode needs a
+                    - strong [ref=e1125]: public URL
+                    - text: ; long-connection / WS style setups often do not.
+                    - strong [ref=e1126]: "Voice row:"
+                    - text: many platforms need
+                    - code [ref=e1127]: "[speech]"
+                    - text: / TTS providers enabled in
+                    - code [ref=e1128]: config.toml
+                    - text: ; values are a best-effort summary.
+                    - text: "Per-platform setup:"
+                    - link "Platform setup guides" [ref=e1129] [cursor=pointer]:
+                      - /url: "#-platform-setup-guides"
+                    - text: below.
+                - generic [ref=e1130]:
+                  - heading "✨ Why cc-connect?" [level=2] [ref=e1131]
+                  - 'link "Permalink: ✨ Why cc-connect?" [ref=e1132] [cursor=pointer]':
+                    - /url: "#-why-cc-connect"
+                    - img [ref=e1133]
+                - generic [ref=e1135]:
+                  - heading "🤖 Universal Agent Support" [level=3] [ref=e1136]
+                  - 'link "Permalink: 🤖 Universal Agent Support" [ref=e1137] [cursor=pointer]':
+                    - /url: "#-universal-agent-support"
+                    - img [ref=e1138]
+                - paragraph [ref=e1140]:
+                  - strong [ref=e1141]: 10+ AI Agents
+                  - text: — Claude Code, Codex, Cursor Agent, Kimi CLI, Qoder CLI, Gemini CLI, OpenCode, iFlow CLI, Pi, Devin, Copilot — plus any agent that supports the
+                  - link "Agent Client Protocol (ACP)" [ref=e1142] [cursor=pointer]:
+                    - /url: https://agentclientprotocol.com/get-started/agents
+                  - text: . Use whichever fits your workflow, or all of them at once.
+                - generic [ref=e1143]:
+                  - heading "📱 Platform Flexibility" [level=3] [ref=e1144]
+                  - 'link "Permalink: 📱 Platform Flexibility" [ref=e1145] [cursor=pointer]':
+                    - /url: "#-platform-flexibility"
+                    - img [ref=e1146]
+                - paragraph [ref=e1148]:
+                  - strong [ref=e1149]: 13 Chat Platforms
+                  - text: — Feishu, WPS Xiezuo, DingTalk, Slack, Telegram, Discord, WeChat Work, Weibo, LINE, QQ, QQ Bot (Official), Matrix, plus
+                  - strong [ref=e1150]: Weixin (personal ilink)
+                  - text: for
+                  - strong [ref=e1151]: personal WeChat
+                  - text: . Most platforms need
+                  - strong [ref=e1152]: zero public IP
+                  - text: .
+                - generic [ref=e1153]:
+                  - heading "🔄 Multi-Agent Orchestration" [level=3] [ref=e1154]
+                  - 'link "Permalink: 🔄 Multi-Agent Orchestration" [ref=e1155] [cursor=pointer]':
+                    - /url: "#-multi-agent-orchestration"
+                    - img [ref=e1156]
+                - paragraph [ref=e1158]:
+                  - strong [ref=e1159]: Multi-Bot Relay
+                  - text: — Bind multiple bots in a group chat and let them communicate with each other. Ask Claude, get insights from Gemini — all in one conversation.
+                - generic [ref=e1160]:
+                  - heading "🎮 Complete Chat Control" [level=3] [ref=e1161]
+                  - 'link "Permalink: 🎮 Complete Chat Control" [ref=e1162] [cursor=pointer]':
+                    - /url: "#-complete-chat-control"
+                    - img [ref=e1163]
+                - paragraph [ref=e1165]:
+                  - strong [ref=e1166]: Full Control from Chat
+                  - text: — Switch models (
+                  - code [ref=e1167]: /model
+                  - text: ), tune reasoning (
+                  - code [ref=e1168]: /reasoning
+                  - text: ), change permission modes (
+                  - code [ref=e1169]: /mode
+                  - text: ), manage sessions, all via slash commands.
+                - paragraph [ref=e1170]:
+                  - strong [ref=e1171]: Directory Switching in Chat
+                  - text: — Change where the next session starts with
+                  - code [ref=e1172]: /dir <path>
+                  - text: (and
+                  - code [ref=e1173]: /cd <path>
+                  - text: as a compatibility alias), plus quick history jump via
+                  - code [ref=e1174]: /dir <number>
+                  - text: /
+                  - code [ref=e1175]: /dir -
+                  - text: .
+                - generic [ref=e1176]:
+                  - heading "🧠 Persistent Memory" [level=3] [ref=e1177]
+                  - 'link "Permalink: 🧠 Persistent Memory" [ref=e1178] [cursor=pointer]':
+                    - /url: "#-persistent-memory"
+                    - img [ref=e1179]
+                - paragraph [ref=e1181]:
+                  - strong [ref=e1182]: Agent Memory
+                  - text: — Read and write agent instruction files (
+                  - code [ref=e1183]: /memory
+                  - text: ) without touching the terminal.
+                - generic [ref=e1184]:
+                  - heading "⏰ Intelligent Scheduling" [level=3] [ref=e1185]
+                  - 'link "Permalink: ⏰ Intelligent Scheduling" [ref=e1186] [cursor=pointer]':
+                    - /url: "#-intelligent-scheduling"
+                    - img [ref=e1187]
+                - paragraph [ref=e1189]:
+                  - strong [ref=e1190]: Scheduled Tasks
+                  - text: — Set up cron jobs in natural language.
+                  - emphasis [ref=e1191]: "\"Every day at 6am, summarize GitHub trending\""
+                  - text: just works.
+                - generic [ref=e1192]:
+                  - heading "🎤 Multimodal Support" [level=3] [ref=e1193]
+                  - 'link "Permalink: 🎤 Multimodal Support" [ref=e1194] [cursor=pointer]':
+                    - /url: "#-multimodal-support"
+                    - img [ref=e1195]
+                - paragraph [ref=e1197]:
+                  - strong [ref=e1198]: Voice & Images
+                  - text: — Send voice messages or screenshots; cc-connect handles STT/TTS and multimodal forwarding.
+                - generic [ref=e1199]:
+                  - heading "📦 Multi-Project Architecture" [level=3] [ref=e1200]
+                  - 'link "Permalink: 📦 Multi-Project Architecture" [ref=e1201] [cursor=pointer]':
+                    - /url: "#-multi-project-architecture"
+                    - img [ref=e1202]
+                - paragraph [ref=e1204]:
+                  - strong [ref=e1205]: Multi-Project
+                  - text: — One process, multiple projects, each with its own agent + platform combo.
+                - generic [ref=e1206]:
+                  - heading "🌍 Multilingual Interface" [level=3] [ref=e1207]
+                  - 'link "Permalink: 🌍 Multilingual Interface" [ref=e1208] [cursor=pointer]':
+                    - /url: "#-multilingual-interface"
+                    - img [ref=e1209]
+                - paragraph [ref=e1211]:
+                  - strong [ref=e1212]: 5 Languages
+                  - text: — Native support for English, Chinese (Simplified & Traditional), Japanese, and Spanish. Built-in i18n ensures everyone feels at home.
+                - paragraph [ref=e1213]:
+                  - link "飞书" [ref=e1214] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/docs/images/screenshot/cc-connect-lark.JPG
+                    - img "飞书" [ref=e1215]
+                  - link "Telegram" [ref=e1216] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/docs/images/screenshot/cc-connect-telegram.JPG
+                    - img "Telegram" [ref=e1217]
+                  - link "微信" [ref=e1218] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/docs/images/screenshot/cc-connect-wechat.JPG
+                    - img "微信" [ref=e1219]
+                - paragraph [ref=e1220]:
+                  - emphasis [ref=e1221]: Left：Lark | Telegram | Right：Wechat
+                - generic [ref=e1222]:
+                  - heading "🚀 Quick Start" [level=2] [ref=e1223]
+                  - 'link "Permalink: 🚀 Quick Start" [ref=e1224] [cursor=pointer]':
+                    - /url: "#-quick-start"
+                    - img [ref=e1225]
+                - generic [ref=e1227]:
+                  - heading "🤖 Install & Configure via AI Agent (Recommended)" [level=3] [ref=e1228]
+                  - 'link "Permalink: 🤖 Install & Configure via AI Agent (Recommended)" [ref=e1229] [cursor=pointer]':
+                    - /url: "#-install--configure-via-ai-agent-recommended"
+                    - img [ref=e1230]
+                - blockquote [ref=e1232]:
+                  - paragraph [ref=e1233]:
+                    - strong [ref=e1234]: The easiest way
+                    - text: "— Send this to Claude Code or any AI coding agent, and it will handle the entire installation and configuration for you:"
+                - generic [ref=e1235]:
+                  - generic [ref=e1236]: Follow https://raw.githubusercontent.com/chenhg5/cc-connect/refs/heads/main/INSTALL.md to install and configure cc-connect.
+                  - button "Copy code to clipboard" [ref=e1238] [cursor=pointer]:
+                    - img [ref=e1239]
+                - generic [ref=e1242]:
+                  - heading "📦 Manual Install" [level=3] [ref=e1243]
+                  - 'link "Permalink: 📦 Manual Install" [ref=e1244] [cursor=pointer]':
+                    - /url: "#-manual-install"
+                    - img [ref=e1245]
+                - paragraph [ref=e1247]:
+                  - strong [ref=e1248]: "Via npm:"
+                - generic [ref=e1249]:
+                  - generic [ref=e1250]: npm install -g cc-connect
+                  - button "Copy code to clipboard" [ref=e1252] [cursor=pointer]:
+                    - img [ref=e1253]
+                - paragraph [ref=e1256]:
+                  - strong [ref=e1257]: "Via Homebrew (macOS / Linux):"
+                - generic [ref=e1258]:
+                  - generic [ref=e1259]: brew install cc-connect
+                  - button "Copy code to clipboard" [ref=e1261] [cursor=pointer]:
+                    - img [ref=e1262]
+                - paragraph [ref=e1265]:
+                  - strong [ref=e1266]:
+                    - text: Download binary from
+                    - link "GitHub Releases" [ref=e1267] [cursor=pointer]:
+                      - /url: https://github.com/chenhg5/cc-connect/releases
+                    - text: ":"
+                - generic [ref=e1268]:
+                  - generic [ref=e1269]:
+                    - generic [ref=e1270]: "# Linux amd64 - Stable"
+                    - text: curl -L -o cc-connect https://github.com/chenhg5/cc-connect/releases/latest/download/cc-connect-linux-amd64 chmod +x cc-connect sudo mv cc-connect /usr/local/bin/
+                  - button "Copy code to clipboard" [ref=e1272] [cursor=pointer]:
+                    - img [ref=e1273]
+                - paragraph [ref=e1276]:
+                  - strong [ref=e1277]: "Build from source (requires Go 1.22+):"
+                - generic [ref=e1278]:
+                  - generic [ref=e1279]: git clone https://github.com/chenhg5/cc-connect.git cd cc-connect make build
+                  - button "Copy code to clipboard" [ref=e1281] [cursor=pointer]:
+                    - img [ref=e1282]
+                - generic [ref=e1285]:
+                  - heading "⚙️ Configure" [level=3] [ref=e1286]
+                  - 'link "Permalink: ⚙️ Configure" [ref=e1287] [cursor=pointer]':
+                    - /url: "#️-configure"
+                    - img [ref=e1288]
+                - blockquote [ref=e1290]:
+                  - paragraph [ref=e1291]:
+                    - strong [ref=e1292]: "💡 Tip: Use the Web UI to configure"
+                    - text: — After installing, run
+                    - code [ref=e1293]: cc-connect web
+                    - text: to configure the web admin and open the dashboard in your browser. You can visually create projects, add platforms, manage providers, and chat with your agent — no need to manually edit TOML files.
+                    - strong [ref=e1294]: "Note:"
+                    - code [ref=e1295]: cc-connect web
+                    - text: only configures and opens the browser — you still need to run
+                    - code [ref=e1296]: cc-connect
+                    - text: separately to start the service.
+                - paragraph [ref=e1297]: "If you prefer manual configuration:"
+                - generic [ref=e1298]:
+                  - generic [ref=e1299]: mkdir -p ~/.cc-connect cp config.example.toml ~/.cc-connect/config.toml vim ~/.cc-connect/config.toml
+                  - button "Copy code to clipboard" [ref=e1301] [cursor=pointer]:
+                    - img [ref=e1302]
+                - paragraph [ref=e1305]:
+                  - text: Set
+                  - code [ref=e1306]: admin_from = "alice,bob"
+                  - text: in a project to allow those user IDs to run privileged commands such as
+                  - code [ref=e1307]: /dir
+                  - text: and
+                  - code [ref=e1308]: /shell
+                  - text: .
+                  - code [ref=e1309]: admin_from
+                  - text: must be placed under
+                  - code [ref=e1310]: "[[projects]]"
+                  - text: (not under
+                  - code [ref=e1311]: "[projects.platforms.options]"
+                  - text: ). You can use
+                  - code [ref=e1312]: /whoami
+                  - text: or
+                  - code [ref=e1313]: /status
+                  - text: to get your current
+                  - code [ref=e1314]: User ID
+                  - text: . When a user runs
+                  - code [ref=e1315]: /dir reset
+                  - text: ", cc-connect restores the configured"
+                  - code [ref=e1316]: work_dir
+                  - text: and clears the persisted override stored under
+                  - code [ref=e1317]: data_dir/projects/<project>.state.json
+                  - text: .
+                - generic [ref=e1318]:
+                  - heading "▶️ Run" [level=3] [ref=e1319]:
+                    - generic [ref=e1320]: ▶️
+                    - text: Run
+                  - 'link "Permalink: ▶️ Run" [ref=e1321] [cursor=pointer]':
+                    - /url: "#️-run"
+                    - img [ref=e1322]
+                - generic [ref=e1324]:
+                  - generic [ref=e1325]: ./cc-connect
+                  - button "Copy code to clipboard" [ref=e1327] [cursor=pointer]:
+                    - img [ref=e1328]
+                - generic [ref=e1331]:
+                  - heading "🔄 Upgrade" [level=3] [ref=e1332]
+                  - 'link "Permalink: 🔄 Upgrade" [ref=e1333] [cursor=pointer]':
+                    - /url: "#-upgrade"
+                    - img [ref=e1334]
+                - generic [ref=e1336]:
+                  - generic [ref=e1337]:
+                    - generic [ref=e1338]: "# npm"
+                    - text: npm install -g cc-connect
+                    - generic [ref=e1339]: "# Homebrew"
+                    - text: brew upgrade cc-connect
+                    - generic [ref=e1340]: "# Binary self-update"
+                    - text: cc-connect update
+                    - generic [ref=e1341]: "# Stable"
+                    - text: cc-connect update --pre
+                    - generic [ref=e1342]: "# Include pre-releases"
+                  - button "Copy code to clipboard" [ref=e1344] [cursor=pointer]:
+                    - img [ref=e1345]
+                - generic [ref=e1348]:
+                  - heading "📊 Support Matrix" [level=2] [ref=e1349]
+                  - 'link "Permalink: 📊 Support Matrix" [ref=e1350] [cursor=pointer]':
+                    - /url: "#-support-matrix"
+                    - img [ref=e1351]
+                - table [ref=e1354]:
+                  - rowgroup [ref=e1355]:
+                    - row "Component Type Status" [ref=e1356]:
+                      - columnheader "Component" [ref=e1357]
+                      - columnheader "Type" [ref=e1358]
+                      - columnheader "Status" [ref=e1359]
+                  - rowgroup [ref=e1360]:
+                    - row "Agent Claude Code ✅ Supported" [ref=e1361]:
+                      - cell "Agent" [ref=e1362]
+                      - cell "Claude Code" [ref=e1363]
+                      - cell "✅ Supported" [ref=e1364]
+                    - row "Agent Codex (OpenAI) ✅ Supported" [ref=e1365]:
+                      - cell "Agent" [ref=e1366]
+                      - cell "Codex (OpenAI)" [ref=e1367]
+                      - cell "✅ Supported" [ref=e1368]
+                    - row "Agent Cursor Agent ✅ Supported" [ref=e1369]:
+                      - cell "Agent" [ref=e1370]
+                      - cell "Cursor Agent" [ref=e1371]
+                      - cell "✅ Supported" [ref=e1372]
+                    - row "Agent Gemini CLI (Google) ✅ Supported" [ref=e1373]:
+                      - cell "Agent" [ref=e1374]
+                      - cell "Gemini CLI (Google)" [ref=e1375]
+                      - cell "✅ Supported" [ref=e1376]
+                    - row "Agent Qoder CLI ✅ Supported" [ref=e1377]:
+                      - cell "Agent" [ref=e1378]
+                      - cell "Qoder CLI" [ref=e1379]
+                      - cell "✅ Supported" [ref=e1380]
+                    - row "Agent OpenCode (Crush) ✅ Supported" [ref=e1381]:
+                      - cell "Agent" [ref=e1382]
+                      - cell "OpenCode (Crush)" [ref=e1383]
+                      - cell "✅ Supported" [ref=e1384]
+                    - row "Agent iFlow CLI ✅ Supported" [ref=e1385]:
+                      - cell "Agent" [ref=e1386]
+                      - cell "iFlow CLI" [ref=e1387]
+                      - cell "✅ Supported" [ref=e1388]
+                    - row "Agent Kimi CLI (Moonshot) ✅ Supported" [ref=e1389]:
+                      - cell "Agent" [ref=e1390]
+                      - cell "Kimi CLI (Moonshot)" [ref=e1391]
+                      - cell "✅ Supported" [ref=e1392]
+                    - row "Agent Pi (Cursor Background Agent) ✅ Supported" [ref=e1393]:
+                      - cell "Agent" [ref=e1394]
+                      - cell "Pi (Cursor Background Agent)" [ref=e1395]
+                      - cell "✅ Supported" [ref=e1396]
+                    - row "Agent Copilot (GitHub) ✅ Supported" [ref=e1397]:
+                      - cell "Agent" [ref=e1398]
+                      - cell "Copilot (GitHub)" [ref=e1399]
+                      - cell "✅ Supported" [ref=e1400]
+                    - row "Agent ACP (Agent Client Protocol) ✅ Any ACP-compatible agent" [ref=e1401]:
+                      - cell "Agent" [ref=e1402]
+                      - cell "ACP (Agent Client Protocol)" [ref=e1403]
+                      - cell "✅ Any ACP-compatible agent" [ref=e1404]:
+                        - text: ✅ Any
+                        - link "ACP-compatible agent" [ref=e1405] [cursor=pointer]:
+                          - /url: https://agentclientprotocol.com/get-started/agents
+                    - row "Agent Devin (Cognition) ✅ Supported (via ACP)" [ref=e1406]:
+                      - cell "Agent" [ref=e1407]
+                      - cell "Devin (Cognition)" [ref=e1408]
+                      - cell "✅ Supported (via ACP)" [ref=e1409]
+                    - row "Agent Goose (Block) 🔜 Planned" [ref=e1410]:
+                      - cell "Agent" [ref=e1411]
+                      - cell "Goose (Block)" [ref=e1412]
+                      - cell "🔜 Planned" [ref=e1413]
+                    - row "Agent Aider 🔜 Planned" [ref=e1414]:
+                      - cell "Agent" [ref=e1415]
+                      - cell "Aider" [ref=e1416]
+                      - cell "🔜 Planned" [ref=e1417]
+                    - row "Platform Feishu (Lark) ✅ WebSocket — no public IP needed" [ref=e1418]:
+                      - cell "Platform" [ref=e1419]
+                      - cell "Feishu (Lark)" [ref=e1420]
+                      - cell "✅ WebSocket — no public IP needed" [ref=e1421]
+                    - row "Platform DingTalk ✅ Stream — no public IP needed" [ref=e1422]:
+                      - cell "Platform" [ref=e1423]
+                      - cell "DingTalk" [ref=e1424]
+                      - cell "✅ Stream — no public IP needed" [ref=e1425]
+                    - row "Platform WPS Xiezuo ✅ WebSocket — no public IP needed" [ref=e1426]:
+                      - cell "Platform" [ref=e1427]
+                      - cell "WPS Xiezuo" [ref=e1428]
+                      - cell "✅ WebSocket — no public IP needed" [ref=e1429]
+                    - row "Platform Telegram ✅ Long Polling — no public IP needed" [ref=e1430]:
+                      - cell "Platform" [ref=e1431]
+                      - cell "Telegram" [ref=e1432]
+                      - cell "✅ Long Polling — no public IP needed" [ref=e1433]
+                    - row "Platform Slack ✅ Socket Mode — no public IP needed" [ref=e1434]:
+                      - cell "Platform" [ref=e1435]
+                      - cell "Slack" [ref=e1436]
+                      - cell "✅ Socket Mode — no public IP needed" [ref=e1437]
+                    - row "Platform Discord ✅ Gateway — no public IP needed" [ref=e1438]:
+                      - cell "Platform" [ref=e1439]
+                      - cell "Discord" [ref=e1440]
+                      - cell "✅ Gateway — no public IP needed" [ref=e1441]
+                    - row "Platform Weibo ✅ WebSocket — no public IP needed" [ref=e1442]:
+                      - cell "Platform" [ref=e1443]
+                      - cell "Weibo" [ref=e1444]
+                      - cell "✅ WebSocket — no public IP needed" [ref=e1445]
+                    - row "Platform LINE ✅ Webhook — public URL required" [ref=e1446]:
+                      - cell "Platform" [ref=e1447]
+                      - cell "LINE" [ref=e1448]
+                      - cell "✅ Webhook — public URL required" [ref=e1449]
+                    - row "Platform WeChat Work ✅ WebSocket / Webhook" [ref=e1450]:
+                      - cell "Platform" [ref=e1451]
+                      - cell "WeChat Work" [ref=e1452]
+                      - cell "✅ WebSocket / Webhook" [ref=e1453]
+                    - row "Platform Weixin (personal, ilink) ✅— HTTP long polling — no public IP needed" [ref=e1454]:
+                      - cell "Platform" [ref=e1455]
+                      - cell "Weixin (personal, ilink)" [ref=e1456]
+                      - cell "✅— HTTP long polling — no public IP needed" [ref=e1457]
+                    - row "Platform QQ (NapCat/OneBot) ✅ WebSocket" [ref=e1458]:
+                      - cell "Platform" [ref=e1459]
+                      - cell "QQ (NapCat/OneBot)" [ref=e1460]
+                      - cell "✅ WebSocket" [ref=e1461]
+                    - row "Platform QQ Bot (Official) ✅ WebSocket — no public IP needed" [ref=e1462]:
+                      - cell "Platform" [ref=e1463]
+                      - cell "QQ Bot (Official)" [ref=e1464]
+                      - cell "✅ WebSocket — no public IP needed" [ref=e1465]
+                    - row "Platform Matrix ✅ Long Polling (/sync) — no public IP needed" [ref=e1466]:
+                      - cell "Platform" [ref=e1467]
+                      - cell "Matrix" [ref=e1468]
+                      - cell "✅ Long Polling (/sync) — no public IP needed" [ref=e1469]
+                - generic [ref=e1470]:
+                  - heading "📖 Platform Setup Guides" [level=2] [ref=e1471]
+                  - 'link "Permalink: 📖 Platform Setup Guides" [ref=e1472] [cursor=pointer]':
+                    - /url: "#-platform-setup-guides"
+                    - img [ref=e1473]
+                - table [ref=e1476]:
+                  - rowgroup [ref=e1477]:
+                    - row "Platform Guide Connection Public IP?" [ref=e1478]:
+                      - columnheader "Platform" [ref=e1479]
+                      - columnheader "Guide" [ref=e1480]
+                      - columnheader "Connection" [ref=e1481]
+                      - columnheader "Public IP?" [ref=e1482]
+                  - rowgroup [ref=e1483]:
+                    - row "Feishu (Lark) docs/feishu.md WebSocket No" [ref=e1484]:
+                      - cell "Feishu (Lark)" [ref=e1485]
+                      - cell "docs/feishu.md" [ref=e1486]:
+                        - link "docs/feishu.md" [ref=e1487] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/feishu.md
+                      - cell "WebSocket" [ref=e1488]
+                      - cell "No" [ref=e1489]
+                    - row "DingTalk docs/dingtalk.md Stream No" [ref=e1490]:
+                      - cell "DingTalk" [ref=e1491]
+                      - cell "docs/dingtalk.md" [ref=e1492]:
+                        - link "docs/dingtalk.md" [ref=e1493] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/dingtalk.md
+                      - cell "Stream" [ref=e1494]
+                      - cell "No" [ref=e1495]
+                    - row "WPS Xiezuo docs/wps-xiezuo.md WebSocket No" [ref=e1496]:
+                      - cell "WPS Xiezuo" [ref=e1497]
+                      - cell "docs/wps-xiezuo.md" [ref=e1498]:
+                        - link "docs/wps-xiezuo.md" [ref=e1499] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/wps-xiezuo.md
+                      - cell "WebSocket" [ref=e1500]
+                      - cell "No" [ref=e1501]
+                    - row "Telegram docs/telegram.md Long Polling No" [ref=e1502]:
+                      - cell "Telegram" [ref=e1503]
+                      - cell "docs/telegram.md" [ref=e1504]:
+                        - link "docs/telegram.md" [ref=e1505] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/telegram.md
+                      - cell "Long Polling" [ref=e1506]
+                      - cell "No" [ref=e1507]
+                    - row "Slack docs/slack.md Socket Mode No" [ref=e1508]:
+                      - cell "Slack" [ref=e1509]
+                      - cell "docs/slack.md" [ref=e1510]:
+                        - link "docs/slack.md" [ref=e1511] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/slack.md
+                      - cell "Socket Mode" [ref=e1512]
+                      - cell "No" [ref=e1513]
+                    - row "Discord docs/discord.md Gateway No" [ref=e1514]:
+                      - cell "Discord" [ref=e1515]
+                      - cell "docs/discord.md" [ref=e1516]:
+                        - link "docs/discord.md" [ref=e1517] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/discord.md
+                      - cell "Gateway" [ref=e1518]
+                      - cell "No" [ref=e1519]
+                    - row "Weibo docs/weibo.md WebSocket No" [ref=e1520]:
+                      - cell "Weibo" [ref=e1521]
+                      - cell "docs/weibo.md" [ref=e1522]:
+                        - link "docs/weibo.md" [ref=e1523] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/weibo.md
+                      - cell "WebSocket" [ref=e1524]
+                      - cell "No" [ref=e1525]
+                    - row "WeChat Work docs/wecom.md WebSocket / Webhook No (WS) / Yes (Webhook)" [ref=e1526]:
+                      - cell "WeChat Work" [ref=e1527]
+                      - cell "docs/wecom.md" [ref=e1528]:
+                        - link "docs/wecom.md" [ref=e1529] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/wecom.md
+                      - cell "WebSocket / Webhook" [ref=e1530]
+                      - cell "No (WS) / Yes (Webhook)" [ref=e1531]
+                    - row "Weixin (personal) docs/weixin.md HTTP long polling (ilink) No" [ref=e1532]:
+                      - cell "Weixin (personal)" [ref=e1533]
+                      - cell "docs/weixin.md" [ref=e1534]:
+                        - link "docs/weixin.md" [ref=e1535] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/weixin.md
+                      - cell "HTTP long polling (ilink)" [ref=e1536]
+                      - cell "No" [ref=e1537]
+                    - row "QQ / QQ Bot docs/qq.md WebSocket No" [ref=e1538]:
+                      - cell "QQ / QQ Bot" [ref=e1539]
+                      - cell "docs/qq.md" [ref=e1540]:
+                        - link "docs/qq.md" [ref=e1541] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/qq.md
+                      - cell "WebSocket" [ref=e1542]
+                      - cell "No" [ref=e1543]
+                    - row "Matrix docs/matrix.md /sync (Long Polling) No" [ref=e1544]:
+                      - cell "Matrix" [ref=e1545]
+                      - cell "docs/matrix.md" [ref=e1546]:
+                        - link "docs/matrix.md" [ref=e1547] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/matrix.md
+                      - cell "/sync (Long Polling)" [ref=e1548]
+                      - cell "No" [ref=e1549]
+                - generic [ref=e1550]:
+                  - heading "🎯 Key Features" [level=2] [ref=e1551]
+                  - 'link "Permalink: 🎯 Key Features" [ref=e1552] [cursor=pointer]':
+                    - /url: "#-key-features"
+                    - img [ref=e1553]
+                - generic [ref=e1555]:
+                  - heading "💬 Session Management" [level=3] [ref=e1556]
+                  - 'link "Permalink: 💬 Session Management" [ref=e1557] [cursor=pointer]':
+                    - /url: "#-session-management"
+                    - img [ref=e1558]
+                - generic [ref=e1560]:
+                  - code [ref=e1562]: /new [name] Start a new session /list List all sessions /switch <id> Switch session /current Show current session /dir [path|reset] Show, switch, or reset work directory
+                  - button "Copy code to clipboard" [ref=e1564] [cursor=pointer]:
+                    - img [ref=e1565]
+                - paragraph [ref=e1568]:
+                  - text: Project configs rotate to a fresh session automatically after long inactivity. This prevents "context drift" where stale chat history (failed commands, debugging noise) is repeatedly re-ingested via
+                  - code [ref=e1569]: "--continue"
+                  - text: and starts to dominate the model's attention. The previous session is preserved and remains accessible via
+                  - code [ref=e1570]: /list
+                  - text: and
+                  - code [ref=e1571]: /switch
+                  - text: .
+                - generic [ref=e1572]:
+                  - generic [ref=e1573]:
+                    - text: "[[projects]] reset_on_idle_mins = 30"
+                    - generic [ref=e1574]: "# default when unset; set to 0 to disable"
+                  - button "Copy code to clipboard" [ref=e1576] [cursor=pointer]:
+                    - img [ref=e1577]
+                - paragraph [ref=e1580]:
+                  - text: The default is
+                  - strong [ref=e1581]: 30 minutes
+                  - text: when unset. Set
+                  - code [ref=e1582]: reset_on_idle_mins = 0
+                  - text: to opt out and always continue the previous session.
+                - generic [ref=e1583]:
+                  - heading "🛡️ OS-User Isolation (run_as_user)" [level=3] [ref=e1584]:
+                    - text: 🛡️ OS-User Isolation (
+                    - code [ref=e1585]: run_as_user
+                    - text: )
+                  - 'link "Permalink: 🛡️ OS-User Isolation (run_as_user)" [ref=e1586] [cursor=pointer]':
+                    - /url: "#️-os-user-isolation-run_as_user"
+                    - img [ref=e1587]
+                - paragraph [ref=e1589]: On Linux/macOS, a project can spawn its agent under a different Unix user for OS-level file-system isolation from the supervisor user that runs cc-connect. Currently supported by Claude Code.
+                - generic [ref=e1590]:
+                  - generic [ref=e1591]:
+                    - text: "[[projects]] name ="
+                    - generic [ref=e1592]: "\"claude-sandboxed\""
+                    - text: run_as_user =
+                    - generic [ref=e1593]: "\"partseeker-coder\""
+                    - text: run_as_env = [
+                    - generic [ref=e1594]: "\"PGSSLROOTCERT\""
+                    - text: "]"
+                  - button "Copy code to clipboard" [ref=e1596] [cursor=pointer]:
+                    - img [ref=e1597]
+                - paragraph [ref=e1600]:
+                  - text: The target user needs passwordless sudo from the supervisor, no sudo of its own, read+write on
+                  - code [ref=e1601]: work_dir
+                  - text: ", and its own"
+                  - code [ref=e1602]: ~/.claude/settings.json
+                  - text: with whatever credentials the agent uses. If you authenticate via
+                  - code [ref=e1603]: claude.ai
+                  - text: OAuth, symlink the target user's
+                  - code [ref=e1604]: ~/.claude/.credentials.json
+                  - text: to the supervisor's copy so token refresh stays in sync — see the
+                  - link "environment propagation checklist" [ref=e1605] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/docs/usage.md#environment-propagation-what-moves-into-the-target-users-home
+                  - text: for details. See
+                  - link "docs/usage.md" [ref=e1606] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/docs/usage.md#running-agents-as-a-different-unix-user-run_as_user
+                    - code [ref=e1607]: docs/usage.md
+                  - text: for the full setup.
+                - paragraph [ref=e1608]: "Before starting cc-connect, audit the setup with:"
+                - generic [ref=e1609]:
+                  - generic [ref=e1610]: cc-connect doctor user-isolation
+                  - button "Copy code to clipboard" [ref=e1612] [cursor=pointer]:
+                    - img [ref=e1613]
+                - paragraph [ref=e1616]: This runs three go/no-go preflight gates and an isolation probe that reports what the target user can and cannot read. cc-connect refuses to start if any gate fails or if the probe detects a cross-user leak.
+                - separator [ref=e1617]
+                - generic [ref=e1618]:
+                  - heading "🔐 Permission Modes" [level=3] [ref=e1619]
+                  - 'link "Permalink: 🔐 Permission Modes" [ref=e1620] [cursor=pointer]':
+                    - /url: "#-permission-modes"
+                    - img [ref=e1621]
+                - generic [ref=e1623]:
+                  - code [ref=e1625]: "/mode Show available modes /mode yolo # Auto-approve all tools /mode default # Ask for each tool"
+                  - button "Copy code to clipboard" [ref=e1627] [cursor=pointer]:
+                    - img [ref=e1628]
+                - generic [ref=e1631]:
+                  - heading "🔄 Provider Management" [level=3] [ref=e1632]
+                  - 'link "Permalink: 🔄 Provider Management" [ref=e1633] [cursor=pointer]':
+                    - /url: "#-provider-management"
+                    - img [ref=e1634]
+                - generic [ref=e1636]:
+                  - code [ref=e1638]: /provider list List providers /provider switch <name> Switch API provider at runtime
+                  - button "Copy code to clipboard" [ref=e1640] [cursor=pointer]:
+                    - img [ref=e1641]
+                - generic [ref=e1644]:
+                  - heading "🤖 Model Selection" [level=3] [ref=e1645]
+                  - 'link "Permalink: 🤖 Model Selection" [ref=e1646] [cursor=pointer]':
+                    - /url: "#-model-selection"
+                    - img [ref=e1647]
+                - generic [ref=e1649]:
+                  - code [ref=e1651]: "/model List available models (format: alias - model) /model switch <alias> Switch to model by alias"
+                  - button "Copy code to clipboard" [ref=e1653] [cursor=pointer]:
+                    - img [ref=e1654]
+                - generic [ref=e1657]:
+                  - heading "📂 Work Directory" [level=3] [ref=e1658]
+                  - 'link "Permalink: 📂 Work Directory" [ref=e1659] [cursor=pointer]':
+                    - /url: "#-work-directory"
+                    - img [ref=e1660]
+                - generic [ref=e1662]:
+                  - code [ref=e1664]: /dir Show current work directory and history /dir <path> Switch to a path (relative or absolute) /dir <number> Switch from history /dir - Switch to previous directory /cd <path> Compatibility alias for /dir <path>
+                  - button "Copy code to clipboard" [ref=e1666] [cursor=pointer]:
+                    - img [ref=e1667]
+                - generic [ref=e1670]:
+                  - heading "⏰ Scheduled Tasks" [level=3] [ref=e1671]
+                  - 'link "Permalink: ⏰ Scheduled Tasks" [ref=e1672] [cursor=pointer]':
+                    - /url: "#-scheduled-tasks"
+                    - img [ref=e1673]
+                - generic [ref=e1675]:
+                  - generic [ref=e1676]: /cron add 0 6 * * * Summarize GitHub trending
+                  - button "Copy code to clipboard" [ref=e1678] [cursor=pointer]:
+                    - img [ref=e1679]
+                - generic [ref=e1682]:
+                  - heading "📎 Agent Attachment Send-Back" [level=3] [ref=e1683]
+                  - 'link "Permalink: 📎 Agent Attachment Send-Back" [ref=e1684] [cursor=pointer]':
+                    - /url: "#-agent-attachment-send-back"
+                    - img [ref=e1685]
+                - paragraph [ref=e1687]: When an agent generates a local screenshot, chart, PDF, bundle, or other file, it can send that attachment back to the current chat.
+                - paragraph [ref=e1688]: "First release supports:"
+                - list [ref=e1689]:
+                  - listitem [ref=e1690]: Feishu
+                  - listitem [ref=e1691]: Telegram
+                - paragraph [ref=e1692]: "If your agent does not natively inject the system prompt, run this once in chat after upgrading:"
+                - generic [ref=e1693]:
+                  - code [ref=e1695]: /bind setup
+                  - button "Copy code to clipboard" [ref=e1697] [cursor=pointer]:
+                    - img [ref=e1698]
+                - paragraph [ref=e1701]: "or:"
+                - generic [ref=e1702]:
+                  - code [ref=e1704]: /cron setup
+                  - button "Copy code to clipboard" [ref=e1706] [cursor=pointer]:
+                    - img [ref=e1707]
+                - paragraph [ref=e1710]: This refreshes the cc-connect instructions in the project memory file so the agent knows how to send attachments back.
+                - paragraph [ref=e1711]:
+                  - text: You can control this feature globally in
+                  - code [ref=e1712]: config.toml
+                  - text: ":"
+                - generic [ref=e1713]:
+                  - generic [ref=e1714]:
+                    - text: attachment_send =
+                    - generic [ref=e1715]: "\"on\""
+                    - generic [ref=e1716]: "# default: \"on\"; set to \"off\" to block image/file send-back"
+                  - button "Copy code to clipboard" [ref=e1718] [cursor=pointer]:
+                    - img [ref=e1719]
+                - paragraph [ref=e1722]:
+                  - text: This switch is independent from the agent's
+                  - code [ref=e1723]: /mode
+                  - text: . It only controls
+                  - code [ref=e1724]: cc-connect send --image/--file
+                  - text: . Voice send-back uses the TTS config instead.
+                - paragraph [ref=e1725]: "Examples:"
+                - generic [ref=e1726]:
+                  - generic [ref=e1727]:
+                    - text: cc-connect send --image /absolute/path/to/chart.png cc-connect send --file /absolute/path/to/report.pdf cc-connect send --file /absolute/path/to/report.pdf --image /absolute/path/to/chart.png cc-connect send --tts
+                    - generic [ref=e1728]: "\"Hello from cc-connect\""
+                  - button "Copy code to clipboard" [ref=e1730] [cursor=pointer]:
+                    - img [ref=e1731]
+                - paragraph [ref=e1734]: "Notes:"
+                - list [ref=e1735]:
+                  - listitem [ref=e1736]: Absolute paths are the safest option.
+                  - listitem [ref=e1737]:
+                    - code [ref=e1738]: "--image"
+                    - text: and
+                    - code [ref=e1739]: "--file"
+                    - text: can both be repeated.
+                  - listitem [ref=e1740]:
+                    - code [ref=e1741]: "--tts"
+                    - text: sends synthesized speech when the user asks for a voice reply.
+                  - listitem [ref=e1742]:
+                    - code [ref=e1743]: attachment_send = "off"
+                    - text: disables only attachment send-back; ordinary text replies still work.
+                  - listitem [ref=e1744]:
+                    - text: Attachments are capped at 50 MiB by default; configure with
+                    - code [ref=e1745]: max_attachment_size_mb
+                    - text: (or
+                    - code [ref=e1746]: CC_MAX_ATTACHMENT_SIZE_MB
+                    - text: env, same MiB unit).
+                  - listitem [ref=e1747]: This command is for generated attachments, not ordinary text replies.
+                - paragraph [ref=e1748]:
+                  - text: 📖
+                  - strong [ref=e1749]: "Full documentation:"
+                  - link "docs/usage.md" [ref=e1750] [cursor=pointer]:
+                    - /url: /chenhg5/cc-connect/blob/main/docs/usage.md
+                - generic [ref=e1751]:
+                  - heading "📚 Documentation" [level=2] [ref=e1752]
+                  - 'link "Permalink: 📚 Documentation" [ref=e1753] [cursor=pointer]':
+                    - /url: "#-documentation"
+                    - img [ref=e1754]
+                - list [ref=e1756]:
+                  - listitem [ref=e1757]:
+                    - link "Usage Guide" [ref=e1758] [cursor=pointer]:
+                      - /url: /chenhg5/cc-connect/blob/main/docs/usage.md
+                    - text: — Complete feature documentation
+                  - listitem [ref=e1759]:
+                    - link "INSTALL.md" [ref=e1760] [cursor=pointer]:
+                      - /url: /chenhg5/cc-connect/blob/main/INSTALL.md
+                    - text: — AI-agent-friendly installation guide
+                  - listitem [ref=e1761]:
+                    - link "config.example.toml" [ref=e1762] [cursor=pointer]:
+                      - /url: /chenhg5/cc-connect/blob/main/config.example.toml
+                    - text: — Configuration template
+                  - listitem [ref=e1763]:
+                    - link "CONTRIBUTING.md" [ref=e1764] [cursor=pointer]:
+                      - /url: /chenhg5/cc-connect/blob/main/CONTRIBUTING.md
+                    - text: — How to report issues and contribute pull requests
+                - generic [ref=e1765]:
+                  - heading "👥 Community" [level=2] [ref=e1766]
+                  - 'link "Permalink: 👥 Community" [ref=e1767] [cursor=pointer]':
+                    - /url: "#-community"
+                    - img [ref=e1768]
+                - list [ref=e1770]:
+                  - listitem [ref=e1771]:
+                    - link "Discord" [ref=e1772] [cursor=pointer]:
+                      - /url: https://discord.gg/kHpwgaM4kq
+                  - listitem [ref=e1773]:
+                    - link "Telegram" [ref=e1774] [cursor=pointer]:
+                      - /url: https://t.me/+odGNDhCjbjdmMmZl
+                - generic [ref=e1775]:
+                  - heading "☕ Support the Project" [level=2] [ref=e1776]
+                  - 'link "Permalink: ☕ Support the Project" [ref=e1777] [cursor=pointer]':
+                    - /url: "#-support-the-project"
+                    - img [ref=e1778]
+                - paragraph [ref=e1780]: "If cc-connect has been helpful to you, consider buying us a coffee! Your support helps us:"
+                - list [ref=e1781]:
+                  - listitem [ref=e1782]: 🛠️ Maintain and improve the project
+                  - listitem [ref=e1783]: 📚 Write better documentation and tutorials
+                  - listitem [ref=e1784]: 🐛 Fix bugs and add new features faster
+                  - listitem [ref=e1785]: ☕ Keep the developers caffeinated
+                - generic [ref=e1786]:
+                  - heading "How to Donate" [level=3] [ref=e1787]
+                  - 'link "Permalink: How to Donate" [ref=e1788] [cursor=pointer]':
+                    - /url: "#how-to-donate"
+                    - img [ref=e1789]
+                - paragraph [ref=e1791]:
+                  - strong [ref=e1792]: Buy Me a Coffee
+                  - text: ":"
+                  - link "https://buymeacoffee.com/cg33" [ref=e1793] [cursor=pointer]:
+                    - /url: https://buymeacoffee.com/cg33
+                - paragraph [ref=e1794]:
+                  - strong [ref=e1795]: WeChat Pay / Alipay
+                  - text: ":"
+                - table [ref=e1797]:
+                  - rowgroup [ref=e1798]:
+                    - row "WeChat Pay Alipay" [ref=e1799]:
+                      - columnheader "WeChat Pay" [ref=e1800]
+                      - columnheader "Alipay" [ref=e1801]
+                  - rowgroup [ref=e1802]:
+                    - row "WeChat Pay Alipay" [ref=e1803]:
+                      - cell "WeChat Pay" [ref=e1804]:
+                        - link "WeChat Pay" [ref=e1805] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/images/wechatpay.jpg
+                          - img "WeChat Pay" [ref=e1806]
+                      - cell "Alipay" [ref=e1807]:
+                        - link "Alipay" [ref=e1808] [cursor=pointer]:
+                          - /url: /chenhg5/cc-connect/blob/main/docs/images/alipay.jpg
+                          - img "Alipay" [ref=e1809]
+                - generic [ref=e1810]:
+                  - heading "Thank You, Donors! 🎉" [level=3] [ref=e1811]
+                  - 'link "Permalink: Thank You, Donors! 🎉" [ref=e1812] [cursor=pointer]':
+                    - /url: "#thank-you-donors-"
+                    - img [ref=e1813]
+                - paragraph [ref=e1815]: We're grateful to everyone who has supported this project. Leave your GitHub username in the donation message if you'd like to be recognized here!
+                - table [ref=e1817]:
+                  - rowgroup [ref=e1818]:
+                    - row "Avatar GitHub Username Date" [ref=e1819]:
+                      - columnheader "Avatar" [ref=e1820]
+                      - columnheader "GitHub Username" [ref=e1821]
+                      - columnheader "Date" [ref=e1822]
+                  - rowgroup [ref=e1823]:
+                    - row "@thx0701 2026-04-29" [ref=e1824]:
+                      - cell [ref=e1825]:
+                        - link [ref=e1826] [cursor=pointer]:
+                          - /url: https://avatars.githubusercontent.com/u/1762560?v=4
+                          - img [ref=e1827]
+                      - cell "@thx0701" [ref=e1828]:
+                        - link "@thx0701" [ref=e1829] [cursor=pointer]:
+                          - /url: https://github.com/thx0701
+                      - cell "2026-04-29" [ref=e1830]
+                - generic [ref=e1831]:
+                  - heading "🤝 Commercial Cooperation" [level=2] [ref=e1832]
+                  - 'link "Permalink: 🤝 Commercial Cooperation" [ref=e1833] [cursor=pointer]':
+                    - /url: "#-commercial-cooperation"
+                    - img [ref=e1834]
+                - paragraph [ref=e1836]: "We accept the following commercial collaborations:"
+                - list [ref=e1837]:
+                  - listitem [ref=e1838]:
+                    - strong [ref=e1839]: Enterprise Customization
+                    - text: ": Custom deployment for internal AI tooling (Feishu, DingTalk, WeChat Work, Slack, etc.)"
+                  - listitem [ref=e1840]:
+                    - strong [ref=e1841]: Technical Consulting
+                    - text: ": AI agent integration and architecture design"
+                  - listitem [ref=e1842]:
+                    - strong [ref=e1843]: Outsourcing Projects
+                    - text: ": AI-related system development"
+                - paragraph [ref=e1844]:
+                  - strong [ref=e1845]: Contact
+                  - text: ":"
+                  - strong [ref=e1846]: Email
+                  - text: ":"
+                  - link "chg80333@gmail.com" [ref=e1847] [cursor=pointer]:
+                    - /url: mailto:chg80333@gmail.com
+                  - text: "|"
+                  - strong [ref=e1848]: WeChat
+                  - text: ": mongorz |"
+                  - link "Telegram" [ref=e1849] [cursor=pointer]:
+                    - /url: https://t.me/+odGNDhCjbjdmMmZl
+                  - text: "|"
+                  - link "Discord" [ref=e1850] [cursor=pointer]:
+                    - /url: https://discord.gg/kHpwgaM4kq
+                - generic [ref=e1851]:
+                  - heading "🙏 Contributors" [level=2] [ref=e1852]
+                  - 'link "Permalink: 🙏 Contributors" [ref=e1853] [cursor=pointer]':
+                    - /url: "#-contributors"
+                    - img [ref=e1854]
+                - link [ref=e1856] [cursor=pointer]:
+                  - /url: https://github.com/chenhg5/cc-connect/graphs/contributors
+                  - img [ref=e1857]
+                - generic [ref=e1858]:
+                  - heading "⭐ Star History" [level=2] [ref=e1859]
+                  - 'link "Permalink: ⭐ Star History" [ref=e1860] [cursor=pointer]':
+                    - /url: "#-star-history"
+                    - img [ref=e1861]
+                - link "Star History Chart" [ref=e1863] [cursor=pointer]:
+                  - /url: https://www.star-history.com/#chenhg5/cc-connect&Date
+                  - img "Star History Chart" [ref=e1866]
+                - generic [ref=e1867]:
+                  - heading "📄 License" [level=2] [ref=e1868]
+                  - 'link "Permalink: 📄 License" [ref=e1869] [cursor=pointer]':
+                    - /url: "#-license"
+                    - img [ref=e1870]
+                - paragraph [ref=e1872]: MIT License
+                - paragraph [ref=e1873]:
+                  - subscript [ref=e1874]: Built with ❤️ by the cc-connect community
+        - generic [ref=e1878]:
+          - generic [ref=e1881]:
+            - heading "About" [level=2] [ref=e1882]
+            - paragraph [ref=e1883]: Bridge local AI coding agents (Claude Code, Cursor, Gemini CLI, Codex) to messaging platforms (Feishu/Lark, DingTalk, Slack, Telegram, Discord, LINE, WeChat Work). Chat with your AI dev assistant from anywhere — no public IP required for most platforms.
+            - heading "Resources" [level=3] [ref=e1884]
+            - link "Readme" [ref=e1886] [cursor=pointer]:
+              - /url: "#readme-ov-file"
+              - img [ref=e1887]
+              - text: Readme
+            - heading "Contributing" [level=3] [ref=e1889]
+            - link "Contributing" [ref=e1891] [cursor=pointer]:
+              - /url: "#contributing-ov-file"
+              - img [ref=e1892]
+              - text: Contributing
+            - link "Activity" [ref=e1895] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/activity
+              - img [ref=e1896]
+              - text: Activity
+            - heading "Stars" [level=3] [ref=e1898]
+            - generic [ref=e1900]:
+              - img [ref=e1901]
+              - strong [ref=e1903]: 14k
+              - text: stars
+            - heading "Watchers" [level=3] [ref=e1904]
+            - generic [ref=e1906]:
+              - img [ref=e1907]
+              - strong [ref=e1909]: "27"
+              - text: watching
+            - heading "Forks" [level=3] [ref=e1910]
+            - link "1.3k forks" [ref=e1912] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/forks
+              - img [ref=e1913]
+              - strong [ref=e1915]: 1.3k
+              - text: forks
+            - link "Report repository" [ref=e1917] [cursor=pointer]:
+              - /url: /contact/report-content?content_url=https%3A%2F%2Fgithub.com%2Fchenhg5%2Fcc-connect&report=chenhg5+%28user%29
+          - generic [ref=e1919]:
+            - heading "Releases 44" [level=2] [ref=e1920]:
+              - link "Releases 44" [ref=e1921] [cursor=pointer]:
+                - /url: /chenhg5/cc-connect/releases
+                - text: Releases
+                - generic "44" [ref=e1922]
+            - link "v1.4.1 Latest Jun 28, 20262 weeks ago" [ref=e1923] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/releases/tag/v1.4.1
+              - img [ref=e1924]
+              - generic [ref=e1926]:
+                - generic [ref=e1927]:
+                  - generic [ref=e1928]: v1.4.1
+                  - 'generic "Label: Latest" [ref=e1929]': Latest
+                - generic [ref=e1930]: Jun 28, 20262 weeks ago
+            - link "+ 43 releases" [ref=e1932] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/releases
+          - generic [ref=e1934]:
+            - heading "Sponsor this project" [level=2] [ref=e1935]
+            - list
+            - list [ref=e1936]:
+              - listitem [ref=e1937]:
+                - img "ko_fi" [ref=e1939]
+                - link "ko-fi.com/chg80333" [ref=e1941] [cursor=pointer]:
+                  - /url: https://ko-fi.com/chg80333
+                  - generic [ref=e1942]:
+                    - text: ko-fi.com/
+                    - strong [ref=e1943]: chg80333
+              - listitem [ref=e1944]:
+                - img "buy_me_a_coffee" [ref=e1946]
+                - link "buymeacoffee.com/cg33" [ref=e1948] [cursor=pointer]:
+                  - /url: https://buymeacoffee.com/cg33
+                  - generic [ref=e1949]:
+                    - text: buymeacoffee.com/
+                    - strong [ref=e1950]: cg33
+              - listitem [ref=e1951]:
+                - img [ref=e1953]
+                - link "https://github.com/chenhg5/cc-connect/blob/main/docs/images/alipay.jpg?raw=true" [ref=e1956] [cursor=pointer]:
+                  - /url: https://github.com/chenhg5/cc-connect/blob/main/docs/images/alipay.jpg?raw=true
+              - listitem [ref=e1957]:
+                - img [ref=e1959]
+                - link "https://raw.githubusercontent.com/chenhg5/cc-connect/refs/heads/main/docs/images/wechatpay.jpg" [ref=e1962] [cursor=pointer]:
+                  - /url: https://raw.githubusercontent.com/chenhg5/cc-connect/refs/heads/main/docs/images/wechatpay.jpg
+          - generic [ref=e1964]:
+            - heading "Packages" [level=2] [ref=e1965]:
+              - link "Packages" [ref=e1966] [cursor=pointer]:
+                - /url: /users/chenhg5/packages?repo_name=cc-connect
+            - generic [ref=e1967]: No packages published
+          - generic [ref=e1969]:
+            - heading "Contributors 137" [level=2] [ref=e1970]:
+              - link "Contributors 137" [ref=e1971] [cursor=pointer]:
+                - /url: /chenhg5/cc-connect/graphs/contributors
+                - text: Contributors
+                - generic "137" [ref=e1972]
+            - list [ref=e1973]:
+              - listitem [ref=e1974]:
+                - link "@claude" [ref=e1975] [cursor=pointer]:
+                  - /url: https://github.com/claude
+                  - img "@claude" [ref=e1976]
+              - listitem [ref=e1977]:
+                - link "@chenhg5" [ref=e1978] [cursor=pointer]:
+                  - /url: https://github.com/chenhg5
+                  - img "@chenhg5" [ref=e1979]
+              - listitem [ref=e1980]:
+                - link "@cursoragent" [ref=e1981] [cursor=pointer]:
+                  - /url: https://github.com/cursoragent
+                  - img "@cursoragent" [ref=e1982]
+              - listitem [ref=e1983]:
+                - link "@kevinWangSheng" [ref=e1984] [cursor=pointer]:
+                  - /url: https://github.com/kevinWangSheng
+                  - img "@kevinWangSheng" [ref=e1985]
+              - listitem [ref=e1986]:
+                - link "@happyTonakai" [ref=e1987] [cursor=pointer]:
+                  - /url: https://github.com/happyTonakai
+                  - img "@happyTonakai" [ref=e1988]
+              - listitem [ref=e1989]:
+                - link "@q107580018" [ref=e1990] [cursor=pointer]:
+                  - /url: https://github.com/q107580018
+                  - img "@q107580018" [ref=e1991]
+              - listitem [ref=e1992]:
+                - link "@xxb" [ref=e1993] [cursor=pointer]:
+                  - /url: https://github.com/xxb
+                  - img "@xxb" [ref=e1994]
+              - listitem [ref=e1995]:
+                - link "@AaronZ345" [ref=e1996] [cursor=pointer]:
+                  - /url: https://github.com/AaronZ345
+                  - img "@AaronZ345" [ref=e1997]
+              - listitem [ref=e1998]:
+                - link "@sean2077" [ref=e1999] [cursor=pointer]:
+                  - /url: https://github.com/sean2077
+                  - img "@sean2077" [ref=e2000]
+              - listitem [ref=e2001]:
+                - link "@leighstillard" [ref=e2002] [cursor=pointer]:
+                  - /url: https://github.com/leighstillard
+                  - img "@leighstillard" [ref=e2003]
+              - listitem [ref=e2004]:
+                - link "@Cigarrr" [ref=e2005] [cursor=pointer]:
+                  - /url: https://github.com/Cigarrr
+                  - img "@Cigarrr" [ref=e2006]
+              - listitem [ref=e2007]:
+                - link "@xukp20" [ref=e2008] [cursor=pointer]:
+                  - /url: https://github.com/xukp20
+                  - img "@xukp20" [ref=e2009]
+              - listitem [ref=e2010]:
+                - link "@zgq233333" [ref=e2011] [cursor=pointer]:
+                  - /url: https://github.com/zgq233333
+                  - img "@zgq233333" [ref=e2012]
+              - listitem [ref=e2013]:
+                - link "@0xsegfaulted" [ref=e2014] [cursor=pointer]:
+                  - /url: https://github.com/0xsegfaulted
+                  - img "@0xsegfaulted" [ref=e2015]
+            - link "+ 123 contributors" [ref=e2017] [cursor=pointer]:
+              - /url: /chenhg5/cc-connect/graphs/contributors
+          - generic [ref=e2019]:
+            - heading "Languages" [level=2] [ref=e2020]
+            - list [ref=e2029]:
+              - listitem [ref=e2030]:
+                - link "Go 94.5%" [ref=e2031] [cursor=pointer]:
+                  - /url: /chenhg5/cc-connect/search?l=go
+                  - img [ref=e2032]
+                  - generic [ref=e2034]: Go
+                  - generic [ref=e2035]: 94.5%
+              - listitem [ref=e2036]:
+                - link "TypeScript 5.0%" [ref=e2037] [cursor=pointer]:
+                  - /url: /chenhg5/cc-connect/search?l=typescript
+                  - img [ref=e2038]
+                  - generic [ref=e2040]: TypeScript
+                  - generic [ref=e2041]: 5.0%
+              - listitem [ref=e2042]:
+                - link "JavaScript 0.2%" [ref=e2043] [cursor=pointer]:
+                  - /url: /chenhg5/cc-connect/search?l=javascript
+                  - img [ref=e2044]
+                  - generic [ref=e2046]: JavaScript
+                  - generic [ref=e2047]: 0.2%
+              - listitem [ref=e2048]:
+                - link "Makefile 0.1%" [ref=e2049] [cursor=pointer]:
+                  - /url: /chenhg5/cc-connect/search?l=makefile
+                  - img [ref=e2050]
+                  - generic [ref=e2052]: Makefile
+                  - generic [ref=e2053]: 0.1%
+              - listitem [ref=e2054]:
+                - link "HTML 0.1%" [ref=e2055] [cursor=pointer]:
+                  - /url: /chenhg5/cc-connect/search?l=html
+                  - img [ref=e2056]
+                  - generic [ref=e2058]: HTML
+                  - generic [ref=e2059]: 0.1%
+              - listitem [ref=e2060]:
+                - link "Shell 0.1%" [ref=e2061] [cursor=pointer]:
+                  - /url: /chenhg5/cc-connect/search?l=shell
+                  - img [ref=e2062]
+                  - generic [ref=e2064]: Shell
+                  - generic [ref=e2065]: 0.1%
+  - contentinfo [ref=e2067]:
+    - heading "Footer" [level=2] [ref=e2068]
+    - generic [ref=e2069]:
+      - generic [ref=e2070]:
+        - link "GitHub Homepage" [ref=e2071] [cursor=pointer]:
+          - /url: https://github.com
+          - img [ref=e2072]
+        - generic [ref=e2074]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=e2075]:
+        - heading "Footer navigation" [level=3] [ref=e2076]
+        - list "Footer navigation" [ref=e2077]:
+          - listitem [ref=e2078]:
+            - link "Terms" [ref=e2079] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=e2080]:
+            - link "Privacy" [ref=e2081] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=e2082]:
+            - link "Security" [ref=e2083] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=e2084]:
+            - link "Status" [ref=e2085] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=e2086]:
+            - link "Community" [ref=e2087] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=e2088]:
+            - link "Docs" [ref=e2089] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=e2090]:
+            - link "Contact" [ref=e2091] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=e2092]:
+            - button "Manage cookies" [ref=e2094] [cursor=pointer]
+          - listitem [ref=e2095]:
+            - button "Do not share my personal information" [ref=e2097] [cursor=pointer]

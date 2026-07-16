@@ -2,7 +2,7 @@ name: Issue Triage
 
 on:
   issues:
-    types: [opened, reopened]
+    types: [opened, reopened, labeled]
 
 jobs:
   auto-triage:
@@ -26,6 +26,23 @@ jobs:
         uses: actions-ecosystem/action-add-labels@v1
         with:
           labels: needs-triage
+
+      # 独立 triage 流程修复，不属于 #182/#183/#184 智能素材流水线相关改动
+      - name: Remove needs-triage when final label is set (labeled event)
+        if: github.event.action == 'labeled' && (github.event.label.name == 'ready-for-agent' || github.event.label.name == 'ready-for-human' || github.event.label.name == 'needs-info' || github.event.label.name == 'wontfix')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const hasNeedsTriage = issue.labels.some(label => label.name === 'needs-triage');
+            if (hasNeedsTriage) {
+              await github.rest.issues.removeLabel({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'needs-triage'
+              });
+            }
 
       - name: Add triage comment
         if: steps.check_labels.outputs.has_triage_label != 'true'

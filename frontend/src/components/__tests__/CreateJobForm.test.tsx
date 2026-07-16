@@ -145,3 +145,133 @@ describe("CreateJobForm - Audio Source Switching", () => {
   });
 });
 
+describe("CreateJobForm - Generate mode manual script", () => {
+  it("shows script textarea in generate mode", () => {
+    render(
+      <CreateJobForm
+        {...defaultProps({
+          productionMode: "generate" as const,
+        })}
+      />
+    );
+
+    expect(screen.getByPlaceholderText("请输入文案内容（150-200字）...")).toBeInTheDocument();
+  });
+
+  it("submits manual_script when provided in generate mode", async () => {
+    const onCreateJob = vi.fn();
+    const setManualScript = vi.fn();
+    render(
+      <CreateJobForm
+        {...defaultProps({
+          productionMode: "generate" as const,
+          product: "test-product",
+          platforms: ["douyin"],
+          manualScript: "这是智能生成模式下的手动文案",
+          setManualScript,
+          onCreateJob,
+        })}
+      />
+    );
+
+    fireEvent.click(screen.getByText("创建并开始生产"));
+
+    await waitFor(() => {
+      expect(onCreateJob).toHaveBeenCalled();
+    });
+
+    const formData = onCreateJob.mock.calls[0][0];
+    expect(formData.mode).toBe("generate");
+    expect(formData.manual_script).toBe("这是智能生成模式下的手动文案");
+  });
+});
+
+describe("CreateJobForm - Cover Title Button", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("disables cover title button when manualScript is empty", () => {
+    render(
+      <CreateJobForm
+        {...defaultProps({ productionMode: "import", manualScript: "" })}
+      />
+    );
+    const btn = screen.getByText("自动生成标题");
+    expect(btn).toBeDisabled();
+  });
+
+  it("enables cover title button when manualScript has text", () => {
+    render(
+      <CreateJobForm
+        {...defaultProps({ productionMode: "import", manualScript: "有文案" })}
+      />
+    );
+    const btn = screen.getByText("自动生成标题");
+    expect(btn).not.toBeDisabled();
+  });
+
+  it("shows auto-generate button text when script is non-empty in generate mode", () => {
+    render(
+      <CreateJobForm
+        {...defaultProps({ productionMode: "generate", manualScript: "有文案" })}
+      />
+    );
+    expect(screen.getByText("自动生成标题")).toBeInTheDocument();
+    expect(screen.getByText("自动生成标题")).not.toBeDisabled();
+  });
+
+  it("has correct title attribute when disabled due to empty script", () => {
+    render(
+      <CreateJobForm
+        {...defaultProps({ manualScript: "" })}
+      />
+    );
+    const btn = screen.getByText("自动生成标题");
+    expect(btn).toHaveAttribute("title", "需先输入文案才能生成");
+  });
+});
+
+describe("CreateJobForm - Mode Switch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("keeps script textarea visible when switching production mode", () => {
+    const { rerender } = render(
+      <CreateJobForm
+        {...defaultProps({
+          productionMode: "import",
+          manualScript: "一段文案",
+        })}
+      />
+    );
+
+    expect(screen.getByPlaceholderText("请输入文案内容（150-200字）...")).toBeInTheDocument();
+
+    // Switch to generate
+    rerender(
+      <CreateJobForm
+        {...defaultProps({
+          productionMode: "generate",
+          manualScript: "一段文案",
+        })}
+      />
+    );
+
+    expect(screen.getByPlaceholderText("请输入文案内容（150-200字）...")).toBeInTheDocument();
+
+    // Switch back to import
+    rerender(
+      <CreateJobForm
+        {...defaultProps({
+          productionMode: "import",
+          manualScript: "一段文案",
+        })}
+      />
+    );
+
+    expect(screen.getByPlaceholderText("请输入文案内容（150-200字）...")).toBeInTheDocument();
+  });
+});
+

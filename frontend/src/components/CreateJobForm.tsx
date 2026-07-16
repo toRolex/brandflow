@@ -101,11 +101,10 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 
   const handleGenerateCoverTitle = async () => {
     if (coverTitleCooldown) return;
-    const text = isImport ? manualScript : "";
-    if (!text.trim()) return;
+    if (!manualScript.trim()) return;
     setCoverTitleCooldown(true);
     try {
-      const res = await api.generateCoverTitle({ script_text: text, product });
+      const res = await api.generateCoverTitle({ script_text: manualScript, product });
       setCoverTitleText(res.text);
       setCoverHighlightWords(res.highlight_words.join("，"));
     } catch {
@@ -122,7 +121,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
       platforms,
       name: jobName || undefined,
       mode: productionMode,
-      manual_script: isImport ? manualScript : "",
+      manual_script: manualScript,
       audio_source: audioMode,
       audioFile,
       music_track_path: selectedMusic,
@@ -134,12 +133,8 @@ export default function CreateJobForm(props: CreateJobFormProps) {
     });
   };
 
-  const coverBtnDisabled = productionMode === "generate" || coverTitleCooldown;
-  const coverBtnTitle = coverTitleCooldown
-    ? "冷却中，请等待 5 秒"
-    : productionMode === "generate"
-      ? "智能生成模式下由 LLM 自动生成封面标题，无需手动生成"
-      : "";
+  const hasManualScript = manualScript.trim().length > 0;
+  const canGenerateCover = !coverTitleCooldown && hasManualScript;
 
   return (
     <>
@@ -243,10 +238,10 @@ export default function CreateJobForm(props: CreateJobFormProps) {
           </label>
         </div>
 
-        {/* Import: script textarea + template */}
-        {isImport && (
-          <div>
-            {/* Script Template Selector */}
+        {/* Script input: available for both generate and import modes */}
+        <div>
+          {isImport && (
+            /* Script Template Selector */
             <div className="mb-3">
               <label className="flex items-center gap-2 text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
                 <input
@@ -339,19 +334,19 @@ export default function CreateJobForm(props: CreateJobFormProps) {
                 </div>
               )}
             </div>
-            <textarea
-              className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px]"
-              style={{ borderColor: "var(--border-default)", background: "var(--bg-input)", color: "var(--text-primary)" }}
-              placeholder="请输入文案内容（150-200字）..."
-              value={manualScript}
-              onChange={(e) => setManualScript(e.target.value)}
-            />
-          </div>
-        )}
+          )}
+          <textarea
+            className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px]"
+            style={{ borderColor: "var(--border-default)", background: "var(--bg-input)", color: "var(--text-primary)" }}
+            placeholder="请输入文案内容（150-200字）..."
+            value={manualScript}
+            onChange={(e) => setManualScript(e.target.value)}
+          />
+        </div>
 
         {!isImport && (
           <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-            LLM 将根据产品信息自动生成口播脚本
+            留空则由 LLM 根据产品信息自动生成口播脚本
           </p>
         )}
       </div>
@@ -438,11 +433,13 @@ export default function CreateJobForm(props: CreateJobFormProps) {
               type="button"
               className="text-xs border rounded px-2 py-1.5 disabled:opacity-50"
               style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
-              disabled={coverBtnDisabled}
-              title={coverBtnTitle}
+              disabled={!canGenerateCover}
+              title={!canGenerateCover
+                ? (coverTitleCooldown ? "冷却中，请等待 5 秒" : "需先输入文案才能生成")
+                : ""}
               onClick={handleGenerateCoverTitle}
             >
-              {coverTitleCooldown ? "冷却中（5s）..." : productionMode === "generate" ? "需先输入文案才能生成" : "自动生成标题"}
+              {coverTitleCooldown ? "冷却中（5s）..." : "自动生成标题"}
             </button>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
