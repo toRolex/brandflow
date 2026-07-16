@@ -1,6 +1,6 @@
 """MediaCompositor — thin ffmpeg composition primitives.
 
-Encapsulates the three ffmpeg subprocess calls previously inlined in
+Encapsulates the two ffmpeg subprocess calls previously inlined in
 ``PhaseOrchestrator``:
 
 * ``concat_two``    — normalize + concatenate two video files.

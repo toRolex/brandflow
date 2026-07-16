@@ -14,12 +14,13 @@ from packages.provider_config.config_resolver import ConfigResolver
 __all__ = [
     "ScriptGenerator",
     "ScriptResult",
+    "build_generator_config",
     "generate_script",
     "generate_cover_title",
 ]
 
 
-def _build_generator_config(config_resolver: ConfigResolver, product: str) -> Any:
+def build_generator_config(config_resolver: ConfigResolver, product: str) -> Any:
     """Build a duck-typed config object for ScriptGenerator from ConfigResolver."""
     llm_config, api_key, api_url = config_resolver.llm(product_id=product or None)
     return SimpleNamespace(
@@ -43,7 +44,7 @@ def generate_script(
     LLM config is resolved via *config_resolver*. Replaces the old
     ``LegacyScriptBridge.generate()`` call path.
     """
-    config = _build_generator_config(config_resolver, product)
+    config = build_generator_config(config_resolver, product)
     generator = ScriptGenerator(config)
     result = generator.run(
         product=product,
@@ -100,6 +101,6 @@ def generate_cover_title(
 
     LLM config is resolved via *config_resolver*.
     """
-    config = _build_generator_config(config_resolver, product)
+    config = build_generator_config(config_resolver, product)
     generator = ScriptGenerator(config)
     return generator.generate_cover_title(script_text, product, brand)
