@@ -66,6 +66,15 @@ class ConfigResolver:
         )
         return [c.name for c in cats if c.name]
 
+    def category_suggestion_model(self) -> str:
+        """Return the model used for asset category suggestions."""
+        return self._reader.get_category_suggestion_model()
+
+    @property
+    def secrets(self) -> SecretStore:
+        """Expose the underlying SecretStore for seam factories."""
+        return self._secrets
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

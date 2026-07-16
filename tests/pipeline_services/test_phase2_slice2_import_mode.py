@@ -69,10 +69,15 @@ def ctx(project_dir: Path, tmp_root: Path) -> PhaseContext:
 
 @pytest.fixture()
 def orchestrator() -> PhaseOrchestrator:
+    config_resolver = MagicMock()
+    config_resolver.tts.return_value = {"model": "test-model", "voice": "test-voice"}
+    config_resolver.secrets = MagicMock()
     return PhaseOrchestrator(
-        script_bridge=MagicMock(),
+        script_generator=MagicMock(),
         subtitle_svc=MagicMock(),
         video_svc=MagicMock(),
+        media_compositor=MagicMock(),
+        config_resolver=config_resolver,
         schedule_store=MagicMock(),
     )
 
@@ -218,36 +223,13 @@ class TestSceneAssembling:
             transition_duration_ms=500,
         )
 
-        # Patch ffmpeg to avoid needing real ffmpeg and mock subprocess
-        with patch(
-            "packages.pipeline_services.media_compositor.get_ffmpeg_path",
-            return_value="/usr/bin/false",
-        ):
-            with patch(
-                "packages.pipeline_services.media_compositor.get_media_duration",
-                return_value=5.0,
-            ):
-                with patch(
-                    "packages.pipeline_services.media_compositor.subprocess.run"
-                ) as mock_run:
-                    # Make the mocked subprocess not raise
-                    mock_run.return_value = MagicMock(returncode=0)
+        def _side_effect(clips, out, transition_duration):
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text("fake scene video")
+            return out
 
-                    # Also make the scene path "exist" by creating it after mock_call
-                    def _side_effect(*args, **kwargs):
-                        scene_path = (
-                            project_dir
-                            / "runtime"
-                            / "jobs"
-                            / "job-001"
-                            / "scene_segment.mp4"
-                        )
-                        scene_path.parent.mkdir(parents=True, exist_ok=True)
-                        scene_path.write_text("fake scene video")
-                        return MagicMock(returncode=0)
-
-                    mock_run.side_effect = _side_effect
-                    result = orchestrator.run_phase("scene_assembling", ctx)
+        orchestrator._media_compositor.crossfade_scene.side_effect = _side_effect
+        result = orchestrator.run_phase("scene_assembling", ctx)
 
         assert len(result) == 1
         assert result[0].kind == "scene_segment"
@@ -274,37 +256,18 @@ class TestSceneAssembling:
             transition_duration_ms=500,
         )
 
-        with patch(
-            "packages.pipeline_services.media_compositor.get_ffmpeg_path",
-            return_value="ffmpeg",
-        ):
-            with patch(
-                "packages.pipeline_services.media_compositor.get_media_duration",
-                return_value=3.0,
-            ):
-                with patch(
-                    "packages.pipeline_services.media_compositor.subprocess.run"
-                ) as mock_run:
-                    mock_run.return_value = MagicMock(returncode=0)
+        def _make_scene(clips, out, transition_duration):
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text("fake output")
+            return out
 
-                    def _make_scene(*args, **kwargs):
-                        scene_path = (
-                            project_dir
-                            / "runtime"
-                            / "jobs"
-                            / "job-001"
-                            / "scene_segment.mp4"
-                        )
-                        scene_path.parent.mkdir(parents=True, exist_ok=True)
-                        scene_path.write_text("fake output")
-                        return MagicMock(returncode=0)
-
-                    mock_run.side_effect = _make_scene
-                    result = orchestrator.run_phase("scene_assembling", ctx)
+        orchestrator._media_compositor.crossfade_scene.side_effect = _make_scene
+        result = orchestrator.run_phase("scene_assembling", ctx)
 
         assert len(result) == 1
         # Should have chosen 1 file from each of the 2 folders
-        self._verify_subprocess_call(mock_run, 2)
+        call_args = orchestrator._media_compositor.crossfade_scene.call_args
+        assert len(call_args[0][0]) == 2
 
     @staticmethod
     def _verify_subprocess_call(mock_run: MagicMock, expected_clip_count: int) -> None:
@@ -431,32 +394,22 @@ class TestMontageAssembling:
         (job_dir / "scene_segment.mp4").write_text("scene")
         (job_dir / "base.mp4").write_text("base")
 
-        with patch(
-            "packages.pipeline_services.media_compositor.get_ffmpeg_path",
-            return_value="ffmpeg",
-        ):
-            with patch(
-                "packages.pipeline_services.media_compositor.subprocess.run"
-            ) as mock_run:
-                mock_run.return_value = MagicMock(returncode=0)
+        def _make_assembled(first, second, out):
+            out.write_text("concatenated")
+            return out
 
-                def _make_assembled(*args, **kwargs):
-                    (job_dir / "assembled.mp4").write_text("concatenated")
-                    return MagicMock(returncode=0)
-
-                mock_run.side_effect = _make_assembled
-
-                result = orchestrator.run_phase("montage_assembling", ctx)
+        orchestrator._media_compositor.concat_two.side_effect = _make_assembled
+        result = orchestrator.run_phase("montage_assembling", ctx)
 
         assert len(result) == 1
         assert result[0].kind == "assembled_video"
         assert (job_dir / "assembled.mp4").exists()
 
-        # Verify ffmpeg was called with concat filter
-        call_args = mock_run.call_args[0][0]
-        assert "-filter_complex" in call_args
-        filter_idx = call_args.index("-filter_complex")
-        assert "concat=n=2" in call_args[filter_idx + 1]
+        # Verify concat_two was called with scene + base
+        call_args = orchestrator._media_compositor.concat_two.call_args
+        assert call_args[0][0] == job_dir / "scene_segment.mp4"
+        assert call_args[0][1] == job_dir / "base.mp4"
+        assert call_args[0][2] == job_dir / "assembled.mp4"
 
 
 # ---------------------------------------------------------------------------

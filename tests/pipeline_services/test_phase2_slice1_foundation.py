@@ -278,13 +278,24 @@ class TestImportModeSkipReviews:
 # ---------------------------------------------------------------------------
 
 
+def _make_orchestrator() -> PhaseOrchestrator:
+    config_resolver = MagicMock()
+    config_resolver.tts.return_value = {"model": "test-model", "voice": "test-voice"}
+    config_resolver.secrets = MagicMock()
+    return PhaseOrchestrator(
+        script_generator=MagicMock(),
+        subtitle_svc=MagicMock(),
+        video_svc=MagicMock(),
+        media_compositor=MagicMock(),
+        config_resolver=config_resolver,
+        schedule_store=MagicMock(),
+    )
+
+
 class TestRunPhasesParallel:
     def test_executes_all_phases(self, monkeypatch) -> None:
         """run_phases_parallel executes every phase in the list."""
-        orch = PhaseOrchestrator(
-            *[MagicMock()] * 3,
-            get_tts_config=lambda: {"model": "test-model", "voice": "test-voice"},
-        )
+        orch = _make_orchestrator()
         mock_tts = MagicMock()
         mock_tts.synthesize.return_value = b"fake_audio"
         monkeypatch.setattr(
@@ -308,7 +319,7 @@ class TestRunPhasesParallel:
 
     def test_returns_dict_of_lists(self) -> None:
         """Returns dict[str, list[ArtifactPointer]]."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 3)
+        orch = _make_orchestrator()
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -321,7 +332,7 @@ class TestRunPhasesParallel:
 
     def test_failed_phase_propagates(self) -> None:
         """A failing phase should propagate so the state machine can fail the job."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 3)
+        orch = _make_orchestrator()
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -370,7 +381,7 @@ class TestRunPhasesParallel:
 class TestSkeletonHandlers:
     def test_scene_assembly_returns_empty_list(self) -> None:
         """scene_assembling skeleton returns []."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 3)
+        orch = _make_orchestrator()
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -382,7 +393,7 @@ class TestSkeletonHandlers:
 
     def test_montage_assembly_returns_empty_list(self) -> None:
         """montage_assembling skeleton returns []."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 3)
+        orch = _make_orchestrator()
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -394,7 +405,7 @@ class TestSkeletonHandlers:
 
     def test_handlers_are_registered_in_map(self) -> None:
         """Both new handlers are registered in the handler map."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 3)
+        orch = _make_orchestrator()
         assert "scene_assembling" in orch._handlers
         assert "montage_assembling" in orch._handlers
 

@@ -1,23 +1,22 @@
 """PhaseOrchestrator — executes pipeline phases and returns ArtifactPointer lists.
 
-This module extracts the logic from ``app._phase_to_artifacts`` (285-line god function)
-into small, testable, injectable handler methods.
-
-Slice 1: ``script_generating`` only.  Subsequent slices migrate remaining phases.
-Slice 2: ``tts_generating``.
-Slice 4: ConfigReader injection — all config reads use ConfigReader (no AppConfigManager).
+Each phase handler is a thin adapter: prepare inputs → call an injected seam
+→ assemble artifact pointers.  All configuration resolution is delegated to the
+injected ``ConfigResolver``; all media composition is delegated to the injected
+``MediaCompositor``.
 """
 
 from __future__ import annotations
 
 import json
+import random
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
-from typing import Any, Callable
-
 from types import SimpleNamespace
+from typing import Any, Callable
 
 from packages.domain_core.models import ArtifactPointer
 from packages.pipeline_services.media_compositor import MediaCompositor
@@ -27,7 +26,7 @@ from packages.pipeline_services.script_service import (
 )
 from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
-from packages.pipeline_services.tts_provider import _TTSConfigShim, create_tts_provider
+from packages.pipeline_services.tts_provider import create_tts_provider
 from packages.pipeline_services.video_service import VideoService
 from packages.provider_config.config_resolver import ConfigResolver
 from packages.provider_config.config_reader import ConfigReader
@@ -47,18 +46,17 @@ def to_url_path(path: Path, workspace_dir: Path) -> str:
 def create_orchestrator(
     root_dir: Path, config_reader: ConfigReader
 ) -> "PhaseOrchestrator":
-    """Factory: build a PhaseOrchestrator with real service dependencies.
-
-    *config_reader* is required — all config reads go through a ConfigResolver
-    wrapping it.
-    """
-    from packages.pipeline_services.subtitle_service import SubtitleService
-    from packages.pipeline_services.video_service import VideoService
+    """Factory: build a PhaseOrchestrator with real service dependencies."""
+    secrets = SecretStore()
+    config_resolver = ConfigResolver(reader=config_reader, secrets=secrets)
+    script_generator = partial(generate_script, config_resolver=config_resolver)
 
     return PhaseOrchestrator(
+        script_generator=script_generator,
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
-        config_resolver=ConfigResolver(reader=config_reader),
+        media_compositor=MediaCompositor(),
+        config_resolver=config_resolver,
     )
 
 
@@ -95,35 +93,19 @@ class PhaseOrchestrator:
 
     def __init__(
         self,
-        script_bridge: Any = None,  # deprecated, no longer used
-        subtitle_svc: SubtitleService | None = None,
-        video_svc: VideoService | None = None,
-        *,
+        script_generator: Callable[..., dict[str, Any]],
+        subtitle_svc: SubtitleService,
+        video_svc: VideoService,
+        media_compositor: MediaCompositor,
+        config_resolver: ConfigResolver,
         schedule_store: Any = None,
-        config_reader: ConfigReader | None = None,
-        secret_store: SecretStore | None = None,
-        config_resolver: ConfigResolver | None = None,
-        get_tts_config: Callable[[], dict[str, Any]] | None = None,
-        get_llm_config: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
-        self._script_bridge = None  # deprecated, no longer used
+        self._script_generator = script_generator
         self._subtitle_svc = subtitle_svc
         self._video_svc = video_svc
+        self._media_compositor = media_compositor
+        self._config_resolver = config_resolver
         self._schedule_store = schedule_store
-        self._config = config_reader
-        self._secrets = secret_store if secret_store is not None else SecretStore()
-        self._get_tts_config = get_tts_config
-        self._get_llm_config = get_llm_config
-
-        # High-level config resolver: preferred path for all config queries.
-        if config_resolver is not None:
-            self._config_resolver = config_resolver
-        elif config_reader is not None:
-            self._config_resolver = ConfigResolver(
-                reader=config_reader, secrets=self._secrets
-            )
-        else:
-            self._config_resolver = None
 
         self._handlers: dict[str, Callable[[PhaseContext], list[ArtifactPointer]]] = {
             "script_generating": self._run_script,
@@ -141,10 +123,7 @@ class PhaseOrchestrator:
     # -- public interface ---------------------------------------------------
 
     def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """Execute *phase* and return the artifacts it produced.
-
-        Raises ``ValueError`` if *phase* is unknown.
-        """
+        """Execute *phase* and return the artifacts it produced."""
         handler = self._handlers.get(phase)
         if handler is None:
             raise ValueError(
@@ -155,16 +134,7 @@ class PhaseOrchestrator:
     def run_phases_parallel(
         self, phases: list[str], ctx: PhaseContext
     ) -> dict[str, list[ArtifactPointer]]:
-        """Execute multiple phases concurrently via ``ThreadPoolExecutor``.
-
-        Each phase runs its registered handler. Failures propagate to the
-        caller so the state machine can mark the job as failed.
-
-        Returns
-        -------
-        dict[str, list[ArtifactPointer]]
-            Mapping from phase name to its produced artifacts.
-        """
+        """Execute multiple phases concurrently via ``ThreadPoolExecutor``."""
         results: dict[str, list[ArtifactPointer]] = {}
 
         with ThreadPoolExecutor(max_workers=len(phases)) as executor:
@@ -196,64 +166,6 @@ class PhaseOrchestrator:
             size_bytes=path.stat().st_size if path.exists() else 0,
         )
 
-    # -- config resolution helpers (internal delegates to ConfigResolver) --
-
-    def _resolve_tts_config(self, ctx: PhaseContext) -> dict[str, Any]:
-        """Resolve TTS config via ConfigResolver (internal delegate)."""
-        if self._config_resolver is not None:
-            return self._config_resolver.tts(product_id=ctx.product)
-        if self._get_tts_config is not None:
-            return self._get_tts_config()
-        raise RuntimeError(
-            "No ConfigResolver or TTS config callback available; "
-            "create_orchestrator() requires a ConfigReader"
-        )
-
-    def _resolve_llm_config(self, ctx: PhaseContext) -> dict[str, Any]:
-        """Resolve LLM config via ConfigResolver (internal delegate)."""
-        if self._config_resolver is not None:
-            return self._config_resolver.llm(product_id=ctx.product)[0]
-        if self._get_llm_config is not None:
-            return self._get_llm_config()
-        raise RuntimeError(
-            "No ConfigResolver or LLM config callback available; "
-            "create_orchestrator() requires a ConfigReader"
-        )
-
-    def _resolve_api_key(self, llm_config: dict[str, Any]) -> str:
-        """Resolve API key via ConfigResolver (internal delegate)."""
-        if self._config_resolver is not None:
-            provider = llm_config.get("provider", "deepseek")
-            return self._config_resolver._api_key_for(provider)
-        provider = llm_config.get("provider", "deepseek")
-        return self._secrets.get_api_key(provider)
-
-    def _resolve_api_url(self, llm_config: dict[str, Any]) -> str:
-        """Resolve chat-completions URL via ConfigResolver (internal delegate)."""
-        if self._config_resolver is not None:
-            provider = llm_config.get("provider", "deepseek")
-            return self._config_resolver._chat_completions_url_for(provider)
-        provider = llm_config.get("provider", "deepseek")
-        url = self._secrets.get_api_base_url(provider)
-        if url and not url.endswith("/chat/completions"):
-            url = f"{url}/chat/completions"
-        return url
-
-    def _resolve_categories(self, ctx: PhaseContext) -> list[str]:
-        """Resolve category names for asset classification via ConfigResolver.
-
-        Priority: product-level categories > asset_library categories > defaults.
-        """
-        if self._config_resolver is not None:
-            return self._config_resolver.categories(product_id=ctx.product)
-
-        # Default food category names
-        from packages.pipeline_services.asset_library.category_config import (
-            default_categories,
-        )
-
-        return [c.name for c in default_categories()]
-
     # -- script_generating handler ------------------------------------------
 
     def _run_script(self, ctx: PhaseContext) -> list[ArtifactPointer]:
@@ -261,85 +173,58 @@ class PhaseOrchestrator:
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
         manual_script: str = ctx.options.get("manual_script", "")
-        result: list[ArtifactPointer] = []
-
         language = ctx.options.get("language", "mandarin")
 
-        # 1. Generate or write script
         if manual_script:
-            if language == "cantonese" and self._config_resolver is not None:
-                try:
-                    llm_cfg, api_key, api_url = self._config_resolver.llm(
-                        product_id=ctx.product
-                    )
-                    gen = ScriptGenerator(
-                        SimpleNamespace(
-                            api_key=api_key,
-                            base_url=api_url,
-                            model=llm_cfg.get("model", "deepseek-v4-pro"),
-                        )
-                    )
-                    manual_script = gen.to_cantonese(
-                        manual_script, ctx.product, ctx.brand
-                    )
-                    print("[SCRIPT] Converted manual script to Cantonese", flush=True)
-                except Exception as e:
-                    print(
-                        f"[SCRIPT WARN] Cantonese conversion failed, using original: {e}",
-                        flush=True,
-                    )
-
-            txt_path = job_dir / "口播文案.txt"
-            txt_path.write_text(manual_script, encoding="utf-8")
-            json_path = job_dir / "口播文案.json"
-            json_path.write_text(
-                json.dumps(
-                    {"text": manual_script, "source": "manual"},
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            script_result: dict[str, Any] = {
-                "txt_path": str(txt_path),
-                "json_path": str(json_path),
-                "final_script": manual_script,
-            }
+            if language == "cantonese":
+                manual_script = self._to_cantonese(manual_script, ctx)
+            script_result = _write_manual_script(job_dir, manual_script)
         else:
-            if self._config_resolver is None:
-                raise RuntimeError(
-                    "No ConfigResolver available; "
-                    "create_orchestrator() requires a ConfigReader"
-                )
-            script_result = generate_script(
+            script_result = self._script_generator(
                 product=ctx.product,
                 output_dir=job_dir,
                 language=language,
                 brand=ctx.brand,
-                config_resolver=self._config_resolver,
             )
 
-        # 2. Emit artifact pointers for txt + json
-        txt_path = Path(script_result["txt_path"])
-        json_path = Path(script_result["json_path"])
-        for p in [txt_path, json_path]:
+        result = []
+        for key in ("txt_path", "json_path"):
+            p = Path(script_result[key])
             if p.exists():
                 result.append(self._to_artifact("script", p, workspace_dir))
 
-        # 3. Auto-generate cover title (if not already set)
         self._maybe_generate_cover_title(ctx, script_result)
-
         return result
+
+    def _to_cantonese(self, text: str, ctx: PhaseContext) -> str:
+        """Convert *text* to Cantonese using the configured LLM."""
+        try:
+            llm_cfg, api_key, api_url = self._config_resolver.llm(
+                product_id=ctx.product
+            )
+            gen = ScriptGenerator(
+                SimpleNamespace(
+                    api_key=api_key,
+                    base_url=api_url,
+                    model=llm_cfg.get("model", "deepseek-v4-pro"),
+                )
+            )
+            converted = gen.to_cantonese(text, ctx.product, ctx.brand)
+            print("[SCRIPT] Converted manual script to Cantonese", flush=True)
+            return converted
+        except Exception as e:
+            print(
+                f"[SCRIPT WARN] Cantonese conversion failed, using original: {e}",
+                flush=True,
+            )
+            return text
 
     def _maybe_generate_cover_title(
         self,
         ctx: PhaseContext,
         script_result: dict[str, Any],
     ) -> None:
-        """Auto-generate cover title if the job JSON has no ``cover_title.text``.
-
-        Delegates to ``script_service.generate_cover_title`` for LLM config
-        resolution and title generation. Errors are logged but never propagated.
-        """
+        """Auto-generate cover title if the job JSON has no ``cover_title.text``."""
         job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
         if not job_json_path.exists():
             return
@@ -347,19 +232,16 @@ class PhaseOrchestrator:
         job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
         existing_ct = job_data.get("cover_title", {})
         if existing_ct and existing_ct.get("text"):
-            return  # already set
+            return
+
+        script_text = script_result.get("final_script", "")
+        txt_path = Path(script_result.get("txt_path", ""))
+        if not script_text and txt_path.exists():
+            script_text = txt_path.read_text(encoding="utf-8").strip()
+        if not script_text:
+            return
 
         try:
-            script_text = script_result.get("final_script", "")
-            txt_path = Path(script_result.get("txt_path", ""))
-            if not script_text and txt_path.exists():
-                script_text = txt_path.read_text(encoding="utf-8").strip()
-            if not script_text:
-                return
-
-            if self._config_resolver is None:
-                return
-
             cover_title = generate_cover_title(
                 script_text, ctx.product, ctx.brand, self._config_resolver
             )
@@ -375,16 +257,10 @@ class PhaseOrchestrator:
     # -- tts_generating handler ---------------------------------------------
 
     def _run_tts(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """Execute TTS synthesis or copy uploaded audio.
-
-        Discovery order for uploaded audio:
-            1. ``ctx.options["uploaded_audio_path"]`` → copy file directly
-            2. Otherwise discover script text from ``*口播文案.txt`` then ``*.json``
-        """
+        """Execute TTS synthesis or copy uploaded audio."""
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
         audio_path = job_dir / "audio.mp3"
-        result: list[ArtifactPointer] = []
         uploaded_audio_path: str = ctx.options.get("uploaded_audio_path", "")
 
         if uploaded_audio_path:
@@ -395,18 +271,10 @@ class PhaseOrchestrator:
             print(f"[TTS] Using uploaded audio: {src_audio}", flush=True)
         else:
             existing_script = self._discover_script(job_dir)
-            print(
-                f"[TTS DEBUG] phase=tts_generating, script_found={existing_script is not None}, "
-                f"len={len(existing_script) if existing_script else 0}",
-                flush=True,
-            )
             if not existing_script:
                 raise RuntimeError(f"No script text found in {job_dir}")
 
-            tts_cfg = self._resolve_tts_config(ctx)
-
-            # Apply job-level TTS overrides (tts_model / tts_voice)
-            # Priority: job override > provider defaults > global/product config
+            tts_cfg = self._config_resolver.tts(product_id=ctx.product)
             job_tts_model: str = ctx.options.get("tts_model", "")
             job_tts_voice: str = ctx.options.get("tts_voice", "")
             if job_tts_model:
@@ -414,9 +282,10 @@ class PhaseOrchestrator:
             if job_tts_voice:
                 tts_cfg["voice"] = job_tts_voice
 
-            config = _TTSConfigShim(tts_cfg)
-            tts_provider = create_tts_provider(tts_cfg, self._secrets)
-            audio_bytes = tts_provider.synthesize(existing_script, config)
+            provider = create_tts_provider(tts_cfg, self._config_resolver.secrets)
+            audio_bytes = provider.synthesize(
+                existing_script, SimpleNamespace(**tts_cfg)
+            )
             audio_path.write_bytes(audio_bytes)
             print(
                 f"[TTS] Synthesized: {audio_path.exists()}, "
@@ -424,10 +293,7 @@ class PhaseOrchestrator:
                 flush=True,
             )
 
-        if audio_path.exists():
-            result.append(self._to_artifact("tts_audio", audio_path, workspace_dir))
-
-        return result
+        return [self._to_artifact("tts_audio", audio_path, workspace_dir)]
 
     def _run_tts_review(self, ctx: PhaseContext) -> list[ArtifactPointer]:
         """tts_review: return existing audio artifact for review."""
@@ -440,32 +306,27 @@ class PhaseOrchestrator:
         print(f"[TTS_REVIEW WARN] No audio found in {job_dir}", flush=True)
         return []
 
+    # -- subtitle_generating handler ----------------------------------------
+
     def _run_subtitle(self, ctx: PhaseContext) -> list[ArtifactPointer]:
         """subtitle_generating: build SRT from audio + script text."""
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
         audio_path = job_dir / "audio.mp3"
         srt_path = job_dir / "subtitles.srt"
-        print(
-            f"[SUBTITLE] audio exists={audio_path.exists()}, srt exists={srt_path.exists()}",
-            flush=True,
-        )
         if not audio_path.exists():
             raise FileNotFoundError(f"audio.mp3 not found in {job_dir}")
+
         script_text = self._discover_script(job_dir) or ""
-        print(
-            f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}",
-            flush=True,
-        )
         if script_text:
             try:
                 self._subtitle_svc.build_srt(audio_path, srt_path, script_text)
-                print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
             except Exception as e:
                 print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
                 import traceback
 
                 traceback.print_exc()
+
         if srt_path.exists():
             return [self._to_artifact("subtitle", srt_path, workspace_dir)]
         return []
@@ -476,19 +337,11 @@ class PhaseOrchestrator:
         """Execute semantic retrieval: script text -> keyword match -> selected clips."""
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
-
         script_text = self._discover_script(job_dir)
 
         if not script_text:
             print("[ASSET] No script text found — emitting sentinel", flush=True)
-            return [
-                ArtifactPointer(
-                    kind="asset_retrieval_done",
-                    relative_path="",
-                    url="",
-                    size_bytes=0,
-                )
-            ]
+            return [ArtifactPointer(kind="asset_retrieval_done")]
 
         from packages.file_store.paths import shared_asset_db_path
         from packages.pipeline_services.asset_library import (
@@ -498,31 +351,19 @@ class PhaseOrchestrator:
         from packages.pipeline_services.asset_library.classify import create_classify_fn
 
         db_path = shared_asset_db_path(ctx.root_dir)
-
-        llm_config = self._resolve_llm_config(ctx)
-
-        api_key = self._resolve_api_key(llm_config)
-        api_url = self._resolve_api_url(llm_config)
+        llm_config, api_key, api_url = self._config_resolver.llm(product_id=ctx.product)
 
         classify_fn = None
         if api_key and api_url:
-            category_names = self._resolve_categories(ctx)
-            category_model = (
-                self._config.get_category_suggestion_model()
-                if self._config is not None
-                else _fallback_category_suggestion_model()
-            )
-
             classify_fn = create_classify_fn(
                 api_url=api_url,
                 api_key=api_key,
-                model=category_model,
-                category_names=category_names,
+                model=self._config_resolver.category_suggestion_model(),
+                category_names=self._config_resolver.categories(product_id=ctx.product),
             )
 
         repo = AssetRepository(db_path)
         retriever = AssetRetriever(repo, classify_fn=classify_fn)
-
         selected = retriever.retrieve(script_text, ctx.product)
 
         clip_list_path = job_dir / "selected_clips.json"
@@ -539,27 +380,13 @@ class PhaseOrchestrator:
     # -- video_rendering handler ---------------------------------------------
 
     def _run_video(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """video_rendering: compose base video for final rendering.
-
-        In import mode:
-          1. Build a clip-based montage video from ``audio.mp3`` and
-             ``selected_clips.json``.
-          2. Concatenate ``assembled.mp4`` (scene segment from
-             ``montage_assembling``) with the clip-based video → ``base.mp4``.
-
-        In generate mode, builds base video from clips directly (no
-        ``assembled.mp4`` expected to exist).
-
-        Falls back gracefully when one or both sources are missing.
-        """
+        """video_rendering: compose base video for final rendering."""
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
         audio_path = job_dir / "audio.mp3"
         clip_list_path = job_dir / "selected_clips.json"
         base_path = job_dir / "base.mp4"
         assembled_path = job_dir / "assembled.mp4"
-
-        # -- Step 1: build clip-based montage video ---------------------------
         clip_base_path = job_dir / "_clip_base.mp4"
         clip_base_built = False
 
@@ -582,25 +409,20 @@ class PhaseOrchestrator:
                 )
                 clip_base_built = clip_base_path.exists()
 
-        # -- Step 2: compose final base.mp4 ------------------------------------
         assembled_exists = assembled_path.exists()
 
         if assembled_exists and clip_base_built:
-            # Import mode: concat scene segment + montage clips
-            MediaCompositor.concat_two(assembled_path, clip_base_path, base_path)
+            self._media_compositor.concat_two(assembled_path, clip_base_path, base_path)
             print(
                 f"[VIDEO] Concatenated assembled + clip base for {ctx.job_id}",
                 flush=True,
             )
         elif clip_base_built:
-            # Generate mode (or import mode without assembled.mp4 yet)
             shutil.copy2(clip_base_path, base_path)
             print(
-                f"[VIDEO] Using clip-based video as base for {ctx.job_id}",
-                flush=True,
+                f"[VIDEO] Using clip-based video as base for {ctx.job_id}", flush=True
             )
         elif assembled_exists:
-            # Import mode fallback: scene segment only, no clips available
             shutil.copy2(assembled_path, base_path)
             print(
                 f"[VIDEO] Using assembled video as base for {ctx.job_id} (no clips)",
@@ -613,7 +435,6 @@ class PhaseOrchestrator:
                 flush=True,
             )
 
-        # Clean up temp clip base
         if clip_base_path.exists():
             clip_base_path.unlink()
 
@@ -625,11 +446,7 @@ class PhaseOrchestrator:
     # -- final_rendering handler ---------------------------------------------
 
     def _run_final_rendering(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """final_rendering: burn subtitles, music, cover title into final video.
-
-        Reads settings from the job JSON file (written by the UI) rather than
-        ``ctx.options``, since that is where the UI persists them.
-        """
+        """final_rendering: burn subtitles, music, cover title into final video."""
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
         final_path = job_dir / "final.mp4"
@@ -690,49 +507,21 @@ class PhaseOrchestrator:
     # -- final_review handler (pure gate) ------------------------------------
 
     def _run_final(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """final_review: pure gate — no handler logic.  Burn happens in final_rendering."""
+        """final_review: pure gate — no handler logic."""
         return []
 
     # -- scene_assembling handler (import mode) --------------------------------
 
     def _run_scene_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """scene_assembling: build scene segment from scene folders with crossfade transitions.
-
-        Reads scene folder paths from ``ctx.scene_folder_paths`` (populated by
-        the tick service) or falls back to ``ctx.scene_config`` or ConfigReader.
-        Picks one random video file from each folder, then uses ffmpeg ``xfade``
-        to create a crossfade scene segment.
-        """
-        import random
-
+        """scene_assembling: build scene segment from scene folders with crossfade transitions."""
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
 
-        # 1. Resolve scene folder paths
-        folders: list[Path] = []
-        if ctx.scene_folder_paths:
-            for fp in ctx.scene_folder_paths:
-                p = Path(fp)
-                if not p.is_absolute():
-                    p = ctx.root_dir / "workspace" / p
-                folders.append(p)
-        else:
-            # Fallback: ctx.scene_config > ConfigReader
-            scene_config = ctx.scene_config
-            if not scene_config and self._config is not None:
-                scene_config = self._config.get_scene_config(product_id=ctx.product)
-            for entry in scene_config.get("folders", []):
-                path_str = entry.get("path", "")
-                if not path_str:
-                    continue
-                p = ctx.root_dir / "workspace" / path_str
-                folders.append(p)
-
+        folders = _resolve_scene_folders(ctx)
         if not folders:
             print(f"[SCENE] No scene folders configured for {ctx.job_id}", flush=True)
             return []
 
-        # 2. Pick one random video from each folder
         video_ext = {".mp4", ".mov", ".avi"}
         clips: list[Path] = []
         for folder in folders:
@@ -754,20 +543,15 @@ class PhaseOrchestrator:
             return []
 
         print(f"[SCENE] {len(clips)} clips selected for {ctx.job_id}", flush=True)
-        for c in clips:
-            print(f"[SCENE]   {c}", flush=True)
-
-        transition_duration = ctx.transition_duration_ms / 1000.0
         scene_path = job_dir / "scene_segment.mp4"
 
         if len(clips) == 1:
-            # Single clip -- copy directly
-            import shutil
-
             shutil.copy2(clips[0], scene_path)
             print(f"[SCENE] Single clip copied to {scene_path}", flush=True)
         else:
-            MediaCompositor.crossfade_scene(clips, scene_path, transition_duration)
+            self._media_compositor.crossfade_scene(
+                clips, scene_path, ctx.transition_duration_ms / 1000.0
+            )
             print(f"[SCENE] Running ffmpeg xfade for {len(clips)} clips", flush=True)
 
         if scene_path.exists():
@@ -781,16 +565,7 @@ class PhaseOrchestrator:
     # -- montage_assembling handler (import mode) ------------------------------
 
     def _run_montage_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """montage_assembling: merge scene segment + base video into assembled video.
-
-        Reads ``scene_segment.mp4`` from the scene_assembling phase and
-        ``base.mp4`` (if present, e.g. from a previous generate-mode run).
-        Concatenates them into ``assembled.mp4`` which ``_run_video`` then uses
-        as the base video in import mode.
-
-        If only one of the two files exists it is used directly; if neither
-        exists the handler returns an empty list.
-        """
+        """montage_assembling: merge scene segment + base video into assembled video."""
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
         scene_path = job_dir / "scene_segment.mp4"
@@ -805,7 +580,7 @@ class PhaseOrchestrator:
                 f"[MONTAGE] Concatenating scene_segment + base for {ctx.job_id}",
                 flush=True,
             )
-            MediaCompositor.concat_two(scene_path, base_path, assembled_path)
+            self._media_compositor.concat_two(scene_path, base_path, assembled_path)
         elif scene_exists:
             print(
                 f"[MONTAGE] Using scene_segment as assembled for {ctx.job_id}",
@@ -845,6 +620,45 @@ class PhaseOrchestrator:
         return None
 
 
-def _fallback_category_suggestion_model() -> str:
-    """Fallback: return the default category suggestion model."""
-    return "deepseek-v4-flash"
+# ---------------------------------------------------------------------------
+# Module-level helpers (no instance state)
+# ---------------------------------------------------------------------------
+
+
+def _write_manual_script(job_dir: Path, text: str) -> dict[str, Any]:
+    """Persist a manual script as txt/json artifacts and return a result dict."""
+    txt_path = job_dir / "口播文案.txt"
+    txt_path.write_text(text, encoding="utf-8")
+    json_path = job_dir / "口播文案.json"
+    json_path.write_text(
+        json.dumps(
+            {"text": text, "source": "manual"},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "txt_path": str(txt_path),
+        "json_path": str(json_path),
+        "final_script": text,
+    }
+
+
+def _resolve_scene_folders(ctx: PhaseContext) -> list[Path]:
+    """Resolve absolute scene folder paths from the phase context."""
+    if ctx.scene_folder_paths:
+        folders: list[Path] = []
+        for fp in ctx.scene_folder_paths:
+            p = Path(fp)
+            if not p.is_absolute():
+                p = ctx.root_dir / "workspace" / p
+            folders.append(p)
+        return folders
+
+    folders = []
+    for entry in ctx.scene_config.get("folders", []):
+        path_str = entry.get("path", "")
+        if not path_str:
+            continue
+        folders.append(ctx.root_dir / "workspace" / path_str)
+    return folders

@@ -47,13 +47,13 @@ def ctx(project_dir: Path, tmp_root: Path) -> PhaseContext:
 
 @pytest.fixture()
 def orchestrator() -> PhaseOrchestrator:
-    subtitle_svc = MagicMock()
-    video_svc = MagicMock()
-    schedule_store = MagicMock()
     return PhaseOrchestrator(
-        subtitle_svc=subtitle_svc,
-        video_svc=video_svc,
-        schedule_store=schedule_store,
+        script_generator=MagicMock(),
+        subtitle_svc=MagicMock(),
+        video_svc=MagicMock(),
+        media_compositor=MagicMock(),
+        config_resolver=MagicMock(),
+        schedule_store=MagicMock(),
     )
 
 
@@ -109,18 +109,30 @@ class TestToUrlPath:
 
 
 class TestPhaseOrchestratorInit:
-    def test_accepts_three_core_deps(self):
+    def test_accepts_seam_deps(self):
         orch = PhaseOrchestrator(
+            script_generator=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
+            media_compositor=MagicMock(),
+            config_resolver=MagicMock(),
             schedule_store=MagicMock(),
         )
+        assert orch._script_generator is not None
         assert orch._subtitle_svc is not None
         assert orch._video_svc is not None
+        assert orch._media_compositor is not None
+        assert orch._config_resolver is not None
         assert orch._schedule_store is not None
 
     def test_has_handler_map(self):
-        orch = PhaseOrchestrator(*[MagicMock()] * 3)
+        orch = PhaseOrchestrator(
+            script_generator=MagicMock(),
+            subtitle_svc=MagicMock(),
+            video_svc=MagicMock(),
+            media_compositor=MagicMock(),
+            config_resolver=MagicMock(),
+        )
         assert isinstance(orch._handlers, dict)
         assert "script_generating" in orch._handlers
 
@@ -187,10 +199,8 @@ class TestRunScriptManual:
 
 
 class TestRunScriptLLM:
-    @patch("packages.pipeline_services.phase_orchestrator.generate_script")
     def test_llm_generation_calls_generate_script_and_returns_artifacts(
         self,
-        mock_generate_script: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
     ):
@@ -201,20 +211,13 @@ class TestRunScriptLLM:
         txt_path.write_text("LLM生成的文案", encoding="utf-8")
         json_path.write_text("{}", encoding="utf-8")
 
+        mock_generate_script = MagicMock()
         mock_generate_script.return_value = {
             "txt_path": str(txt_path),
             "json_path": str(json_path),
             "final_script": "LLM生成的文案",
         }
-
-        # Provide a config_resolver so generate_script can be called.
-        config_resolver = MagicMock()
-        config_resolver.llm.return_value = (
-            {"model": "deepseek-v4-pro"},
-            "fake-key",
-            "https://api.example.com/v1",
-        )
-        orchestrator._config_resolver = config_resolver
+        orchestrator._script_generator = mock_generate_script
 
         artifacts = orchestrator.run_phase("script_generating", ctx)
 
@@ -223,7 +226,6 @@ class TestRunScriptLLM:
             output_dir=job_dir,
             language="mandarin",
             brand="",
-            config_resolver=config_resolver,
         )
         assert len(artifacts) == 2
         assert all(isinstance(a, ArtifactPointer) for a in artifacts)
@@ -377,12 +379,16 @@ def make_tts_orchestrator(monkeypatch):
 
     def _make(tts_provider=None, tts_config=None):
         cfg = tts_config if tts_config is not None else dict(_FAKE_TTS_CONFIG)
+        config_resolver = MagicMock()
+        config_resolver.tts.return_value = cfg
+        config_resolver.secrets = MagicMock()
         orch = PhaseOrchestrator(
-            script_bridge=MagicMock(),
+            script_generator=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
+            media_compositor=MagicMock(),
+            config_resolver=config_resolver,
             schedule_store=MagicMock(),
-            get_tts_config=lambda: cfg,
         )
         mock_provider = tts_provider if tts_provider is not None else MagicMock()
         monkeypatch.setattr(
@@ -669,8 +675,6 @@ class TestRunVideo:
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
         """Import mode: assembled.mp4 + selected_clips → built clip base + concat."""
-        from unittest.mock import patch
-
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
 
@@ -687,29 +691,19 @@ class TestRunVideo:
 
         def _build_side_effect(*args, **kwargs):
             """Simulate VideoService.build_base_video producing _clip_base.mp4."""
-            # args: (project_dir, job_dict, output_path)
             output_path = args[2]
             output_path.write_text("fake clip base video")
 
         orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
 
-        with patch(
-            "packages.pipeline_services.media_compositor.get_ffmpeg_path",
-            return_value="ffmpeg",
-        ):
-            with patch(
-                "packages.pipeline_services.media_compositor.subprocess.run"
-            ) as mock_run:
-                mock_run.return_value = MagicMock(returncode=0)
+        def _concat_effect(first, second, out):
+            """Simulate MediaCompositor.concat_two producing base.mp4."""
+            out.write_text("concatenated video")
+            return out
 
-                def _concat_effect(*args, **kwargs):
-                    """Simulate ffmpeg concat producing base.mp4."""
-                    (job_dir / "base.mp4").write_text("concatenated video")
-                    return MagicMock(returncode=0)
+        orchestrator._media_compositor.concat_two.side_effect = _concat_effect
 
-                mock_run.side_effect = _concat_effect
-
-                artifacts = orchestrator.run_phase("video_rendering", ctx)
+        artifacts = orchestrator.run_phase("video_rendering", ctx)
 
         assert len(artifacts) == 1
         assert artifacts[0].kind == "video_base"
@@ -719,20 +713,12 @@ class TestRunVideo:
         # Verify build_base_video was called
         orchestrator._video_svc.build_base_video.assert_called_once()
 
-        # Verify ffmpeg concat was called with both inputs
-        concat_call = mock_run.call_args
-        assert concat_call is not None
-        call_args = concat_call[0][0]
-        assert "-i" in call_args
-        assert "-filter_complex" in call_args
-        filter_idx = call_args.index("-filter_complex")
-        filter_str = call_args[filter_idx + 1]
-        assert "concat=n=2" in filter_str
-        # Verify normalization: both inputs scaled to 720x1280@30fps yuv420p before concat
-        assert "scale=720:1280" in filter_str
-        assert "fps=30" in filter_str
-        assert "format=pix_fmts=yuv420p" in filter_str
-        assert "setsar=1" in filter_str
+        # Verify concat_two was called with assembled + clip base
+        orchestrator._media_compositor.concat_two.assert_called_once()
+        concat_call = orchestrator._media_compositor.concat_two.call_args
+        assert concat_call[0][0] == job_dir / "assembled.mp4"
+        assert concat_call[0][1] == job_dir / "_clip_base.mp4"
+        assert concat_call[0][2] == job_dir / "base.mp4"
 
         # Temp _clip_base.mp4 should be cleaned up
         assert not (job_dir / "_clip_base.mp4").exists()
