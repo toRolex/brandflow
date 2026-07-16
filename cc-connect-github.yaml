@@ -1,0 +1,652 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+            - link "Sign in" [ref=e54] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+            - link "Sign up" [ref=e55] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2Fsearch&source=header
+            - button "Appearance settings" [ref=e58] [cursor=pointer]:
+              - img
+  - main [ref=e61]:
+    - generic [ref=e64]:
+      - heading "repositories Search Results · cc-connect" [level=1] [ref=e65]
+      - generic [ref=e68]:
+        - generic [ref=e69]:
+          - region "Filter by" [ref=e70]:
+            - heading "Filter by" [level=2] [ref=e71]
+            - list "Filter by" [ref=e76]:
+              - listitem [ref=e77]:
+                - list [ref=e78]:
+                  - listitem [ref=e79]:
+                    - link "Code (...) results" [ref=e661] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect&type=code
+                      - generic:
+                        - img
+                      - generic [ref=e662]:
+                        - generic [ref=e663]: Code
+                        - generic:
+                          - generic: ...
+                          - generic: (...)
+                          - generic: results
+                  - listitem [ref=e83]:
+                    - link "Repositories (462) results" [ref=e664] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect&type=repositories
+                      - generic:
+                        - img
+                      - generic [ref=e665]:
+                        - generic [ref=e666]: Repositories
+                        - generic:
+                          - generic: "462"
+                          - generic: (462)
+                          - generic: results
+                  - listitem [ref=e87]:
+                    - link "Issues (146k) results" [ref=e667] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect&type=issues
+                      - generic:
+                        - img
+                      - generic [ref=e668]:
+                        - generic [ref=e669]: Issues
+                        - generic:
+                          - generic: 146k
+                          - generic: (146k)
+                          - generic: results
+                  - listitem [ref=e91]:
+                    - link "Pull requests (147k) results" [ref=e670] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect&type=pullrequests
+                      - generic:
+                        - img
+                      - generic [ref=e671]:
+                        - generic [ref=e672]: Pull requests
+                        - generic:
+                          - generic: 147k
+                          - generic: (147k)
+                          - generic: results
+                  - listitem [ref=e95]:
+                    - link "Discussions (6k) results" [ref=e673] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect&type=discussions
+                      - generic:
+                        - img
+                      - generic [ref=e674]:
+                        - generic [ref=e675]: Discussions
+                        - generic:
+                          - generic: 6k
+                          - generic: (6k)
+                          - generic: results
+                  - listitem [ref=e99]:
+                    - link "Users (1) results" [ref=e676] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect&type=users
+                      - generic:
+                        - img
+                      - generic [ref=e677]:
+                        - generic [ref=e678]: Users
+                        - generic:
+                          - generic: "1"
+                          - generic: (1)
+                          - generic: results
+                  - listitem [ref=e103]:
+                    - button "More" [ref=e104] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic [ref=e106]: More
+              - listitem [ref=e107]
+              - listitem [ref=e108]:
+                - heading "Languages" [level=3] [ref=e110]
+                - list "Languages" [ref=e111]:
+                  - listitem [ref=e112]:
+                    - link "JavaScript" [ref=e113] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3AJavaScript&type=repositories
+                      - generic "JavaScript" [ref=e117]
+                  - listitem [ref=e118]:
+                    - link "Python" [ref=e119] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3APython&type=repositories
+                      - generic "Python" [ref=e123]
+                  - listitem [ref=e124]:
+                    - link "Go" [ref=e125] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3AGo&type=repositories
+                      - generic "Go" [ref=e129]
+                  - listitem [ref=e130]:
+                    - link "TypeScript" [ref=e131] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3ATypeScript&type=repositories
+                      - generic "TypeScript" [ref=e135]
+                  - listitem [ref=e136]:
+                    - link "HTML" [ref=e137] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3AHTML&type=repositories
+                      - generic "HTML" [ref=e141]
+                  - listitem [ref=e142]:
+                    - link "Shell" [ref=e143] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3AShell&type=repositories
+                      - generic "Shell" [ref=e147]
+                  - listitem [ref=e148]:
+                    - link "Java" [ref=e149] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3AJava&type=repositories
+                      - generic "Java" [ref=e153]
+                  - listitem [ref=e154]:
+                    - link "PHP" [ref=e155] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3APHP&type=repositories
+                      - generic "PHP" [ref=e159]
+                  - listitem [ref=e160]:
+                    - link "PowerShell" [ref=e161] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3APowerShell&type=repositories
+                      - generic "PowerShell" [ref=e165]
+                  - listitem [ref=e166]:
+                    - link "C" [ref=e167] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+language%3AC&type=repositories
+                      - generic "C" [ref=e171]
+                  - listitem [ref=e172]:
+                    - button "More languages..." [ref=e173] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "More languages..." [ref=e176]
+                  - listitem [ref=e177]
+              - listitem [ref=e178]:
+                - heading "Advanced" [level=3] [ref=e180]
+                - list "Advanced" [ref=e181]:
+                  - listitem [ref=e182]:
+                    - button "Owner" [ref=e183] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "Owner" [ref=e187]
+                  - listitem [ref=e188]:
+                    - button "Size" [ref=e189] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "Size" [ref=e193]
+                  - listitem [ref=e194]:
+                    - button "Number of followers" [ref=e195] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "Number of followers" [ref=e199]
+                  - listitem [ref=e200]:
+                    - button "Number of forks" [ref=e201] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "Number of forks" [ref=e205]
+                  - listitem [ref=e206]:
+                    - button "Number of stars" [ref=e207] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "Number of stars" [ref=e211]
+                  - listitem [ref=e212]:
+                    - button "Date created" [ref=e213] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "Date created" [ref=e217]
+                  - listitem [ref=e218]:
+                    - button "Date pushed" [ref=e219] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "Date pushed" [ref=e223]
+                  - listitem [ref=e224]:
+                    - button "Topic" [ref=e225] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "Topic" [ref=e229]
+                  - listitem [ref=e230]:
+                    - button "License" [ref=e231] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "License" [ref=e235]
+                  - listitem [ref=e236]:
+                    - button "Archived" [ref=e237] [cursor=pointer]:
+                      - generic:
+                        - img
+                      - generic "Archived" [ref=e241]
+                  - listitem [ref=e242]:
+                    - link "Public" [ref=e243] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+is%3Apublic&type=repositories
+                      - generic:
+                        - img
+                      - generic "Public" [ref=e247]
+                  - listitem [ref=e248]:
+                    - link "Private" [ref=e249] [cursor=pointer]:
+                      - /url: https://github.com/search?q=cc-connect+is%3Aprivate&type=repositories
+                      - generic:
+                        - img
+                      - generic "Private" [ref=e253]
+              - listitem [ref=e254]
+              - listitem [ref=e255]:
+                - link "Advanced search" [ref=e256] [cursor=pointer]:
+                  - /url: /search/advanced
+                  - generic:
+                    - img
+                  - generic [ref=e258]: Advanced search
+          - slider "Draggable pane splitter" [ref=e260]
+        - generic [ref=e263]:
+          - generic [ref=e264]:
+            - generic [ref=e266]:
+              - generic [ref=e267]:
+                - generic [ref=e268]:
+                  - generic [ref=e269]: 462 results
+                  - generic [ref=e270]: (304 ms)
+                - heading "462 results" [active] [level=2] [ref=e271]
+              - generic [ref=e272]:
+                - 'button "Sort by: Best match" [ref=e274] [cursor=pointer]':
+                  - generic [ref=e276]: "Sort by: Best match"
+                  - generic:
+                    - img
+                - button "Open column options" [ref=e278] [cursor=pointer]:
+                  - img [ref=e279]
+            - generic [ref=e283]:
+              - generic [ref=e285]:
+                - generic [ref=e286]:
+                  - heading "chenhg5/cc-connect" [level=3] [ref=e287]:
+                    - link "chenhg5/cc-connect" [ref=e291] [cursor=pointer]:
+                      - /url: /chenhg5/cc-connect
+                      - generic [ref=e292]:
+                        - text: chenhg5/
+                        - emphasis [ref=e293]: cc-connect
+                  - generic [ref=e294]: Bridge local AI coding agents (Claude Code, Cursor, Gemini CLI, Codex) to messaging platforms (Feishu/Lark, DingTalk, Slack, Telegram, Di…
+                  - list [ref=e295]:
+                    - listitem [ref=e296]:
+                      - generic "Go language" [ref=e299]: Go
+                    - generic [ref=e300]: ·
+                    - listitem [ref=e301]:
+                      - link "14024 stars" [ref=e302] [cursor=pointer]:
+                        - /url: /chenhg5/cc-connect/stargazers
+                        - img [ref=e303]
+                        - generic [ref=e305]: 14k
+                    - generic [ref=e306]: ·
+                    - listitem [ref=e307]:
+                      - generic [ref=e308]:
+                        - text: Updated
+                        - generic "2026年7月14日 GMT+8 22:48" [ref=e309]: 23 hours ago
+                - generic [ref=e310]:
+                  - link "Star" [ref=e312] [cursor=pointer]:
+                    - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                    - generic [ref=e313]:
+                      - generic:
+                        - img
+                      - generic [ref=e314]: Star
+                  - button "Sponsor chenhg5/cc-connect" [ref=e681] [cursor=pointer]:
+                    - generic [ref=e683]:
+                      - img [ref=e684]
+                      - text: Sponsor
+              - generic [ref=e316]:
+                - generic [ref=e317]:
+                  - heading "iamchucky/PttChrome" [level=3] [ref=e318]:
+                    - link "iamchucky/PttChrome" [ref=e322] [cursor=pointer]:
+                      - /url: /iamchucky/PttChrome
+                  - generic [ref=e324]:
+                    - text: A GNU/GPL telnet client for
+                    - emphasis [ref=e325]: connecting
+                    - text: to BBS site ptt.
+                    - emphasis [ref=e326]: cc
+                  - list [ref=e327]:
+                    - listitem [ref=e328]:
+                      - generic "JavaScript language" [ref=e331]: JavaScript
+                    - generic [ref=e332]: ·
+                    - listitem [ref=e333]:
+                      - link "511 stars" [ref=e334] [cursor=pointer]:
+                        - /url: /iamchucky/PttChrome/stargazers
+                        - img [ref=e335]
+                        - generic [ref=e337]: "511"
+                    - generic [ref=e338]: ·
+                    - listitem [ref=e339]:
+                      - generic [ref=e340]:
+                        - text: Updated
+                        - generic "2024年8月27日 GMT+8 09:05" [ref=e341]: on 2024年8月27日
+                - link "Star" [ref=e344] [cursor=pointer]:
+                  - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                  - generic [ref=e345]:
+                    - generic:
+                      - img
+                    - generic [ref=e346]: Star
+              - generic [ref=e348]:
+                - generic [ref=e349]:
+                  - heading "confluentinc/ccloud-connectivity" [level=3] [ref=e350]:
+                    - link "confluentinc/ccloud-connectivity" [ref=e354] [cursor=pointer]:
+                      - /url: /confluentinc/ccloud-connectivity
+                      - generic [ref=e355]:
+                        - text: confluentinc/
+                        - emphasis [ref=e356]: ccloud
+                        - text: "-"
+                        - emphasis [ref=e357]: connectivity
+                  - generic [ref=e358]: Setup and testing connectivity to Confluent Cloud
+                  - list [ref=e359]:
+                    - listitem [ref=e360]:
+                      - generic "Shell language" [ref=e363]: Shell
+                    - generic [ref=e364]: ·
+                    - listitem [ref=e365]:
+                      - link "18 stars" [ref=e366] [cursor=pointer]:
+                        - /url: /confluentinc/ccloud-connectivity/stargazers
+                        - img [ref=e367]
+                        - generic [ref=e369]: "18"
+                    - generic [ref=e370]: ·
+                    - listitem [ref=e371]:
+                      - generic [ref=e372]:
+                        - text: Updated
+                        - generic "2026年5月15日 GMT+8 19:52" [ref=e373]: on 5月15日
+                - link "Star" [ref=e376] [cursor=pointer]:
+                  - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                  - generic [ref=e377]:
+                    - generic:
+                      - img
+                    - generic [ref=e378]: Star
+              - generic [ref=e380]:
+                - generic [ref=e381]:
+                  - heading "aws-samples/amazon-connect-custom-ccp" [level=3] [ref=e382]:
+                    - link "aws-samples/amazon-connect-custom-ccp" [ref=e386] [cursor=pointer]:
+                      - /url: /aws-samples/amazon-connect-custom-ccp
+                      - generic [ref=e387]:
+                        - text: aws-samples/amazon-
+                        - emphasis [ref=e388]: connect
+                        - text: "-custom-ccp"
+                  - generic [ref=e390]:
+                    - text: Sample code for building a serverless CCP dashboard for Amazon
+                    - emphasis [ref=e391]: Connect
+                    - text: .
+                  - generic [ref=e392]:
+                    - link "cdk" [ref=e394] [cursor=pointer]:
+                      - /url: /topics/cdk
+                    - link "amazon-connect" [ref=e396] [cursor=pointer]:
+                      - /url: /topics/amazon-connect
+                  - list [ref=e397]:
+                    - listitem [ref=e398]:
+                      - generic "JavaScript language" [ref=e401]: JavaScript
+                    - generic [ref=e402]: ·
+                    - listitem [ref=e403]:
+                      - link "42 stars" [ref=e404] [cursor=pointer]:
+                        - /url: /aws-samples/amazon-connect-custom-ccp/stargazers
+                        - img [ref=e405]
+                        - generic [ref=e407]: "42"
+                    - generic [ref=e408]: ·
+                    - listitem [ref=e409]:
+                      - generic [ref=e410]:
+                        - text: Updated
+                        - generic "2023年7月19日 GMT+8 13:07" [ref=e411]: on 2023年7月19日
+                - link "Star" [ref=e414] [cursor=pointer]:
+                  - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                  - generic [ref=e415]:
+                    - generic:
+                      - img
+                    - generic [ref=e416]: Star
+              - generic [ref=e418]:
+                - generic [ref=e419]:
+                  - heading "tuva-health/medicare_cclf_connector" [level=3] [ref=e420]:
+                    - link "tuva-health/medicare_cclf_connector" [ref=e424] [cursor=pointer]:
+                      - /url: /tuva-health/medicare_cclf_connector
+                      - generic [ref=e425]:
+                        - text: tuva-health/medicare_
+                        - emphasis [ref=e426]: cclf
+                        - text: _
+                        - emphasis [ref=e427]: connector
+                  - generic [ref=e429]:
+                    - text: This
+                    - emphasis [ref=e430]: connector
+                    - text: is a dbt project that maps Medicare CCLF claims data to the Tuva Input Layer.
+                  - generic [ref=e431]:
+                    - link "open-source" [ref=e433] [cursor=pointer]:
+                      - /url: /topics/open-source
+                    - link "bigquery" [ref=e435] [cursor=pointer]:
+                      - /url: /topics/bigquery
+                    - link "sql" [ref=e437] [cursor=pointer]:
+                      - /url: /topics/sql
+                    - link "snowflake" [ref=e439] [cursor=pointer]:
+                      - /url: /topics/snowflake
+                    - link "data-warehouse" [ref=e441] [cursor=pointer]:
+                      - /url: /topics/data-warehouse
+                  - list [ref=e442]:
+                    - listitem [ref=e443]:
+                      - link "15 stars" [ref=e444] [cursor=pointer]:
+                        - /url: /tuva-health/medicare_cclf_connector/stargazers
+                        - img [ref=e445]
+                        - generic [ref=e447]: "15"
+                    - generic [ref=e448]: ·
+                    - listitem [ref=e449]:
+                      - generic [ref=e450]:
+                        - text: Updated
+                        - generic "2026年4月17日 GMT+8 02:10" [ref=e451]: on 4月17日
+                - link "Star" [ref=e454] [cursor=pointer]:
+                  - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                  - generic [ref=e455]:
+                    - generic:
+                      - img
+                    - generic [ref=e456]: Star
+              - generic [ref=e458]:
+                - generic [ref=e459]:
+                  - heading "robertabcd/PttChrome" [level=3] [ref=e460]:
+                    - link "robertabcd/PttChrome" [ref=e464] [cursor=pointer]:
+                      - /url: /robertabcd/PttChrome
+                  - generic [ref=e466]:
+                    - text: A GNU/GPL telnet client for
+                    - emphasis [ref=e467]: connecting
+                    - text: to BBS site ptt.
+                    - emphasis [ref=e468]: cc
+                    - text: (forked from iamchucky/PttChrome).
+                  - list [ref=e469]:
+                    - listitem [ref=e470]:
+                      - generic "JavaScript language" [ref=e473]: JavaScript
+                    - generic [ref=e474]: ·
+                    - listitem [ref=e475]:
+                      - link "157 stars" [ref=e476] [cursor=pointer]:
+                        - /url: /robertabcd/PttChrome/stargazers
+                        - img [ref=e477]
+                        - generic [ref=e479]: "157"
+                    - generic [ref=e480]: ·
+                    - listitem [ref=e481]:
+                      - generic [ref=e482]:
+                        - text: Updated
+                        - generic "2023年12月8日 GMT+8 21:28" [ref=e483]: on 2023年12月8日
+                - link "Star" [ref=e486] [cursor=pointer]:
+                  - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                  - generic [ref=e487]:
+                    - generic:
+                      - img
+                    - generic [ref=e488]: Star
+              - generic [ref=e490]:
+                - generic [ref=e491]:
+                  - heading "Velir/akamai-ccu-rest-api-connector" [level=3] [ref=e492]:
+                    - link "Velir/akamai-ccu-rest-api-connector" [ref=e496] [cursor=pointer]:
+                      - /url: /Velir/akamai-ccu-rest-api-connector
+                      - generic [ref=e497]:
+                        - text: Velir/akamai-
+                        - emphasis [ref=e498]: ccu
+                        - text: "-rest-api-"
+                        - emphasis [ref=e499]: connector
+                  - list [ref=e500]:
+                    - listitem [ref=e501]:
+                      - generic "Groovy language" [ref=e504]: Groovy
+                    - generic [ref=e505]: ·
+                    - listitem [ref=e506]:
+                      - link "15 stars" [ref=e507] [cursor=pointer]:
+                        - /url: /Velir/akamai-ccu-rest-api-connector/stargazers
+                        - img [ref=e508]
+                        - generic [ref=e510]: "15"
+                    - generic [ref=e511]: ·
+                    - listitem [ref=e512]:
+                      - generic [ref=e513]:
+                        - text: Updated
+                        - generic "2020年1月30日 GMT+8 02:52" [ref=e514]: on 2020年1月30日
+                - link "Star" [ref=e517] [cursor=pointer]:
+                  - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                  - generic [ref=e518]:
+                    - generic:
+                      - img
+                    - generic [ref=e519]: Star
+              - generic [ref=e521]:
+                - generic [ref=e522]:
+                  - heading "bimzcy/rank4douban" [level=3] [ref=e523]:
+                    - link "bimzcy/rank4douban" [ref=e527] [cursor=pointer]:
+                      - /url: /bimzcy/rank4douban
+                  - generic [ref=e529]:
+                    - emphasis [ref=e530]: CC
+                    - text: ", MOC, FIB, all kinds of billboard that"
+                    - emphasis [ref=e531]: connect
+                    - text: the item title with douban ID.
+                  - list [ref=e532]:
+                    - listitem [ref=e533]:
+                      - generic "Python language" [ref=e536]: Python
+                    - generic [ref=e537]: ·
+                    - listitem [ref=e538]:
+                      - link "106 stars" [ref=e539] [cursor=pointer]:
+                        - /url: /bimzcy/rank4douban/stargazers
+                        - img [ref=e540]
+                        - generic [ref=e542]: "106"
+                    - generic [ref=e543]: ·
+                    - listitem [ref=e544]:
+                      - generic [ref=e545]:
+                        - text: Updated
+                        - generic "2026年7月15日 GMT+8 21:46" [ref=e546]: 35 minutes ago
+                - link "Star" [ref=e549] [cursor=pointer]:
+                  - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                  - generic [ref=e550]:
+                    - generic:
+                      - img
+                    - generic [ref=e551]: Star
+              - generic [ref=e553]:
+                - generic [ref=e554]:
+                  - heading "linuxacademy/content-ccdak-kafka-java-connect" [level=3] [ref=e555]:
+                    - link "linuxacademy/content-ccdak-kafka-java-connect" [ref=e559] [cursor=pointer]:
+                      - /url: /linuxacademy/content-ccdak-kafka-java-connect
+                      - generic [ref=e560]:
+                        - text: linuxacademy/content-ccdak-kafka-java-
+                        - emphasis [ref=e561]: connect
+                  - generic [ref=e562]: Sample project for CCDAK
+                  - list [ref=e563]:
+                    - listitem [ref=e564]:
+                      - generic "Java language" [ref=e567]: Java
+                    - generic [ref=e568]: ·
+                    - listitem [ref=e569]:
+                      - link "2 stars" [ref=e570] [cursor=pointer]:
+                        - /url: /linuxacademy/content-ccdak-kafka-java-connect/stargazers
+                        - img [ref=e571]
+                        - generic [ref=e573]: "2"
+                    - generic [ref=e574]: ·
+                    - listitem [ref=e575]:
+                      - generic [ref=e576]:
+                        - text: Updated
+                        - generic "2019年8月6日 GMT+8 23:07" [ref=e577]: on 2019年8月6日
+                - link "Star" [ref=e580] [cursor=pointer]:
+                  - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                  - generic [ref=e581]:
+                    - generic:
+                      - img
+                    - generic [ref=e582]: Star
+              - generic [ref=e584]:
+                - generic [ref=e585]:
+                  - heading "Minara-AI/cc-connect" [level=3] [ref=e586]:
+                    - link "Minara-AI/cc-connect" [ref=e590] [cursor=pointer]:
+                      - /url: /Minara-AI/cc-connect
+                      - generic [ref=e591]:
+                        - text: Minara-AI/
+                        - emphasis [ref=e592]: cc-connect
+                  - generic [ref=e593]: Peer-to-peer chat substrate that lets multiple Claude Code instances share the same context.
+                  - generic [ref=e594]:
+                    - link "rust" [ref=e596] [cursor=pointer]:
+                      - /url: /topics/rust
+                    - link "mcp" [ref=e598] [cursor=pointer]:
+                      - /url: /topics/mcp
+                    - link "p2p" [ref=e600] [cursor=pointer]:
+                      - /url: /topics/p2p
+                    - link "collaboration" [ref=e602] [cursor=pointer]:
+                      - /url: /topics/collaboration
+                    - link "tui" [ref=e604] [cursor=pointer]:
+                      - /url: /topics/tui
+                  - list [ref=e605]:
+                    - listitem [ref=e606]:
+                      - generic "Rust language" [ref=e609]: Rust
+                    - generic [ref=e610]: ·
+                    - listitem [ref=e611]:
+                      - link "28 stars" [ref=e612] [cursor=pointer]:
+                        - /url: /Minara-AI/cc-connect/stargazers
+                        - img [ref=e613]
+                        - generic [ref=e615]: "28"
+                    - generic [ref=e616]: ·
+                    - listitem [ref=e617]:
+                      - generic [ref=e618]:
+                        - text: Updated
+                        - generic "2026年5月19日 GMT+8 15:44" [ref=e619]: on 5月19日
+                - link "Star" [ref=e622] [cursor=pointer]:
+                  - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Dcc-connect%26type%3Drepositories
+                  - generic [ref=e623]:
+                    - generic:
+                      - img
+                    - generic [ref=e624]: Star
+            - navigation "Pagination" [ref=e627]:
+              - generic [ref=e628]:
+                - generic [ref=e629]:
+                  - img [ref=e630]
+                  - text: Previous
+                - link "Page 1" [ref=e632] [cursor=pointer]:
+                  - /url: https://github.com/search?q=cc-connect&type=repositories&p=1
+                  - text: "1"
+                - link "Page 2" [ref=e633] [cursor=pointer]:
+                  - /url: https://github.com/search?q=cc-connect&type=repositories&p=2
+                  - text: "2"
+                - link "Page 3" [ref=e634] [cursor=pointer]:
+                  - /url: https://github.com/search?q=cc-connect&type=repositories&p=3
+                  - text: "3"
+                - link "Page 4" [ref=e635] [cursor=pointer]:
+                  - /url: https://github.com/search?q=cc-connect&type=repositories&p=4
+                  - text: "4"
+                - link "Page 5" [ref=e636] [cursor=pointer]:
+                  - /url: https://github.com/search?q=cc-connect&type=repositories&p=5
+                  - text: "5"
+                - link "Page 6" [ref=e637] [cursor=pointer]:
+                  - /url: https://github.com/search?q=cc-connect&type=repositories&p=6
+                  - text: "6"
+                - link "Page 7..." [ref=e638] [cursor=pointer]:
+                  - /url: https://github.com/search?q=cc-connect&type=repositories&p=7
+                  - text: "7"
+                - text: …
+                - link "Page 47" [ref=e639] [cursor=pointer]:
+                  - /url: https://github.com/search?q=cc-connect&type=repositories&p=47
+                  - text: "47"
+                - link "Next Page" [ref=e640] [cursor=pointer]:
+                  - /url: https://github.com/search?q=cc-connect&type=repositories&p=2
+                  - text: Next
+                  - img [ref=e641]
+          - generic [ref=e644]:
+            - generic [ref=e645]:
+              - img "Package icon" [ref=e647]
+              - heading "Sponsor open source projects you depend on" [level=2] [ref=e648]
+              - generic [ref=e649]: Contributors are working behind the scenes to make open source better for everyone—give them the help and recognition they deserve.
+              - link "Explore sponsorable projects" [ref=e650] [cursor=pointer]:
+                - /url: https://github.com/sponsors/explore
+                - text: Explore sponsorable projects
+                - img [ref=e651]
+            - generic [ref=e653]:
+              - generic [ref=e654]:
+                - img [ref=e655]
+                - text: ProTip!
+              - generic [ref=e657]:
+                - text: Press the
+                - generic [ref=e658]: /
+                - text: key to activate the search input again and adjust your query.
