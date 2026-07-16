@@ -12,7 +12,9 @@ from packages.pipeline_services.phase_orchestrator import (
 )
 
 
-def _make_orchestrator(root_dir: Path, video_svc, schedule_store) -> PhaseOrchestrator:
+def _make_orchestrator(
+    root_dir: Path, video_svc, schedule_store, monkeypatch
+) -> PhaseOrchestrator:
     """Build an orchestrator with stubs for video_svc and schedule_store."""
     from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
     from packages.pipeline_services.subtitle_service import SubtitleService
@@ -28,7 +30,10 @@ def _make_orchestrator(root_dir: Path, video_svc, schedule_store) -> PhaseOrches
         schedule_store=schedule_store,
     )
     stub = StubTTSProvider()
-    orch._build_tts_provider = lambda cfg: stub
+    monkeypatch.setattr(
+        "packages.pipeline_services.phase_orchestrator.create_tts_provider",
+        lambda cfg, secrets: stub,
+    )
     return orch
 
 
@@ -84,7 +89,7 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(
 
     video_svc = StubVideoService()
     schedule_store = StubScheduleStore(root_dir)
-    orchestrator = _make_orchestrator(root_dir, video_svc, schedule_store)
+    orchestrator = _make_orchestrator(root_dir, video_svc, schedule_store, monkeypatch)
 
     ctx = PhaseContext(
         job_id="job-001",
@@ -165,7 +170,7 @@ def test_final_rendering_allows_missing_srt_when_skip_subtitle_is_enabled(
 
     video_svc = StubVideoService()
     schedule_store = StubScheduleStore(root_dir)
-    orchestrator = _make_orchestrator(root_dir, video_svc, schedule_store)
+    orchestrator = _make_orchestrator(root_dir, video_svc, schedule_store, monkeypatch)
 
     ctx = PhaseContext(
         job_id="job-001",

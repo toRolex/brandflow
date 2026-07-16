@@ -22,6 +22,7 @@ from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 from packages.pipeline_services.media_compositor import MediaCompositor
 from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
+from packages.pipeline_services.tts_provider import _TTSConfigShim, create_tts_provider
 from packages.pipeline_services.video_service import VideoService
 from packages.provider_config.config_resolver import ConfigResolver
 from packages.provider_config.config_reader import ConfigReader
@@ -56,40 +57,6 @@ def create_orchestrator(
         video_svc=VideoService(dry_run=False),
         config_resolver=ConfigResolver(reader=config_reader),
     )
-
-
-# ---------------------------------------------------------------------------
-# TTS config shim (duck-type, preserves tts_provider.synthesize() API)
-# ---------------------------------------------------------------------------
-
-
-class _TTSConfigShim:
-    """Duck-type config object built from the TTS config dict.
-
-    Preserves the interface expected by ``tts_provider.synthesize()``.
-    """
-
-    def __init__(self, cfg: dict[str, Any]) -> None:
-        self.model: str = cfg.get("model", "mimo-v2.5-tts")
-        self.voice: str = cfg.get("voice", "Mia")
-        self.instructions: str = cfg.get("instructions", "")
-        self.language_type: str = cfg.get("language_type", "")
-        self.optimize_instructions: bool = cfg.get("optimize_instructions", False)
-        self.fallback_voice: str = cfg.get("fallback_voice", "Dean")
-        self.randomize_voice: bool = cfg.get("randomize_voice", False)
-        self.random_voices: list[str] = cfg.get("random_voices", ["Mia", "Dean"])
-        self.style_control_mode: str = cfg.get("style_control_mode", "simple")
-        self.style_prompt: str = cfg.get("style_prompt", "自然 清晰")
-        self.voice_design_prompt: str = cfg.get("voice_design_prompt", "")
-        self.audio_format: str = cfg.get("audio_format", "wav")
-        self.audio_tags_enabled: bool = cfg.get("audio_tags_enabled", False)
-        self.audio_tags: str = cfg.get("audio_tags", "")
-        self.voice_clone_sample_path: str = cfg.get("voice_clone_sample_path", "")
-        self.voice_clone_mime_type: str = cfg.get("voice_clone_mime_type", "")
-        self.optimize_text_preview: bool = cfg.get("optimize_text_preview", False)
-        self.director_character: str = cfg.get("director_character", "")
-        self.director_scene: str = cfg.get("director_scene", "")
-        self.director_guidance: str = cfg.get("director_guidance", "")
 
 
 # ---------------------------------------------------------------------------
@@ -284,34 +251,6 @@ class PhaseOrchestrator:
 
         return [c.name for c in default_categories()]
 
-    def _build_tts_provider(self, tts_cfg: dict[str, Any]) -> Any:
-        """Build TTS provider dynamically from current config.
-
-        Reads model from *tts_cfg* and returns the matching provider instance
-        so that config changes (e.g. mimo to qwen) take effect immediately
-        without restarting the worker.
-
-        API keys are resolved via SecretStore (replaces inline os.getenv closures).
-        """
-        from packages.pipeline_services.tts_provider import (
-            MiMoTTSProvider,
-            QwenTTSProvider,
-        )
-
-        tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
-
-        if tts_model.startswith("qwen"):
-            return QwenTTSProvider(
-                api_key=self._secrets.get_api_key("qwen"),
-                base_url=self._secrets.get_api_base_url("qwen")
-                or "https://dashscope.aliyuncs.com/api/v1",
-            )
-        return MiMoTTSProvider(
-            api_key=self._secrets.get_api_key("mimo"),
-            base_url=self._secrets.get_api_base_url("mimo")
-            or "https://api.xiaomimimo.com/v1",
-        )
-
     # -- script_generating handler ------------------------------------------
 
     def _run_script(self, ctx: PhaseContext) -> list[ArtifactPointer]:
@@ -469,7 +408,7 @@ class PhaseOrchestrator:
                 tts_cfg["voice"] = job_tts_voice
 
             config = _TTSConfigShim(tts_cfg)
-            tts_provider = self._build_tts_provider(tts_cfg)
+            tts_provider = create_tts_provider(tts_cfg, self._secrets)
             audio_bytes = tts_provider.synthesize(existing_script, config)
             audio_path.write_bytes(audio_bytes)
             print(
