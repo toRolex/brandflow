@@ -250,6 +250,7 @@ function BatchJobCard({
 }: BatchJobCardProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const isImport = config.productionMode === "import";
+  const showScriptInput = config.scriptMode === "manual";
   const coverBtnDisabled = config.productionMode === "generate" || coverCooldown;
   const coverBtnTitle = coverCooldown
     ? "冷却中，请等待 5 秒"
@@ -319,7 +320,7 @@ function BatchJobCard({
                 ? { background: "var(--btn-primary-bg)", color: "var(--btn-primary-text)" }
                 : { background: "var(--bg-card)", color: "var(--text-secondary)" }
             }
-            onClick={() => updateConfig({ productionMode: "generate", scriptMode: "auto" })}
+            onClick={() => updateConfig({ productionMode: "generate" })}
           >
             智能生成
           </button>
@@ -331,15 +332,15 @@ function BatchJobCard({
                 ? { background: "var(--btn-primary-bg)", color: "var(--btn-primary-text)" }
                 : { background: "var(--bg-card)", color: "var(--text-secondary)" }
             }
-            onClick={() => updateConfig({ productionMode: "import", scriptMode: "manual" })}
+            onClick={() => updateConfig({ productionMode: "import" })}
           >
             手动导入
           </button>
         </div>
       </div>
 
-      {/* Import: script textarea */}
-      {isImport && (
+      {/* Script textarea for manual mode (works in both generate and import) */}
+      {showScriptInput && (
         <textarea
           className="w-full border rounded-lg px-3 py-2 text-sm min-h-[80px] mb-3"
           style={{ borderColor: "var(--border-default)", background: "var(--bg-input)", color: "var(--text-primary)" }}
