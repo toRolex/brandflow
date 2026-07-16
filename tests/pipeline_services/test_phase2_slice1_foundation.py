@@ -162,6 +162,22 @@ class TestImportModeQueued:
             action.handler_phase is None or action.handler_phase != "script_generating"
         )
 
+    def test_queued_import_with_manual_script_still_routes_to_scene_assembling(
+        self,
+    ) -> None:
+        """manual_script must not reroute an import-mode job to generate flow."""
+        action = _compute_transition(
+            make_record(
+                phase="queued",
+                mode="import",
+                manual_script="手动文案不应改变 import 路由",
+            ),
+            (),
+        )
+        assert action.run_handler is False
+        assert action.new_phase == "scene_assembling"
+        assert action.handler_phase is None
+
 
 class TestImportModeSceneAssembling:
     def test_scene_assembling_parallel_dispatch(self) -> None:

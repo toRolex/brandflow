@@ -12,6 +12,35 @@ def _make_client(tmp_path: Path):
     return TestClient(create_app(tmp_path))
 
 
+# ── 手动脚本更新不影响模式路由 ────────────────────────────────────
+
+
+def test_update_manual_script_preserves_import_mode(tmp_path: Path) -> None:
+    """修改 manual_script 后，import 模式任务仍保持 import 模式。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "初始文案",
+        },
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+
+    resp = client.post(
+        f"/api/jobs/{job_id}/script",
+        json={"manual_script": "修改后的文案"},
+    )
+    assert resp.status_code == 200
+
+    detail = client.get(f"/api/jobs/{job_id}").json()
+    assert detail["mode"] == "import"
+    assert detail["manual_script"] == "修改后的文案"
+
+
 # ── 单个 create_job ──────────────────────────────────────────────
 
 
