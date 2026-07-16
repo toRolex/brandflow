@@ -4,6 +4,9 @@ Each phase handler is a thin adapter: prepare inputs → call an injected seam
 → assemble artifact pointers.  All configuration resolution is delegated to the
 injected ``ConfigResolver``; all media composition is delegated to the injected
 ``MediaCompositor``.
+
+Supports **Generate** mode (LLM script → TTS → asset retrieval → video) and
+**Import** mode (scene assembly + montage assembly with parallel TTS/subtitle).
 """
 
 from __future__ import annotations
@@ -15,12 +18,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Callable
 
 from packages.domain_core.models import ArtifactPointer
 from packages.pipeline_services.media_compositor import MediaCompositor
 from packages.pipeline_services.script_service import (
+    build_generator_config,
     generate_cover_title,
     generate_script,
 )
@@ -123,7 +126,10 @@ class PhaseOrchestrator:
     # -- public interface ---------------------------------------------------
 
     def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """Execute *phase* and return the artifacts it produced."""
+        """Execute *phase* and return the artifacts it produced.
+
+        Raises ``ValueError`` if *phase* is unknown.
+        """
         handler = self._handlers.get(phase)
         if handler is None:
             raise ValueError(
@@ -134,7 +140,16 @@ class PhaseOrchestrator:
     def run_phases_parallel(
         self, phases: list[str], ctx: PhaseContext
     ) -> dict[str, list[ArtifactPointer]]:
-        """Execute multiple phases concurrently via ``ThreadPoolExecutor``."""
+        """Execute multiple phases concurrently via ``ThreadPoolExecutor``.
+
+        Each phase runs its registered handler. Failures propagate to the
+        caller so the state machine can mark the job as failed.
+
+        Returns
+        -------
+        dict[str, list[ArtifactPointer]]
+            Mapping from phase name to its produced artifacts.
+        """
         results: dict[str, list[ArtifactPointer]] = {}
 
         with ThreadPoolExecutor(max_workers=len(phases)) as executor:
@@ -199,15 +214,8 @@ class PhaseOrchestrator:
     def _to_cantonese(self, text: str, ctx: PhaseContext) -> str:
         """Convert *text* to Cantonese using the configured LLM."""
         try:
-            llm_cfg, api_key, api_url = self._config_resolver.llm(
-                product_id=ctx.product
-            )
             gen = ScriptGenerator(
-                SimpleNamespace(
-                    api_key=api_key,
-                    base_url=api_url,
-                    model=llm_cfg.get("model", "deepseek-v4-pro"),
-                )
+                build_generator_config(self._config_resolver, ctx.product)
             )
             converted = gen.to_cantonese(text, ctx.product, ctx.brand)
             print("[SCRIPT] Converted manual script to Cantonese", flush=True)
@@ -511,7 +519,10 @@ class PhaseOrchestrator:
     # -- scene_assembling handler (import mode) --------------------------------
 
     def _run_scene_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """scene_assembling: build scene segment from scene folders with crossfade transitions."""
+        """scene_assembling: build scene segment from scene folders with crossfade transitions.
+
+        Fallback: single clip is copied directly; zero clips returns an empty list.
+        """
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
 
@@ -563,7 +574,13 @@ class PhaseOrchestrator:
     # -- montage_assembling handler (import mode) ------------------------------
 
     def _run_montage_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """montage_assembling: merge scene segment + base video into assembled video."""
+        """montage_assembling: merge scene segment + base video into assembled video.
+
+        ``concat_two`` normalises both inputs to 720x1280 before concatenation,
+        so the output always matches the pipeline target spec regardless of input
+        resolution.  Fallback: if only one of scene/base exists, it is copied
+        directly (no normalisation applied).
+        """
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
         scene_path = job_dir / "scene_segment.mp4"

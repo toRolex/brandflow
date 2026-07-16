@@ -70,6 +70,10 @@ class QwenTTSProvider:
 
     def synthesize(self, text: str, config: Any) -> bytes:
         payload = self._build_payload(text, config)
+        print(
+            f"[TTS DEBUG] Qwen TTS: model={config.model} text_len={len(text)}",
+            flush=True,
+        )
         resp = self._http_post(payload)
 
         if resp.status_code == 429:
@@ -239,6 +243,11 @@ class MiMoTTSProvider:
     def synthesize(self, text: str, config: Any) -> bytes:
         """完整 TTS 调用：构建请求 → HTTP → 解析响应 → 返回音频字节。"""
         payload = self._build_request(text, config)
+        print(
+            f"[TTS DEBUG] MiMo TTS: model={config.model} voice={config.voice}"
+            f" text_len={len(text)}",
+            flush=True,
+        )
         url = f"{self.base_url}/chat/completions"
         headers = {
             "api-key": self.api_key,
