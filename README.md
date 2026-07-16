@@ -152,7 +152,7 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 
 ### 脚本模板（Issue #33）
 
-创建可复用的脚本模板，Job 创建（Import 模式）选择模板并填充变量后自动生成 `manual_script`。
+创建可复用的脚本模板，Job 创建时选择模板并填充变量后自动生成 `manual_script`；Import 与 Generate 模式下均可填写或粘贴口播文案，非空时跳过 LLM 生成。
 
 | 端点 | 方法 | 说明 |
 |------|------|------|

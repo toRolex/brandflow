@@ -101,7 +101,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 
   const handleGenerateCoverTitle = async () => {
     if (coverTitleCooldown) return;
-    const text = isImport ? manualScript : "";
+    const text = manualScript;
     if (!text.trim()) return;
     setCoverTitleCooldown(true);
     try {
@@ -122,7 +122,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
       platforms,
       name: jobName || undefined,
       mode: productionMode,
-      manual_script: isImport ? manualScript : "",
+      manual_script: manualScript,
       audio_source: audioMode,
       audioFile,
       music_track_path: selectedMusic,
@@ -134,11 +134,11 @@ export default function CreateJobForm(props: CreateJobFormProps) {
     });
   };
 
-  const coverBtnDisabled = productionMode === "generate" || coverTitleCooldown;
+  const coverBtnDisabled = coverTitleCooldown || !manualScript.trim();
   const coverBtnTitle = coverTitleCooldown
     ? "冷却中，请等待 5 秒"
-    : productionMode === "generate"
-      ? "智能生成模式下由 LLM 自动生成封面标题，无需手动生成"
+    : !manualScript.trim()
+      ? "需先输入文案才能生成"
       : "";
 
   return (
@@ -243,10 +243,10 @@ export default function CreateJobForm(props: CreateJobFormProps) {
           </label>
         </div>
 
-        {/* Import: script textarea + template */}
-        {isImport && (
-          <div>
-            {/* Script Template Selector */}
+        {/* Script input: available for both generate and import modes */}
+        <div>
+          {isImport && (
+            /* Script Template Selector */
             <div className="mb-3">
               <label className="flex items-center gap-2 text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
                 <input
@@ -339,19 +339,19 @@ export default function CreateJobForm(props: CreateJobFormProps) {
                 </div>
               )}
             </div>
-            <textarea
-              className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px]"
-              style={{ borderColor: "var(--border-default)", background: "var(--bg-input)", color: "var(--text-primary)" }}
-              placeholder="请输入文案内容（150-200字）..."
-              value={manualScript}
-              onChange={(e) => setManualScript(e.target.value)}
-            />
-          </div>
-        )}
+          )}
+          <textarea
+            className="w-full border rounded-lg px-3 py-2 text-sm min-h-[120px]"
+            style={{ borderColor: "var(--border-default)", background: "var(--bg-input)", color: "var(--text-primary)" }}
+            placeholder="请输入文案内容（150-200字）..."
+            value={manualScript}
+            onChange={(e) => setManualScript(e.target.value)}
+          />
+        </div>
 
         {!isImport && (
           <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-            LLM 将根据产品信息自动生成口播脚本
+            留空则由 LLM 根据产品信息自动生成口播脚本
           </p>
         )}
       </div>
