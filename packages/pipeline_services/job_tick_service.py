@@ -1,8 +1,8 @@
 """Pure-function state machine for job phase transitions.
 
-Defines types (TickAction, TickSummary, PhaseExecutionError) and the pure
-transition function _compute_transition that decides what should happen next
-given a JobRecord and the artifacts produced by the current phase handler.
+Defines types (TickAction, TickSummary) and the pure transition function
+_compute_transition that decides what should happen next given a JobRecord
+and the artifacts produced by the current phase handler.
 
 This module has zero I/O and zero side effects — all transition logic is
 contained in a single referentially transparent function.
@@ -97,16 +97,6 @@ class TickSummary:
     from_phase: str
     to_phase: str
     message: str = ""
-
-
-class PhaseExecutionError(Exception):
-    """Raised when a phase handler fails with an unexpected error."""
-
-    def __init__(self, job_id: str, phase: str, message: str, cause: Exception):
-        self.job_id = job_id
-        self.phase = phase
-        self.cause = cause
-        super().__init__(f"[{job_id}] {phase}: {message}")
 
 
 # ---------------------------------------------------------------------------
@@ -390,10 +380,11 @@ def _transition_after_artifacts(
             message="video_rendering produced no artifacts, will retry next tick",
         )
 
-    # 2b. subtitle_generating: stay in phase (critical — do not auto-advance)
+    # 2b. subtitle_generating: no artifacts means the handler failed
     if effective_phase == "subtitle_generating":
         return TickAction(
-            message="subtitle_generating produced no artifacts, staying in phase",
+            new_phase="failed",
+            message="subtitle_generating produced no artifacts, marking failed",
         )
 
     # 2c. asset_retrieving: auto-advance on no artifacts (transitional phase)
@@ -471,12 +462,9 @@ class JobTickService:
         Returns
         -------
         TickSummary
-            Describes what happened during this tick cycle.
-
-        Raises
-        ------
-        PhaseExecutionError
-            When a phase handler raises an unexpected exception.
+            Describes what happened during this tick cycle. When a phase
+            handler raises an unexpected exception, the job is marked
+            ``failed`` and the summary has ``action="failed"``.
         """
         # 1. Load current state
         record = self._repo.load_job(project_id, job_id)
@@ -550,7 +538,19 @@ class JobTickService:
                 else:
                     artifacts = self._orchestrator.run_phase(handler_phase, ctx)
             except Exception as e:
-                raise PhaseExecutionError(job_id, handler_phase, str(e), e) from e
+                record = record.model_copy(
+                    update={
+                        "phase": "failed",
+                        "last_error": f"{handler_phase}: {e}",
+                    }
+                )
+                self._repo.save_job(project_id, record)
+                return TickSummary(
+                    action="failed",
+                    from_phase=initial_phase,
+                    to_phase="failed",
+                    message=f"{handler_phase}: {e}",
+                )
 
             # Merge new artifacts
             record.artifacts = _merge_artifacts(record.artifacts, artifacts)
