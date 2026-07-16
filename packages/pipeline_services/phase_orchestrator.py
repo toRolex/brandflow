@@ -174,8 +174,8 @@ class PhaseOrchestrator:
     ) -> dict[str, list[ArtifactPointer]]:
         """Execute multiple phases concurrently via ``ThreadPoolExecutor``.
 
-        Each phase runs its registered handler.  Errors are caught per-phase
-        so that one failure does not kill the entire batch.
+        Each phase runs its registered handler. Failures propagate to the
+        caller so the state machine can mark the job as failed.
 
         Returns
         -------
@@ -190,11 +190,7 @@ class PhaseOrchestrator:
             }
             for future in as_completed(future_map):
                 phase_name = future_map[future]
-                try:
-                    results[phase_name] = future.result()
-                except Exception as e:
-                    print(f"[PARALLEL] Phase {phase_name} failed: {e}", flush=True)
-                    results[phase_name] = []
+                results[phase_name] = future.result()
 
         return results
 
@@ -437,11 +433,10 @@ class PhaseOrchestrator:
 
         if uploaded_audio_path:
             src_audio = ctx.root_dir / uploaded_audio_path
-            if src_audio.exists():
-                shutil.copy2(src_audio, audio_path)
-                print(f"[TTS] Using uploaded audio: {src_audio}", flush=True)
-            else:
-                print(f"[TTS WARN] Uploaded audio not found: {src_audio}", flush=True)
+            if not src_audio.exists():
+                raise FileNotFoundError(f"Uploaded audio not found: {src_audio}")
+            shutil.copy2(src_audio, audio_path)
+            print(f"[TTS] Using uploaded audio: {src_audio}", flush=True)
         else:
             existing_script = self._discover_script(job_dir)
             print(
@@ -449,35 +444,29 @@ class PhaseOrchestrator:
                 f"len={len(existing_script) if existing_script else 0}",
                 flush=True,
             )
-            if existing_script:
-                try:
-                    tts_cfg = self._resolve_tts_config(ctx)
+            if not existing_script:
+                raise RuntimeError(f"No script text found in {job_dir}")
 
-                    # Apply job-level TTS overrides (tts_model / tts_voice)
-                    # Priority: job override > provider defaults > global/product config
-                    job_tts_model: str = ctx.options.get("tts_model", "")
-                    job_tts_voice: str = ctx.options.get("tts_voice", "")
-                    if job_tts_model:
-                        tts_cfg["model"] = job_tts_model
-                    if job_tts_voice:
-                        tts_cfg["voice"] = job_tts_voice
+            tts_cfg = self._resolve_tts_config(ctx)
 
-                    config = _TTSConfigShim(tts_cfg)
-                    tts_provider = self._build_tts_provider(tts_cfg)
-                    audio_bytes = tts_provider.synthesize(existing_script, config)
-                    audio_path.write_bytes(audio_bytes)
-                    print(
-                        f"[TTS] Synthesized: {audio_path.exists()}, "
-                        f"size={audio_path.stat().st_size if audio_path.exists() else 0}",
-                        flush=True,
-                    )
-                except Exception as e:
-                    print(f"[TTS ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback
+            # Apply job-level TTS overrides (tts_model / tts_voice)
+            # Priority: job override > provider defaults > global/product config
+            job_tts_model: str = ctx.options.get("tts_model", "")
+            job_tts_voice: str = ctx.options.get("tts_voice", "")
+            if job_tts_model:
+                tts_cfg["model"] = job_tts_model
+            if job_tts_voice:
+                tts_cfg["voice"] = job_tts_voice
 
-                    traceback.print_exc()
-            else:
-                print(f"[TTS WARN] No script text found in {job_dir}", flush=True)
+            config = _TTSConfigShim(tts_cfg)
+            tts_provider = self._build_tts_provider(tts_cfg)
+            audio_bytes = tts_provider.synthesize(existing_script, config)
+            audio_path.write_bytes(audio_bytes)
+            print(
+                f"[TTS] Synthesized: {audio_path.exists()}, "
+                f"size={audio_path.stat().st_size if audio_path.exists() else 0}",
+                flush=True,
+            )
 
         if audio_path.exists():
             result.append(self._to_artifact("tts_audio", audio_path, workspace_dir))
@@ -505,23 +494,22 @@ class PhaseOrchestrator:
             f"[SUBTITLE] audio exists={audio_path.exists()}, srt exists={srt_path.exists()}",
             flush=True,
         )
-        if audio_path.exists():
-            script_text = self._discover_script(job_dir) or ""
-            print(
-                f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}",
-                flush=True,
-            )
-            if script_text:
-                try:
-                    self._subtitle_svc.build_srt(audio_path, srt_path, script_text)
-                    print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
-                except Exception as e:
-                    print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback
+        if not audio_path.exists():
+            raise FileNotFoundError(f"audio.mp3 not found in {job_dir}")
+        script_text = self._discover_script(job_dir) or ""
+        print(
+            f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}",
+            flush=True,
+        )
+        if script_text:
+            try:
+                self._subtitle_svc.build_srt(audio_path, srt_path, script_text)
+                print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
+            except Exception as e:
+                print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
+                import traceback
 
-                    traceback.print_exc()
-        else:
-            print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
+                traceback.print_exc()
         if srt_path.exists():
             return [self._to_artifact("subtitle", srt_path, workspace_dir)]
         return []

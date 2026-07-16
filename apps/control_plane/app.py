@@ -25,10 +25,7 @@ from apps.control_plane.routes.templates import router as templates_router
 from apps.control_plane.routes.products import router as products_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
-from packages.pipeline_services.job_tick_service import (
-    JobTickService,
-    PhaseExecutionError,
-)
+from packages.pipeline_services.job_tick_service import JobTickService
 from packages.pipeline_services.phase_orchestrator import create_orchestrator
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.product_store import ProductStore
@@ -90,11 +87,6 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
                                 f"[AUTO-TICK] {job_id}: {summary.from_phase} -> {summary.to_phase} ({summary.action})",
                                 flush=True,
                             )
-                    except PhaseExecutionError as e:
-                        print(
-                            f"[AUTO-TICK] {e.job_id}: {e.phase} phase failed: {e}",
-                            flush=True,
-                        )
                     except Exception as e:
                         print(f"[AUTO-TICK ERROR] {f.name}: {e}", flush=True)
                         import traceback
