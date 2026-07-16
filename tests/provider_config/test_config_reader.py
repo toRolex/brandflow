@@ -65,6 +65,117 @@ class TestConstructorMigration:
 
 
 # ---------------------------------------------------------------------------
+# Seam: get(section, product_id=None)
+# ---------------------------------------------------------------------------
+
+
+class TestConfigReaderGet:
+    def test_get_returns_defaults_for_all_known_sections(self) -> None:
+        """无 root 无 product 配置时，get() 对所有已知 section 返回 DEFAULTS。"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(tmpdir, {})
+            reader = ConfigReader(config_dir=tmpdir)
+            assert reader.get("tts")["provider"] == "qwen"
+            assert reader.get("llm")["provider"] == "deepseek"
+            assert reader.get("vision")["provider"] == "xiaomi"
+            assert reader.get("media")["ffmpeg_path"] == "ffmpeg"
+            assert (
+                reader.get("video")["cover_title_style"]["primary_color"] == "#FFD700"
+            )
+            assert reader.get("asset_library")["category_suggestion_sample_size"] == 20
+            assert reader.get("scene")["transition_duration_ms"] == 500
+            assert reader.get("product")["default_name"] == ""
+
+    def test_get_unknown_section_returns_empty_dict(self) -> None:
+        """section 不存在时返回空 dict，不抛异常。"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(tmpdir, {})
+            reader = ConfigReader(config_dir=tmpdir)
+            assert reader.get("not_a_section") == {}
+
+    def test_get_with_product_override_matches_legacy_getter(self) -> None:
+        """get('tts', product_id=...) 与 get_tts_config(product_id=...) 结果一致。"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(
+                tmpdir,
+                {
+                    "tts": {"voice": "RootVoice"},
+                    "llm": {"model": "RootLLM"},
+                    "vision": {"model": "RootVision"},
+                    "scene": {"transition_duration_ms": 300},
+                    "product": {"default_brand": "RootBrand"},
+                    "products": [
+                        {
+                            "id": "snack",
+                            "tts": {"voice": "SnackVoice"},
+                            "llm": {"thinking": "enabled"},
+                            "vision": {"provider": "openai"},
+                            "scene": {"transition_duration_ms": 600},
+                            "default_name": "零食",
+                            "default_brand": "SnackBrand",
+                        },
+                    ],
+                },
+            )
+            reader = ConfigReader(config_dir=tmpdir)
+
+            # Product overrides match legacy getters
+            assert reader.get("tts", product_id="snack") == reader.get_tts_config(
+                product_id="snack"
+            )
+            assert reader.get("llm", product_id="snack") == reader.get_llm_config(
+                product_id="snack"
+            )
+            assert reader.get("vision", product_id="snack") == reader.get_vision_config(
+                product_id="snack"
+            )
+            assert reader.get("scene", product_id="snack") == reader.get_scene_config(
+                product_id="snack"
+            )
+            assert reader.get(
+                "product", product_id="snack"
+            ) == reader.get_product_config(product_id="snack")
+
+            # Root-level configs match legacy getters (no product override)
+            assert reader.get("tts") == reader.get_tts_config()
+            assert reader.get("llm") == reader.get_llm_config()
+            assert reader.get("vision") == reader.get_vision_config()
+            assert reader.get("scene") == reader.get_scene_config()
+            assert reader.get("media") == reader.get_media_config()
+            assert reader.get("video") == reader.get_video_config()
+            assert reader.get("asset_library") == reader.get_asset_library_config()
+            assert reader.get("product") == reader.get_product_config()
+
+    def test_get_product_override_values_are_correct(self) -> None:
+        """get() 的 product 覆盖逻辑产生正确的合并值。"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(
+                tmpdir,
+                {
+                    "tts": {"voice": "RootVoice", "provider": "qwen"},
+                    "products": [
+                        {
+                            "id": "snack",
+                            "tts": {"voice": "SnackVoice"},
+                        },
+                    ],
+                },
+            )
+            reader = ConfigReader(config_dir=tmpdir)
+
+            root = reader.get("tts")
+            assert root["voice"] == "RootVoice"
+            assert root["provider"] == "qwen"
+
+            prod = reader.get("tts", product_id="snack")
+            assert prod["voice"] == "SnackVoice"
+            assert prod["provider"] == "qwen"  # from DEFAULTS + root
+
+            # Unknown product falls back to root config
+            assert reader.get("tts", product_id="unknown")["voice"] == "RootVoice"
+
+
+# ---------------------------------------------------------------------------
 # Seam: get_tts_config / get_llm_config / get_vision_config
 # ---------------------------------------------------------------------------
 
