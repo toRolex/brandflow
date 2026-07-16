@@ -101,11 +101,10 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 
   const handleGenerateCoverTitle = async () => {
     if (coverTitleCooldown) return;
-    const text = manualScript;
-    if (!text.trim()) return;
+    if (!manualScript.trim()) return;
     setCoverTitleCooldown(true);
     try {
-      const res = await api.generateCoverTitle({ script_text: text, product });
+      const res = await api.generateCoverTitle({ script_text: manualScript, product });
       setCoverTitleText(res.text);
       setCoverHighlightWords(res.highlight_words.join("，"));
     } catch {
@@ -134,12 +133,8 @@ export default function CreateJobForm(props: CreateJobFormProps) {
     });
   };
 
-  const coverBtnDisabled = coverTitleCooldown || !manualScript.trim();
-  const coverBtnTitle = coverTitleCooldown
-    ? "冷却中，请等待 5 秒"
-    : !manualScript.trim()
-      ? "需先输入文案才能生成"
-      : "";
+  const hasManualScript = manualScript.trim().length > 0;
+  const canGenerateCover = !coverTitleCooldown && hasManualScript;
 
   return (
     <>
@@ -438,11 +433,13 @@ export default function CreateJobForm(props: CreateJobFormProps) {
               type="button"
               className="text-xs border rounded px-2 py-1.5 disabled:opacity-50"
               style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}
-              disabled={coverBtnDisabled}
-              title={coverBtnTitle}
+              disabled={!canGenerateCover}
+              title={!canGenerateCover
+                ? (coverTitleCooldown ? "冷却中，请等待 5 秒" : "需先输入文案才能生成")
+                : ""}
               onClick={handleGenerateCoverTitle}
             >
-              {coverTitleCooldown ? "冷却中（5s）..." : productionMode === "generate" ? "需先输入文案才能生成" : "自动生成标题"}
+              {coverTitleCooldown ? "冷却中（5s）..." : "自动生成标题"}
             </button>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
