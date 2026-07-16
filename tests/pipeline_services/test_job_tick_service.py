@@ -567,6 +567,72 @@ class TestJobTickService:
         mock_orch.run_phase.assert_called_once()
         assert mock_orch.run_phase.call_args[0][0] == "script_generating"
 
+    def test_generate_manual_script_full_chain(
+        self,
+    ) -> None:
+        """Generate + manual_script 全程：script_generating → tts_generating → asset_retrieving，不进入 scene_assembling。"""
+        record = make_record(
+            phase="queued",
+            mode="generate",
+            manual_script="手动文案",
+            auto_approve=True,
+            skip_subtitle=True,
+        )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.run_phase.return_value = [
+            ArtifactPointer(kind="artifact", relative_path="out"),
+        ]
+
+        # Persist state across ticks: save → load returns the latest saved record
+        latest: list[JobRecord] = [record]
+
+        def _load(project_id: str, job_id: str) -> JobRecord:
+            return latest[0].model_copy()
+
+        def _save(project_id: str, rec: JobRecord) -> None:
+            latest[0] = rec
+
+        mock_repo.load_job.side_effect = _load
+        mock_repo.save_job.side_effect = _save
+
+        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
+
+        handler_phases: list[str] = []
+
+        for _ in range(10):
+            mock_orch.run_phase.reset_mock()
+            mock_orch.run_phase.return_value = [
+                ArtifactPointer(kind="artifact", relative_path="out"),
+            ]
+
+            summary = svc.tick(
+                "proj-001",
+                "test-job",
+                "羊肚菌",
+                root_dir=Path("/tmp"),
+                project_dir=Path("/tmp/proj"),
+            )
+
+            if mock_orch.run_phase.called:
+                handler_phases.append(mock_orch.run_phase.call_args[0][0])
+
+            if summary.action in ("completed", "failed"):
+                break
+
+        assert len(handler_phases) >= 4
+        assert "scene_assembling" not in handler_phases
+        assert "script_generating" in handler_phases
+        assert "tts_generating" in handler_phases
+        assert "asset_retrieving" in handler_phases
+        # Verify handler call order
+        assert handler_phases.index("script_generating") < handler_phases.index(
+            "tts_generating"
+        )
+        assert handler_phases.index("tts_generating") < handler_phases.index(
+            "asset_retrieving"
+        )
+
 
 # ---------------------------------------------------------------------------
 # JobTickService.advance_after_report
