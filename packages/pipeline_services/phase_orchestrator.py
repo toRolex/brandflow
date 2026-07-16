@@ -26,7 +26,7 @@ from packages.pipeline_services.script_service import (
 )
 from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
-from packages.pipeline_services.tts_provider import create_tts_provider
+from packages.pipeline_services.tts_provider import TTSConfigShim, create_tts_provider
 from packages.pipeline_services.video_service import VideoService
 from packages.provider_config.config_resolver import ConfigResolver
 from packages.provider_config.config_reader import ConfigReader
@@ -283,9 +283,7 @@ class PhaseOrchestrator:
                 tts_cfg["voice"] = job_tts_voice
 
             provider = create_tts_provider(tts_cfg, self._config_resolver.secrets)
-            audio_bytes = provider.synthesize(
-                existing_script, SimpleNamespace(**tts_cfg)
-            )
+            audio_bytes = provider.synthesize(existing_script, TTSConfigShim(tts_cfg))
             audio_path.write_bytes(audio_bytes)
             print(
                 f"[TTS] Synthesized: {audio_path.exists()}, "

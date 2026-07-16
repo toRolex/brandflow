@@ -317,7 +317,7 @@ class MiMoTTSProvider:
 # ---------------------------------------------------------------------------
 
 
-class _TTSConfigShim:
+class TTSConfigShim:
     """Duck-type config object built from the TTS config dict.
 
     Preserves the interface expected by ``tts_provider.synthesize()``.
@@ -344,6 +344,10 @@ class _TTSConfigShim:
         self.director_character: str = cfg.get("director_character", "")
         self.director_scene: str = cfg.get("director_scene", "")
         self.director_guidance: str = cfg.get("director_guidance", "")
+
+
+# Backward compat alias
+_TTSConfigShim = TTSConfigShim
 
 
 # ---------------------------------------------------------------------------
