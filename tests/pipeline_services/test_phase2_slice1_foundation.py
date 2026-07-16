@@ -279,7 +279,7 @@ class TestImportModeSkipReviews:
 
 
 class TestRunPhasesParallel:
-    def test_executes_all_phases(self) -> None:
+    def test_executes_all_phases(self, monkeypatch) -> None:
         """run_phases_parallel executes every phase in the list."""
         orch = PhaseOrchestrator(
             *[MagicMock()] * 3,
@@ -287,7 +287,10 @@ class TestRunPhasesParallel:
         )
         mock_tts = MagicMock()
         mock_tts.synthesize.return_value = b"fake_audio"
-        orch._build_tts_provider = lambda cfg: mock_tts
+        monkeypatch.setattr(
+            "packages.pipeline_services.phase_orchestrator.create_tts_provider",
+            lambda cfg, secrets: mock_tts,
+        )
         root_dir = Path("/tmp")
         project_dir = root_dir / "workspace" / "projects" / "proj-001"
         job_dir = project_dir / "runtime" / "jobs" / "job-001"

@@ -714,7 +714,9 @@ class TestAdvanceAfterReport:
 class TestManualScriptConsistency:
     """Regression: manual_script text preserved through _run_script → _run_tts → _run_subtitle."""
 
-    def test_manual_script_preserved_through_pipeline(self, tmp_path: Path) -> None:
+    def test_manual_script_preserved_through_pipeline(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         manual_text = "这是用户提交的口播文案。用于短视频配音。确保完全一致。"
         job_id = "test-job-consistency"
         root_dir = tmp_path
@@ -736,7 +738,10 @@ class TestManualScriptConsistency:
         # Mock TTS provider to avoid real API calls
         mock_tts = Mock()
         mock_tts.synthesize.return_value = b"fake_audio_data"
-        orch._build_tts_provider = Mock(return_value=mock_tts)
+        monkeypatch.setattr(
+            "packages.pipeline_services.phase_orchestrator.create_tts_provider",
+            lambda cfg, secrets: mock_tts,
+        )
 
         ctx = PhaseContext(
             job_id=job_id,

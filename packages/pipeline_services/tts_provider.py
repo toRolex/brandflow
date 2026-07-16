@@ -5,6 +5,8 @@ from typing import Any
 
 import requests
 
+from packages.provider_config.secret_store import SecretStore
+
 
 class TTSError(Exception):
     pass
@@ -308,3 +310,65 @@ class MiMoTTSProvider:
             return None
 
         return _search(body)
+
+
+# ---------------------------------------------------------------------------
+# TTS config shim (duck-type, preserves synthesize() API)
+# ---------------------------------------------------------------------------
+
+
+class _TTSConfigShim:
+    """Duck-type config object built from the TTS config dict.
+
+    Preserves the interface expected by ``tts_provider.synthesize()``.
+    """
+
+    def __init__(self, cfg: dict[str, Any]) -> None:
+        self.model: str = cfg.get("model", "mimo-v2.5-tts")
+        self.voice: str = cfg.get("voice", "Mia")
+        self.instructions: str = cfg.get("instructions", "")
+        self.language_type: str = cfg.get("language_type", "")
+        self.optimize_instructions: bool = cfg.get("optimize_instructions", False)
+        self.fallback_voice: str = cfg.get("fallback_voice", "Dean")
+        self.randomize_voice: bool = cfg.get("randomize_voice", False)
+        self.random_voices: list[str] = cfg.get("random_voices", ["Mia", "Dean"])
+        self.style_control_mode: str = cfg.get("style_control_mode", "simple")
+        self.style_prompt: str = cfg.get("style_prompt", "自然 清晰")
+        self.voice_design_prompt: str = cfg.get("voice_design_prompt", "")
+        self.audio_format: str = cfg.get("audio_format", "wav")
+        self.audio_tags_enabled: bool = cfg.get("audio_tags_enabled", False)
+        self.audio_tags: str = cfg.get("audio_tags", "")
+        self.voice_clone_sample_path: str = cfg.get("voice_clone_sample_path", "")
+        self.voice_clone_mime_type: str = cfg.get("voice_clone_mime_type", "")
+        self.optimize_text_preview: bool = cfg.get("optimize_text_preview", False)
+        self.director_character: str = cfg.get("director_character", "")
+        self.director_scene: str = cfg.get("director_scene", "")
+        self.director_guidance: str = cfg.get("director_guidance", "")
+
+
+# ---------------------------------------------------------------------------
+# TTS provider factory
+# ---------------------------------------------------------------------------
+
+
+def create_tts_provider(
+    config: dict[str, Any], secrets: SecretStore
+) -> QwenTTSProvider | MiMoTTSProvider:
+    """Build a TTS provider instance from the current config dict.
+
+    Model prefix ``qwen`` selects ``QwenTTSProvider``; everything else selects
+    ``MiMoTTSProvider``. API keys and base URLs are resolved via ``SecretStore``
+    so configuration changes take effect without restarting the worker.
+    """
+    tts_model = config.get("model", "mimo-v2.5-tts") or ""
+
+    if tts_model.startswith("qwen"):
+        base_url = secrets.get_api_base_url("qwen")
+        if not base_url:
+            base_url = "https://dashscope.aliyuncs.com/api/v1"
+        return QwenTTSProvider(api_key=secrets.get_api_key("qwen"), base_url=base_url)
+
+    base_url = secrets.get_api_base_url("mimo")
+    if not base_url:
+        base_url = "https://api.xiaomimimo.com/v1"
+    return MiMoTTSProvider(api_key=secrets.get_api_key("mimo"), base_url=base_url)
