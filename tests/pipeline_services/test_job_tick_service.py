@@ -724,15 +724,17 @@ class TestManualScriptConsistency:
 
         # PhaseOrchestrator with mocked external deps
         mock_config = Mock()
-        mock_config.get_tts_config.return_value = {
+        mock_config.tts.return_value = {
             "model": "test-model",
             "voice": "test-voice",
         }
+        mock_config.secrets = Mock()
         orch = PhaseOrchestrator(
-            script_bridge=Mock(),
+            script_generator=Mock(),
             subtitle_svc=Mock(),
             video_svc=Mock(),
-            config_reader=mock_config,
+            media_compositor=Mock(),
+            config_resolver=mock_config,
         )
 
         # Mock TTS provider to avoid real API calls
