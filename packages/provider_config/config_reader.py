@@ -45,65 +45,53 @@ class ConfigReader:
         with self._lock:
             return self._raw.get("active_product_id", "")
 
+    def get(self, section: str, product_id: str | None = None) -> dict[str, Any]:
+        """Return merged config for *section*.
+
+        When *product_id* is given and the section has product-level overrides,
+        the product-specific merged config is returned.  If *section* is unknown,
+        an empty dict is returned.
+        """
+        with self._lock:
+            if section not in self._cache:
+                return {}
+            if product_id and product_id in self._product_cache:
+                return self._product_cache[product_id].get(
+                    section, self._cache[section]
+                )
+            return self._cache[section]
+
     def get_tts_config(self, product_id: str | None = None) -> dict[str, Any]:
         """Return TTS config.  When *product_id* is given, product overrides are applied."""
-        if product_id:
-            with self._lock:
-                if product_id in self._product_cache:
-                    return self._product_cache[product_id]["tts"]
-        with self._lock:
-            return self._cache["tts"]
+        return self.get("tts", product_id=product_id)
 
     def get_llm_config(self, product_id: str | None = None) -> dict[str, Any]:
         """Return LLM config.  When *product_id* is given, product overrides are applied."""
-        if product_id:
-            with self._lock:
-                if product_id in self._product_cache:
-                    return self._product_cache[product_id]["llm"]
-        with self._lock:
-            return self._cache["llm"]
+        return self.get("llm", product_id=product_id)
 
     def get_vision_config(self, product_id: str | None = None) -> dict[str, Any]:
         """Return Vision config.  When *product_id* is given, product overrides are applied."""
-        if product_id:
-            with self._lock:
-                if product_id in self._product_cache:
-                    return self._product_cache[product_id]["vision"]
-        with self._lock:
-            return self._cache["vision"]
+        return self.get("vision", product_id=product_id)
 
     def get_scene_config(self, product_id: str | None = None) -> dict[str, Any]:
         """Return Scene config.  Product-level scene overrides top-level scene."""
-        if product_id:
-            with self._lock:
-                if product_id in self._product_cache:
-                    return self._product_cache[product_id]["scene"]
-        with self._lock:
-            return self._cache["scene"]
+        return self.get("scene", product_id=product_id)
 
     def get_media_config(self) -> dict[str, Any]:
         """Return media config (no product override)."""
-        with self._lock:
-            return self._cache["media"]
+        return self.get("media")
 
     def get_video_config(self) -> dict[str, Any]:
         """Return video config (no product override)."""
-        with self._lock:
-            return self._cache["video"]
+        return self.get("video")
 
     def get_asset_library_config(self) -> dict[str, Any]:
         """Return asset-library config (no product override)."""
-        with self._lock:
-            return self._cache["asset_library"]
+        return self.get("asset_library")
 
     def get_product_config(self, product_id: str | None = None) -> dict[str, Any]:
         """Return product config for *product_id* (or root-default when None)."""
-        if product_id:
-            with self._lock:
-                if product_id in self._product_cache:
-                    return self._product_cache[product_id]["product"]
-        with self._lock:
-            return self._cache["product"]
+        return self.get("product", product_id=product_id)
 
     def get_product_value(
         self, key: str, default: Any = None, product_id: str | None = None
