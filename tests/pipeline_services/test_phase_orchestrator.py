@@ -456,15 +456,13 @@ class TestRunTTSScriptDiscovery:
         mock_tts.synthesize.assert_called_once()
         assert mock_tts.synthesize.call_args[0][0] == "JSON 文案内容。"
 
-    def test_no_script_produces_empty_artifacts(self, ctx: PhaseContext):
-        """No script file → no synthesis, empty artifacts."""
+    def test_no_script_raises(self, ctx: PhaseContext):
+        """No script file → raise RuntimeError."""
         mock_tts = MagicMock()
         orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
 
-        artifacts = orch.run_phase("tts_generating", ctx)
-
-        mock_tts.synthesize.assert_not_called()
-        assert artifacts == []
+        with pytest.raises(RuntimeError, match="No script text found"):
+            orch.run_phase("tts_generating", ctx)
 
 
 class TestRunTTSUploadedAudio:
@@ -503,8 +501,8 @@ class TestRunTTSUploadedAudio:
         assert len(artifacts) == 1
         assert artifacts[0].kind == "tts_audio"
 
-    def test_missing_uploaded_audio_no_crash(self, tmp_path: Path, capsys):
-        """When uploaded path doesn't exist, logs warning but doesn't crash."""
+    def test_missing_uploaded_audio_raises(self, tmp_path: Path):
+        """When uploaded path doesn't exist, raise FileNotFoundError."""
         root_dir = tmp_path
         project_dir = tmp_path / "workspace" / "projects" / "proj-001"
         project_dir.mkdir(parents=True)
@@ -520,16 +518,14 @@ class TestRunTTSUploadedAudio:
         mock_tts = MagicMock()
         orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
 
-        artifacts = orch.run_phase("tts_generating", ctx)
-
-        mock_tts.synthesize.assert_not_called()
-        assert artifacts == []
+        with pytest.raises(FileNotFoundError, match="Uploaded audio not found"):
+            orch.run_phase("tts_generating", ctx)
 
 
 class TestRunTTSSynthesizeError:
-    """TTS errors should be caught and logged, not propagated."""
+    """TTS provider errors should propagate to the caller."""
 
-    def test_synthesize_error_does_not_raise(self, ctx: PhaseContext, capsys):
+    def test_synthesize_error_propagates(self, ctx: PhaseContext):
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
         txt = job_dir / "口播文案.txt"
@@ -539,13 +535,42 @@ class TestRunTTSSynthesizeError:
         mock_tts.synthesize.side_effect = RuntimeError("TTS service down")
         orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
 
-        # Should NOT raise
-        artifacts = orch.run_phase("tts_generating", ctx)
-        assert artifacts == []
+        with pytest.raises(RuntimeError, match="TTS service down"):
+            orch.run_phase("tts_generating", ctx)
 
-        # Error was logged
-        captured = capsys.readouterr()
-        assert "TTS service down" in captured.out
+
+class TestRunTTSNoScriptRaises:
+    """_run_tts should raise when no script text is available."""
+
+    def test_no_script_raises_runtime_error(self, ctx: PhaseContext):
+        mock_tts = MagicMock()
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        with pytest.raises(RuntimeError, match="No script text found"):
+            orch.run_phase("tts_generating", ctx)
+
+
+class TestRunTTSUploadedAudioMissingRaises:
+    """_run_tts should raise when uploaded audio path does not exist."""
+
+    def test_missing_uploaded_audio_raises_file_not_found(self, tmp_path: Path):
+        root_dir = tmp_path
+        project_dir = tmp_path / "workspace" / "projects" / "proj-001"
+        project_dir.mkdir(parents=True)
+
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=root_dir,
+            product="test",
+            options={"uploaded_audio_path": "nonexistent/file.mp3"},
+        )
+
+        mock_tts = MagicMock()
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        with pytest.raises(FileNotFoundError, match="Uploaded audio not found"):
+            orch.run_phase("tts_generating", ctx)
 
 
 class TestRunTTSConfigBuilding:
@@ -605,6 +630,22 @@ class TestRunTTSAudioWritten:
         assert artifacts[0].kind == "tts_audio"
         assert artifacts[0].url.startswith("/workspace/")
         assert artifacts[0].size_bytes == 3
+
+
+class TestRunSubtitle:
+    """_run_subtitle should build SRT from audio + script."""
+
+    def test_missing_audio_raises_file_not_found(self, ctx: PhaseContext):
+        """audio.mp3 missing → raise FileNotFoundError."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("测试文案。", encoding="utf-8")
+
+        orch = _make_orchestrator_with_tts_config()
+
+        with pytest.raises(FileNotFoundError, match=r"audio\.mp3 not found"):
+            orch.run_phase("subtitle_generating", ctx)
 
 
 # ---------------------------------------------------------------------------

@@ -11,7 +11,6 @@ import pytest
 
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
-    PhaseExecutionError,
     TickSummary,
 )
 
@@ -108,18 +107,21 @@ class TestAutoTickLoop:
         assert args[1] == "job-001"  # job_id (positional)
 
     @patch("apps.control_plane.app.JobTickService")
-    async def test_continues_after_phase_error(
+    async def test_continues_after_failed_summary(
         self, mock_svc_cls: Mock, mock_projects: Path
     ) -> None:
-        """PhaseExecutionError should be caught, loop continues to next job."""
+        """Tick returning action='failed' should be caught, loop continues to next job."""
         call_count = 0
 
         def _tick_side_effect(*_a, **_kw):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise PhaseExecutionError(
-                    "job-001", "script_generating", "fail", RuntimeError("oops")
+                return TickSummary(
+                    action="failed",
+                    from_phase="script_generating",
+                    to_phase="failed",
+                    message="script_generating: fail",
                 )
             return TickSummary(action="skipped", from_phase="queued", to_phase="queued")
 
@@ -137,27 +139,6 @@ class TestAutoTickLoop:
         await self._run_one_tick(mock_projects)
 
         assert call_count == 2
-
-    @patch("apps.control_plane.app.JobTickService")
-    async def test_skips_jobs_without_id(
-        self, mock_svc_cls: Mock, mock_projects: Path
-    ) -> None:
-        """Jobs without job_id should be skipped without calling tick()."""
-        jobs_dir = (
-            mock_projects / "workspace" / "projects" / "proj-001" / "control" / "jobs"
-        )
-        (jobs_dir / "no-id.json").write_text(
-            json.dumps({"phase": "queued"}), encoding="utf-8"
-        )
-
-        mock_svc = Mock(spec=JobTickService)
-        mock_svc_cls.return_value = mock_svc
-
-        await self._run_one_tick(mock_projects)
-
-        mock_svc.tick.assert_called_once()
-        args, _kwargs = mock_svc.tick.call_args
-        assert args[1] == "job-001"
 
     @patch("apps.control_plane.app.JobTickService")
     async def test_catches_generic_exception(

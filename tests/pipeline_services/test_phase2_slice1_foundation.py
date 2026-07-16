@@ -281,11 +281,22 @@ class TestImportModeSkipReviews:
 class TestRunPhasesParallel:
     def test_executes_all_phases(self) -> None:
         """run_phases_parallel executes every phase in the list."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 3)
+        orch = PhaseOrchestrator(
+            *[MagicMock()] * 3,
+            get_tts_config=lambda: {"model": "test-model", "voice": "test-voice"},
+        )
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b"fake_audio"
+        orch._build_tts_provider = lambda cfg: mock_tts
+        root_dir = Path("/tmp")
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / "job-001"
+        job_dir.mkdir(parents=True, exist_ok=True)
+        (job_dir / "口播文案.txt").write_text("测试文案", encoding="utf-8")
         ctx = PhaseContext(
             job_id="job-001",
-            project_dir=Path("/tmp/proj"),
-            root_dir=Path("/tmp"),
+            project_dir=project_dir,
+            root_dir=root_dir,
             product="test",
         )
         results = orch.run_phases_parallel(["scene_assembling", "tts_generating"], ctx)
@@ -305,8 +316,8 @@ class TestRunPhasesParallel:
         assert isinstance(results, dict)
         assert isinstance(results["scene_assembling"], list)
 
-    def test_no_one_phase_crash_kills_all(self) -> None:
-        """One failing phase should not prevent other phases from completing."""
+    def test_failed_phase_propagates(self) -> None:
+        """A failing phase should propagate so the state machine can fail the job."""
         orch = PhaseOrchestrator(*[MagicMock()] * 3)
         ctx = PhaseContext(
             job_id="job-001",
@@ -320,13 +331,8 @@ class TestRunPhasesParallel:
             raise RuntimeError("oh no")
 
         orch._handlers["scene_assembling"] = _failing
-        results = orch.run_phases_parallel(
-            ["scene_assembling", "montage_assembling"], ctx
-        )
-        assert "scene_assembling" in results
-        assert "montage_assembling" in results
-        assert results["scene_assembling"] == []
-        assert results["montage_assembling"] == []
+        with pytest.raises(RuntimeError, match="oh no"):
+            orch.run_phases_parallel(["scene_assembling", "montage_assembling"], ctx)
 
     def test_merges_all_results_in_job_tick_service(self) -> None:
         """JobTickService.tick with parallel_phases merges all artifacts."""
