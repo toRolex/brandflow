@@ -123,6 +123,7 @@ class JobRecord(BaseModel):
     name: str = ""  # 用户自定义名称，空则回退到 product
     mode: ProductionMode = "generate"
     phase: Phase
+    failed_phase: Phase | None = None
     review_status: ReviewStatus
     active_attempt_id: str = ""
     active_versions: dict[str, str] = Field(default_factory=dict)

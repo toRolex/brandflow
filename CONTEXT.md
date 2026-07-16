@@ -46,6 +46,9 @@ queued → script_generating → script_review → tts_generating → tts_review
 ### Execution State（执行状态）
 JobRecord 的 `execution` 字段（`PhaseExecutionState`），对外暴露当前 phase 执行的生命周期：`pending / running / retrying / failed / succeeded`，附带 attempt 计数（`current_attempt` / `max_attempts`，默认最多 3 次 attempt）与结构化错误 `ExecutionFailure`（`code` / `message` / `retryable`）。不变量：`failed` 必须携带 error；`retrying` 可携带导致重试的 retryable error（便于 Tick 无需解析字符串即可应用重试策略）；其余状态不携带 error。Job API 响应通过 `execution` 字段原样返回。结构化 phase 结果模型（`PhaseExecutionSuccess` / `PhaseExecutionFailure` 判别联合）与旧 handler 兼容适配器定义于 `packages/domain_core/phase_execution.py`。
 
+### Phase Retry（阶段重试）
+Import 模式媒体 phase 通过结构化执行结果驱动重试：retryable 失败自动重试至耗尽 `max_attempts`（默认 3 次 attempt），确定性失败立即终态。终态失败记录 `failed_phase`，`POST /api/jobs/{id}/retry` 先用同一校验契约（`validate_phase_input`）revalidate 输入，通过则从失败阶段恢复并保留已有 artifacts（不重跑有效上游产物，如 tts_audio）；校验失败返回 409 + 结构化 detail，前端原样展示。存量失败 job（无 `failed_phase`）保留旧的重置为 `queued` 重试行为。
+
 ### Script（脚本）
 一条口播文案，对应一个待生产的短视频。脚本有两种来源，由 Job 的 `mode` 字段显式控制：
 
