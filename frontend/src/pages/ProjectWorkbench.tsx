@@ -183,7 +183,7 @@ export default function ProjectWorkbench() {
         jobs: payload.jobs.map((c, i) => ({
           name: c.name || `${payload.product} #${String(i + 1).padStart(3, "0")}`,
           mode: c.productionMode,
-          manual_script: c.productionMode === "import" ? c.manualScript : "",
+          manual_script: c.manualScript,
           skip_subtitle: c.skipSubtitle,
           audio_source: c.audioMode,
           music_track_path: c.musicPath,
