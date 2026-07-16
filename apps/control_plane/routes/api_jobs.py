@@ -130,6 +130,7 @@ def _make_job_response(
         "platforms": platforms,
         "phase": record.phase,
         "review_status": record.review_status,
+        "execution": record.execution.model_dump(),
         "artifacts": [a.model_dump() for a in record.artifacts],
         "manual_script": record.manual_script,
         "uploaded_audio_path": record.uploaded_audio_path,

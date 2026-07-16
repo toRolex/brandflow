@@ -43,6 +43,9 @@ queued → script_generating → script_review → tts_generating → tts_review
 
 `auto_approve=True` 时所有审核门自动通过，实现全自动生产。
 
+### Execution State（执行状态）
+JobRecord 的 `execution` 字段（`PhaseExecutionState`），对外暴露当前 phase 执行的生命周期：`pending / running / retrying / failed / succeeded`，附带 attempt 计数（`current_attempt` / `max_attempts`，默认最多 3 次 attempt）与结构化错误 `ExecutionFailure`（`code` / `message` / `retryable`）。不变量：`failed` 必须携带 error；`retrying` 可携带导致重试的 retryable error（便于 Tick 无需解析字符串即可应用重试策略）；其余状态不携带 error。Job API 响应通过 `execution` 字段原样返回。结构化 phase 结果模型（`PhaseExecutionSuccess` / `PhaseExecutionFailure` 判别联合）与旧 handler 兼容适配器定义于 `packages/domain_core/phase_execution.py`。
+
 ### Script（脚本）
 一条口播文案，对应一个待生产的短视频。脚本有两种来源，由 Job 的 `mode` 字段显式控制：
 

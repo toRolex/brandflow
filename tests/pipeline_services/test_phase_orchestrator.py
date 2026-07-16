@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from packages.domain_core.models import ArtifactPointer
+from packages.domain_core.phase_execution import PhaseExecutionSuccess
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
@@ -147,6 +148,25 @@ class TestRunPhase:
         """run_phase with script_generating should return a list (even if empty)."""
         result = orchestrator.run_phase("script_generating", ctx)
         assert isinstance(result, list)
+
+    def test_execute_phase_adapts_legacy_artifact_list(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        artifact = ArtifactPointer(kind="script", relative_path="script.json")
+        orchestrator._handlers["legacy_phase"] = lambda _ctx: [artifact]
+
+        result = orchestrator.execute_phase("legacy_phase", ctx)
+
+        assert isinstance(result, PhaseExecutionSuccess)
+        assert result.artifacts == [artifact]
+
+    def test_run_phase_keeps_legacy_list_contract(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        artifact = ArtifactPointer(kind="script", relative_path="script.json")
+        orchestrator._handlers["legacy_phase"] = lambda _ctx: [artifact]
+
+        assert orchestrator.run_phase("legacy_phase", ctx) == [artifact]
 
 
 # ---------------------------------------------------------------------------

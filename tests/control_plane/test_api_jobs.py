@@ -104,6 +104,57 @@ def test_create_job_persists_skip_subtitle(tmp_path: Path) -> None:
     assert raw["skip_subtitle"] is True
 
 
+def test_create_job_exposes_pending_execution_state(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+
+    response = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["execution"] == {
+        "status": "pending",
+        "current_attempt": 0,
+        "max_attempts": 3,
+        "error": None,
+    }
+
+
+def test_get_job_round_trips_failed_execution_state(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"]},
+    ).json()
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{created['job_id']}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    raw["execution"] = {
+        "status": "failed",
+        "current_attempt": 3,
+        "max_attempts": 3,
+        "error": {
+            "code": "TTS_PROVIDER_UNAVAILABLE",
+            "message": "配音服务暂时不可用，请稍后重试。",
+            "retryable": True,
+        },
+    }
+    job_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    response = client.get(f"/api/jobs/{created['job_id']}")
+
+    assert response.status_code == 200
+    assert response.json()["execution"] == raw["execution"]
+
+
 def test_create_job_persists_language_and_cover_title(tmp_path: Path) -> None:
     """单次 create_job 将 language 与 cover_title 写入 JobRecord。"""
     client = _make_client(tmp_path)
