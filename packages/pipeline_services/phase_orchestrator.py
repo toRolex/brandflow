@@ -17,9 +17,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from types import SimpleNamespace
+
 from packages.domain_core.models import ArtifactPointer
-from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 from packages.pipeline_services.media_compositor import MediaCompositor
+from packages.pipeline_services.script_service import (
+    generate_cover_title,
+    generate_script,
+)
 from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.tts_provider import _TTSConfigShim, create_tts_provider
@@ -47,12 +52,10 @@ def create_orchestrator(
     *config_reader* is required — all config reads go through a ConfigResolver
     wrapping it.
     """
-    from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
     from packages.pipeline_services.subtitle_service import SubtitleService
     from packages.pipeline_services.video_service import VideoService
 
     return PhaseOrchestrator(
-        script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
         config_resolver=ConfigResolver(reader=config_reader),
@@ -92,9 +95,9 @@ class PhaseOrchestrator:
 
     def __init__(
         self,
-        script_bridge: LegacyScriptBridge,
-        subtitle_svc: SubtitleService,
-        video_svc: VideoService,
+        script_bridge: Any = None,  # deprecated, no longer used
+        subtitle_svc: SubtitleService | None = None,
+        video_svc: VideoService | None = None,
         *,
         schedule_store: Any = None,
         config_reader: ConfigReader | None = None,
@@ -103,7 +106,7 @@ class PhaseOrchestrator:
         get_tts_config: Callable[[], dict[str, Any]] | None = None,
         get_llm_config: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
-        self._script_bridge = script_bridge
+        self._script_bridge = None  # deprecated, no longer used
         self._subtitle_svc = subtitle_svc
         self._video_svc = video_svc
         self._schedule_store = schedule_store
@@ -260,19 +263,22 @@ class PhaseOrchestrator:
         manual_script: str = ctx.options.get("manual_script", "")
         result: list[ArtifactPointer] = []
 
+        language = ctx.options.get("language", "mandarin")
+
         # 1. Generate or write script
         if manual_script:
-            language = ctx.options.get("language", "mandarin")
-            if language == "cantonese":
+            if language == "cantonese" and self._config_resolver is not None:
                 try:
-                    llm_cfg = self._resolve_llm_config(ctx)
-
-                    class _LLMConfig:
-                        api_key = self._resolve_api_key(llm_cfg)
-                        base_url = self._resolve_api_url(llm_cfg)
-                        model = llm_cfg.get("model", "deepseek-v4-pro")
-
-                    gen = ScriptGenerator(_LLMConfig())
+                    llm_cfg, api_key, api_url = self._config_resolver.llm(
+                        product_id=ctx.product
+                    )
+                    gen = ScriptGenerator(
+                        SimpleNamespace(
+                            api_key=api_key,
+                            base_url=api_url,
+                            model=llm_cfg.get("model", "deepseek-v4-pro"),
+                        )
+                    )
                     manual_script = gen.to_cantonese(
                         manual_script, ctx.product, ctx.brand
                     )
@@ -299,13 +305,17 @@ class PhaseOrchestrator:
                 "final_script": manual_script,
             }
         else:
-            language = ctx.options.get("language", "mandarin")
-            script_result = self._script_bridge.generate(
+            if self._config_resolver is None:
+                raise RuntimeError(
+                    "No ConfigResolver available; "
+                    "create_orchestrator() requires a ConfigReader"
+                )
+            script_result = generate_script(
                 product=ctx.product,
                 output_dir=job_dir,
-                mock=False,
                 language=language,
                 brand=ctx.brand,
+                config_resolver=self._config_resolver,
             )
 
         # 2. Emit artifact pointers for txt + json
@@ -327,8 +337,8 @@ class PhaseOrchestrator:
     ) -> None:
         """Auto-generate cover title if the job JSON has no ``cover_title.text``.
 
-        Uses ConfigReader for LLM config resolution.
-        Errors are logged but never propagated.
+        Delegates to ``script_service.generate_cover_title`` for LLM config
+        resolution and title generation. Errors are logged but never propagated.
         """
         job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
         if not job_json_path.exists():
@@ -347,15 +357,12 @@ class PhaseOrchestrator:
             if not script_text:
                 return
 
-            llm_config = self._resolve_llm_config(ctx)
+            if self._config_resolver is None:
+                return
 
-            class _CoverConfig:
-                api_key = self._resolve_api_key(llm_config)
-                base_url = self._resolve_api_url(llm_config)
-                model = llm_config.get("model", "deepseek-v4-pro")
-
-            gen = ScriptGenerator(_CoverConfig())
-            cover_title = gen.generate_cover_title(script_text, ctx.product, ctx.brand)
+            cover_title = generate_cover_title(
+                script_text, ctx.product, ctx.brand, self._config_resolver
+            )
             job_data["cover_title"] = cover_title
             job_json_path.write_text(
                 json.dumps(job_data, ensure_ascii=False, indent=2) + "\n",

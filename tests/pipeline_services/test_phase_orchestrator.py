@@ -47,12 +47,10 @@ def ctx(project_dir: Path, tmp_root: Path) -> PhaseContext:
 
 @pytest.fixture()
 def orchestrator() -> PhaseOrchestrator:
-    bridge = MagicMock()
     subtitle_svc = MagicMock()
     video_svc = MagicMock()
     schedule_store = MagicMock()
     return PhaseOrchestrator(
-        script_bridge=bridge,
         subtitle_svc=subtitle_svc,
         video_svc=video_svc,
         schedule_store=schedule_store,
@@ -111,14 +109,12 @@ class TestToUrlPath:
 
 
 class TestPhaseOrchestratorInit:
-    def test_accepts_five_deps(self):
+    def test_accepts_three_core_deps(self):
         orch = PhaseOrchestrator(
-            script_bridge=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
             schedule_store=MagicMock(),
         )
-        assert orch._script_bridge is not None
         assert orch._subtitle_svc is not None
         assert orch._video_svc is not None
         assert orch._schedule_store is not None
@@ -145,6 +141,7 @@ class TestRunPhase:
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
         """run_phase with script_generating should return a list (even if empty)."""
+        ctx.options["manual_script"] = "手动文案测试。"
         result = orchestrator.run_phase("script_generating", ctx)
         assert isinstance(result, list)
 
@@ -190,8 +187,10 @@ class TestRunScriptManual:
 
 
 class TestRunScriptLLM:
-    def test_llm_generation_calls_bridge_and_returns_artifacts(
+    @patch("packages.pipeline_services.phase_orchestrator.generate_script")
+    def test_llm_generation_calls_generate_script_and_returns_artifacts(
         self,
+        mock_generate_script: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
     ):
@@ -202,20 +201,29 @@ class TestRunScriptLLM:
         txt_path.write_text("LLM生成的文案", encoding="utf-8")
         json_path.write_text("{}", encoding="utf-8")
 
-        orchestrator._script_bridge.generate.return_value = {
+        mock_generate_script.return_value = {
             "txt_path": str(txt_path),
             "json_path": str(json_path),
             "final_script": "LLM生成的文案",
         }
 
+        # Provide a config_resolver so generate_script can be called.
+        config_resolver = MagicMock()
+        config_resolver.llm.return_value = (
+            {"model": "deepseek-v4-pro"},
+            "fake-key",
+            "https://api.example.com/v1",
+        )
+        orchestrator._config_resolver = config_resolver
+
         artifacts = orchestrator.run_phase("script_generating", ctx)
 
-        orchestrator._script_bridge.generate.assert_called_once_with(
+        mock_generate_script.assert_called_once_with(
             product="羊肚菌",
             output_dir=job_dir,
-            mock=False,
             language="mandarin",
             brand="",
+            config_resolver=config_resolver,
         )
         assert len(artifacts) == 2
         assert all(isinstance(a, ArtifactPointer) for a in artifacts)
@@ -227,16 +235,10 @@ class TestRunScriptLLM:
 
 
 class TestRunScriptCoverTitle:
-    @patch.object(PhaseOrchestrator, "_resolve_llm_config")
-    @patch.object(PhaseOrchestrator, "_resolve_api_key")
-    @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phase_orchestrator.generate_cover_title")
     def test_auto_generates_cover_title_when_missing(
         self,
-        mock_sg_cls: MagicMock,
-        mock_endpoint: MagicMock,
-        mock_api_key: MagicMock,
-        mock_llm_config: MagicMock,
+        mock_generate_cover_title: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
     ):
@@ -253,35 +255,27 @@ class TestRunScriptCoverTitle:
             encoding="utf-8",
         )
 
-        mock_llm_config.return_value = {"model": "deepseek-v4-pro"}
-        mock_api_key.return_value = "fake-api-key"
-        mock_endpoint.return_value = "https://api.example.com"
+        config_resolver = MagicMock()
+        orchestrator._config_resolver = config_resolver
 
-        # Mock ScriptGenerator
-        mock_gen = MagicMock()
-        mock_sg_cls.return_value = mock_gen
-        mock_gen.generate_cover_title.return_value = {
+        mock_generate_cover_title.return_value = {
             "text": "羊肚菌美味",
             "highlight_words": ["羊肚菌"],
         }
 
         orchestrator.run_phase("script_generating", ctx)
 
-        mock_gen.generate_cover_title.assert_called_once()
+        mock_generate_cover_title.assert_called_once_with(
+            "手动文案测试。", "羊肚菌", "", config_resolver
+        )
         # Verify job JSON was updated with cover_title
         updated = json.loads(job_json_path.read_text(encoding="utf-8"))
         assert updated["cover_title"]["text"] == "羊肚菌美味"
 
-    @patch.object(PhaseOrchestrator, "_resolve_llm_config")
-    @patch.object(PhaseOrchestrator, "_resolve_api_key")
-    @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phase_orchestrator.generate_cover_title")
     def test_skips_cover_title_when_already_set(
         self,
-        mock_sg_cls: MagicMock,
-        mock_endpoint: MagicMock,
-        mock_api_key: MagicMock,
-        mock_llm_config: MagicMock,
+        mock_generate_cover_title: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
     ):
@@ -304,21 +298,14 @@ class TestRunScriptCoverTitle:
 
         orchestrator.run_phase("script_generating", ctx)
 
-        mock_sg_cls.assert_not_called()
+        mock_generate_cover_title.assert_not_called()
 
-    @patch.object(PhaseOrchestrator, "_resolve_llm_config")
-    @patch.object(PhaseOrchestrator, "_resolve_api_key")
-    @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phase_orchestrator.generate_cover_title")
     def test_cover_title_error_does_not_propagate(
         self,
-        mock_sg_cls: MagicMock,
-        mock_endpoint: MagicMock,
-        mock_api_key: MagicMock,
-        mock_llm_config: MagicMock,
+        mock_generate_cover_title: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
-        capsys: pytest.CaptureFixture,
     ):
         ctx.options["manual_script"] = "手动文案。"
 
@@ -330,7 +317,9 @@ class TestRunScriptCoverTitle:
             encoding="utf-8",
         )
 
-        mock_sg_cls.side_effect = RuntimeError("LLM down")
+        config_resolver = MagicMock()
+        orchestrator._config_resolver = config_resolver
+        mock_generate_cover_title.side_effect = RuntimeError("LLM down")
 
         # Should not raise
         artifacts = orchestrator.run_phase("script_generating", ctx)
