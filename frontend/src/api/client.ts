@@ -361,7 +361,12 @@ export const api = {
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`${res.status}: ${text}`);
+      let detail = text;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed.detail) detail = parsed.detail;
+      } catch {}
+      throw new Error(detail);
     }
     const blob = await res.blob();
     return URL.createObjectURL(blob);
@@ -383,7 +388,12 @@ export const api = {
     const res = await fetch(`/api/jobs/${jobId}/tts/preview`, { method: "POST" });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`${res.status}: ${text}`);
+      let detail = text;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed.detail) detail = parsed.detail;
+      } catch {}
+      throw new Error(detail);
     }
     const blob = await res.blob();
     return URL.createObjectURL(blob);

@@ -403,6 +403,7 @@ async def preview_tts(request: TTSPreviewRequest):
         from packages.pipeline_services.tts_provider import (
             MiMoTTSProvider,
             QwenTTSProvider,
+            TTSError,
         )
 
         config = config_manager.get_config().with_defaults()
@@ -463,6 +464,8 @@ async def preview_tts(request: TTSPreviewRequest):
 
     except HTTPException:
         raise
+    except TTSError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

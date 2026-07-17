@@ -208,8 +208,8 @@ export default function TTSConfigPage() {
       const result = await api.previewTTS(requestBody);
       if (previewAudioUrl) URL.revokeObjectURL(previewAudioUrl);
       setPreviewAudioUrl(result);
-    } catch {
-      setPreviewError("预览失败");
+    } catch (err: any) {
+      setPreviewError(err?.message || "预览失败");
     }
     setLoading(false);
   };

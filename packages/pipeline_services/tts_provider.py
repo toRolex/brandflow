@@ -80,7 +80,17 @@ class QwenTTSProvider:
             raise TTSQuotaExceededError("TTS 配额超限")
         if resp.status_code in (401, 403):
             raise TTSBlockedError(f"TTS 鉴权失败: {resp.status_code}")
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            detail = f"Qwen TTS HTTP {resp.status_code}"
+            try:
+                error_body = resp.json()
+                msg = error_body.get("message", "")
+                code = error_body.get("code", "")
+                if msg:
+                    detail = f"Qwen TTS error: {code} - {msg}" if code else f"Qwen TTS error: {msg}"
+            except Exception:
+                pass
+            raise TTSBlockedError(detail)
 
         body = resp.json()
         code = body.get("code", "")
@@ -265,7 +275,15 @@ class MiMoTTSProvider:
             raise TTSQuotaExceededError("TTS 配额超限")
         if resp.status_code in (401, 403):
             raise TTSBlockedError(f"TTS 鉴权失败: {resp.status_code}")
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            detail = f"MiMo TTS HTTP {resp.status_code}"
+            try:
+                error_body = resp.json()
+                if "error" in error_body:
+                    detail = f"MiMo TTS error: {error_body['error']}"
+            except Exception:
+                pass
+            raise TTSBlockedError(detail)
 
         body = resp.json()
         if "error" in body:
