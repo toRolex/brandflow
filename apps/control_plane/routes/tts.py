@@ -362,6 +362,8 @@ async def save_tts_config(request: TTSConfigRequest, project_id: str | None = No
     for key, value in update_data.items():
         setattr(current, key, value)
 
+    validate_voice_for_model(current.model, current.voice)
+
     config_manager.save_config(current, project_id)
     return {"success": True}
 
@@ -373,6 +375,57 @@ MODEL_TO_PROVIDER = {
     "qwen3-tts-flash": "qwen",
     "qwen3-tts-instruct-flash": "qwen",
 }
+
+
+def get_valid_preset_voice_ids(model: str) -> set[str] | None:
+    """Return valid preset voice IDs for a model, or None if the model doesn't use preset voices.
+
+    VoiceDesign/VoiceClone sub-models return None (skip validation).
+    Unknown models also return None.
+    """
+    if not model:
+        return None
+    provider = MODEL_TO_PROVIDER.get(model)
+    if provider is None:
+        return None
+    # VoiceDesign/VoiceClone sub-models have no preset voice concept
+    if model in ("mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone"):
+        return None
+    if provider == "mimo":
+        return {v["id"] for v in PRESET_VOICES}
+    if provider == "qwen":
+        if model == "qwen3-tts-instruct-flash":
+            return {
+                v["id"]
+                for v in QWEN_VOICES
+                if v["id"] not in INSTRUCT_UNSUPPORTED_VOICES
+            }
+        return {v["id"] for v in QWEN_VOICES}
+    return None
+
+
+def validate_voice_for_model(model: str | None, voice: str | None) -> None:
+    """Validate that voice belongs to the model's provider.
+
+    Raises HTTPException(422) with a list of valid preset voices when invalid.
+    Skips validation for VoiceDesign/VoiceClone sub-models and unknown models.
+    """
+    if not voice or not model:
+        return
+    valid_ids = get_valid_preset_voice_ids(model)
+    if valid_ids is None:
+        return
+    if voice in valid_ids:
+        return
+    provider = MODEL_TO_PROVIDER.get(model, "unknown")
+    sorted_ids = sorted(valid_ids)
+    preview = sorted_ids[:12]
+    detail = (
+        f"音色 '{voice}' 不属于模型 {model} ({provider} provider)。"
+        f"有效音色 ({len(sorted_ids)} 个): {', '.join(preview)}"
+        + (" ..." if len(sorted_ids) > 12 else "")
+    )
+    raise HTTPException(status_code=422, detail=detail)
 
 
 @router.get("/voices")
@@ -424,6 +477,8 @@ async def preview_tts(request: TTSPreviewRequest):
             config.optimize_instructions = request.optimize_instructions
         if request.language_type is not None:
             config.language_type = request.language_type
+
+        validate_voice_for_model(config.model, config.voice)
 
         model = config.model or ""
         if model.startswith("qwen"):

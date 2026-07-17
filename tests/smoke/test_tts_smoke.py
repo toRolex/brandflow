@@ -22,7 +22,7 @@ class TestTTSSmoke:
         assert "preset_voices" in response.json()
 
     def test_tts_config_save_and_load(self, client):
-        save_response = client.put("/api/tts/config", json={"model": "mimo-v2.5-tts"})
+        save_response = client.put("/api/tts/config", json={"model": "mimo-v2.5-tts", "voice": "Mia"})
         assert save_response.status_code == 200
         assert save_response.json()["success"] is True
 
