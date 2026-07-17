@@ -135,6 +135,8 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 - **auto_approve**：Job 可自动跳过所有审核门，实现全自动流水线
 - **批量模式**：支持一次性创建多个 Job（`POST /api/projects/{id}/jobs/batch`），每个 Job 可独立配置脚本模式和字幕选项
 
+**Import 模式音画对齐（Issue #179）：** 含场景段的 Job 在 `video_rendering` 阶段把 TTS 配音与字幕整体偏移到混剪段起点（场景段无配音/字幕，仅可有背景音乐），并持久化权威 Final Timeline（`final_timeline.json`，渲染时生成、带稳定内容指纹，记录每段 kind/精确起止/来源），导出包优先嵌入该时间线。
+
 ### Phase 执行状态与重试（Issue #169 / #170）
 
 Job API 响应包含 `execution` 字段（`PhaseExecutionState`），暴露当前 phase 的执行生命周期：`pending / running / retrying / failed / succeeded`、attempt 计数（`current_attempt` / `max_attempts`，默认最多 3 次）与结构化错误（`code` / `message` / `retryable`）。结构化 phase 结果模型定义于 `packages/domain_core/phase_execution.py`。

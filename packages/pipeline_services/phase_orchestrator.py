@@ -30,6 +30,12 @@ from packages.pipeline_services.force_align_service import (
     ForceAlignError,
     ForceAlignService,
 )
+from packages.pipeline_services.final_timeline import (
+    align_audio,
+    build_final_timeline,
+    compute_scene_offset_ms,
+    shift_srt,
+)
 from packages.pipeline_services.script_sentence import parse_script_sentences
 from packages.pipeline_services.sentence_tts_service import (
     SentenceTiming,
@@ -947,6 +953,7 @@ class PhaseOrchestrator:
         # -- Step 1: build clip-based montage video ---------------------------
         clip_base_path = job_dir / "_clip_base.mp4"
         clip_base_built = False
+        trim_params: list[dict] = []
 
         if audio_path.exists() and clip_list_path.exists():
             selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
@@ -958,7 +965,7 @@ class PhaseOrchestrator:
             ]
 
             if selected:
-                self._video_svc.build_base_video(
+                returned = self._video_svc.build_base_video(
                     ctx.project_dir,
                     {
                         "job_id": ctx.job_id,
@@ -970,6 +977,10 @@ class PhaseOrchestrator:
                     },
                     clip_base_path,
                 )
+                # Reuse the trim params computed inside build_base_video so the
+                # Final Timeline's montage segments match the render exactly.
+                if isinstance(returned, list):
+                    trim_params = returned
                 clip_base_built = clip_base_path.exists()
 
         # -- Step 2: compose final base.mp4 ------------------------------------
@@ -994,7 +1005,7 @@ class PhaseOrchestrator:
                     "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v0];"
                     "[1:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
                     "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v1];"
-                    "[v0][v1]concat=n=2:v=1:a=0",
+                    "[v0][v1]concat=n=2:v=1:a=0[v]",
                     "-map",
                     "[v]",
                     "-an",
@@ -1045,9 +1056,69 @@ class PhaseOrchestrator:
             clip_base_path.unlink()
 
         if base_path.exists():
+            # Inject AV alignment + authoritative Final Timeline (issue #179).
+            self._inject_av_alignment(ctx, job_dir, base_path, trim_params)
             return [self._to_artifact("video_base", base_path, workspace_dir)]
         print(f"[VIDEO WARN] base.mp4 not produced for {ctx.job_id}", flush=True)
         return []
+
+    def _inject_av_alignment(
+        self,
+        ctx: PhaseContext,
+        job_dir: Path,
+        base_path: Path,
+        trim_params: list[dict],
+    ) -> None:
+        """Shift TTS audio + subtitles to the montage start and persist the
+        authoritative Final Timeline (issue #179).
+
+        The scene segment occupies ``[0, scene_ms)`` with no voice/subtitle;
+        the montage (voice + subtitle) is offset by ``scene_ms``.  Produces
+        ``audio_aligned.mp3``, ``subtitles_offset.srt`` and ``final_timeline.json``
+        next to ``base.mp4``.  On alignment failure the original audio is kept
+        and the timeline is marked ``aligned: false`` (best-effort render).
+        """
+        audio_path = job_dir / "audio.mp3"
+        srt_path = job_dir / "subtitles.srt"
+        assembled_path = job_dir / "assembled.mp4"
+        if not audio_path.exists() or not trim_params:
+            return
+
+        scene_ms = compute_scene_offset_ms(assembled_path)
+        base_ms = int(round(self._get_media_duration(base_path) * 1000))
+
+        aligned = True
+        # 1. Offset TTS audio to the montage start, sized to the base length.
+        try:
+            align_audio(
+                audio_path,
+                job_dir / "audio_aligned.mp3",
+                offset_ms=scene_ms,
+                total_ms=base_ms,
+            )
+        except Exception as exc:  # noqa: BLE001 — best-effort alignment
+            aligned = False
+            print(f"[VIDEO WARN] audio align failed, using original: {exc}", flush=True)
+
+        # 2. Offset subtitles by the same scene duration (if present).
+        if srt_path.exists():
+            shifted = shift_srt(srt_path.read_text(encoding="utf-8"), scene_ms)
+            (job_dir / "subtitles_offset.srt").write_text(shifted, encoding="utf-8")
+
+        # 3. Persist the authoritative Final Timeline (render-time, no dir scan).
+        timeline = build_final_timeline(
+            scene_ms=scene_ms,
+            montage_segments=trim_params,
+            aligned=aligned,
+        )
+        (job_dir / "final_timeline.json").write_text(
+            json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(
+            f"[VIDEO] Final Timeline: scene_ms={scene_ms} aligned={aligned} "
+            f"segments={len(timeline['segments'])} fp={timeline['fingerprint'][:8]}",
+            flush=True,
+        )
 
     # -- final_rendering handler ---------------------------------------------
 
@@ -1084,6 +1155,14 @@ class PhaseOrchestrator:
                     music_path = None
 
         actual_srt_path = None if skip_subtitle else srt_path
+        # Prefer AV-aligned audio + offset subtitles produced by video_rendering
+        # (issue #179): TTS/subtitle shifted to the montage start.
+        aligned_audio = job_dir / "audio_aligned.mp3"
+        offset_srt = job_dir / "subtitles_offset.srt"
+        if aligned_audio.exists():
+            audio_path = aligned_audio
+        if not skip_subtitle and offset_srt.exists():
+            actual_srt_path = offset_srt
         cond = (
             f"base={base_path.exists()} audio={audio_path.exists()}"
             f" skip_subtitle={skip_subtitle} srt={srt_path.exists()}"
