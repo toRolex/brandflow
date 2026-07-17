@@ -13,7 +13,6 @@ from packages.pipeline_services.job_tick_service import (
     HANDLED_PHASES,
     REVIEW_PHASES,
     JobTickService,
-    PhaseExecutionError,
     TickAction,
     _compute_transition,
     _transition_after_artifacts,
@@ -354,14 +353,13 @@ class TestVideoRenderingNoArtifacts:
 
 
 class TestSubtitleGeneratingNoArtifacts:
-    def test_stays_in_phase(self) -> None:
+    def test_marks_failed(self) -> None:
         action = _transition_after_artifacts(
             make_record(phase="subtitle_generating"),
             (),
         )
-        assert action.new_phase is None
+        assert action.new_phase == "failed"
         assert action.run_handler is False
-        assert "staying" in action.message.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -494,8 +492,8 @@ class TestJobTickService:
         assert summary.action == "skipped"
         mock_repo.save_job.assert_not_called()
 
-    def test_tick_wraps_orchestrator_error(self) -> None:
-        """Orchestrator failure should raise PhaseExecutionError."""
+    def test_tick_marks_failed_on_orchestrator_error(self) -> None:
+        """Orchestrator failure should mark job failed and persist last_error."""
         record = make_record(phase="script_generating")
         mock_repo = Mock(spec=FileStoreRepository)
         mock_repo.load_job.return_value = record
@@ -503,16 +501,22 @@ class TestJobTickService:
         mock_orch.run_phase.side_effect = RuntimeError("API failure")
 
         svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
-        with pytest.raises(PhaseExecutionError) as exc:
-            svc.tick(
-                "proj-001",
-                "test-job",
-                "羊肚菌",
-                root_dir=Path("/tmp"),
-                project_dir=Path("/tmp/proj"),
-            )
-        assert exc.value.job_id == "test-job"
-        assert exc.value.phase == "script_generating"
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.action == "failed"
+        assert summary.from_phase == "script_generating"
+        assert summary.to_phase == "failed"
+        assert "API failure" in summary.message
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == "failed"
+        assert "API failure" in saved.last_error
+        assert "script_generating" in saved.last_error
 
     def test_tick_injects_manual_script_for_generate_mode(self) -> None:
         """Generate mode 下 tick() 自动将 JobRecord.manual_script 注入 options。"""
@@ -710,7 +714,9 @@ class TestAdvanceAfterReport:
 class TestManualScriptConsistency:
     """Regression: manual_script text preserved through _run_script → _run_tts → _run_subtitle."""
 
-    def test_manual_script_preserved_through_pipeline(self, tmp_path: Path) -> None:
+    def test_manual_script_preserved_through_pipeline(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         manual_text = "这是用户提交的口播文案。用于短视频配音。确保完全一致。"
         job_id = "test-job-consistency"
         root_dir = tmp_path
@@ -718,21 +724,26 @@ class TestManualScriptConsistency:
 
         # PhaseOrchestrator with mocked external deps
         mock_config = Mock()
-        mock_config.get_tts_config.return_value = {
+        mock_config.tts.return_value = {
             "model": "test-model",
             "voice": "test-voice",
         }
+        mock_config.secrets = Mock()
         orch = PhaseOrchestrator(
-            script_bridge=Mock(),
+            script_generator=Mock(),
             subtitle_svc=Mock(),
             video_svc=Mock(),
-            config_reader=mock_config,
+            media_compositor=Mock(),
+            config_resolver=mock_config,
         )
 
         # Mock TTS provider to avoid real API calls
         mock_tts = Mock()
         mock_tts.synthesize.return_value = b"fake_audio_data"
-        orch._build_tts_provider = Mock(return_value=mock_tts)
+        monkeypatch.setattr(
+            "packages.pipeline_services.phase_orchestrator.create_tts_provider",
+            lambda cfg, secrets: mock_tts,
+        )
 
         ctx = PhaseContext(
             job_id=job_id,
