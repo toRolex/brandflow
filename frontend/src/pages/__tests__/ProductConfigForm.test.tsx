@@ -13,15 +13,10 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
+let mockUseProducts: ReturnType<typeof import("../../ProductContext").useProducts>;
+
 vi.mock("../../ProductContext", () => ({
-  useProducts: () => ({
-    products: [{ id: "test", name: "Test Product" }],
-    activeProductId: "test",
-    activeProductName: "Test Product",
-    loading: false,
-    switchProduct: vi.fn(),
-    refreshProducts: vi.fn(),
-  }),
+  useProducts: () => mockUseProducts,
   ProductProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
@@ -35,10 +30,25 @@ const MOCK_CONFIG = {
   },
 };
 
+function defaultMockProducts() {
+  return {
+    products: [{ id: "test", name: "Test Product" }],
+    activeProductId: "test",
+    activeProductName: "Test Product",
+    loading: false,
+    switchProduct: vi.fn(),
+    refreshProducts: vi.fn(),
+    createProduct: vi.fn(),
+    renameProduct: vi.fn(),
+    deleteProduct: vi.fn(),
+  };
+}
+
 describe("ProductConfigForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.getProductConfig).mockResolvedValue(MOCK_CONFIG);
+    mockUseProducts = defaultMockProducts();
   });
 
   it("加载时调用 API 并回显配置", async () => {
@@ -282,5 +292,97 @@ describe("ProductConfigForm", () => {
     await waitFor(() => {
       expect(screen.getByText("产品配置")).toBeInTheDocument();
     });
+  });
+
+  it("创建产品后自动切换到新产品编辑状态", async () => {
+    // Mock createProduct to simulate #208: new product becomes active
+    mockUseProducts.createProduct = vi.fn(async (name: string) => {
+      mockUseProducts = {
+        ...mockUseProducts,
+        products: [...mockUseProducts.products, { id: "test2", name }],
+        activeProductId: "test2",
+        activeProductName: name,
+      };
+    });
+
+    const newConfig = {
+      default_name: "新产品",
+      default_brand: "新品牌",
+      script: { scene: "", material: "", system_prompt: "" },
+    };
+    vi.mocked(api.getProductConfig)
+      .mockReset()
+      .mockResolvedValueOnce(MOCK_CONFIG)
+      .mockResolvedValueOnce(newConfig);
+
+    render(<ProductConfigForm />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
+    });
+
+    // Click "+ 新建产品" in sidebar
+    fireEvent.click(screen.getByText("+ 新建产品"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("输入产品名称，如：示例产品")
+      ).toBeInTheDocument();
+    });
+
+    // Enter product name
+    fireEvent.change(
+      screen.getByPlaceholderText("输入产品名称，如：示例产品"),
+      { target: { value: "新产品" } }
+    );
+
+    // Click "创建并编辑"
+    fireEvent.click(screen.getByText("创建并编辑"));
+
+    // Should call getProductConfig twice (initial + after create)
+    await waitFor(() => {
+      expect(api.getProductConfig).toHaveBeenCalledTimes(2);
+    });
+
+    // Form should show new product's config
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("新产品")).toBeInTheDocument();
+    });
+  });
+
+  it("重置后产品保留在列表中", async () => {
+    vi.mocked(api.resetProductConfig).mockResolvedValue({ status: "ok" });
+    const defaultConfig = {
+      default_name: "",
+      default_brand: "",
+      script: {
+        scene: "默认场景描述",
+        material: "默认素材描述",
+        system_prompt: "默认系统提示词",
+      },
+    };
+    vi.mocked(api.getProductConfig).mockReset();
+    vi.mocked(api.getProductConfig).mockResolvedValueOnce(MOCK_CONFIG);
+    vi.mocked(api.getProductConfig).mockResolvedValueOnce(defaultConfig);
+
+    render(<ProductConfigForm />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("示例产品")).toBeInTheDocument();
+    });
+
+    // Product should be in the sidebar
+    expect(screen.getByText("Test Product")).toBeInTheDocument();
+
+    const resetBtn = screen.getByText("重置为默认值");
+    fireEvent.click(resetBtn);
+
+    // After reset, form shows default config
+    await waitFor(() => {
+      expect(api.getProductConfig).toHaveBeenCalledTimes(2);
+    });
+
+    // Product still visible in sidebar
+    expect(screen.getByText("Test Product")).toBeInTheDocument();
   });
 });
