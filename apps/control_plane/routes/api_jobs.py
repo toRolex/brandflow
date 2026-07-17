@@ -234,7 +234,10 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     if not product.strip():
         raise HTTPException(status_code=400, detail="product is required")
     validation_error = _validate_import_scene_folders(
-        Path(request.app.state.root_dir), product, payload.mode, payload.scene_folder_ids
+        Path(request.app.state.root_dir),
+        product,
+        payload.mode,
+        payload.scene_folder_ids,
     )
     if validation_error is not None:
         raise HTTPException(status_code=400, detail=validation_error.model_dump())
@@ -443,9 +446,7 @@ class MigrateScenesRequest(BaseModel):
 
 
 @router.post("/api/jobs/{job_id}/migrate-scenes")
-def migrate_scenes(
-    request: Request, job_id: str, payload: MigrateScenesRequest
-):
+def migrate_scenes(request: Request, job_id: str, payload: MigrateScenesRequest):
     """Migrate an import job that lacks valid scene input to use new folders.
 
     Preserves user-level configuration (manual script, TTS/language settings,
@@ -594,11 +595,55 @@ async def upload_job_audio(request: Request, job_id: str, file: UploadFile):
     }
 
 
-@router.get("/api/jobs/{job_id}/export")
-def export_job(request: Request, job_id: str):
-    """Build and download an export bundle ZIP for a completed job."""
-    from packages.pipeline_services.export_service import build_export_bundle
+def _export_service(request: Request, project_id: str, job_id: str):
+    """Build an ExportTaskService bound to this job's on-disk directories."""
+    from packages.pipeline_services.export_task import ExportTaskService
 
+    root_dir: Path = request.app.state.root_dir
+    workspace_dir = root_dir / "workspace"
+    project_dir = workspace_dir / "projects" / project_id
+    return ExportTaskService(
+        job_id=job_id,
+        job_dir=project_dir / "runtime" / "jobs" / job_id,
+        workspace_dir=workspace_dir,
+        project_dir=project_dir,
+        export_dir=project_dir / "runtime" / "exports",
+    )
+
+
+def _read_final_timeline_fingerprint(
+    request: Request, project_id: str, job_id: str
+) -> str | None:
+    root_dir: Path = request.app.state.root_dir
+    ft = (
+        root_dir
+        / "workspace"
+        / "projects"
+        / project_id
+        / "runtime"
+        / "jobs"
+        / job_id
+        / "final_timeline.json"
+    )
+    if not ft.exists():
+        return None
+    try:
+        return json.loads(ft.read_text(encoding="utf-8")).get("fingerprint")
+    except Exception:
+        return None
+
+
+def _run_export_task(service, task_id: str) -> None:
+    service.run(task_id)
+
+
+@router.post("/api/jobs/{job_id}/export", status_code=202)
+def create_export(request: Request, job_id: str):
+    """Create (or reuse) a durable background export task; returns its id.
+
+    Does not block on the ZIP — the bundle builds in the background. Poll
+    ``GET .../export/status`` and download via ``GET .../export/download``.
+    """
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _find_job_project(repo, job_id)
     if not project_id:
@@ -608,24 +653,73 @@ def export_job(request: Request, job_id: str):
     if record.phase != "completed":
         raise HTTPException(status_code=400, detail="job not yet completed")
 
-    root_dir: Path = request.app.state.root_dir
-    workspace_dir = root_dir / "workspace"
-    project_dir = workspace_dir / "projects" / project_id
-    job_dir = project_dir / "runtime" / "jobs" / job_id
-    export_dir = project_dir / "runtime" / "exports"
+    fingerprint = _read_final_timeline_fingerprint(request, project_id, job_id)
+    if not fingerprint:
+        raise HTTPException(
+            status_code=409,
+            detail="no Final Timeline; rerender required before export",
+        )
 
-    zip_path = build_export_bundle(
-        job_dir=job_dir,
-        workspace_dir=workspace_dir,
-        project_dir=project_dir,
-        export_dir=export_dir,
-    )
+    service = _export_service(request, project_id, job_id)
+    task = service.create_or_reuse(fingerprint)
+    if task["status"] == "queued":
+        executor = request.app.state.export_executor
+        executor.submit(_run_export_task, service, task["task_id"])
+    return {"task_id": task["task_id"], "status": task["status"]}
 
+
+@router.get("/api/jobs/{job_id}/export/status")
+def export_status(request: Request, job_id: str):
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    service = _export_service(request, project_id, job_id)
+    service.recover_interrupted()
+    task = service._load()
+    if not task:
+        raise HTTPException(status_code=404, detail="no export task")
+    return {
+        "task_id": task["task_id"],
+        "status": task["status"],
+        "progress": task["progress"],
+        "error": task.get("error"),
+    }
+
+
+@router.get("/api/jobs/{job_id}/export/download")
+def download_export(request: Request, job_id: str):
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    service = _export_service(request, project_id, job_id)
+    service.recover_interrupted()
+    task = service._load()
+    if not task or task["status"] != "ready":
+        raise HTTPException(status_code=409, detail="export not ready")
+
+    zip_path = Path(task["zip_path"])
+    if not zip_path.exists():
+        raise HTTPException(status_code=409, detail="export not ready")
     return FileResponse(
-        zip_path,
-        media_type="application/zip",
-        filename=f"export_{job_id}.zip",
+        zip_path, media_type="application/zip", filename=f"export_{job_id}.zip"
     )
+
+
+@router.post("/api/jobs/{job_id}/export/invalidate")
+def invalidate_export(request: Request, job_id: str):
+    """Mark the current export task stale (called on rerender)."""
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    service = _export_service(request, project_id, job_id)
+    service.mark_stale()
+    return {"status": "stale"}
 
 
 def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
@@ -719,18 +813,24 @@ class UpdateTTSVoiceRequest(BaseModel):
     confirm: bool = False
 
 
-def _resolve_tts_voice_info(
-    record: JobRecord, config_reader: ConfigReader
-) -> dict:
+def _resolve_tts_voice_info(record: JobRecord, config_reader: ConfigReader) -> dict:
     """Resolve effective model/voice and which level it came from.
 
     Priority: Job-level > Product-level > Global-level.
     """
-    product_tts = config_reader.get_tts_config(product_id=record.product) if record.product else {}
+    product_tts = (
+        config_reader.get_tts_config(product_id=record.product)
+        if record.product
+        else {}
+    )
     global_tts = config_reader.get_tts_config()
 
-    effective_model = record.tts_model or product_tts.get("model", "") or global_tts.get("model", "")
-    effective_voice = record.tts_voice or product_tts.get("voice", "") or global_tts.get("voice", "")
+    effective_model = (
+        record.tts_model or product_tts.get("model", "") or global_tts.get("model", "")
+    )
+    effective_voice = (
+        record.tts_voice or product_tts.get("voice", "") or global_tts.get("voice", "")
+    )
 
     # Determine source level
     if record.tts_model or record.tts_voice:
@@ -852,7 +952,9 @@ def preview_job_tts(job_id: str, request: Request):
 
     # Discover script text: runtime file first, then manual_script on record
     script_text = ""
-    job_dir = root_dir / "workspace" / "projects" / project_id / "runtime" / "jobs" / job_id
+    job_dir = (
+        root_dir / "workspace" / "projects" / project_id / "runtime" / "jobs" / job_id
+    )
     for p in job_dir.glob("*口播文案.txt"):
         script_text = p.read_text(encoding="utf-8").strip()
         break
@@ -907,9 +1009,7 @@ _INVALIDATE_ARTIFACT_KINDS: frozenset[str] = frozenset(
 
 
 @router.put("/api/jobs/{job_id}/tts/voice")
-def update_job_tts_voice(
-    job_id: str, payload: UpdateTTSVoiceRequest, request: Request
-):
+def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: Request):
     """Update job-level TTS model/voice selection.
 
     When formal TTS audio exists (audio.mp3), the caller must set
@@ -928,8 +1028,14 @@ def update_job_tts_voice(
 
     # Check for existing formal audio
     audio_path = (
-        root_dir / "workspace" / "projects" / project_id
-        / "runtime" / "jobs" / job_id / "audio.mp3"
+        root_dir
+        / "workspace"
+        / "projects"
+        / project_id
+        / "runtime"
+        / "jobs"
+        / job_id
+        / "audio.mp3"
     )
     audio_exists = audio_path.exists()
 
@@ -958,9 +1064,7 @@ def update_job_tts_voice(
     if audio_exists and payload.confirm:
         # Invalidate downstream artifacts (preserve script + asset selections)
         preserved = [
-            a
-            for a in record.artifacts
-            if a.kind not in _INVALIDATE_ARTIFACT_KINDS
+            a for a in record.artifacts if a.kind not in _INVALIDATE_ARTIFACT_KINDS
         ]
         updates["artifacts"] = preserved
         updates["phase"] = "tts_generating"

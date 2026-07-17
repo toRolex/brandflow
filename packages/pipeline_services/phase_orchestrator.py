@@ -1114,6 +1114,19 @@ class PhaseOrchestrator:
         (job_dir / "final_timeline.json").write_text(
             json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+        # Rerender changed the Final Timeline — any prior export is now stale (#180).
+        try:
+            from packages.pipeline_services.export_task import ExportTaskService
+
+            ExportTaskService(
+                job_id=ctx.job_id,
+                job_dir=job_dir,
+                workspace_dir=ctx.project_dir.parent,
+                project_dir=ctx.project_dir,
+                export_dir=ctx.project_dir / "runtime" / "exports",
+            ).mark_stale()
+        except Exception:  # noqa: BLE001 — never block rendering on export cleanup
+            pass
         print(
             f"[VIDEO] Final Timeline: scene_ms={scene_ms} aligned={aligned} "
             f"segments={len(timeline['segments'])} fp={timeline['fingerprint'][:8]}",

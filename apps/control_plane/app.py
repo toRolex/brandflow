@@ -144,6 +144,28 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
         reader=reader, config_path=config_dir / "app_config.json"
     )
     app.state.secret_store = SecretStore()
+
+    # Background executor for export tasks (#180). EXPORT_SYNC=1 runs inline —
+    # deterministic for tests and single-process dev.
+    if os.environ.get("EXPORT_SYNC", "0") == "1":
+        from concurrent.futures import Future
+
+        class _SyncExecutor:
+            def submit(self, fn, *args, **kwargs):
+                fut: Future = Future()
+                try:
+                    fut.set_result(fn(*args, **kwargs))
+                except Exception as exc:  # noqa: BLE001
+                    fut.set_exception(exc)
+                return fut
+
+        app.state.export_executor = _SyncExecutor()
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+
+        app.state.export_executor = ThreadPoolExecutor(
+            max_workers=2, thread_name_prefix="export"
+        )
     app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)
