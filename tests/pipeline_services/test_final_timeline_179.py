@@ -638,8 +638,9 @@ class TestExportBundleFinalTimeline:
         job_dir = project_dir / "runtime" / "jobs" / "job-001"
         job_dir.mkdir(parents=True, exist_ok=True)
         export_dir = project_dir / "runtime" / "exports"
-        (job_dir / "final.mp4").write_bytes(b"final video")
-        expected = self._write_final_timeline(job_dir)
+        # Empty segments → segment_final_video is a no-op (no real FFmpeg needed);
+        # the fingerprint still flows from the authoritative render-time timeline.
+        self._write_final_timeline(job_dir)
 
         zip_path = build_export_bundle(
             job_dir,
@@ -652,16 +653,20 @@ class TestExportBundleFinalTimeline:
         with zipfile.ZipFile(zip_path, "r") as zf:
             embedded = json.loads(zf.read("export_job-001/timeline.json"))
 
-        # Embedded timeline is the authoritative render-time one (fingerprint intact)
+        # Since #181 the embedded timeline is the flat 2.0 projection, but it is
+        # still derived from the authoritative render-time one (fingerprint intact).
+        assert embedded["version"] == "2.0"
         assert embedded["fingerprint"] == "deadbeefcafe"
-        assert embedded == expected
 
     def test_export_falls_back_to_legacy_when_no_final_timeline(
         self, tmp_path: Path
     ) -> None:
-        import zipfile
+        import pytest
 
-        from packages.pipeline_services.export_service import build_export_bundle
+        from packages.pipeline_services.export_service import (
+            RerenderRequiredError,
+            build_export_bundle,
+        )
 
         workspace_dir = tmp_path / "workspace"
         project_dir = workspace_dir / "projects" / "proj-001"
@@ -669,22 +674,13 @@ class TestExportBundleFinalTimeline:
         job_dir.mkdir(parents=True, exist_ok=True)
         export_dir = project_dir / "runtime" / "exports"
         (job_dir / "final.mp4").write_bytes(b"final video")
-        # no final_timeline.json → legacy generate_timeline_json path
+        # no final_timeline.json → export now requires a re-render (#181)
 
-        zip_path = build_export_bundle(
-            job_dir,
-            workspace_dir,
-            project_dir,
-            export_dir,
-            get_scene_config=lambda: {"folders": [], "transition_duration_ms": 500},
-        )
-
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            embedded = json.loads(zf.read("export_job-001/timeline.json"))
-
-        # legacy timeline shape: has version + segments + audio
-        assert embedded["version"] == "1.0"
-        assert "segments" in embedded
-        assert "audio" in embedded
-        # legacy has no fingerprint field
-        assert "fingerprint" not in embedded
+        with pytest.raises(RerenderRequiredError):
+            build_export_bundle(
+                job_dir,
+                workspace_dir,
+                project_dir,
+                export_dir,
+                get_scene_config=lambda: {"folders": [], "transition_duration_ms": 500},
+            )

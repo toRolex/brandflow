@@ -36,6 +36,13 @@ def export_dir(project_dir: Path) -> Path:
 def _populate_job(job_dir: Path, workspace_dir: Path) -> None:
     (job_dir / "final.mp4").write_text("final video data")
     (job_dir / "audio.mp3").write_text("audio data")
+    # Empty-segments Final Timeline: passes the #181 re-render guard while making
+    # segment_final_video a no-op, so these task-state tests need no real FFmpeg.
+    (job_dir / "final_timeline.json").write_text(
+        '{"version": "1.0", "duration_ms": 0, "aligned": true,'
+        ' "fingerprint": "minimal", "segments": []}',
+        encoding="utf-8",
+    )
 
 
 def _make_service(
