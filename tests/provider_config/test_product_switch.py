@@ -191,18 +191,19 @@ def test_persistence_after_migration() -> None:
         )
 
 
-def test_reset_product_config_clears_active() -> None:
-    """reset_product_config 应清除活跃产品"""
+def test_reset_product_config_clears_config_retains_entity() -> None:
+    """reset_product_config 应清空配置但保留产品实体（#207 语义）"""
     with tempfile.TemporaryDirectory() as tmpdir:
         store = _make_store(tmpdir)
         store.switch_product("prod_001")
         store.set_product("default_name", "羊肚菌")
         store.reset_product_config()
 
-        # After reset, should return defaults
+        # 配置已清空
         config = store.get_product_config()
         assert config["default_name"] == ""
 
-        # Product should be removed from list
+        # 产品实体仍在列表中（#207 语义：只清配置，不删实体）
         products = store.list_products()
-        assert len(products) == 0
+        assert len(products) == 1
+        assert products[0]["id"] == "prod_001"
