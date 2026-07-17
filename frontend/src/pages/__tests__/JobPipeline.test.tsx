@@ -11,6 +11,8 @@ vi.mock("../../api/client", () => ({
     retryJob: vi.fn(),
     pauseJob: vi.fn(),
     getJobLogs: vi.fn(),
+    migrateScenes: vi.fn(),
+    getSceneFolders: vi.fn(),
   },
 }));
 
@@ -114,5 +116,59 @@ describe("JobPipeline execution failure workflow", () => {
     renderPage();
 
     expect(await screen.findByText(/正在重试，第 2 \/ 3 次/)).toBeInTheDocument();
+  });
+});
+
+describe("JobPipeline migration_required workflow", () => {
+  const migrationJob = {
+    job_id: "job-migration",
+    project_id: "project-1",
+    product: "product",
+    platforms: ["douyin"],
+    phase: "migration_required" as const,
+    failed_phase: null,
+    review_status: "none" as const,
+    artifacts: [],
+    execution: {
+      status: "failed" as const,
+      current_attempt: 1,
+      max_attempts: 3,
+      error: {
+        code: "SCENE_INPUT_MISSING",
+        message: "missing scene input",
+        retryable: false,
+      },
+    },
+  };
+
+  function renderMigrationPage() {
+    return render(
+      <MemoryRouter initialEntries={["/jobs/job-migration"]}>
+        <Routes><Route path="/jobs/:id" element={<JobPipeline />} /></Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.getJob).mockResolvedValue(migrationJob);
+    vi.mocked(api.migrateScenes).mockResolvedValue({ status: "migrated", phase: "queued", job_id: "job-migration" });
+    vi.mocked(api.getSceneFolders).mockResolvedValue({
+      folders: [{ name: "场景一", path: "scenes/one" }],
+    });
+  });
+
+  it("shows scene folder selector and allows migration", async () => {
+    renderMigrationPage();
+
+    expect(await screen.findByText("需补充场景文件夹")).toBeInTheDocument();
+    expect(await screen.findByLabelText("场景一")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("场景一"));
+    fireEvent.click(screen.getByRole("button", { name: "重新启动任务" }));
+
+    await waitFor(() => {
+      expect(api.migrateScenes).toHaveBeenCalledWith("job-migration", ["scenes/one"]);
+    });
   });
 });

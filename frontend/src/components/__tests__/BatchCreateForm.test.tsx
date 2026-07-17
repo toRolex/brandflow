@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import BatchCreateForm from "../BatchCreateForm";
+import { api } from "../../api/client";
+
+vi.mock("../../api/client", () => ({
+  api: {
+    getSceneFolders: vi.fn(() => Promise.resolve({ folders: [] })),
+  },
+}));
 
 const defaultProps = (overrides: Record<string, unknown> = {}) => ({
   product: "",
@@ -118,5 +125,29 @@ describe("BatchCreateForm", () => {
     expect(payload.jobs[0].productionMode).toBe("generate");
     expect(payload.jobs[0].manualScript).toBe("第一段文案。");
     expect(payload.jobs[1].manualScript).toBe("第二段文案。");
+  });
+
+  it("import 模式下批量提交携带选中的场景文件夹", async () => {
+    vi.mocked(api.getSceneFolders).mockResolvedValue({
+      folders: [{ name: "场景一", path: "scenes/one" }],
+    });
+    const onBatchCreate = vi.fn().mockResolvedValue(undefined);
+    render(<BatchCreateForm {...defaultProps({ onBatchCreate, product: "测试产品" })} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("场景一")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByLabelText("场景一"));
+
+    const submitBtn = screen.getByText(/批量创建 2 个 Job/);
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(onBatchCreate).toHaveBeenCalledTimes(1);
+    });
+
+    const payload = onBatchCreate.mock.calls[0][0];
+    expect(payload.jobs[0].sceneFolderIds).toEqual(["scenes/one"]);
+    expect(payload.jobs[1].sceneFolderIds).toEqual(["scenes/one"]);
   });
 });

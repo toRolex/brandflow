@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { JobDetail, Phase } from "../types";
+import type { JobDetail, Phase, SceneFolder } from "../types";
 import { PIPELINE_STEPS } from "../types";
 import PipelineSidebar from "../components/PipelineSidebar";
 import ScriptPreview from "../components/ScriptPreview";
@@ -34,6 +34,8 @@ export default function JobPipeline() {
   const [scriptContent, setScriptContent] = useState("");
   const [selectedClips, setSelectedClips] = useState<Record<string, unknown>[]>([]);
   const [rejectedClips, setRejectedClips] = useState<Set<number>>(new Set());
+  const [sceneFolders, setSceneFolders] = useState<SceneFolder[]>([]);
+  const [selectedSceneFolders, setSelectedSceneFolders] = useState<string[]>([]);
   const initialLoad = useRef(true);
 
   const phaseToStepKey = (phase: Phase): string => {
@@ -103,6 +105,14 @@ export default function JobPipeline() {
     }
   }, [job, job?.artifacts]);
 
+  // Fetch scene folders when migration is required
+  useEffect(() => {
+    if (!job || job.phase !== "migration_required") return;
+    api.getSceneFolders(job.product)
+      .then((data) => setSceneFolders(data.folders))
+      .catch(() => setError("加载场景文件夹失败"));
+  }, [job?.phase, job?.product]);
+
   if (loading) {
     return <div className="text-center py-12 text-[var(--text-tertiary)]">加载中...</div>;
   }
@@ -167,6 +177,22 @@ export default function JobPipeline() {
     }
   };
 
+  const handleMigrateScenes = async () => {
+    if (!job) return;
+    try {
+      await api.migrateScenes(job.job_id, selectedSceneFolders);
+      setSelectedSceneFolders([]);
+      await load();
+    } catch (e) {
+      console.error("migrate scenes failed", e);
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError("场景迁移失败");
+      }
+    }
+  };
+
   const handleEditScript = async (newScript: string) => {
     try {
       await api.editScript(job.job_id, newScript, job.project_id);
@@ -210,6 +236,51 @@ export default function JobPipeline() {
 
   const renderDetail = () => {
     switch (activeStepKey) {
+      case "migration_required":
+        return (
+          <div className="py-4">
+            <h3 className="font-semibold text-sm mb-2" style={{ color: "var(--text-primary)" }}>
+              需补充场景文件夹
+            </h3>
+            <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
+              该导入任务缺少有效的场景输入，请选择场景文件夹后重新启动。
+            </p>
+            {sceneFolders.length === 0 ? (
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>未配置场景文件夹</p>
+            ) : (
+              <div className="flex flex-wrap gap-3 mb-4">
+                {sceneFolders.map((folder) => (
+                  <label
+                    key={folder.path}
+                    className="flex items-center gap-1.5 text-sm cursor-pointer"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSceneFolders.includes(folder.path)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSceneFolders([...selectedSceneFolders, folder.path]);
+                        } else {
+                          setSelectedSceneFolders(selectedSceneFolders.filter((id) => id !== folder.path));
+                        }
+                      }}
+                    />
+                    {folder.name}
+                  </label>
+                ))}
+              </div>
+            )}
+            <button
+              className="px-4 py-2 rounded-md text-sm disabled:opacity-50"
+              style={{ background: "var(--btn-primary-bg)", color: "var(--btn-primary-text)" }}
+              disabled={selectedSceneFolders.length === 0}
+              onClick={handleMigrateScenes}
+            >
+              重新启动任务
+            </button>
+          </div>
+        );
       case "queued":
         return <div className="text-[var(--text-tertiary)] text-sm py-4">任务排队中，等待系统调度...</div>;
       case "script_gen":

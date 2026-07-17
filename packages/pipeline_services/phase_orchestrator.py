@@ -246,6 +246,13 @@ class PhaseOrchestrator:
                     message="No scene folders are configured for this Job.",
                     retryable=False,
                 )
+            missing_folders = [folder for folder in folders if not folder.exists()]
+            if missing_folders:
+                return ExecutionFailure(
+                    code="SCENE_FOLDER_NOT_FOUND",
+                    message=f"Scene folder does not exist: {missing_folders[0].as_posix()}",
+                    retryable=False,
+                )
             if not any(self._scene_candidates(folder) for folder in folders):
                 return ExecutionFailure(
                     code="SCENE_MEDIA_MISSING",

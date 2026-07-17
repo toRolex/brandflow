@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
@@ -11,6 +12,7 @@ from packages.domain_core.models import (
     AudioSource,
     CoverTitle,
     CoverTitleStyle,
+    ExecutionFailure,
     JobRecord,
     Language,
     PhaseExecutionState,
@@ -40,6 +42,75 @@ def _resolve_product_defaults(
     if not default_name:
         return product, brand
     return default_name, cfg.get("default_brand", brand)
+
+
+def _validate_import_scene_folders(
+    root_dir: Path,
+    product: str,
+    mode: ProductionMode,
+    scene_folder_ids: list[str],
+) -> "ExecutionFailure | None":
+    """Validate scene folder selection for import-mode jobs.
+
+    Returns an ``ExecutionFailure`` when selection is empty, a folder is not
+    configured, the folder path does not exist on disk, or it contains no
+    supported video files. The message includes the specific folder names.
+    """
+    if mode != "import":
+        return None
+    if not scene_folder_ids:
+        return ExecutionFailure(
+            code="SCENE_INPUT_MISSING",
+            message="请选择至少一个场景文件夹",
+            retryable=False,
+        )
+
+    config_reader = ConfigReader(config_dir=str(root_dir / "config"))
+    scene_config = config_reader.get_scene_config(product_id=product)
+    configured: dict[str, str] = {
+        entry.get("path", ""): entry.get("name", entry.get("path", ""))
+        for entry in scene_config.get("folders", [])
+        if entry.get("path")
+    }
+
+    not_configured: list[str] = []
+    not_found: list[str] = []
+    no_videos: list[str] = []
+    video_ext = {".mp4", ".mov", ".avi"}
+
+    for folder_id in scene_folder_ids:
+        if folder_id not in configured:
+            not_configured.append(folder_id)
+            continue
+        folder_path = root_dir / "workspace" / folder_id
+        if not folder_path.exists():
+            not_found.append(configured[folder_id])
+            continue
+        has_video = any(
+            f.is_file() and f.suffix.lower() in video_ext for f in folder_path.iterdir()
+        )
+        if not has_video:
+            no_videos.append(configured[folder_id])
+
+    if not_configured:
+        return ExecutionFailure(
+            code="SCENE_FOLDER_NOT_CONFIGURED",
+            message=f"未配置的场景文件夹: {', '.join(not_configured)}",
+            retryable=False,
+        )
+    if not_found:
+        return ExecutionFailure(
+            code="SCENE_FOLDER_NOT_FOUND",
+            message=f"场景文件夹不存在: {', '.join(not_found)}",
+            retryable=False,
+        )
+    if no_videos:
+        return ExecutionFailure(
+            code="SCENE_MEDIA_MISSING",
+            message=f"以下场景文件夹没有受支持的视频: {', '.join(no_videos)}",
+            retryable=False,
+        )
+    return None
 
 
 class CoverTitleStyleRequest(BaseModel):
@@ -74,6 +145,7 @@ class CreateJobRequest(BaseModel):
     music_volume: int = 80
     tts_model: str = ""
     tts_voice: str = ""
+    scene_folder_ids: list[str] = []
 
 
 class BatchJobItem(BaseModel):
@@ -88,6 +160,7 @@ class BatchJobItem(BaseModel):
     music_volume: int = 80
     tts_model: str = ""
     tts_voice: str = ""
+    scene_folder_ids: list[str] = []
 
 
 class BatchCreateRequest(BaseModel):
@@ -146,6 +219,7 @@ def _make_job_response(
         "tts_model": record.tts_model,
         "tts_voice": record.tts_voice,
         "display_index": display_index,
+        "scene_folder_ids": record.scene_folder_ids,
     }
 
 
@@ -156,6 +230,11 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     )
     if not product.strip():
         raise HTTPException(status_code=400, detail="product is required")
+    validation_error = _validate_import_scene_folders(
+        Path(request.app.state.root_dir), product, payload.mode, payload.scene_folder_ids
+    )
+    if validation_error is not None:
+        raise HTTPException(status_code=400, detail=validation_error.model_dump())
     job_id = f"job_{product}_{uuid4().hex[:8]}"
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
@@ -178,6 +257,7 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         music_volume=payload.music_volume,
         tts_model=payload.tts_model,
         tts_voice=payload.tts_voice,
+        scene_folder_ids=payload.scene_folder_ids,
     )
     repo.save_job(project_id, record)
 
@@ -200,6 +280,14 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
 
     results: list[dict] = []
     for i, item in enumerate(payload.jobs):
+        validation_error = _validate_import_scene_folders(
+            Path(request.app.state.root_dir),
+            product,
+            item.mode,
+            item.scene_folder_ids,
+        )
+        if validation_error is not None:
+            raise HTTPException(status_code=400, detail=validation_error.model_dump())
         job_id = f"job_{product}_{uuid4().hex[:8]}"
         cover_title = _cover_title_from_request(item.cover_title)
         record = JobRecord(
@@ -222,6 +310,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             music_volume=item.music_volume,
             tts_model=item.tts_model,
             tts_voice=item.tts_voice,
+            scene_folder_ids=item.scene_folder_ids,
         )
         repo.save_job(project_id, record)
         display_index = f"{existing_count + i + 1:03d}"
@@ -298,6 +387,16 @@ def retry_job(request: Request, job_id: str):
     scene_config = request.app.state.config_reader.get_scene_config(
         product_id=record.product
     )
+    configured_paths = [
+        entry.get("path", "")
+        for entry in scene_config.get("folders", [])
+        if entry.get("path")
+    ]
+    scene_folder_paths = (
+        record.scene_folder_ids
+        if record.mode == "import" and record.scene_folder_ids
+        else configured_paths
+    )
     ctx = PhaseContext(
         job_id=record.job_id,
         project_dir=project_dir,
@@ -310,11 +409,7 @@ def retry_job(request: Request, job_id: str):
             "language": record.language,
             "mode": record.mode,
         },
-        scene_folder_paths=[
-            entry.get("path", "")
-            for entry in scene_config.get("folders", [])
-            if entry.get("path")
-        ],
+        scene_folder_paths=scene_folder_paths,
         transition_duration_ms=scene_config.get("transition_duration_ms", 500),
         scene_config=scene_config,
     )
@@ -338,6 +433,74 @@ def retry_job(request: Request, job_id: str):
         ),
     )
     return {"status": "phase_queued_for_retry", "job_id": job_id}
+
+
+class MigrateScenesRequest(BaseModel):
+    scene_folder_ids: list[str]
+
+
+@router.post("/api/jobs/{job_id}/migrate-scenes")
+def migrate_scenes(
+    request: Request, job_id: str, payload: MigrateScenesRequest
+):
+    """Migrate an import job that lacks valid scene input to use new folders.
+
+    Preserves user-level configuration (manual script, TTS/language settings,
+    uploaded audio, cover title, music), clears stale artifacts/runtime files,
+    validates the new scene folder selection, and resets the job to ``queued``.
+    """
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    record = repo.load_job(project_id, job_id)
+    if record.phase != "migration_required":
+        raise HTTPException(
+            status_code=409, detail="job does not require scene migration"
+        )
+
+    validation_error = _validate_import_scene_folders(
+        Path(request.app.state.root_dir),
+        record.product,
+        record.mode,
+        payload.scene_folder_ids,
+    )
+    if validation_error is not None:
+        raise HTTPException(status_code=400, detail=validation_error.model_dump())
+
+    # Clear runtime artifacts so the job restarts with clean state.
+    job_runtime_dir = (
+        Path(request.app.state.root_dir)
+        / "workspace"
+        / "projects"
+        / project_id
+        / "runtime"
+        / "jobs"
+        / job_id
+    )
+    if job_runtime_dir.exists():
+        shutil.rmtree(job_runtime_dir)
+
+    reset_record = record.model_copy(
+        update={
+            "phase": "queued",
+            "review_status": "none",
+            "failed_phase": None,
+            "scene_folder_ids": payload.scene_folder_ids,
+            "artifacts": [],
+            "execution": PhaseExecutionState(
+                max_attempts=record.execution.max_attempts
+            ),
+        }
+    )
+    repo.save_job(project_id, reset_record)
+    return {
+        "status": "migrated",
+        "job_id": job_id,
+        "phase": "queued",
+        "scene_folder_ids": payload.scene_folder_ids,
+    }
 
 
 @router.delete("/api/jobs/{job_id}")
@@ -480,6 +643,23 @@ def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
 def list_music(request: Request):
     lib = MusicLibrary(request.app.state.root_dir)
     return {"tracks": lib.tracks}
+
+
+@router.get("/api/scene-folders")
+def list_scene_folders(request: Request, product: str = ""):
+    """Return configured scene folders for the active or requested product."""
+    config_reader = request.app.state.config_reader
+    scene_config = config_reader.get_scene_config(product_id=product)
+    return {
+        "folders": [
+            {
+                "name": entry.get("name", ""),
+                "path": entry.get("path", ""),
+            }
+            for entry in scene_config.get("folders", [])
+            if entry.get("path")
+        ]
+    }
 
 
 class GenerateCoverTitleRequest(BaseModel):
