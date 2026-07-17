@@ -381,6 +381,32 @@ def get_whisper_cli_path(reader: ConfigReader | None = None) -> str:
     return _resolve_whisper_cli_path(reader=reader)
 
 
+def get_whisper_model_path(reader: ConfigReader | None = None) -> str:
+    """Resolve the whisper model file path.
+
+    Priority: ``WHISPER_MODEL_PATH`` env > ``ConfigReader`` media.whisper_model_path >
+    ``tools/models/ggml-large-v3.bin``.
+
+    Args:
+        reader: Optional ``ConfigReader`` instance. When provided, reads
+                ``media.whisper_model_path`` from ``app_config.json`` as part
+                of the resolution chain.
+    """
+    config_path: str | None = None
+    if reader is not None:
+        media = reader.get_media_config()
+        config_path = media.get("whisper_model_path") or None
+    return _resolve_tool_path(
+        tool_name="whisper model",
+        env_var="WHISPER_MODEL_PATH",
+        default_candidates=[
+            "tools/models/ggml-large-v3.bin",
+            "tools/models/ggml-large-v3-turbo.bin",
+        ],
+        config_path=config_path,
+    )
+
+
 def run_ffmpeg(args: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
     """运行 ffmpeg 命令。"""
     ffmpeg = _resolve_ffmpeg_path()

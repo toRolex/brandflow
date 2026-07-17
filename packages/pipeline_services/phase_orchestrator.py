@@ -26,6 +26,11 @@ from packages.domain_core.phase_execution import (
 )
 from packages.pipeline_services.script_service import generate_script
 from packages.pipeline_services.script_service.generator import ScriptGenerator
+from packages.pipeline_services.force_align_service import (
+    ForceAlignError,
+    ForceAlignService,
+)
+from packages.pipeline_services.script_sentence import parse_script_sentences
 from packages.pipeline_services.sentence_tts_service import (
     SentenceTiming,
     SentenceTTSService,
@@ -638,7 +643,9 @@ class PhaseOrchestrator:
         """Execute per-sentence TTS synthesis or copy uploaded audio.
 
         Discovery order for uploaded audio:
-            1. ``ctx.options["uploaded_audio_path"]`` → copy file directly
+            1. ``ctx.options["uploaded_audio_path"]`` → copy file, force-align,
+               persist sentence timings, or raise ``ForceAlignError`` with
+               per-sentence diagnostics.
             2. Otherwise discover script text from ``*口播文案.txt`` then ``*.json``
                and synthesize each canonical Script Sentence separately.
         """
@@ -653,6 +660,51 @@ class PhaseOrchestrator:
             if src_audio.exists():
                 shutil.copy2(src_audio, audio_path)
                 print(f"[TTS] Using uploaded audio: {src_audio}", flush=True)
+
+                # Force-align uploaded audio to canonical Script Sentences
+                existing_script = self._discover_script(job_dir)
+                if existing_script:
+                    sentences = parse_script_sentences(existing_script)
+                    if sentences:
+                        align_svc = ForceAlignService()
+                        align_result = align_svc.align(audio_path, sentences)
+
+                        if align_result.status == "success":
+                            sentences_path = job_dir / "sentences.json"
+                            sentences_path.write_text(
+                                json.dumps(
+                                    [t.model_dump() for t in align_result.timings],
+                                    ensure_ascii=False,
+                                    indent=2,
+                                ),
+                                encoding="utf-8",
+                            )
+                            result.append(
+                                self._to_artifact(
+                                    "sentence_timings",
+                                    sentences_path,
+                                    workspace_dir,
+                                )
+                            )
+                            print(
+                                f"[TTS] Force-aligned uploaded audio: "
+                                f"{len(align_result.timings)} sentences, "
+                                f"audio size={audio_path.stat().st_size}",
+                                flush=True,
+                            )
+                        else:
+                            # No fallback — surface per-sentence diagnostics
+                            raise ForceAlignError(align_result)
+                    else:
+                        print(
+                            "[TTS] Uploaded audio: no parseable sentences in script",
+                            flush=True,
+                        )
+                else:
+                    print(
+                        f"[TTS] Uploaded audio: no script text found in {job_dir}",
+                        flush=True,
+                    )
             else:
                 print(f"[TTS WARN] Uploaded audio not found: {src_audio}", flush=True)
         else:
