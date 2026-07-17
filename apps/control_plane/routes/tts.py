@@ -33,6 +33,14 @@ class TTSConfigRequest(BaseModel):
     sample_rate: int | None = None
     bitrate: int | None = None
     channel: int | None = None
+    # Qwen-TTS fields
+    instructions: str | None = None
+    optimize_instructions: bool | None = None
+    language_type: str | None = None
+    # VoiceClone / VoiceDesign fields
+    voice_clone_sample_path: str | None = None
+    voice_clone_mime_type: str | None = None
+    optimize_text_preview: bool | None = None
 
 
 class TTSConfigResponse(BaseModel):
@@ -53,6 +61,14 @@ class TTSConfigResponse(BaseModel):
     sample_rate: int | None
     bitrate: int | None
     channel: int | None
+    # Qwen-TTS fields
+    instructions: str
+    optimize_instructions: bool
+    language_type: str
+    # VoiceClone / VoiceDesign fields
+    voice_clone_sample_path: str | None
+    voice_clone_mime_type: str | None
+    optimize_text_preview: bool
 
 
 class TTSPreviewRequest(BaseModel):
@@ -61,6 +77,10 @@ class TTSPreviewRequest(BaseModel):
     voice: str | None = None
     style_prompt: str | None = None
     voice_design_prompt: str | None = None
+    # Qwen-TTS fields
+    instructions: str | None = None
+    optimize_instructions: bool | None = None
+    language_type: str | None = None
 
 
 PRESET_VOICES = [
@@ -395,6 +415,14 @@ async def preview_tts(request: TTSPreviewRequest):
             config.style_prompt = request.style_prompt
         if request.voice_design_prompt:
             config.voice_design_prompt = request.voice_design_prompt
+        # Pass through Qwen-specific fields from the request so
+        # preview uses the current page values, not stale saved ones.
+        if request.instructions is not None:
+            config.instructions = request.instructions
+        if request.optimize_instructions is not None:
+            config.optimize_instructions = request.optimize_instructions
+        if request.language_type is not None:
+            config.language_type = request.language_type
 
         model = config.model or ""
         if model.startswith("qwen"):
