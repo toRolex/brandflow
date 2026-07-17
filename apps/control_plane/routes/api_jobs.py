@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 import shutil
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from packages.domain_core.models import (
@@ -20,6 +22,7 @@ from packages.domain_core.models import (
 )
 from packages.file_store.repository import FileStoreRepository
 from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 from apps.control_plane.services.music_library import MusicLibrary
 
 router = APIRouter(tags=["api-jobs"])
@@ -703,3 +706,274 @@ def generate_cover_title(payload: GenerateCoverTitleRequest, request: Request):
         payload.script_text, payload.product, payload.brand
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Job-level TTS voice selection, preview, and change (#177)
+# ---------------------------------------------------------------------------
+
+
+class UpdateTTSVoiceRequest(BaseModel):
+    model: str | None = None
+    voice: str | None = None
+    confirm: bool = False
+
+
+def _resolve_tts_voice_info(
+    record: JobRecord, config_reader: ConfigReader
+) -> dict:
+    """Resolve effective model/voice and which level it came from.
+
+    Priority: Job-level > Product-level > Global-level.
+    """
+    product_tts = config_reader.get_tts_config(product_id=record.product) if record.product else {}
+    global_tts = config_reader.get_tts_config()
+
+    effective_model = record.tts_model or product_tts.get("model", "") or global_tts.get("model", "")
+    effective_voice = record.tts_voice or product_tts.get("voice", "") or global_tts.get("voice", "")
+
+    # Determine source level
+    if record.tts_model or record.tts_voice:
+        resolved_from = "job"
+    elif record.product and product_tts:
+        p_model = product_tts.get("model", "")
+        p_voice = product_tts.get("voice", "")
+        g_model = global_tts.get("model", "")
+        g_voice = global_tts.get("voice", "")
+        if p_model != g_model or p_voice != g_voice:
+            resolved_from = "product"
+        else:
+            resolved_from = "global"
+    else:
+        resolved_from = "global"
+
+    return {
+        "model": effective_model,
+        "voice": effective_voice,
+        "resolved_from": resolved_from,
+    }
+
+
+def _first_sentence(text: str) -> str:
+    """Extract the first sentence from *text* using Chinese/English punctuation."""
+    if not text.strip():
+        return ""
+    parts = re.split(r"[。！？!?\n]", text)
+    for part in parts:
+        stripped = part.strip()
+        if stripped:
+            return stripped
+    return text.strip()
+
+
+_SENTENCE_END_PUNCT = frozenset({"。", "！", "？", "!", "?", "\n"})
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split text into sentences using Chinese/English punctuation.
+
+    Each sentence includes its trailing punctuation (except newlines).
+    """
+    if not text or not text.strip():
+        return []
+    result: list[str] = []
+    current: list[str] = []
+    for ch in text:
+        current.append(ch)
+        if ch in _SENTENCE_END_PUNCT:
+            sentence = "".join(current).strip()
+            if sentence:
+                result.append(sentence)
+            current = []
+    remaining = "".join(current).strip()
+    if remaining:
+        result.append(remaining)
+    return result
+
+
+def _resolve_tts_preview_config(
+    record: JobRecord,
+    config_reader: ConfigReader,
+    secret_store: SecretStore,
+) -> tuple[Any, Any]:
+    """Resolve TTS config and build provider for preview."""
+    tts_cfg = {**config_reader.get_tts_config(product_id=record.product or None)}
+    if record.tts_model:
+        tts_cfg["model"] = record.tts_model
+    if record.tts_voice:
+        tts_cfg["voice"] = record.tts_voice
+
+    from packages.pipeline_services.tts_provider import (
+        MiMoTTSProvider,
+        QwenTTSProvider,
+        TTSConfigShim,
+    )
+
+    tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
+    if tts_model.startswith("qwen"):
+        provider = QwenTTSProvider(
+            api_key=secret_store.get_api_key("qwen"),
+            base_url=secret_store.get_api_base_url("qwen")
+            or "https://dashscope.aliyuncs.com/api/v1",
+        )
+    else:
+        provider = MiMoTTSProvider(
+            api_key=secret_store.get_api_key("mimo"),
+        )
+    return provider, TTSConfigShim(tts_cfg)
+
+
+@router.get("/api/jobs/{job_id}/tts/voice")
+def get_job_tts_voice(job_id: str, request: Request):
+    """Return the effective TTS model/voice and which config level it came from."""
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+    record = repo.load_job(project_id, job_id)
+    config_reader: ConfigReader = request.app.state.config_reader
+    return _resolve_tts_voice_info(record, config_reader)
+
+
+@router.post("/api/jobs/{job_id}/tts/preview")
+def preview_job_tts(job_id: str, request: Request):
+    """Generate TTS for the first sentence only.
+
+    Does NOT persist audio, modify artifacts, or advance the job phase.
+    """
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    record = repo.load_job(project_id, job_id)
+    root_dir: Path = request.app.state.root_dir
+    config_reader: ConfigReader = request.app.state.config_reader
+
+    # Discover script text: runtime file first, then manual_script on record
+    script_text = ""
+    job_dir = root_dir / "workspace" / "projects" / project_id / "runtime" / "jobs" / job_id
+    for p in job_dir.glob("*口播文案.txt"):
+        script_text = p.read_text(encoding="utf-8").strip()
+        break
+    if not script_text:
+        for p in job_dir.glob("*口播文案.json"):
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                script_text = data.get("text", "").strip()
+                break
+            except json.JSONDecodeError:
+                pass
+    if not script_text:
+        script_text = record.manual_script
+
+    if not script_text or not script_text.strip():
+        raise HTTPException(status_code=400, detail="job has no script text to preview")
+
+    first = _first_sentence(script_text)
+    if not first:
+        raise HTTPException(status_code=400, detail="could not extract first sentence")
+
+    provider, shim = _resolve_tts_preview_config(
+        record, config_reader, request.app.state.secret_store
+    )
+
+    try:
+        audio_bytes = provider.synthesize(first, shim)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS preview failed: {e}")
+
+    audio_format = shim.audio_format or "wav"
+    if audio_format == "wav":
+        media_type = "audio/wav"
+    elif audio_format == "pcm16":
+        media_type = "audio/L16;rate=24000;channels=1"
+    else:
+        media_type = "audio/wav"
+
+    return Response(
+        content=audio_bytes,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": "attachment; filename=preview.wav",
+            "X-Preview-Sentence": first[:80],
+        },
+    )
+
+
+_INVALIDATE_ARTIFACT_KINDS: frozenset[str] = frozenset(
+    {"tts_audio", "subtitle", "video_base", "final_video"}
+)
+
+
+@router.put("/api/jobs/{job_id}/tts/voice")
+def update_job_tts_voice(
+    job_id: str, payload: UpdateTTSVoiceRequest, request: Request
+):
+    """Update job-level TTS model/voice selection.
+
+    When formal TTS audio exists (audio.mp3), the caller must set
+    ``confirm=true``.  On confirmation, downstream artifacts (audio,
+    subtitles, video, final) are invalidated and the job phase resets to
+    ``tts_generating`` so the pipeline re-generates from TTS.
+    Script and asset-selection artifacts are preserved.
+    """
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    record = repo.load_job(project_id, job_id)
+    root_dir: Path = request.app.state.root_dir
+
+    # Check for existing formal audio
+    audio_path = (
+        root_dir / "workspace" / "projects" / project_id
+        / "runtime" / "jobs" / job_id / "audio.mp3"
+    )
+    audio_exists = audio_path.exists()
+
+    if audio_exists and not payload.confirm:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "TTS_AUDIO_EXISTS",
+                "message": "正式 TTS 音频已存在，更换音色将失效下游产物，请确认",
+                "audio_exists": True,
+            },
+        )
+
+    # Apply voice/model updates
+    updates: dict[str, object] = {}
+    if payload.model is not None:
+        updates["tts_model"] = payload.model
+    if payload.voice is not None:
+        updates["tts_voice"] = payload.voice
+
+    if not updates:
+        # Nothing changed; return current state
+        config_reader: ConfigReader = request.app.state.config_reader
+        return _resolve_tts_voice_info(record, config_reader)
+
+    if audio_exists and payload.confirm:
+        # Invalidate downstream artifacts (preserve script + asset selections)
+        preserved = [
+            a
+            for a in record.artifacts
+            if a.kind not in _INVALIDATE_ARTIFACT_KINDS
+        ]
+        updates["artifacts"] = preserved
+        updates["phase"] = "tts_generating"
+        updates["review_status"] = "none"
+
+        # Remove audio file so the next tick actually re-runs TTS
+        try:
+            audio_path.unlink()
+        except OSError:
+            pass
+
+    record = record.model_copy(update=updates)  # type: ignore[arg-type]
+    repo.save_job(project_id, record)
+
+    config_reader = request.app.state.config_reader
+    return _resolve_tts_voice_info(record, config_reader)

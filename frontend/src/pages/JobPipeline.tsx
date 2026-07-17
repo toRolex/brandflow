@@ -38,6 +38,16 @@ export default function JobPipeline() {
   const [selectedSceneFolders, setSelectedSceneFolders] = useState<string[]>([]);
   const initialLoad = useRef(true);
 
+  // TTS voice selection state (#177)
+  const [ttsVoices, setTtsVoices] = useState<Array<{ id: string; label: string; note: string; model: string }>>([]);
+  const [ttsVoiceInfo, setTtsVoiceInfo] = useState<{ model: string; voice: string; resolved_from: string } | null>(null);
+  const [ttsSelectedModel, setTtsSelectedModel] = useState("");
+  const [ttsSelectedVoice, setTtsSelectedVoice] = useState("");
+  const [ttsPreviewUrl, setTtsPreviewUrl] = useState("");
+  const [ttsPreviewLoading, setTtsPreviewLoading] = useState(false);
+  const [showVoiceConfirm, setShowVoiceConfirm] = useState(false);
+  const [pendingVoiceChange, setPendingVoiceChange] = useState<{ model?: string; voice?: string } | null>(null);
+
   const phaseToStepKey = (phase: Phase): string => {
     const step = PIPELINE_STEPS.find((s) => s.phase === phase);
     return step ? step.key : "";
@@ -112,6 +122,27 @@ export default function JobPipeline() {
       .then((data) => setSceneFolders(data.folders))
       .catch(() => setError("加载场景文件夹失败"));
   }, [job?.phase, job?.product]);
+
+  // Fetch TTS voice info when on a TTS-related step (#177)
+  useEffect(() => {
+    if (!job || !id) return;
+    if (activeStepKey !== "tts" && activeStepKey !== "tts_review") return;
+    api.getJobTTSVoice(id)
+      .then((info) => {
+        setTtsVoiceInfo(info);
+        setTtsSelectedModel(info.model);
+        setTtsSelectedVoice(info.voice);
+      })
+      .catch(() => {});
+  }, [id, activeStepKey, job?.tts_model, job?.tts_voice]);
+
+  // Fetch available voices when model changes (#177)
+  useEffect(() => {
+    if (!ttsSelectedModel) return;
+    api.getTTSVoices(undefined, ttsSelectedModel)
+      .then((data) => setTtsVoices(data.preset_voices))
+      .catch(() => setTtsVoices([]));
+  }, [ttsSelectedModel]);
 
   if (loading) {
     return <div className="text-center py-12 text-[var(--text-tertiary)]">加载中...</div>;
@@ -230,8 +261,240 @@ export default function JobPipeline() {
     }
   };
 
+  // TTS voice preview handler (#177)
+  const handleTtsPreview = async () => {
+    if (!job) return;
+    setTtsPreviewLoading(true);
+    try {
+      const url = await api.previewJobTTS(job.job_id);
+      setTtsPreviewUrl(url);
+    } catch (e) {
+      console.error("tts preview failed", e);
+      setError("试听失败");
+    }
+    setTtsPreviewLoading(false);
+  };
+
+  // TTS voice change handler (#177)
+  const handleTtsVoiceChange = (model?: string, voice?: string) => {
+    if (!model && !voice) return;
+    // Check if audio exists (has tts_audio artifact) - show confirm if so
+    const hasAudio = job?.artifacts?.some((a) => a.kind === "tts_audio");
+    if (hasAudio) {
+      setPendingVoiceChange({ model: model || ttsSelectedModel, voice: voice || ttsSelectedVoice });
+      setShowVoiceConfirm(true);
+      return;
+    }
+    applyVoiceChange(model, voice);
+  };
+
+  const applyVoiceChange = async (model?: string, voice?: string) => {
+    if (!job) return;
+    try {
+      const info = await api.updateJobTTSVoice(job.job_id, {
+        model: model || undefined,
+        voice: voice || undefined,
+        confirm: false,
+      });
+      setTtsVoiceInfo(info);
+      setTtsSelectedModel(info.model);
+      setTtsSelectedVoice(info.voice);
+      // Clear preview URL when voice changes
+      if (ttsPreviewUrl) {
+        URL.revokeObjectURL(ttsPreviewUrl);
+        setTtsPreviewUrl("");
+      }
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message.includes("409")) {
+        // Need confirmation
+        setPendingVoiceChange({ model, voice });
+        setShowVoiceConfirm(true);
+        return;
+      }
+      console.error("voice change failed", e);
+      setError("更换音色失败");
+    }
+  };
+
+  const handleConfirmVoiceChange = async () => {
+    if (!job || !pendingVoiceChange) return;
+    try {
+      const info = await api.updateJobTTSVoice(job.job_id, {
+        model: pendingVoiceChange.model || undefined,
+        voice: pendingVoiceChange.voice || undefined,
+        confirm: true,
+      });
+      setTtsVoiceInfo(info);
+      setTtsSelectedModel(info.model);
+      setTtsSelectedVoice(info.voice);
+      if (ttsPreviewUrl) {
+        URL.revokeObjectURL(ttsPreviewUrl);
+        setTtsPreviewUrl("");
+      }
+      setShowVoiceConfirm(false);
+      setPendingVoiceChange(null);
+      // Reload job to pick up phase change
+      load();
+    } catch (e) {
+      console.error("confirm voice change failed", e);
+      setError("确认更换音色失败");
+    }
+  };
+
+  const handleCancelVoiceChange = () => {
+    setShowVoiceConfirm(false);
+    setPendingVoiceChange(null);
+  };
+
   const findArtifact = (kind: string) => {
     return job.artifacts?.find((a) => a.kind === kind);
+  };
+
+  const renderTTSVoiceSelector = () => {
+    const RESOLVED_LABELS: Record<string, string> = {
+      job: "Job",
+      product: "产品",
+      global: "全局",
+    };
+    const resolvedLabel = ttsVoiceInfo ? RESOLVED_LABELS[ttsVoiceInfo.resolved_from] || ttsVoiceInfo.resolved_from : "";
+    const resolvedBadgeColor = ttsVoiceInfo?.resolved_from === "job"
+      ? "var(--btn-primary-bg)"
+      : ttsVoiceInfo?.resolved_from === "product"
+      ? "var(--color-caution-amber)"
+      : "var(--text-tertiary)";
+
+    const hasAudio = job?.artifacts?.some((a) => a.kind === "tts_audio");
+
+    return (
+      <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: "var(--border-default)", background: "var(--bg-table-head)" }}>
+        {/* Resolution badge */}
+        {ttsVoiceInfo && (
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>当前音色:</span>
+            <span className="text-xs font-mono" style={{ color: "var(--text-primary)" }}>
+              {ttsVoiceInfo.model} / {ttsVoiceInfo.voice}
+            </span>
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+              style={{ background: resolvedBadgeColor, color: "#fff" }}
+            >
+              {resolvedLabel}
+            </span>
+          </div>
+        )}
+
+        {/* Voice selector */}
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <select
+            className="text-xs border rounded px-2 py-1"
+            style={{ borderColor: "var(--border-default)", background: "var(--bg-page)", color: "var(--text-primary)" }}
+            value={ttsSelectedModel}
+            onChange={(e) => {
+              const newModel = e.target.value;
+              setTtsSelectedModel(newModel);
+              // When model changes, reset to first voice from that model
+            }}
+          >
+            {ttsVoiceInfo && (
+              <option value={ttsVoiceInfo.model}>
+                {ttsVoiceInfo.model} (当前)
+              </option>
+            )}
+            <option value="mimo-v2.5-tts">mimo-v2.5-tts</option>
+            <option value="mimo-v2.5-tts-voicedesign">mimo-v2.5-tts-voicedesign</option>
+            <option value="mimo-v2.5-tts-voiceclone">mimo-v2.5-tts-voiceclone</option>
+            <option value="qwen3-tts-flash">qwen3-tts-flash</option>
+            <option value="qwen3-tts-instruct-flash">qwen3-tts-instruct-flash</option>
+          </select>
+
+          <select
+            className="text-xs border rounded px-2 py-1 flex-1 min-w-[120px]"
+            style={{ borderColor: "var(--border-default)", background: "var(--bg-page)", color: "var(--text-primary)" }}
+            value={ttsSelectedVoice}
+            onChange={(e) => setTtsSelectedVoice(e.target.value)}
+          >
+            {ttsVoices.length === 0 && ttsVoiceInfo && (
+              <option value={ttsVoiceInfo.voice}>{ttsVoiceInfo.voice} (当前)</option>
+            )}
+            {ttsVoices.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.label} ({v.id})
+              </option>
+            ))}
+          </select>
+
+          <button
+            className="text-xs px-3 py-1 rounded-md"
+            style={{
+              background: "var(--btn-primary-bg)",
+              color: "var(--btn-primary-text)",
+            }}
+            onClick={() => handleTtsVoiceChange(ttsSelectedModel, ttsSelectedVoice)}
+          >
+            应用
+          </button>
+        </div>
+
+        {/* Preview button */}
+        <div className="flex items-center gap-2">
+          <button
+            className="text-xs px-3 py-1 rounded-md disabled:opacity-50"
+            style={{
+              background: "var(--bg-table-head)",
+              color: "var(--text-link)",
+              border: "1px solid var(--border-default)",
+            }}
+            onClick={handleTtsPreview}
+            disabled={ttsPreviewLoading}
+          >
+            {ttsPreviewLoading ? "试听中..." : "试听"}
+          </button>
+          {ttsPreviewUrl && (
+            <span className="text-[10px]" style={{ color: "var(--signal-green)" }}>
+              试听就绪
+            </span>
+          )}
+        </div>
+
+        {/* Link to global TTS config */}
+        <div className="mt-2">
+          <a
+            href="/tts-config"
+            className="text-[10px] hover:underline"
+            style={{ color: "var(--text-tertiary)" }}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            高级 TTS 配置
+          </a>
+        </div>
+
+        {/* Confirmation dialog */}
+        {showVoiceConfirm && (
+          <div className="mt-3 p-3 rounded-lg border" style={{ borderColor: "var(--danger-border)", background: "var(--alert-red-muted)" }}>
+            <p className="text-xs mb-2" style={{ color: "var(--alert-red)" }}>
+              正式 TTS 音频已存在，更换音色将失效下游产物（字幕、视频等），确认继续？
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="text-xs px-3 py-1 rounded-md"
+                style={{ background: "var(--btn-danger-bg)", color: "var(--btn-danger-text)" }}
+                onClick={handleConfirmVoiceChange}
+              >
+                确认更换
+              </button>
+              <button
+                className="text-xs px-3 py-1 rounded-md"
+                style={{ background: "var(--bg-page)", color: "var(--text-primary)", border: "1px solid var(--border-default)" }}
+                onClick={handleCancelVoiceChange}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderDetail = () => {
@@ -305,7 +568,8 @@ export default function JobPipeline() {
         return (
           <div>
             <h3 className="font-semibold text-sm mb-3">TTS 配音</h3>
-            <MediaPlayer src={audio?.url || ""} kind="audio" />
+            {renderTTSVoiceSelector()}
+            <MediaPlayer src={audio?.url || ttsPreviewUrl || ""} kind="audio" />
           </div>
         );
       }
@@ -315,7 +579,8 @@ export default function JobPipeline() {
           <div>
             <h3 className="font-semibold text-sm mb-3">TTS 审核</h3>
             <p className="text-[var(--text-tertiary)] text-sm mb-4">请试听TTS配音效果，确认无误后通过</p>
-            <MediaPlayer src={audio?.url || ""} kind="audio" />
+            {renderTTSVoiceSelector()}
+            <MediaPlayer src={audio?.url || ttsPreviewUrl || ""} kind="audio" />
             <div className="flex gap-2 mt-4">
               <button
                 className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
