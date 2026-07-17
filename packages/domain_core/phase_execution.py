@@ -48,7 +48,8 @@ def adapt_legacy_artifacts(
     """Temporarily adapt an artifact-list handler to the expanded contract.
 
     This compatibility boundary is intentionally explicit so the later handler
-    contract migration can remove it without changing the result models.
+    contract migration (Issue #171) can remove it without changing the result
+    models.
     """
 
     return PhaseExecutionSuccess(artifacts=artifacts)
