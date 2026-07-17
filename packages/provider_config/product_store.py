@@ -77,8 +77,7 @@ class ProductStore:
                 return {"id": trimmed, "name": trimmed}
 
         raw["products"].append({"id": trimmed, "default_name": trimmed})
-        if "active_product_id" not in raw or not raw["active_product_id"]:
-            raw["active_product_id"] = trimmed
+        raw["active_product_id"] = trimmed
 
         self._save(raw)
         return {"id": trimmed, "name": trimmed}

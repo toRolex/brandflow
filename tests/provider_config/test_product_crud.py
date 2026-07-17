@@ -59,14 +59,14 @@ class TestCreateProduct:
             config = store.get_product_config("羊肚菌")
             assert config["default_name"] == "羊肚菌"
 
-    def test_create_product_does_not_change_active_product(self) -> None:
-        """create_product 新建产品不应自动切换活跃产品。"""
+    def test_create_product_becomes_active_product(self) -> None:
+        """create_product 新建产品后自动切换为活跃产品。"""
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
             store.switch_product("prod_a")
             store.create_product("羊肚菌")
             raw = store._reader._raw
-            assert raw["active_product_id"] == "prod_a"
+            assert raw["active_product_id"] == "羊肚菌"
 
 
 class TestRenameProduct:
@@ -91,7 +91,7 @@ class TestRenameProduct:
             store.create_product("羊肚菌")
             store.rename_product("羊肚菌", "新鲜羊肚菌")
             raw = store._reader._raw
-            assert raw["active_product_id"] == "prod_a"
+            assert raw["active_product_id"] == "羊肚菌"
 
     def test_rename_nonexistent_raises(self) -> None:
         """不存在的产品抛出 ValueError。"""
