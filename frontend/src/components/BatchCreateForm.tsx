@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { MusicTrack } from "../types";
+import type { MusicTrack, SceneFolder } from "../types";
 import { api } from "../api/client";
 import { type BatchConfig, defaultBatchConfig } from "../utils/batchScriptSplit";
 import BatchScriptUploader from "./BatchScriptUploader";
@@ -38,6 +38,22 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
   const [batchSkipSubtitle, setBatchSkipSubtitle] = useState(false);
   const [batchCreating, setBatchCreating] = useState(false);
   const [batchCoverCooldown, setBatchCoverCooldown] = useState<Set<number>>(new Set());
+  const [sceneFolders, setSceneFolders] = useState<SceneFolder[]>([]);
+  const [sceneFolderIds, setSceneFolderIds] = useState<string[]>([]);
+  const [sceneFoldersLoading, setSceneFoldersLoading] = useState(false);
+
+  useEffect(() => {
+    setSceneFoldersLoading(true);
+    api.getSceneFolders(product)
+      .then((data) => setSceneFolders(data.folders))
+      .catch(() => onError("加载场景文件夹失败"))
+      .finally(() => setSceneFoldersLoading(false));
+  }, [product, onError]);
+
+  useEffect(() => {
+    setBatchConfigs((prev) => prev.map((c) => ({ ...c, sceneFolderIds })));
+  }, [sceneFolderIds]);
+
   useEffect(() => {
     setBatchConfigs((prev) => {
       if (prev.length === batchCount) return prev;
@@ -126,6 +142,41 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Scene Folder Selector (used by import-mode jobs) */}
+      <div className="mt-4">
+        <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+          场景文件夹（导入模式）
+        </span>
+        {sceneFoldersLoading ? (
+          <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>加载中...</p>
+        ) : sceneFolders.length === 0 ? (
+          <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>未配置场景文件夹</p>
+        ) : (
+          <div className="flex flex-wrap gap-3 mt-1.5">
+            {sceneFolders.map((folder) => (
+              <label
+                key={folder.path}
+                className="flex items-center gap-1.5 text-sm cursor-pointer"
+                style={{ color: "var(--text-primary)" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={sceneFolderIds.includes(folder.path)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSceneFolderIds([...sceneFolderIds, folder.path]);
+                    } else {
+                      setSceneFolderIds(sceneFolderIds.filter((id) => id !== folder.path));
+                    }
+                  }}
+                />
+                {folder.name}
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* batch count + uploader */}

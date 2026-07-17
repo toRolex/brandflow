@@ -12,6 +12,24 @@ def _client(tmp_path: Path) -> TestClient:
     return TestClient(create_app(tmp_path))
 
 
+def _configure_scene_folders(tmp_path: Path) -> None:
+    """Write a minimal scene config with one folder and create the folder on disk."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    scene_folder = tmp_path / "workspace" / "scenes" / "one"
+    scene_folder.mkdir(parents=True, exist_ok=True)
+    (scene_folder / "clip.mp4").write_bytes(b"fake video")
+    config = {
+        "scene": {
+            "folders": [{"name": "场景一", "path": "scenes/one"}],
+            "transition_duration_ms": 500,
+        }
+    }
+    (config_dir / "app_config.json").write_text(
+        json.dumps(config, ensure_ascii=False), encoding="utf-8"
+    )
+
+
 class TestScriptTemplateAPI:
     """/api/config/templates CRUD"""
 
@@ -193,6 +211,9 @@ class TestScriptTemplateJobIntegration:
         assert "买一送一" in rendered
         assert "{product_name}" not in rendered
 
+        # 2.5 配置场景文件夹（import 模式要求 scene_folder_ids）
+        _configure_scene_folders(tmp_path)
+
         # 3. 创建项目
         project_resp = client.post("/api/projects", json={"name": "模板测试项目"})
         assert project_resp.status_code == 200
@@ -208,6 +229,7 @@ class TestScriptTemplateJobIntegration:
                 "mode": "import",
                 "manual_script": rendered,
                 "skip_subtitle": True,
+                "scene_folder_ids": ["scenes/one"],
             },
         )
         assert job_resp.status_code == 200

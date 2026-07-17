@@ -174,7 +174,7 @@ export const api = {
     ),
 
   // Jobs
-  createJob: (projectId: string, body: { product: string; brand?: string; platforms: string[]; name?: string; mode?: import("../types").ProductionMode; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string; cover_title?: { text: string; highlight_words?: string[] } | null }) =>
+  createJob: (projectId: string, body: { product: string; brand?: string; platforms: string[]; name?: string; mode?: import("../types").ProductionMode; manual_script?: string; skip_subtitle?: boolean; auto_approve?: boolean; audio_source?: string; music_track_path?: string; music_volume?: number; language?: string; cover_title?: { text: string; highlight_words?: string[] } | null; scene_folder_ids?: string[] }) =>
     request<import("../types").JobDetail>("/api/projects/" + projectId + "/jobs", {
       method: "POST",
       body: JSON.stringify(body),
@@ -200,6 +200,17 @@ export const api = {
 
   retryJob: (jobId: string) =>
     request<{ status: string }>(`/api/jobs/${jobId}/retry`, { method: "POST" }),
+
+  migrateScenes: (jobId: string, sceneFolderIds: string[]) =>
+    request<{ status: string; phase: string; job_id: string }>(`/api/jobs/${jobId}/migrate-scenes`, {
+      method: "POST",
+      body: JSON.stringify({ scene_folder_ids: sceneFolderIds }),
+    }),
+
+  getSceneFolders: (product?: string) =>
+    request<{ folders: import("../types").SceneFolder[] }>(
+      `/api/scene-folders${product ? `?product=${encodeURIComponent(product)}` : ""}`
+    ),
 
   deleteJob: (jobId: string) =>
     request<{ status: string; job_id: string }>(`/api/jobs/${jobId}`, { method: "DELETE" }),

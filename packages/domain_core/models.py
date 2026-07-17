@@ -24,6 +24,7 @@ Phase = Literal[
     "failed",
     "cancelled",
     "paused",
+    "migration_required",
 ]
 
 ProductionMode = Literal["import", "generate"]
