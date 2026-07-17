@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CreateJobForm from "../CreateJobForm";
+import { api } from "../../api/client";
 
 // Mock the API client
 vi.mock("../../api/client", () => ({
   api: {
     previewTemplate: vi.fn(),
     generateCoverTitle: vi.fn(),
+    getSceneFolders: vi.fn(() => Promise.resolve({ folders: [] })),
   },
 }));
 
@@ -41,6 +43,8 @@ function defaultProps(overrides: Record<string, unknown> = {}) {
     setCoverTitleText: vi.fn(),
     coverHighlightWords: "",
     setCoverHighlightWords: vi.fn(),
+    sceneFolderIds: [],
+    setSceneFolderIds: vi.fn(),
     templates: [],
     selectedTemplateId: "",
     setSelectedTemplateId: vi.fn(),
@@ -229,6 +233,62 @@ describe("CreateJobForm - Cover Title Button", () => {
     );
     const btn = screen.getByText("自动生成标题");
     expect(btn).toHaveAttribute("title", "需先输入文案才能生成");
+  });
+});
+
+describe("CreateJobForm - Scene Folder Selection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows scene folder checkboxes in import mode", async () => {
+    vi.mocked(api.getSceneFolders).mockResolvedValue({
+      folders: [
+        { name: "场景一", path: "scenes/one" },
+        { name: "场景二", path: "scenes/two" },
+      ],
+    });
+
+    render(<CreateJobForm {...defaultProps({ productionMode: "import" })} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("场景一")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("场景二")).toBeInTheDocument();
+  });
+
+  it("submits selected scene_folder_ids in import mode", async () => {
+    vi.mocked(api.getSceneFolders).mockResolvedValue({
+      folders: [{ name: "场景一", path: "scenes/one" }],
+    });
+    const setSceneFolderIds = vi.fn();
+    const onCreateJob = vi.fn();
+
+    render(
+      <CreateJobForm
+        {...defaultProps({
+          productionMode: "import",
+          product: "test-product",
+          platforms: ["douyin"],
+          sceneFolderIds: ["scenes/one"],
+          setSceneFolderIds,
+          onCreateJob,
+        })}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("场景一")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("创建并开始生产"));
+
+    await waitFor(() => {
+      expect(onCreateJob).toHaveBeenCalled();
+    });
+
+    const formData = onCreateJob.mock.calls[0][0];
+    expect(formData.scene_folder_ids).toEqual(["scenes/one"]);
   });
 });
 

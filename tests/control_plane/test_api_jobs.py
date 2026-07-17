@@ -12,11 +12,39 @@ def _make_client(tmp_path: Path):
     return TestClient(create_app(tmp_path))
 
 
+def _configure_scene_folders(
+    tmp_path: Path,
+    folders: list[tuple[str, str]],
+    *,
+    with_videos: bool = True,
+) -> None:
+    """Write scene config and create folders with optional video files."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    entries: list[dict[str, str]] = []
+    for name, rel_path in folders:
+        entries.append({"name": name, "path": rel_path})
+        folder_path = tmp_path / "workspace" / rel_path
+        folder_path.mkdir(parents=True, exist_ok=True)
+        if with_videos:
+            (folder_path / "clip.mp4").write_bytes(b"fake video content")
+    config = {
+        "scene": {
+            "folders": entries,
+            "transition_duration_ms": 500,
+        },
+    }
+    (config_dir / "app_config.json").write_text(
+        json.dumps(config, ensure_ascii=False), encoding="utf-8"
+    )
+
+
 # ── 手动脚本更新不影响模式路由 ────────────────────────────────────
 
 
 def test_update_manual_script_preserves_import_mode(tmp_path: Path) -> None:
     """修改 manual_script 后，import 模式任务仍保持 import 模式。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
     client = _make_client(tmp_path)
     resp = client.post(
         "/api/projects/prj_001/jobs",
@@ -25,6 +53,7 @@ def test_update_manual_script_preserves_import_mode(tmp_path: Path) -> None:
             "platforms": ["douyin"],
             "mode": "import",
             "manual_script": "初始文案",
+            "scene_folder_ids": ["scenes/one"],
         },
     )
     assert resp.status_code == 200
@@ -196,10 +225,17 @@ def test_failed_job_response_exposes_failed_phase(tmp_path: Path) -> None:
 
 
 def test_retry_restores_failed_phase_and_preserves_artifacts(tmp_path: Path) -> None:
+    """retry 失败后恢复 failed_phase 并保留 artifacts。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
     client = _make_client(tmp_path)
     created = client.post(
         "/api/projects/prj_001/jobs",
-        json={"product": "test", "platforms": ["douyin"], "mode": "import"},
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "scene_folder_ids": ["scenes/one"],
+        },
     ).json()
     job_path = (
         tmp_path
@@ -261,10 +297,17 @@ def test_retry_restores_failed_phase_and_preserves_artifacts(tmp_path: Path) -> 
 
 
 def test_retry_revalidates_with_media_handler_contract(tmp_path: Path) -> None:
+    """retry 时通过 media handler 的 validate_phase_input 重新校验。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
     client = _make_client(tmp_path)
     created = client.post(
         "/api/projects/prj_001/jobs",
-        json={"product": "test", "platforms": ["douyin"], "mode": "import"},
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "scene_folder_ids": ["scenes/one"],
+        },
     ).json()
     job_path = (
         tmp_path
@@ -956,3 +999,437 @@ def test_delete_job_not_found(tmp_path: Path) -> None:
     resp = client.delete("/api/jobs/nonexistent_job")
     assert resp.status_code == 404
     assert resp.json() == {"detail": "job not found"}
+
+
+# ── import 模式场景文件夹验证 ──────────────────────────────────────
+
+
+def test_create_import_job_rejects_empty_scene_folders(tmp_path: Path) -> None:
+    """import 模式创建 Job 时未选择场景文件夹应被拒绝。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": [],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["code"] == "SCENE_INPUT_MISSING"
+
+
+def test_create_import_job_rejects_missing_scene_folder(tmp_path: Path) -> None:
+    """import 模式选择不存在的场景文件夹路径应返回具体名称。"""
+    _configure_scene_folders(
+        tmp_path, [("场景一", "scenes/one"), ("场景二", "scenes/two")]
+    )
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": ["scenes/one", "scenes/missing"],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert "scenes/missing" in detail["message"] or "场景二" in detail["message"]
+
+
+def test_create_import_job_rejects_scene_folder_without_videos(
+    tmp_path: Path,
+) -> None:
+    """import 模式选择无受支持视频的场景文件夹应返回具体名称。"""
+    _configure_scene_folders(
+        tmp_path,
+        [("空场景", "scenes/empty"), ("有效场景", "scenes/valid")],
+        with_videos=False,
+    )
+    # Only the valid folder gets a video
+    (tmp_path / "workspace" / "scenes" / "valid" / "clip.mp4").write_bytes(
+        b"fake video content"
+    )
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": ["scenes/empty"],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["code"] == "SCENE_MEDIA_MISSING"
+    assert "空场景" in detail["message"]
+
+
+def test_create_import_job_accepts_valid_scene_folders(tmp_path: Path) -> None:
+    """import 模式选择有效场景文件夹后创建成功。"""
+    _configure_scene_folders(
+        tmp_path,
+        [("场景一", "scenes/one"), ("场景二", "scenes/two")],
+    )
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": ["scenes/one", "scenes/two"],
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["scene_folder_ids"] == ["scenes/one", "scenes/two"]
+    assert data["phase"] == "queued"
+
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{data['job_id']}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    assert raw["scene_folder_ids"] == ["scenes/one", "scenes/two"]
+
+
+def test_create_import_job_persists_scene_folder_ids(tmp_path: Path) -> None:
+    """单次 create_job 将 scene_folder_ids 写入 JobRecord。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": ["scenes/one"],
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["scene_folder_ids"] == ["scenes/one"]
+
+
+def test_create_generate_job_ignores_scene_folder_ids(tmp_path: Path) -> None:
+    """generate 模式创建 Job 时 scene_folder_ids 可选且不校验。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "generate",
+        },
+    )
+    assert resp.status_code == 200
+
+
+def test_batch_create_import_jobs_rejects_invalid_scene_folders(
+    tmp_path: Path,
+) -> None:
+    """批量 import 创建时任一 Job 场景文件夹无效即整批拒绝。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {
+                    "name": "有效",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/one"],
+                },
+                {
+                    "name": "无效",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/missing"],
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_batch_create_import_jobs_persists_scene_folder_ids(
+    tmp_path: Path,
+) -> None:
+    """批量 import 创建时 scene_folder_ids 持久化到每个 JobRecord。"""
+    _configure_scene_folders(
+        tmp_path, [("场景一", "scenes/one"), ("场景二", "scenes/two")]
+    )
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {
+                    "name": "第一个",
+                    "mode": "import",
+                    "manual_script": "文案1",
+                    "scene_folder_ids": ["scenes/one"],
+                },
+                {
+                    "name": "第二个",
+                    "mode": "import",
+                    "manual_script": "文案2",
+                    "scene_folder_ids": ["scenes/two"],
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert results[0]["scene_folder_ids"] == ["scenes/one"]
+    assert results[1]["scene_folder_ids"] == ["scenes/two"]
+
+    for r, expected in zip(results, ["scenes/one", "scenes/two"]):
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "control"
+            / "jobs"
+            / f"{r['job_id']}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["scene_folder_ids"] == [expected]
+
+
+def test_old_incomplete_import_job_moves_to_migration_required(
+    tmp_path: Path,
+) -> None:
+    """存量未完成 import Job（无 scene_folder_ids）被 tick 进入 migration_required。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": ["scenes/one"],
+        },
+    ).json()
+    job_id = created["job_id"]
+
+    # Simulate legacy job without scene_folder_ids by editing disk directly
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{job_id}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    raw.pop("scene_folder_ids", None)
+    job_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    # Directly invoke the tick service to observe migration_required transition
+    from packages.file_store.repository import FileStoreRepository
+    from packages.pipeline_services.job_tick_service import JobTickService
+    from apps.control_plane.app import create_orchestrator
+
+    repo = FileStoreRepository(tmp_path)
+    orchestrator = create_orchestrator(tmp_path, client.app.state.config_reader)
+    svc = JobTickService(
+        orchestrator, repo, config_reader=client.app.state.config_reader
+    )
+    summary = svc.tick(
+        "prj_001",
+        job_id,
+        "test",
+        root_dir=tmp_path,
+        project_dir=tmp_path / "workspace" / "projects" / "prj_001",
+    )
+    assert summary.to_phase == "migration_required"
+
+    detail = client.get(f"/api/jobs/{job_id}").json()
+    assert detail["phase"] == "migration_required"
+
+
+# ── 存量 Job 场景迁移 ──────────────────────────────────────────────
+
+
+def test_migrate_scenes_endpoint_rejects_invalid_folders(tmp_path: Path) -> None:
+    """迁移端点拒绝无效的场景文件夹。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": ["scenes/one"],
+        },
+    ).json()
+    job_id = created["job_id"]
+
+    # Force migration_required state
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{job_id}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    raw["phase"] = "migration_required"
+    job_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    resp = client.post(
+        f"/api/jobs/{job_id}/migrate-scenes",
+        json={"scene_folder_ids": ["scenes/missing"]},
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["code"] in {
+        "SCENE_FOLDER_NOT_FOUND",
+        "SCENE_FOLDER_NOT_CONFIGURED",
+    }
+
+
+def test_migrate_scenes_endpoint_preserves_config_and_resets_to_queued(
+    tmp_path: Path,
+) -> None:
+    """补选场景后保留文案等配置，清理旧产物，phase 回到 queued。"""
+    _configure_scene_folders(
+        tmp_path, [("场景一", "scenes/one"), ("场景二", "scenes/two")]
+    )
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "保留文案",
+            "tts_voice": "冰糖",
+            "language": "cantonese",
+            "scene_folder_ids": ["scenes/one"],
+        },
+    ).json()
+    job_id = created["job_id"]
+
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{job_id}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    raw["phase"] = "migration_required"
+    raw["execution"] = {
+        "status": "failed",
+        "current_attempt": 1,
+        "max_attempts": 3,
+        "error": {
+            "code": "SCENE_INPUT_MISSING",
+            "message": "missing",
+            "retryable": False,
+        },
+    }
+    raw["artifacts"] = [
+        {"kind": "old", "relative_path": "old.mp4", "url": "", "active": False}
+    ]
+    job_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    runtime_dir = (
+        tmp_path / "workspace" / "projects" / "prj_001" / "runtime" / "jobs" / job_id
+    )
+    runtime_dir.mkdir(parents=True)
+    (runtime_dir / "old.mp4").write_bytes(b"old artifact")
+
+    resp = client.post(
+        f"/api/jobs/{job_id}/migrate-scenes",
+        json={"scene_folder_ids": ["scenes/two"]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "migrated"
+    assert resp.json()["phase"] == "queued"
+
+    saved = json.loads(job_path.read_text(encoding="utf-8"))
+    assert saved["phase"] == "queued"
+    assert saved["scene_folder_ids"] == ["scenes/two"]
+    assert saved["manual_script"] == "保留文案"
+    assert saved["tts_voice"] == "冰糖"
+    assert saved["language"] == "cantonese"
+    assert saved["artifacts"] == []
+    assert saved["execution"]["status"] == "pending"
+    assert not (runtime_dir / "old.mp4").exists()
+
+
+def test_migrate_scenes_endpoint_rejects_non_migration_job(
+    tmp_path: Path,
+) -> None:
+    """只有处于 migration_required 的 Job 才能调用迁移端点。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": ["scenes/one"],
+        },
+    ).json()
+    job_id = created["job_id"]
+
+    resp = client.post(
+        f"/api/jobs/{job_id}/migrate-scenes",
+        json={"scene_folder_ids": ["scenes/one"]},
+    )
+    assert resp.status_code == 409
+
+
+def test_list_scene_folders_returns_configured_folders(tmp_path: Path) -> None:
+    """GET /api/scene-folders 返回配置的场景文件夹列表。"""
+    _configure_scene_folders(
+        tmp_path, [("场景一", "scenes/one"), ("场景二", "scenes/two")]
+    )
+    client = _make_client(tmp_path)
+    resp = client.get("/api/scene-folders")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["folders"] == [
+        {"name": "场景一", "path": "scenes/one"},
+        {"name": "场景二", "path": "scenes/two"},
+    ]

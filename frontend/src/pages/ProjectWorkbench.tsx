@@ -44,6 +44,7 @@ export default function ProjectWorkbench() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templateVariableValues, setTemplateVariableValues] = useState<Record<string, string>>({});
   const [showTemplateSection, setShowTemplateSection] = useState(false);
+  const [sceneFolderIds, setSceneFolderIds] = useState<string[]>([]);
 
   /* ── ConfirmDialog 状态 ── */
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -150,6 +151,7 @@ export default function ProjectWorkbench() {
         cover_title: form.cover_title_text
           ? { text: form.cover_title_text, highlight_words: form.cover_highlight_words.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
           : undefined,
+        scene_folder_ids: form.mode === "import" ? form.scene_folder_ids : undefined,
       });
       if (form.audio_source === "upload" && form.audioFile) {
         try {
@@ -192,6 +194,7 @@ export default function ProjectWorkbench() {
           cover_title: c.coverTitleText.trim()
             ? { text: c.coverTitleText.trim(), highlight_words: c.coverHighlightWords.split(/[,，]/).map((w) => w.trim()).filter(Boolean) }
             : undefined,
+          scene_folder_ids: c.productionMode === "import" ? c.sceneFolderIds : undefined,
         })),
       });
       load();
@@ -323,6 +326,8 @@ export default function ProjectWorkbench() {
             setCoverTitleText={setCoverTitleText}
             coverHighlightWords={coverHighlightWords}
             setCoverHighlightWords={setCoverHighlightWords}
+            sceneFolderIds={sceneFolderIds}
+            setSceneFolderIds={setSceneFolderIds}
             templates={templates}
             selectedTemplateId={selectedTemplateId}
             setSelectedTemplateId={setSelectedTemplateId}

@@ -74,3 +74,12 @@ def test_worker_lease_tracks_current_phase() -> None:
         current_phase="tts_generating",
     )
     assert lease.current_phase == "tts_generating"
+
+
+def test_job_record_accepts_migration_required_phase() -> None:
+    record = JobRecord(
+        job_id="job-1",
+        phase="migration_required",
+        review_status="none",
+    )
+    assert record.phase == "migration_required"

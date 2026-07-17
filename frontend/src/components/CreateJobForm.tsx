@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { ProductionMode, MusicTrack, ScriptTemplate } from "../types";
+import { useState, useEffect } from "react";
+import type { ProductionMode, MusicTrack, ScriptTemplate, SceneFolder } from "../types";
 import { api } from "../api/client";
 import { PLATFORMS } from "../constants/platforms";
 
@@ -33,6 +33,8 @@ interface CreateJobFormProps {
   setCoverTitleText: (v: string) => void;
   coverHighlightWords: string;
   setCoverHighlightWords: (v: string) => void;
+  sceneFolderIds: string[];
+  setSceneFolderIds: (v: string[]) => void;
   /* templates */
   templates: ScriptTemplate[];
   selectedTemplateId: string;
@@ -62,6 +64,7 @@ export interface SingleJobFormData {
   skip_subtitle: boolean;
   cover_title_text: string;
   cover_highlight_words: string;
+  scene_folder_ids: string[];
 }
 
 export default function CreateJobForm(props: CreateJobFormProps) {
@@ -72,7 +75,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
     manualScript, setManualScript, audioMode, setAudioMode,
     audioFile, setAudioFile, musicTracks, selectedMusic, setSelectedMusic,
     musicVolume, setMusicVolume, coverTitleText, setCoverTitleText,
-    coverHighlightWords, setCoverHighlightWords,
+    coverHighlightWords, setCoverHighlightWords, sceneFolderIds, setSceneFolderIds,
     templates, selectedTemplateId, setSelectedTemplateId,
     templateVariableValues, setTemplateVariableValues,
     showTemplateSection, setShowTemplateSection, handleSelectTemplate,
@@ -81,7 +84,18 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 
   const [coverTitleCooldown, setCoverTitleCooldown] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [sceneFolders, setSceneFolders] = useState<SceneFolder[]>([]);
+  const [sceneFoldersLoading, setSceneFoldersLoading] = useState(false);
   const isImport = productionMode === "import";
+
+  useEffect(() => {
+    if (!isImport) return;
+    setSceneFoldersLoading(true);
+    api.getSceneFolders(product)
+      .then((data) => setSceneFolders(data.folders))
+      .catch(() => onError("加载场景文件夹失败"))
+      .finally(() => setSceneFoldersLoading(false));
+  }, [isImport, product, onError]);
 
   const handleApplyTemplate = async () => {
     if (!selectedTemplateId) return;
@@ -130,6 +144,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
       skip_subtitle: skipSubtitle,
       cover_title_text: coverTitleText.trim(),
       cover_highlight_words: coverHighlightWords,
+      scene_folder_ids: sceneFolderIds,
     });
   };
 
@@ -343,6 +358,44 @@ export default function CreateJobForm(props: CreateJobFormProps) {
             onChange={(e) => setManualScript(e.target.value)}
           />
         </div>
+
+        {/* Scene Folder Selector (import mode only) */}
+        {isImport && (
+          <div className="mt-3">
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+              场景文件夹
+              <span style={{ color: "var(--danger)" }}>*</span>
+            </span>
+            {sceneFoldersLoading ? (
+              <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>加载中...</p>
+            ) : sceneFolders.length === 0 ? (
+              <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>未配置场景文件夹</p>
+            ) : (
+              <div className="flex flex-wrap gap-3 mt-1.5">
+                {sceneFolders.map((folder) => (
+                  <label
+                    key={folder.path}
+                    className="flex items-center gap-1.5 text-sm cursor-pointer"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={sceneFolderIds.includes(folder.path)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSceneFolderIds([...sceneFolderIds, folder.path]);
+                        } else {
+                          setSceneFolderIds(sceneFolderIds.filter((id) => id !== folder.path));
+                        }
+                      }}
+                    />
+                    {folder.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {!isImport && (
           <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>

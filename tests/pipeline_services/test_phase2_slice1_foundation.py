@@ -150,7 +150,9 @@ class TestNewPhases:
 class TestImportModeQueued:
     def test_queued_import_advances_to_scene_assembling(self) -> None:
         """queued + import → advance to scene_assembling (no handler)."""
-        action = _compute_transition(make_record(phase="queued", mode="import"), ())
+        action = _compute_transition(
+            make_record(phase="queued", mode="import", scene_folder_ids=["scenes/one"]), ()
+        )
         assert action.run_handler is False
         assert action.new_phase == "scene_assembling"
         assert (
@@ -159,7 +161,9 @@ class TestImportModeQueued:
 
     def test_queued_import_does_not_run_script_handler(self) -> None:
         """Import mode should NOT route to script_generating."""
-        action = _compute_transition(make_record(phase="queued", mode="import"), ())
+        action = _compute_transition(
+            make_record(phase="queued", mode="import", scene_folder_ids=["scenes/one"]), ()
+        )
         assert (
             action.handler_phase is None or action.handler_phase != "script_generating"
         )
@@ -173,6 +177,7 @@ class TestImportModeQueued:
                 phase="queued",
                 mode="import",
                 manual_script="手动文案不应改变 import 路由",
+                scene_folder_ids=["scenes/one"],
             ),
             (),
         )
@@ -418,7 +423,13 @@ class TestImportModeFullFlow:
         ]
         for from_phase, to_phase in sequence:
             action = _compute_transition(
-                make_record(phase=from_phase, mode="import", auto_approve=False), ()
+                make_record(
+                    phase=from_phase,
+                    mode="import",
+                    auto_approve=False,
+                    scene_folder_ids=["scenes/one"],
+                ),
+                (),
             )
             if from_phase == "queued":
                 assert action.new_phase == to_phase, f"{from_phase} → {to_phase}"

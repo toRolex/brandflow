@@ -6,7 +6,8 @@ export type Phase =
   | "asset_review"
   | "video_rendering" | "final_rendering" | "final_review"
   | "schedule_writing" | "scene_assembling" | "montage_assembling"
-  | "completed" | "failed" | "cancelled" | "paused";
+  | "completed" | "failed" | "cancelled" | "paused"
+  | "migration_required";
 
 export type ReviewStatus = "none" | "pending" | "approved" | "rejected" | "overridden";
 
@@ -50,6 +51,7 @@ export interface JobSummary {
   auto_approve?: boolean;
   mode?: ProductionMode;
   artifacts?: Artifact[];
+  scene_folder_ids?: string[];
 }
 
 export interface AssetFile {
@@ -138,6 +140,7 @@ export interface JobDetail {
   mode?: ProductionMode;
   tts_model?: string;
   tts_voice?: string;
+  scene_folder_ids?: string[];
 }
 
 export interface CoverTitle {
@@ -162,6 +165,7 @@ export interface BatchJobItem {
   music_volume?: number;
   language?: string;
   cover_title?: CoverTitle | null;
+  scene_folder_ids?: string[];
 }
 
 export interface BatchCreateRequest {
@@ -186,6 +190,11 @@ export interface BatchCreateResponse {
     skip_subtitle: boolean;
     auto_approve: boolean;
   }>;
+}
+
+export interface SceneFolder {
+  name: string;
+  path: string;
 }
 
 export interface ScriptCheckResult {
@@ -247,6 +256,7 @@ export interface PipelineStep {
 
 export const PIPELINE_STEPS: PipelineStep[] = [
   { key: "queued", phase: "queued", label: "排队中", isReview: false },
+  { key: "migration_required", phase: "migration_required", label: "需补充场景", isReview: false },
   { key: "script_gen", phase: "script_generating", label: "生成脚本", isReview: false },
   { key: "script_review", phase: "script_review", label: "脚本审核", isReview: true },
   { key: "tts", phase: "tts_generating", label: "TTS 配音", isReview: false },

@@ -56,7 +56,7 @@ HANDLED_PHASES: frozenset[str] = frozenset(
 )
 
 _TERMINAL_PHASES: frozenset[str] = frozenset(
-    {"completed", "failed", "cancelled", "paused"}
+    {"completed", "failed", "cancelled", "paused", "migration_required"}
 )
 
 
@@ -320,6 +320,11 @@ def _compute_transition(
     # ------------------------------------------------------------------
     if phase == "queued":
         if record.mode == "import":
+            if not record.scene_folder_ids:
+                return TickAction(
+                    new_phase="migration_required",
+                    message="import job missing scene folders → migration_required",
+                )
             return TickAction(
                 new_phase="scene_assembling",
                 message="queued → scene_assembling (import mode, no handler yet)",
@@ -573,7 +578,9 @@ class JobTickService:
 
                     scene_cfg = ConfigReader().get_scene_config(product_id=product)
                 scene_config = scene_cfg
-                scene_folder_paths = [
+                # Use user-selected folders from the JobRecord; fall back to
+                # configured folders only when the job predates explicit selection.
+                scene_folder_paths = list(record.scene_folder_ids) or [
                     entry.get("path", "")
                     for entry in scene_cfg.get("folders", [])
                     if entry.get("path")

@@ -460,6 +460,7 @@ class TestImportModeTickFlow:
     def test_queued_to_scene_assembling_transition(self) -> None:
         """queued → scene_assembling (no handler on first tick)."""
         record = make_record(phase="queued", mode="import")
+        record.scene_folder_ids = ["scenes/one"]
         action = _compute_transition(record, ())
         assert action.new_phase == "scene_assembling"
         assert action.run_handler is False
@@ -673,3 +674,70 @@ class TestImportModeTickFlow:
             ({"kind": "subtitle", "relative_path": "subtitle.srt"},),
         )
         assert action.new_phase == "asset_retrieving"
+
+
+# ---------------------------------------------------------------------------
+# 5. scene_assembling input validation (file drift guard)
+# ---------------------------------------------------------------------------
+
+
+class TestSceneAssemblingInputValidation:
+    """validate_phase_input guards scene_assembling against drifted input."""
+
+    def test_validate_rejects_empty_scene_folders(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        ctx.scene_folder_paths = []
+        error = orchestrator.validate_phase_input("scene_assembling", ctx)
+        assert error is not None
+        assert error.code == "SCENE_INPUT_MISSING"
+        assert error.retryable is False
+
+    def test_validate_rejects_missing_folder(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/missing"],
+        )
+        error = orchestrator.validate_phase_input("scene_assembling", ctx)
+        assert error is not None
+        assert error.code == "SCENE_FOLDER_NOT_FOUND"
+        assert error.retryable is False
+
+    def test_validate_rejects_folder_without_videos(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        scene_folder = tmp_root / "workspace" / "scene" / "empty"
+        scene_folder.mkdir(parents=True)
+        (scene_folder / "readme.txt").write_text("no videos here")
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/empty"],
+        )
+        error = orchestrator.validate_phase_input("scene_assembling", ctx)
+        assert error is not None
+        assert error.code == "SCENE_MEDIA_MISSING"
+        assert error.retryable is False
+
+    def test_validate_accepts_valid_folder_with_video(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        scene_folder = tmp_root / "workspace" / "scene" / "valid"
+        scene_folder.mkdir(parents=True)
+        (scene_folder / "clip.mp4").write_bytes(b"fake video")
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/valid"],
+        )
+        error = orchestrator.validate_phase_input("scene_assembling", ctx)
+        assert error is None

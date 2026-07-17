@@ -1021,3 +1021,86 @@ class TestManualScriptConsistency:
         orch._subtitle_svc.build_srt.assert_called_once()
         subtitle_text = orch._subtitle_svc.build_srt.call_args[0][2]
         assert subtitle_text == manual_text
+
+
+# ---------------------------------------------------------------------------
+# 12. Import-mode scene input validation
+# ---------------------------------------------------------------------------
+
+
+class TestImportSceneInput:
+    """Import jobs require valid scene folders and fail non-retryably."""
+
+    def test_import_job_with_empty_scene_folder_ids_goes_to_migration_required(
+        self,
+    ) -> None:
+        """An import job queued without selected scene folders is paused for migration."""
+        record = make_record(phase="queued", mode="import")
+        record.scene_folder_ids = []
+        action = _compute_transition(record, ())
+        assert action.new_phase == "migration_required"
+        assert action.run_handler is False
+
+    def test_import_job_with_scene_folders_routes_to_scene_assembling(
+        self,
+    ) -> None:
+        record = make_record(phase="queued", mode="import")
+        record.scene_folder_ids = ["scenes/one"]
+        action = _compute_transition(record, ())
+        assert action.new_phase == "scene_assembling"
+        assert action.run_handler is False
+
+    def test_scene_assembling_failure_on_missing_input_is_not_retryable(
+        self,
+    ) -> None:
+        record = make_record(phase="scene_assembling", mode="import")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phases_parallel.return_value = {
+            "scene_assembling": PhaseExecutionFailure(
+                error=ExecutionFailure(
+                    code="SCENE_INPUT_MISSING",
+                    message="No scene folders are configured for this Job.",
+                    retryable=False,
+                )
+            ),
+            "tts_generating": PhaseExecutionSuccess(artifacts=[]),
+        }
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "scene_assembling"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 1
+        assert saved.execution.error.code == "SCENE_INPUT_MISSING"
+
+    def test_migration_required_is_terminal_for_tick(self) -> None:
+        record = make_record(phase="migration_required", mode="import")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        svc = JobTickService(Mock(spec=PhaseOrchestrator), repo=mock_repo)
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+        assert summary.action == "skipped"
+        mock_repo.save_job.assert_not_called()
+
+    def test_queued_generate_job_does_not_require_scene_folders(self) -> None:
+        record = make_record(phase="queued", mode="generate")
+        record.scene_folder_ids = []
+        action = _compute_transition(record, ())
+        assert action.new_phase is None
+        assert action.handler_phase == "script_generating"
