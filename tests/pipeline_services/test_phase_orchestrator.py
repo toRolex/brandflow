@@ -14,6 +14,7 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseOrchestrator,
     to_url_path,
 )
+from packages.provider_config.secret_store import SecretStore
 
 
 # ---------------------------------------------------------------------------
@@ -47,15 +48,13 @@ def ctx(project_dir: Path, tmp_root: Path) -> PhaseContext:
 
 @pytest.fixture()
 def orchestrator() -> PhaseOrchestrator:
-    bridge = MagicMock()
-    subtitle_svc = MagicMock()
-    video_svc = MagicMock()
-    schedule_store = MagicMock()
     return PhaseOrchestrator(
-        script_bridge=bridge,
-        subtitle_svc=subtitle_svc,
-        video_svc=video_svc,
-        schedule_store=schedule_store,
+        script_generator=MagicMock(),
+        subtitle_svc=MagicMock(),
+        video_svc=MagicMock(),
+        media_compositor=MagicMock(),
+        config_resolver=MagicMock(),
+        schedule_store=MagicMock(),
     )
 
 
@@ -111,20 +110,30 @@ class TestToUrlPath:
 
 
 class TestPhaseOrchestratorInit:
-    def test_accepts_five_deps(self):
+    def test_accepts_seam_deps(self):
         orch = PhaseOrchestrator(
-            script_bridge=MagicMock(),
+            script_generator=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
+            media_compositor=MagicMock(),
+            config_resolver=MagicMock(),
             schedule_store=MagicMock(),
         )
-        assert orch._script_bridge is not None
+        assert orch._script_generator is not None
         assert orch._subtitle_svc is not None
         assert orch._video_svc is not None
+        assert orch._media_compositor is not None
+        assert orch._config_resolver is not None
         assert orch._schedule_store is not None
 
     def test_has_handler_map(self):
-        orch = PhaseOrchestrator(*[MagicMock()] * 3)
+        orch = PhaseOrchestrator(
+            script_generator=MagicMock(),
+            subtitle_svc=MagicMock(),
+            video_svc=MagicMock(),
+            media_compositor=MagicMock(),
+            config_resolver=MagicMock(),
+        )
         assert isinstance(orch._handlers, dict)
         assert "script_generating" in orch._handlers
 
@@ -145,6 +154,7 @@ class TestRunPhase:
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
         """run_phase with script_generating should return a list (even if empty)."""
+        ctx.options["manual_script"] = "手动文案测试。"
         result = orchestrator.run_phase("script_generating", ctx)
         assert isinstance(result, list)
 
@@ -190,7 +200,7 @@ class TestRunScriptManual:
 
 
 class TestRunScriptLLM:
-    def test_llm_generation_calls_bridge_and_returns_artifacts(
+    def test_llm_generation_calls_generate_script_and_returns_artifacts(
         self,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
@@ -202,18 +212,19 @@ class TestRunScriptLLM:
         txt_path.write_text("LLM生成的文案", encoding="utf-8")
         json_path.write_text("{}", encoding="utf-8")
 
-        orchestrator._script_bridge.generate.return_value = {
+        mock_generate_script = MagicMock()
+        mock_generate_script.return_value = {
             "txt_path": str(txt_path),
             "json_path": str(json_path),
             "final_script": "LLM生成的文案",
         }
+        orchestrator._script_generator = mock_generate_script
 
         artifacts = orchestrator.run_phase("script_generating", ctx)
 
-        orchestrator._script_bridge.generate.assert_called_once_with(
+        mock_generate_script.assert_called_once_with(
             product="羊肚菌",
             output_dir=job_dir,
-            mock=False,
             language="mandarin",
             brand="",
         )
@@ -227,16 +238,10 @@ class TestRunScriptLLM:
 
 
 class TestRunScriptCoverTitle:
-    @patch.object(PhaseOrchestrator, "_resolve_llm_config")
-    @patch.object(PhaseOrchestrator, "_resolve_api_key")
-    @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phase_orchestrator.generate_cover_title")
     def test_auto_generates_cover_title_when_missing(
         self,
-        mock_sg_cls: MagicMock,
-        mock_endpoint: MagicMock,
-        mock_api_key: MagicMock,
-        mock_llm_config: MagicMock,
+        mock_generate_cover_title: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
     ):
@@ -253,35 +258,27 @@ class TestRunScriptCoverTitle:
             encoding="utf-8",
         )
 
-        mock_llm_config.return_value = {"model": "deepseek-v4-pro"}
-        mock_api_key.return_value = "fake-api-key"
-        mock_endpoint.return_value = "https://api.example.com"
+        config_resolver = MagicMock()
+        orchestrator._config_resolver = config_resolver
 
-        # Mock ScriptGenerator
-        mock_gen = MagicMock()
-        mock_sg_cls.return_value = mock_gen
-        mock_gen.generate_cover_title.return_value = {
+        mock_generate_cover_title.return_value = {
             "text": "羊肚菌美味",
             "highlight_words": ["羊肚菌"],
         }
 
         orchestrator.run_phase("script_generating", ctx)
 
-        mock_gen.generate_cover_title.assert_called_once()
+        mock_generate_cover_title.assert_called_once_with(
+            "手动文案测试。", "羊肚菌", "", config_resolver
+        )
         # Verify job JSON was updated with cover_title
         updated = json.loads(job_json_path.read_text(encoding="utf-8"))
         assert updated["cover_title"]["text"] == "羊肚菌美味"
 
-    @patch.object(PhaseOrchestrator, "_resolve_llm_config")
-    @patch.object(PhaseOrchestrator, "_resolve_api_key")
-    @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phase_orchestrator.generate_cover_title")
     def test_skips_cover_title_when_already_set(
         self,
-        mock_sg_cls: MagicMock,
-        mock_endpoint: MagicMock,
-        mock_api_key: MagicMock,
-        mock_llm_config: MagicMock,
+        mock_generate_cover_title: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
     ):
@@ -304,21 +301,14 @@ class TestRunScriptCoverTitle:
 
         orchestrator.run_phase("script_generating", ctx)
 
-        mock_sg_cls.assert_not_called()
+        mock_generate_cover_title.assert_not_called()
 
-    @patch.object(PhaseOrchestrator, "_resolve_llm_config")
-    @patch.object(PhaseOrchestrator, "_resolve_api_key")
-    @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phase_orchestrator.generate_cover_title")
     def test_cover_title_error_does_not_propagate(
         self,
-        mock_sg_cls: MagicMock,
-        mock_endpoint: MagicMock,
-        mock_api_key: MagicMock,
-        mock_llm_config: MagicMock,
+        mock_generate_cover_title: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
-        capsys: pytest.CaptureFixture,
     ):
         ctx.options["manual_script"] = "手动文案。"
 
@@ -330,7 +320,9 @@ class TestRunScriptCoverTitle:
             encoding="utf-8",
         )
 
-        mock_sg_cls.side_effect = RuntimeError("LLM down")
+        config_resolver = MagicMock()
+        orchestrator._config_resolver = config_resolver
+        mock_generate_cover_title.side_effect = RuntimeError("LLM down")
 
         # Should not raise
         artifacts = orchestrator.run_phase("script_generating", ctx)
@@ -382,24 +374,39 @@ _FAKE_TTS_CONFIG = {
 }
 
 
-def _make_orchestrator_with_tts_config(tts_provider=None, tts_config=None):
-    """Build a PhaseOrchestrator with get_tts_config injected and _build_tts_provider mocked."""
-    orch = PhaseOrchestrator(
-        script_bridge=MagicMock(),
-        subtitle_svc=MagicMock(),
-        video_svc=MagicMock(),
-        schedule_store=MagicMock(),
-        get_tts_config=lambda: tts_config or dict(_FAKE_TTS_CONFIG),
-    )
-    mock_provider = tts_provider or MagicMock()
-    orch._build_tts_provider = lambda cfg: mock_provider
-    return orch
+@pytest.fixture()
+def make_tts_orchestrator(monkeypatch):
+    """Factory: build a PhaseOrchestrator with create_tts_provider mocked."""
+
+    def _make(tts_provider=None, tts_config=None):
+        cfg = tts_config if tts_config is not None else dict(_FAKE_TTS_CONFIG)
+        config_resolver = MagicMock()
+        config_resolver.tts.return_value = cfg
+        config_resolver.secrets = MagicMock()
+        orch = PhaseOrchestrator(
+            script_generator=MagicMock(),
+            subtitle_svc=MagicMock(),
+            video_svc=MagicMock(),
+            media_compositor=MagicMock(),
+            config_resolver=config_resolver,
+            schedule_store=MagicMock(),
+        )
+        mock_provider = tts_provider if tts_provider is not None else MagicMock()
+        monkeypatch.setattr(
+            "packages.pipeline_services.phase_orchestrator.create_tts_provider",
+            lambda _cfg, _secrets: mock_provider,
+        )
+        return orch
+
+    return _make
 
 
 class TestRunTTSScriptDiscovery:
     """_run_tts should discover script text from *口播文案.txt then *.json."""
 
-    def test_reads_script_from_txt(self, tmp_path: Path, ctx: PhaseContext):
+    def test_reads_script_from_txt(
+        self, tmp_path: Path, ctx: PhaseContext, make_tts_orchestrator
+    ):
         """Given a 口播文案.txt file, _run_tts reads it and calls synthesize."""
         job_dir = (
             tmp_path
@@ -416,7 +423,7 @@ class TestRunTTSScriptDiscovery:
 
         mock_tts = MagicMock()
         mock_tts.synthesize.return_value = b"\x00" * 100
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = make_tts_orchestrator(tts_provider=mock_tts)
 
         artifacts = orch.run_phase("tts_generating", ctx)
 
@@ -428,7 +435,7 @@ class TestRunTTSScriptDiscovery:
         assert artifacts[0].size_bytes == 100
 
     def test_reads_script_from_json_when_no_txt(
-        self, tmp_path: Path, ctx: PhaseContext
+        self, tmp_path: Path, ctx: PhaseContext, make_tts_orchestrator
     ):
         """Falls back to 口播文案.json if no .txt file."""
         job_dir = (
@@ -449,17 +456,17 @@ class TestRunTTSScriptDiscovery:
 
         mock_tts = MagicMock()
         mock_tts.synthesize.return_value = b"\x00" * 50
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = make_tts_orchestrator(tts_provider=mock_tts)
 
         orch.run_phase("tts_generating", ctx)
 
         mock_tts.synthesize.assert_called_once()
         assert mock_tts.synthesize.call_args[0][0] == "JSON 文案内容。"
 
-    def test_no_script_raises(self, ctx: PhaseContext):
+    def test_no_script_raises(self, ctx: PhaseContext, make_tts_orchestrator):
         """No script file → raise RuntimeError."""
         mock_tts = MagicMock()
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = make_tts_orchestrator(tts_provider=mock_tts)
 
         with pytest.raises(RuntimeError, match="No script text found"):
             orch.run_phase("tts_generating", ctx)
@@ -468,7 +475,7 @@ class TestRunTTSScriptDiscovery:
 class TestRunTTSUploadedAudio:
     """_run_tts should copy uploaded audio when uploaded_audio_path is set."""
 
-    def test_copies_uploaded_audio(self, tmp_path: Path):
+    def test_copies_uploaded_audio(self, tmp_path: Path, make_tts_orchestrator):
         """When uploaded_audio_path points to an existing file, copies it directly."""
         root_dir = tmp_path
         project_dir = tmp_path / "workspace" / "projects" / "proj-001"
@@ -489,7 +496,7 @@ class TestRunTTSUploadedAudio:
         )
 
         mock_tts = MagicMock()
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = make_tts_orchestrator(tts_provider=mock_tts)
 
         artifacts = orch.run_phase("tts_generating", ctx)
 
@@ -501,7 +508,7 @@ class TestRunTTSUploadedAudio:
         assert len(artifacts) == 1
         assert artifacts[0].kind == "tts_audio"
 
-    def test_missing_uploaded_audio_raises(self, tmp_path: Path):
+    def test_missing_uploaded_audio_raises(self, tmp_path: Path, make_tts_orchestrator):
         """When uploaded path doesn't exist, raise FileNotFoundError."""
         root_dir = tmp_path
         project_dir = tmp_path / "workspace" / "projects" / "proj-001"
@@ -516,7 +523,7 @@ class TestRunTTSUploadedAudio:
         )
 
         mock_tts = MagicMock()
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = make_tts_orchestrator(tts_provider=mock_tts)
 
         with pytest.raises(FileNotFoundError, match="Uploaded audio not found"):
             orch.run_phase("tts_generating", ctx)
@@ -525,7 +532,9 @@ class TestRunTTSUploadedAudio:
 class TestRunTTSSynthesizeError:
     """TTS provider errors should propagate to the caller."""
 
-    def test_synthesize_error_propagates(self, ctx: PhaseContext):
+    def test_synthesize_error_propagates(
+        self, ctx: PhaseContext, make_tts_orchestrator
+    ):
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
         txt = job_dir / "口播文案.txt"
@@ -533,7 +542,7 @@ class TestRunTTSSynthesizeError:
 
         mock_tts = MagicMock()
         mock_tts.synthesize.side_effect = RuntimeError("TTS service down")
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = make_tts_orchestrator(tts_provider=mock_tts)
 
         with pytest.raises(RuntimeError, match="TTS service down"):
             orch.run_phase("tts_generating", ctx)
@@ -542,9 +551,11 @@ class TestRunTTSSynthesizeError:
 class TestRunTTSNoScriptRaises:
     """_run_tts should raise when no script text is available."""
 
-    def test_no_script_raises_runtime_error(self, ctx: PhaseContext):
+    def test_no_script_raises_runtime_error(
+        self, ctx: PhaseContext, make_tts_orchestrator
+    ):
         mock_tts = MagicMock()
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = make_tts_orchestrator(tts_provider=mock_tts)
 
         with pytest.raises(RuntimeError, match="No script text found"):
             orch.run_phase("tts_generating", ctx)
@@ -553,7 +564,9 @@ class TestRunTTSNoScriptRaises:
 class TestRunTTSUploadedAudioMissingRaises:
     """_run_tts should raise when uploaded audio path does not exist."""
 
-    def test_missing_uploaded_audio_raises_file_not_found(self, tmp_path: Path):
+    def test_missing_uploaded_audio_raises_file_not_found(
+        self, tmp_path: Path, make_tts_orchestrator
+    ):
         root_dir = tmp_path
         project_dir = tmp_path / "workspace" / "projects" / "proj-001"
         project_dir.mkdir(parents=True)
@@ -567,7 +580,7 @@ class TestRunTTSUploadedAudioMissingRaises:
         )
 
         mock_tts = MagicMock()
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = make_tts_orchestrator(tts_provider=mock_tts)
 
         with pytest.raises(FileNotFoundError, match="Uploaded audio not found"):
             orch.run_phase("tts_generating", ctx)
@@ -576,7 +589,9 @@ class TestRunTTSUploadedAudioMissingRaises:
 class TestRunTTSConfigBuilding:
     """_run_tts builds a _TTSConfig shim from get_tts_config callable."""
 
-    def test_passes_config_object_to_synthesize(self, ctx: PhaseContext):
+    def test_passes_config_object_to_synthesize(
+        self, ctx: PhaseContext, make_tts_orchestrator
+    ):
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
         txt = job_dir / "口播文案.txt"
@@ -588,9 +603,7 @@ class TestRunTTSConfigBuilding:
 
         mock_tts = MagicMock()
         mock_tts.synthesize.return_value = b"\x00"
-        orch = _make_orchestrator_with_tts_config(
-            tts_provider=mock_tts, tts_config=custom_config
-        )
+        orch = make_tts_orchestrator(tts_provider=mock_tts, tts_config=custom_config)
 
         orch.run_phase("tts_generating", ctx)
 
@@ -603,15 +616,15 @@ class TestRunTTSConfigBuilding:
 class TestRunTTSInHandlerMap:
     """tts_generating should be registered in the handler map."""
 
-    def test_handler_registered(self):
-        orch = _make_orchestrator_with_tts_config()
+    def test_handler_registered(self, make_tts_orchestrator):
+        orch = make_tts_orchestrator()
         assert "tts_generating" in orch._handlers
 
 
 class TestRunTTSAudioWritten:
     """Audio file should be written to job_dir/audio.mp3."""
 
-    def test_audio_written_to_job_dir(self, ctx: PhaseContext):
+    def test_audio_written_to_job_dir(self, ctx: PhaseContext, make_tts_orchestrator):
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
         txt = job_dir / "口播文案.txt"
@@ -619,7 +632,7 @@ class TestRunTTSAudioWritten:
 
         mock_tts = MagicMock()
         mock_tts.synthesize.return_value = b"\x01\x02\x03"
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = make_tts_orchestrator(tts_provider=mock_tts)
 
         artifacts = orch.run_phase("tts_generating", ctx)
 
@@ -635,14 +648,16 @@ class TestRunTTSAudioWritten:
 class TestRunSubtitle:
     """_run_subtitle should build SRT from audio + script."""
 
-    def test_missing_audio_raises_file_not_found(self, ctx: PhaseContext):
+    def test_missing_audio_raises_file_not_found(
+        self, ctx: PhaseContext, make_tts_orchestrator
+    ):
         """audio.mp3 missing → raise FileNotFoundError."""
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
         txt = job_dir / "口播文案.txt"
         txt.write_text("测试文案。", encoding="utf-8")
 
-        orch = _make_orchestrator_with_tts_config()
+        orch = make_tts_orchestrator()
 
         with pytest.raises(FileNotFoundError, match=r"audio\.mp3 not found"):
             orch.run_phase("subtitle_generating", ctx)
@@ -661,9 +676,6 @@ class TestRunVideo:
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
         """Import mode: assembled.mp4 + selected_clips → built clip base + concat."""
-        import subprocess
-        from unittest.mock import patch
-
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
 
@@ -680,24 +692,19 @@ class TestRunVideo:
 
         def _build_side_effect(*args, **kwargs):
             """Simulate VideoService.build_base_video producing _clip_base.mp4."""
-            # args: (project_dir, job_dict, output_path)
             output_path = args[2]
             output_path.write_text("fake clip base video")
 
         orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
 
-        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
-            with patch.object(subprocess, "run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0)
+        def _concat_effect(first, second, out):
+            """Simulate MediaCompositor.concat_two producing base.mp4."""
+            out.write_text("concatenated video")
+            return out
 
-                def _concat_effect(*args, **kwargs):
-                    """Simulate ffmpeg concat producing base.mp4."""
-                    (job_dir / "base.mp4").write_text("concatenated video")
-                    return MagicMock(returncode=0)
+        orchestrator._media_compositor.concat_two.side_effect = _concat_effect
 
-                mock_run.side_effect = _concat_effect
-
-                artifacts = orchestrator.run_phase("video_rendering", ctx)
+        artifacts = orchestrator.run_phase("video_rendering", ctx)
 
         assert len(artifacts) == 1
         assert artifacts[0].kind == "video_base"
@@ -707,20 +714,12 @@ class TestRunVideo:
         # Verify build_base_video was called
         orchestrator._video_svc.build_base_video.assert_called_once()
 
-        # Verify ffmpeg concat was called with both inputs
-        concat_call = mock_run.call_args
-        assert concat_call is not None
-        call_args = concat_call[0][0]
-        assert "-i" in call_args
-        assert "-filter_complex" in call_args
-        filter_idx = call_args.index("-filter_complex")
-        filter_str = call_args[filter_idx + 1]
-        assert "concat=n=2" in filter_str
-        # Verify normalization: both inputs scaled to 720x1280@30fps yuv420p before concat
-        assert "scale=720:1280" in filter_str
-        assert "fps=30" in filter_str
-        assert "format=pix_fmts=yuv420p" in filter_str
-        assert "setsar=1" in filter_str
+        # Verify concat_two was called with assembled + clip base
+        orchestrator._media_compositor.concat_two.assert_called_once()
+        concat_call = orchestrator._media_compositor.concat_two.call_args
+        assert concat_call[0][0] == job_dir / "assembled.mp4"
+        assert concat_call[0][1] == job_dir / "_clip_base.mp4"
+        assert concat_call[0][2] == job_dir / "base.mp4"
 
         # Temp _clip_base.mp4 should be cleaned up
         assert not (job_dir / "_clip_base.mp4").exists()
@@ -782,3 +781,73 @@ class TestRunVideo:
 
         assert artifacts == []
         orchestrator._video_svc.build_base_video.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Network-boundary regression test for #202
+# ---------------------------------------------------------------------------
+
+
+class TestTTSRegressionNestedConfig:
+    """Real MiMo provider + nested director/audio_tags config must not crash.
+
+    Mocks requests.post at tts_provider module boundary (the only network call).
+    Uses real create_tts_provider and real synthesize — does NOT mock synthesize.
+    """
+
+    @patch("packages.pipeline_services.tts_provider.requests.post")
+    def test_nested_config_does_not_crash(self, mock_post: MagicMock, tmp_path: Path):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"audio": {"data": "dGVzdA=="}}}]
+        }
+        mock_post.return_value = mock_resp
+
+        # Real config shape from ConfigReader: nested director/audio_tags
+        tts_cfg = {
+            "model": "mimo-v2.5-tts",
+            "voice": "Mia",
+            "provider": "mimo",
+            "director": {"character": "女主播", "scene": "直播间"},
+            "audio_tags": {"enabled": False, "tags": ""},
+        }
+
+        config_resolver = MagicMock()
+        config_resolver.tts.return_value = tts_cfg
+        # Real SecretStore so create_tts_provider builds a real MiMo provider
+        config_resolver.secrets = SecretStore(env={"MIMO_API_KEY": "test-key"})
+
+        orch = PhaseOrchestrator(
+            script_generator=MagicMock(),
+            subtitle_svc=MagicMock(),
+            video_svc=MagicMock(),
+            media_compositor=MagicMock(),
+            config_resolver=config_resolver,
+        )
+
+        project_dir = tmp_path / "workspace" / "projects" / "proj-001"
+        project_dir.mkdir(parents=True)
+        job_dir = project_dir / "runtime" / "jobs" / "job-001"
+        job_dir.mkdir(parents=True)
+        (job_dir / "口播文案.txt").write_text("测试文案内容。", encoding="utf-8")
+
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_path,
+            product="测试产品",
+        )
+
+        # Act — must NOT raise AttributeError
+        artifacts = orch.run_phase("tts_generating", ctx)
+
+        assert len(artifacts) == 1
+        assert artifacts[0].kind == "tts_audio"
+
+        # Verify the payload sent over the wire
+        mock_post.assert_called_once()
+        payload = mock_post.call_args[1]["json"]
+        assert payload["model"] == "mimo-v2.5-tts"
+        assert "messages" in payload
+        assert "audio" in payload

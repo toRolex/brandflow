@@ -714,7 +714,9 @@ class TestAdvanceAfterReport:
 class TestManualScriptConsistency:
     """Regression: manual_script text preserved through _run_script → _run_tts → _run_subtitle."""
 
-    def test_manual_script_preserved_through_pipeline(self, tmp_path: Path) -> None:
+    def test_manual_script_preserved_through_pipeline(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         manual_text = "这是用户提交的口播文案。用于短视频配音。确保完全一致。"
         job_id = "test-job-consistency"
         root_dir = tmp_path
@@ -722,21 +724,26 @@ class TestManualScriptConsistency:
 
         # PhaseOrchestrator with mocked external deps
         mock_config = Mock()
-        mock_config.get_tts_config.return_value = {
+        mock_config.tts.return_value = {
             "model": "test-model",
             "voice": "test-voice",
         }
+        mock_config.secrets = Mock()
         orch = PhaseOrchestrator(
-            script_bridge=Mock(),
+            script_generator=Mock(),
             subtitle_svc=Mock(),
             video_svc=Mock(),
-            config_reader=mock_config,
+            media_compositor=Mock(),
+            config_resolver=mock_config,
         )
 
         # Mock TTS provider to avoid real API calls
         mock_tts = Mock()
         mock_tts.synthesize.return_value = b"fake_audio_data"
-        orch._build_tts_provider = Mock(return_value=mock_tts)
+        monkeypatch.setattr(
+            "packages.pipeline_services.phase_orchestrator.create_tts_provider",
+            lambda cfg, secrets: mock_tts,
+        )
 
         ctx = PhaseContext(
             job_id=job_id,
