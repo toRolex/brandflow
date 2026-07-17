@@ -23,13 +23,13 @@ from packages.domain_core.phase_execution import (
     PhaseExecutionFailure,
     PhaseExecutionResult,
     PhaseExecutionSuccess,
-    adapt_legacy_artifacts,
 )
-from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+from packages.pipeline_services.script_service import generate_script
 from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
 from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.config_resolver import ConfigResolver
 from packages.provider_config.secret_store import SecretStore
 
 STRUCTURED_MEDIA_PHASES = frozenset(
@@ -60,12 +60,10 @@ def create_orchestrator(
 
     *config_reader* is required — all config reads go through it.
     """
-    from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
     from packages.pipeline_services.subtitle_service import SubtitleService
     from packages.pipeline_services.video_service import VideoService
 
     return PhaseOrchestrator(
-        script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
         config_reader=config_reader,
@@ -139,7 +137,6 @@ class PhaseOrchestrator:
 
     def __init__(
         self,
-        script_bridge: LegacyScriptBridge,
         subtitle_svc: SubtitleService,
         video_svc: VideoService,
         *,
@@ -149,7 +146,6 @@ class PhaseOrchestrator:
         get_tts_config: Callable[[], dict[str, Any]] | None = None,
         get_llm_config: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
-        self._script_bridge = script_bridge
         self._subtitle_svc = subtitle_svc
         self._video_svc = video_svc
         self._schedule_store = schedule_store
@@ -186,14 +182,10 @@ class PhaseOrchestrator:
         return handler(ctx)
 
     def execute_phase(self, phase: str, ctx: PhaseContext) -> PhaseExecutionResult:
-        """Execute a legacy handler through the structured result boundary.
-
-        ``run_phase`` remains the artifact-list interface until the later
-        handler contract migration removes this compatibility adapter.
-        """
+        """Execute a phase handler and return a structured result."""
 
         if phase not in STRUCTURED_MEDIA_PHASES:
-            return adapt_legacy_artifacts(self.run_phase(phase, ctx))
+            return PhaseExecutionSuccess(artifacts=self.run_phase(phase, ctx))
 
         validation_error = self.validate_phase_input(phase, ctx)
         if validation_error is not None:
@@ -560,12 +552,16 @@ class PhaseOrchestrator:
             }
         else:
             language = ctx.options.get("language", "mandarin")
-            script_result = self._script_bridge.generate(
+            config_resolver = ConfigResolver(
+                reader=self._config if self._config is not None else ConfigReader(),
+                secrets=self._secrets,
+            )
+            script_result = generate_script(
                 product=ctx.product,
                 output_dir=job_dir,
-                mock=False,
                 language=language,
                 brand=ctx.brand,
+                config_resolver=config_resolver,
             )
 
         # 2. Emit artifact pointers for txt + json

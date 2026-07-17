@@ -41,8 +41,7 @@ def generate_script(
 ) -> dict[str, Any]:
     """Generate a script via LLM and persist txt/json artifacts to *output_dir*.
 
-    LLM config is resolved via *config_resolver*. Replaces the old
-    ``LegacyScriptBridge.generate()`` call path.
+    LLM config is resolved via *config_resolver*.
     """
     config = build_generator_config(config_resolver, product)
     generator = ScriptGenerator(config)
