@@ -153,7 +153,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     async def health(deploy_check: bool = False):
         from packages.deploy_health.checker import DeployHealthChecker
 
-        result: dict = {"status": "ok", "version": "0.7.0"}
+        result: dict = {"status": "ok", "version": "0.7.11"}
         if deploy_check:
             checker = DeployHealthChecker(root_dir=app.state.root_dir)
             health_result = checker.check_all()
