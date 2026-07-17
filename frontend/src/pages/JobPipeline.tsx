@@ -363,8 +363,6 @@ export default function JobPipeline() {
       ? "var(--color-caution-amber)"
       : "var(--text-tertiary)";
 
-    const hasAudio = job?.artifacts?.some((a) => a.kind === "tts_audio");
-
     return (
       <div className="mb-4 p-3 rounded-lg border" style={{ borderColor: "var(--border-default)", background: "var(--bg-table-head)" }}>
         {/* Resolution badge */}
