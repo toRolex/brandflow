@@ -244,6 +244,9 @@ class PhaseOrchestrator:
 
         job_dir = self._job_dir(ctx)
         if phase == "scene_assembling":
+            # Snapshot exists → local copies available, skip source-folder check
+            if (job_dir / ".scene_snapshot" / "manifest.json").exists():
+                return None
             folders = self._resolve_scene_folders(ctx)
             if not folders:
                 return ExecutionFailure(
@@ -1126,25 +1129,84 @@ class PhaseOrchestrator:
             print(f"[SCENE] No scene folders configured for {ctx.job_id}", flush=True)
             return []
 
-        # 2. Pick one random video from each folder
+        # 2. Check for existing snapshot (deterministic re-render, Issue #174)
+        import json as _json
+        import shutil as _shutil
+
+        snapshot_dir = job_dir / ".scene_snapshot"
+        manifest_path = snapshot_dir / "manifest.json"
+        force_reselect: bool = ctx.options.get("force_reselect", False)
         clips: list[Path] = []
-        for folder in folders:
-            if not folder.exists():
-                print(f"[SCENE] Folder not found: {folder}", flush=True)
-                continue
-            candidates = self._scene_candidates(folder)
-            if not candidates:
-                print(f"[SCENE] No video files in {folder}", flush=True)
-                continue
-            clips.append(random.choice(candidates))
+
+        if manifest_path.exists() and not force_reselect:
+            # Verify source file fingerprints before reusing
+            manifest = _json.loads(manifest_path.read_text(encoding="utf-8"))
+            _fp_match = True
+            for entry in manifest:
+                src = Path(entry["source"])
+                if src.exists():
+                    st = src.stat()
+                    if st.st_size != entry["size"] or st.st_mtime != entry["mtime"]:
+                        # ponytail: mtime-based fingerprint; content hash if drift
+                        _fp_match = False
+                        break
+                # missing source = snapshot still valid (we have the local copy)
+            if _fp_match:
+                for entry in manifest:
+                    local_path = snapshot_dir / entry["local"]
+                    if local_path.exists():
+                        clips.append(local_path)
+            else:
+                print("[SCENE] Source fingerprint changed, re-randomizing", flush=True)
+            if clips:
+                print(
+                    f"[SCENE] Reusing snapshot: {len(clips)} clips from {snapshot_dir}",
+                    flush=True,
+                )
 
         if not clips:
-            print(f"[SCENE] No clips found for {ctx.job_id}", flush=True)
-            return []
+            # 2b. Pick one random video from each folder (or re-randomize)
+            for folder in folders:
+                if not folder.exists():
+                    print(f"[SCENE] Folder not found: {folder}", flush=True)
+                    continue
+                candidates = self._scene_candidates(folder)
+                if not candidates:
+                    print(f"[SCENE] No video files in {folder}", flush=True)
+                    continue
+                clips.append(random.choice(candidates))
 
-        print(f"[SCENE] {len(clips)} clips selected for {ctx.job_id}", flush=True)
-        for c in clips:
-            print(f"[SCENE]   {c}", flush=True)
+            if not clips:
+                print(f"[SCENE] No clips found for {ctx.job_id}", flush=True)
+                return []
+
+            print(f"[SCENE] {len(clips)} clips selected for {ctx.job_id}", flush=True)
+            for c in clips:
+                print(f"[SCENE]   {c}", flush=True)
+
+            # Snapshot: copy selected clips to job-owned .scene_snapshot/
+            snapshot_dir.mkdir(parents=True, exist_ok=True)
+            manifest = []
+            for i, clip in enumerate(clips):
+                local_name = f"{i}{clip.suffix}"
+                _shutil.copy2(clip, snapshot_dir / local_name)
+                st = clip.stat()
+                manifest.append(
+                    {
+                        "source": str(clip.resolve()),
+                        "local": local_name,
+                        "size": st.st_size,
+                        "mtime": st.st_mtime,
+                    }
+                )
+            (snapshot_dir / "manifest.json").write_text(
+                _json.dumps(manifest, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(
+                f"[SCENE] Snapshot saved: {len(manifest)} clips → {snapshot_dir}",
+                flush=True,
+            )
 
         transition_duration = ctx.transition_duration_ms / 1000.0
         scene_path = job_dir / "scene_segment.mp4"
