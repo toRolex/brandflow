@@ -389,28 +389,31 @@ class TestSaveProductConfig:
 
 
 class TestResetProductConfig:
-    def test_reset_removes_active_product(self) -> None:
+    def test_reset_retains_active_product(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
             store.create_product("羊肚菌")
             store.reset_product_config()
-            assert store.active_id == ""
+            assert store.active_id == "羊肚菌"
 
-    def test_reset_switches_to_remaining(self) -> None:
+    def test_reset_retains_all_products(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
             store.switch_product("prod_001")
             store.switch_product("prod_002")
             store.reset_product_config()
-            assert len(store.list_products()) == 1
-            assert store.active_id == "prod_001"
+            assert len(store.list_products()) == 2
+            assert store.active_id == "prod_002"
 
-    def test_reset_on_last_product_clears_all(self) -> None:
+    def test_reset_keeps_last_product(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
             store.create_product("羊肚菌")
             store.reset_product_config()
-            assert store.list_products() == []
+            products = store.list_products()
+            assert len(products) == 1
+            assert products[0]["id"] == "羊肚菌"
+            assert store.active_id == "羊肚菌"
 
 
 # ---------------------------------------------------------------------------

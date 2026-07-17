@@ -213,20 +213,14 @@ class ProductStore:
         self._save(raw)
 
     def reset_product_config(self) -> None:
-        """Remove the active product and re-select a new active (or clear)."""
+        """Reset the active product's config to defaults. Keep the product entity."""
         raw = self._load()
         active_id = raw.get("active_product_id", "")
 
-        products = raw.get("products", [])
-        for i, p in enumerate(products):
+        for i, p in enumerate(raw.get("products", [])):
             if p.get("id") == active_id:
-                products.pop(i)
+                raw["products"][i] = {"id": active_id}
                 break
-
-        if products:
-            raw["active_product_id"] = products[0]["id"]
-        else:
-            raw["active_product_id"] = ""
 
         self._save(raw)
 
