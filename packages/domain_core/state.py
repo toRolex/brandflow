@@ -7,12 +7,12 @@ PHASE_ORDER = [
     "subtitle_generating",
     "asset_retrieving",
     "asset_review",
+    "montage_assembling",
     "video_rendering",
     "final_rendering",
     "final_review",
     "completed",
     "scene_assembling",
-    "montage_assembling",
 ]
 
 

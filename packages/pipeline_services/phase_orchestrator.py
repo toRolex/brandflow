@@ -273,6 +273,18 @@ class PhaseOrchestrator:
                     retryable=False,
                 )
         elif phase == "montage_assembling":
+            # For generate mode, montage_assembling is a no-op pass-through
+            # (neither scene_segment.mp4 nor base.mp4 exist yet).
+            job_json = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
+            if job_json.exists():
+                try:
+                    if (
+                        json.loads(job_json.read_text(encoding="utf-8")).get("mode")
+                        == "generate"
+                    ):
+                        return None
+                except json.JSONDecodeError:
+                    pass
             if (
                 not (job_dir / "scene_segment.mp4").exists()
                 and not (job_dir / "base.mp4").exists()

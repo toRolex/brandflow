@@ -474,12 +474,12 @@ class TestImportModeTickFlow:
         assert action.new_phase == "subtitle_generating"
 
     def test_montage_assembling_triggers_handler(self) -> None:
-        """montage_assembling → handler, then advance to video_rendering."""
+        """montage_assembling → handler via general dispatch (new_phase=None, not video_rendering)."""
         record = make_record(phase="montage_assembling", mode="import")
         action = _compute_transition(record, ())
         assert action.run_handler is True
         assert action.handler_phase == "montage_assembling"
-        assert action.new_phase == "video_rendering"
+        assert action.new_phase is None  # general dispatch: advance happens after artifacts
 
     def test_import_mode_full_tick_with_mock_orchestrator(self) -> None:
         """JobTickService.tick handles import mode through scene_assembling."""
@@ -533,7 +533,7 @@ class TestImportModeTickFlow:
         assert isinstance(ctx_arg.scene_folder_paths, list)
         assert ctx_arg.transition_duration_ms == 500
 
-        # Verify transition to montage_assembling
+        # Verify transition to subtitle_generating
         assert summary.action in ("advanced", "skipped")
 
         # Verify artifacts were merged (2 kinds from parallel execution)
@@ -573,10 +573,10 @@ class TestImportModeTickFlow:
         assert isinstance(ctx_arg.scene_folder_paths, list)
         assert ctx_arg.transition_duration_ms > 0
 
-    def test_import_mode_advances_past_scene_assembling_to_completed(
+    def test_import_mode_advances_past_montage_assembling(
         self,
     ) -> None:
-        """End-to-end transition from montage_assembling through video_rendering."""
+        """End-to-end: montage_assembling produces artifacts → advances via _safe_next."""
         record = make_record(phase="montage_assembling", mode="import")
         mock_repo = MagicMock()
         mock_repo.load_job.return_value = record
@@ -599,32 +599,31 @@ class TestImportModeTickFlow:
             project_dir=Path("/tmp/proj"),
         )
 
-        assert summary.action in ("advanced",)
+        assert summary.action == "advanced"
         assert summary.from_phase == "montage_assembling"
-        # Should advance to video_rendering (not asset_retrieving)
+        # Should advance to video_rendering (next in PHASE_ORDER after montage_assembling)
         assert summary.to_phase == "video_rendering"
 
-    # -- Import mode subtitle routing (issue #56) -----------------------
+    # -- Import mode subtitle routing (issue #56, corrected in #173) -----
 
-    def test_subtitle_generating_to_montage_assembling_with_artifacts(
+    def test_subtitle_generating_to_asset_retrieving_with_artifacts(
         self,
     ) -> None:
-        """Import mode: subtitle_generating + artifacts → montage_assembling."""
+        """Import mode: subtitle_generating + artifacts → asset_retrieving (corrected flow)."""
         record = make_record(phase="subtitle_generating", mode="import")
         action = _compute_transition(
             record,
             ({"kind": "subtitle", "relative_path": "subtitle.srt"},),
         )
-        assert action.new_phase == "montage_assembling"
-        assert "import mode" in action.message.lower()
+        assert action.new_phase == "asset_retrieving"
 
-    def test_subtitle_generating_skip_to_montage_assembling(self) -> None:
-        """Import mode: subtitle_generating + skip_subtitle → montage_assembling."""
+    def test_subtitle_generating_skip_to_asset_retrieving(self) -> None:
+        """Import mode: subtitle_generating + skip_subtitle → asset_retrieving."""
         record = make_record(
             phase="subtitle_generating", mode="import", skip_subtitle=True
         )
         action = _compute_transition(record, ())
-        assert action.new_phase == "montage_assembling"
+        assert action.new_phase == "asset_retrieving"
         assert "skip" in action.message.lower()
 
     def test_subtitle_generating_runs_handler_no_artifacts(self) -> None:
@@ -635,10 +634,10 @@ class TestImportModeTickFlow:
         assert action.handler_phase == "subtitle_generating"
         assert action.new_phase is None
 
-    def test_subtitle_after_artifacts_routes_to_montage_assembling(
+    def test_subtitle_after_artifacts_routes_to_asset_retrieving(
         self,
     ) -> None:
-        """_transition_after_artifacts: import mode subtitle → montage_assembling."""
+        """_transition_after_artifacts: import mode subtitle → asset_retrieving (corrected flow)."""
         from packages.pipeline_services.job_tick_service import (
             _transition_after_artifacts,
         )
@@ -648,8 +647,7 @@ class TestImportModeTickFlow:
             record,
             ({"kind": "subtitle", "relative_path": "subtitle.srt"},),
         )
-        assert action.new_phase == "montage_assembling"
-        assert "import mode" in action.message.lower()
+        assert action.new_phase == "asset_retrieving"
 
     def test_scene_assembling_to_subtitle_generating_transition(self) -> None:
         """Import mode: scene_assembling → subtitle_generating (not montage_assembling)."""

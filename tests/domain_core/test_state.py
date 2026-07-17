@@ -14,6 +14,7 @@ def test_rewind_from_phase_discards_downstream_phases() -> None:
     assert phases == [
         "asset_retrieving",
         "asset_review",
+        "montage_assembling",
         "video_rendering",
         "final_rendering",
         "final_review",

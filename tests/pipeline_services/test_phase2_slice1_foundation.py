@@ -113,12 +113,12 @@ class TestNewPhases:
         assert "montage_assembling" in PHASE_ORDER
 
     def test_phases_after_completed(self) -> None:
-        """New phases are placed after 'completed' so GENERATE flow is unaffected."""
+        """scene_assembling is after 'completed' (import-only entry); montage_assembling is now in the main pipeline."""
         completed_idx = PHASE_ORDER.index("completed")
         scene_idx = PHASE_ORDER.index("scene_assembling")
         montage_idx = PHASE_ORDER.index("montage_assembling")
         assert scene_idx > completed_idx
-        assert montage_idx > completed_idx
+        assert montage_idx < completed_idx
 
     def test_safe_next_stops_at_completed(self) -> None:
         """_safe_next('completed') returns 'completed' (not scene_assembling)."""
@@ -134,7 +134,8 @@ class TestNewPhases:
             ("tts_review", "subtitle_generating"),
             ("subtitle_generating", "asset_retrieving"),
             ("asset_retrieving", "asset_review"),
-            ("asset_review", "video_rendering"),
+            ("asset_review", "montage_assembling"),
+            ("montage_assembling", "video_rendering"),
             ("video_rendering", "final_rendering"),
             ("final_rendering", "final_review"),
             ("final_review", "completed"),
@@ -208,21 +209,23 @@ class TestImportModeSceneAssembling:
 
 
 class TestImportModeMontageAssembling:
-    def test_montage_assembling_advances_to_video_rendering(self) -> None:
-        """montage_assembling → handler then advance to video_rendering."""
+    def test_montage_assembling_triggers_handler(self) -> None:
+        """montage_assembling → handler execution (general dispatch via HANDLED_PHASES)."""
         action = _compute_transition(
             make_record(phase="montage_assembling", mode="import"), ()
         )
-        assert action.new_phase == "video_rendering"
         assert action.run_handler is True
         assert action.handler_phase == "montage_assembling"
+        assert action.new_phase is None  # general dispatch: handler runs, advance after artifacts
 
     def test_montage_assembling_generate_mode(self) -> None:
-        """montage_assembling + generate mode routes to video_rendering."""
+        """montage_assembling + generate mode also triggers handler via general dispatch."""
         action = _compute_transition(
             make_record(phase="montage_assembling", mode="generate"), ()
         )
-        assert action.new_phase == "video_rendering"
+        assert action.run_handler is True
+        assert action.handler_phase == "montage_assembling"
+        assert action.new_phase is None  # general dispatch
 
 
 # ---------------------------------------------------------------------------
@@ -415,8 +418,10 @@ class TestImportModeFullFlow:
         sequence = [
             ("queued", "scene_assembling"),  # first transition
             ("scene_assembling", "subtitle_generating"),  # after parallel dispatch
-            ("subtitle_generating", "montage_assembling"),  # import mode route
-            ("montage_assembling", "video_rendering"),  # explicit route
+            ("subtitle_generating", "asset_retrieving"),  # import mode: goes to asset_retrieving
+            ("asset_retrieving", "asset_review"),  # standard flow
+            ("asset_review", "montage_assembling"),  # review approved → montage
+            ("montage_assembling", "video_rendering"),  # montage → video
             ("video_rendering", "final_rendering"),  # standard flow resumes
             ("final_rendering", "final_review"),
             ("final_review", "completed"),
@@ -440,8 +445,17 @@ class TestImportModeFullFlow:
                 # subtitle_generating: run handler if not skipped
                 assert action.run_handler is True
                 assert action.new_phase is None
+            elif from_phase == "asset_retrieving":
+                # asset_retrieving: in HANDLED_PHASES, run handler
+                assert action.run_handler is True
+                assert action.new_phase is None
+            elif from_phase == "asset_review":
+                # asset_review: review gate, pending → wait
+                assert action.new_phase is None
             elif from_phase == "montage_assembling":
-                assert action.new_phase == to_phase, f"{from_phase} → {to_phase}"
+                # montage_assembling: now in HANDLED_PHASES, general dispatch
+                assert action.run_handler is True
+                assert action.new_phase is None
             elif from_phase == "video_rendering":
                 # No artifacts → retry logic
                 assert action.run_handler is True
@@ -454,11 +468,12 @@ class TestImportModeFullFlow:
 
     def test_import_mode_with_auto_approve_advances_through_gates(self) -> None:
         """Import mode with auto_approve=True advances through review gates."""
+        expected = {"asset_review": "montage_assembling", "final_review": "completed"}
         for phase in ["asset_review", "final_review"]:
             action = _compute_transition(
                 make_record(phase=phase, mode="import", auto_approve=True), ()
             )
-            assert action.new_phase is not None, (
-                f"{phase} should auto-advance with auto_approve"
+            assert action.new_phase == expected[phase], (
+                f"{phase} should auto-advance to {expected[phase]}"
             )
             assert action.new_review_status == "approved"
