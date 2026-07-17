@@ -310,7 +310,15 @@ class PhaseOrchestrator:
             if audio_path.exists() and clip_list_path.exists():
                 try:
                     selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
-                    if any(Path(item["file_path"]).exists() for item in selected):
+                    has_real = any(
+                        Path(item["file_path"]).exists()
+                        for item in selected
+                        if item.get("file_path")
+                    )
+                    all_blank = all(
+                        item.get("visual_type") == "blank" for item in selected
+                    )
+                    if has_real or all_blank:
                         return None
                 except (json.JSONDecodeError, KeyError, TypeError):
                     return ExecutionFailure(
@@ -942,7 +950,12 @@ class PhaseOrchestrator:
 
         if audio_path.exists() and clip_list_path.exists():
             selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
-            selected = [item for item in selected if Path(item["file_path"]).exists()]
+            selected = [
+                item
+                for item in selected
+                if item.get("visual_type") == "blank"
+                or Path(item["file_path"]).exists()
+            ]
 
             if selected:
                 self._video_svc.build_base_video(
