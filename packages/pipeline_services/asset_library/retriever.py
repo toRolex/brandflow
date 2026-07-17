@@ -45,6 +45,7 @@ class AssetRetriever:
                             "asset_id": chosen.asset_id,
                             "duration_seconds": chosen.duration_seconds,
                             "method": "llm_match",
+                            "visual_type": "clip",
                         }
                     )
                     self.repository.increment_usage(chosen.asset_id)
@@ -65,6 +66,7 @@ class AssetRetriever:
                         "asset_id": fallback.asset_id,
                         "duration_seconds": fallback.duration_seconds,
                         "method": "fallback",
+                        "visual_type": "clip",
                     }
                 )
                 self.repository.increment_usage(fallback.asset_id)
@@ -75,6 +77,19 @@ class AssetRetriever:
                 logger.warning(
                     f"[Retriever] 句子 {i + 1}: 无可用素材! 句子内容: {sentence[:30]}..."
                 )
+                selected.append(
+                    {
+                        "sentence": sentence,
+                        "category": requested_category_name or "",
+                        "requested_category": requested_category_name or "",
+                        "file_path": "",
+                        "asset_id": "",
+                        "duration_seconds": 0.0,
+                        "method": "",
+                        "visual_type": "unresolved",
+                    }
+                )
+                logger.info(f"[Retriever] 句子 {i + 1}: 标记为 unresolved")
 
         logger.info(
             f"[Retriever] 检索完成: {len(selected)}/{len(sentences)} 句子匹配成功"

@@ -307,33 +307,59 @@ class VideoService:
         trimmed_paths: list[Path] = []
         ffmpeg = get_ffmpeg_path()
         for i, tp in enumerate(trim_params):
-            src = Path(tp["file_path"])
             trimmed = output_path.parent / f"{job['job_id']}_trim_{i:02d}.mp4"
-            subprocess.run(
-                [
-                    ffmpeg,
-                    "-ss",
-                    f"{tp['ss']:.3f}",
-                    "-t",
-                    f"{tp['duration']:.3f}",
-                    "-i",
-                    str(src),
-                    "-vf",
-                    "fps=30,setsar=1",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "ultrafast",
-                    "-an",
-                    "-y",
-                    str(trimmed),
-                ],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=True,
-            )
+            # Blank clip: generate #000000 black frame with computed duration
+            if tp.get("visual_type") == "blank" or not tp.get("file_path"):
+                subprocess.run(
+                    [
+                        ffmpeg,
+                        "-y",
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        f"color=c=black:s=1080x1920:d={tp['duration']:.3f}:r=30",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "ultrafast",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-an",
+                        str(trimmed),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=True,
+                )
+            else:
+                src = Path(tp["file_path"])
+                subprocess.run(
+                    [
+                        ffmpeg,
+                        "-ss",
+                        f"{tp['ss']:.3f}",
+                        "-t",
+                        f"{tp['duration']:.3f}",
+                        "-i",
+                        str(src),
+                        "-vf",
+                        "fps=30,setsar=1",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "ultrafast",
+                        "-an",
+                        "-y",
+                        str(trimmed),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=True,
+                )
             trimmed_paths.append(trimmed)
 
         try:

@@ -29,9 +29,24 @@ Phase = Literal[
 
 ProductionMode = Literal["import", "generate"]
 ReviewStatus = Literal["none", "pending", "approved", "rejected", "overridden"]
-
+VisualType = Literal["clip", "blank", "unresolved"]
 
 AudioSource = Literal["tts", "upload", "library"]
+
+
+class AssetPosition(BaseModel):
+    """One sentence's asset position in asset review — clip, blank, or unresolved."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sentence: str
+    category: str = ""
+    requested_category: str = ""
+    file_path: str = ""
+    asset_id: str = ""
+    duration_seconds: float = 0.0
+    method: str = ""
+    visual_type: VisualType = "unresolved"
 
 
 class ArtifactPointer(BaseModel):
