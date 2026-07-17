@@ -140,7 +140,15 @@ class WorkerLoop:
                 traceback.print_exc()
                 status = "failed"
                 logs = f"phase execution error: {e}"
-                error = {"message": str(e), "type": type(e).__name__}
+                # Structured error matching ExecutionFailure contract (#171):
+                # code, message, and retryable so the control plane can apply
+                # consistent retry / terminal logic.
+                error = {
+                    "message": str(e),
+                    "type": type(e).__name__,
+                    "code": "WORKER_EXCEPTION",
+                    "retryable": True,
+                }
                 uploaded_files = []
 
             finished_at = datetime.now(timezone.utc).isoformat()

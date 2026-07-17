@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request
 
 from apps.control_plane.services.reconcile import choose_report_outcome
+from packages.domain_core.models import ExecutionFailure
 from packages.domain_core.worker_protocol import PollRequest, WorkerReport
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import JobTickService
@@ -42,10 +43,11 @@ def report_task(
     outcome = choose_report_outcome(current=current, report=payload)
     accepted = outcome == "accept"
 
-    if accepted and payload.status == "succeeded":
-        attempt_info = current  # type: ignore[assignment]
+    if accepted:
+        attempt_info = current or {}
         project_id = attempt_info.get("project_id", "")
         job_id = payload.job_id
+        handler_phase = attempt_info.get("handler_phase")
 
         if project_id and job_id:
             try:
@@ -58,11 +60,37 @@ def report_task(
                     )
 
                 tick_svc = JobTickService(orchestrator=orchestrator, repo=repo)
-                manifest_files = (payload.artifact_manifest or {}).get("files", [])
-                _ = tick_svc.advance_after_report(
-                    project_id, job_id, list(manifest_files)
+                manifest_files = list(
+                    (payload.artifact_manifest or {}).get("files", [])
                 )
+
+                if payload.status == "succeeded":
+                    _ = tick_svc.advance_after_report(
+                        project_id,
+                        job_id,
+                        manifest_files,
+                        handler_phase=handler_phase,
+                    )
+                elif payload.status == "failed":
+                    # Wire the worker's error into the shared failure-transition
+                    # logic so attempt counting and retry-exhaustion are
+                    # consistent with the auto-tick path (#171).
+                    raw_error = payload.error or {}
+                    error = ExecutionFailure(
+                        code=raw_error.get("code", "WORKER_REPORTED_FAILURE"),
+                        message=raw_error.get("message", ""),
+                        retryable=raw_error.get("retryable", True),
+                    )
+                    _ = tick_svc.advance_after_report(
+                        project_id,
+                        job_id,
+                        manifest_files,
+                        handler_phase=handler_phase,
+                        error=error,
+                    )
             except Exception:
-                pass
+                import traceback
+
+                traceback.print_exc()
 
     return {"accepted": accepted, "outcome": outcome, "task_id": task_id}

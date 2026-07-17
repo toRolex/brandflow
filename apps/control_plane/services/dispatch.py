@@ -48,6 +48,7 @@ class Dispatcher:
                         "attempt_id": attempt_id,
                         "lease_id": lease_id,
                         "worker_id": worker_id,
+                        "handler_phase": action.handler_phase,
                     }
                     return {
                         "command": "run_task",

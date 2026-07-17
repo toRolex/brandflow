@@ -722,11 +722,15 @@ class JobTickService:
         project_id: str,
         job_id: str,
         manifest_files: list[dict[str, Any]],
+        *,
+        handler_phase: str | None = None,
+        error: ExecutionFailure | None = None,
     ) -> TickSummary:
         """Worker-report entry point: advance job based on worker's output.
 
         Does NOT run any handler — the worker already did.
-        Only re-decides the transition, persists, and returns a summary.
+        Re-decides the transition, updates execution state, persists,
+        and returns a summary.
 
         Parameters
         ----------
@@ -737,6 +741,15 @@ class JobTickService:
         manifest_files : list[dict]
             Artifact manifest from the worker, typically
             ``payload.artifact_manifest["files"]``.
+        handler_phase : str or None
+            The phase the worker was dispatched to execute.  When provided
+            it is used as the effective phase for transition logic,
+            guarding against the dispatch-never-persists-phase edge case
+            (#171).
+        error : ExecutionFailure or None
+            When the worker reported a failure, the structured error to
+            feed into ``_compute_failure_transition`` so attempt counting
+            and retry-exhaustion logic is shared with the auto-tick path.
 
         Returns
         -------
@@ -745,7 +758,34 @@ class JobTickService:
         """
         record = self._repo.load_job(project_id, job_id)
         initial_phase = record.phase
+        effective_phase = handler_phase if handler_phase is not None else record.phase
 
+        # ------------------------------------------------------------------
+        # Worker failure path — shared retry / terminal logic
+        # ------------------------------------------------------------------
+        if error is not None:
+            execution, action = _compute_failure_transition(
+                record.execution, effective_phase, error
+            )
+            update: dict[str, Any] = {
+                "execution": execution,
+                "artifacts": record.artifacts,  # preserve existing artifacts
+                "failed_phase": (
+                    effective_phase if execution.status == "failed" else None
+                ),
+            }
+            if action.new_phase is not None:
+                update["phase"] = action.new_phase
+            if action.new_review_status is not None:
+                update["review_status"] = action.new_review_status
+            record = record.model_copy(update=update)
+            self._repo.save_job(project_id, record)
+            return _build_tick_summary(initial_phase, action)
+
+        # ------------------------------------------------------------------
+        # Worker success path — merge artifacts, advance phase, update
+        # execution state
+        # ------------------------------------------------------------------
         # Build artifacts list from manifest
         new_artifacts: list[ArtifactPointer] = []
         for f in manifest_files:
@@ -761,20 +801,26 @@ class JobTickService:
         # Merge into record
         record.artifacts = _merge_artifacts(record.artifacts, new_artifacts)
 
-        # Worker has already executed the phase — use the unified
-        # compute_transition entry point (non-empty artifacts → post-handler path)
-        action = _compute_transition(record, tuple(new_artifacts))
+        # Worker has already executed the phase — use the post-handler
+        # transition with the explicit handler phase so per-phase rules
+        # are applied correctly even when dispatch never persisted a
+        # phase change (#171).
+        action = _transition_after_artifacts(
+            record, tuple(new_artifacts), phase=effective_phase
+        )
 
-        # Apply phase / review_status changes
-        update: dict[str, Any] = {}
+        # Update execution state to record the worker's success
+        execution = _compute_success_execution(record.execution)
+
+        # Apply phase / review_status / execution changes
+        update: dict[str, Any] = {"execution": execution, "failed_phase": None}
         if action.new_phase is not None:
             update["phase"] = action.new_phase
         if action.new_review_status is not None:
             update["review_status"] = action.new_review_status
 
-        if update:
-            record = record.model_copy(update=update)
-            self._repo.save_job(project_id, record)
+        record = record.model_copy(update=update)
+        self._repo.save_job(project_id, record)
 
         if action.review_event:
             event = {"job_id": job_id, "project_id": project_id, **action.review_event}
