@@ -14,7 +14,6 @@ from packages.pipeline_services.phase_orchestrator import (
 
 def _make_orchestrator(root_dir: Path, video_svc, schedule_store) -> PhaseOrchestrator:
     """Build an orchestrator with stubs for video_svc and schedule_store."""
-    from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
     from packages.pipeline_services.subtitle_service import SubtitleService
 
     class StubTTSProvider:
@@ -22,7 +21,6 @@ def _make_orchestrator(root_dir: Path, video_svc, schedule_store) -> PhaseOrches
             return b"tts"
 
     orch = PhaseOrchestrator(
-        script_bridge=LegacyScriptBridge(root_dir),
         subtitle_svc=SubtitleService(),
         video_svc=video_svc,
         schedule_store=schedule_store,

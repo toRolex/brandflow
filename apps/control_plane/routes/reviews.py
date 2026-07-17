@@ -8,7 +8,10 @@ from pydantic import BaseModel
 
 from packages.domain_core.state import next_phase
 from packages.file_store.repository import FileStoreRepository
-from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
+from packages.pipeline_services.script_service import generate_script
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.config_resolver import ConfigResolver
+from packages.provider_config.secret_store import SecretStore
 
 logger = logging.getLogger(__name__)
 
@@ -187,12 +190,15 @@ def regenerate_with_prompt(
     )
 
     try:
-        bridge = LegacyScriptBridge(root_dir)
-        result = bridge.generate(
+        config_reader = ConfigReader(config_dir=str(root_dir / "config"))
+        config_resolver = ConfigResolver(reader=config_reader, secrets=SecretStore())
+        result = generate_script(
             product=product,
             output_dir=job_dir,
-            mock=False,
+            language="mandarin",
+            brand="",
             custom_prompt=payload.custom_prompt,
+            config_resolver=config_resolver,
         )
         logger.info(
             f"[Review] 重新生成成功: job={job_id}, txt={result.get('txt_path')}"

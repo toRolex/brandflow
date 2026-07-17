@@ -7,7 +7,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from packages.domain_core.models import ArtifactPointer, ExecutionFailure, JobRecord
+from packages.domain_core.models import (
+    ArtifactPointer,
+    ExecutionFailure,
+    JobRecord,
+    PhaseExecutionState,
+)
 from packages.domain_core.phase_execution import (
     PhaseExecutionFailure,
     PhaseExecutionSuccess,
@@ -35,12 +40,12 @@ from packages.pipeline_services.phase_orchestrator import (
 
 def make_record(
     phase: str = "queued",
-    last_error: str = "",
     review_status: str = "none",
     skip_subtitle: bool = False,
     auto_approve: bool = False,
     mode: str = "generate",
     manual_script: str = "",
+    execution: PhaseExecutionState | None = None,
 ) -> JobRecord:
     """Factory for concise test construction."""
     return JobRecord(
@@ -50,10 +55,10 @@ def make_record(
         phase=phase,  # type: ignore[arg-type]
         mode=mode,  # type: ignore[arg-type]
         review_status=review_status,  # type: ignore[arg-type]
-        last_error=last_error,
         skip_subtitle=skip_subtitle,
         auto_approve=auto_approve,
         manual_script=manual_script,
+        execution=execution if execution is not None else PhaseExecutionState(),
     )
 
 
@@ -330,9 +335,9 @@ class TestArtifactsProduced:
 
 class TestVideoRenderingNoArtifacts:
     def test_first_failure_retries(self) -> None:
-        """No artifacts + no prior last_error → retry next tick."""
+        """No artifacts + no prior execution error → retry next tick."""
         action = _transition_after_artifacts(
-            make_record(phase="video_rendering", last_error=""),
+            make_record(phase="video_rendering"),
             (),
         )
         assert action.new_phase is None
@@ -340,11 +345,20 @@ class TestVideoRenderingNoArtifacts:
         assert "retry" in action.message.lower()
 
     def test_second_failure_marks_failed(self) -> None:
-        """No artifacts + prior video_rendering error → mark as failed."""
+        """No artifacts + prior execution error → mark as failed."""
         action = _transition_after_artifacts(
             make_record(
                 phase="video_rendering",
-                last_error="video_rendering failed to produce artifacts",
+                execution=PhaseExecutionState(
+                    status="retrying",
+                    current_attempt=1,
+                    max_attempts=3,
+                    error=ExecutionFailure(
+                        code="VIDEO_RENDERING_FAILED",
+                        message="video_rendering produced no artifacts.",
+                        retryable=True,
+                    ),
+                ),
             ),
             (),
         )
@@ -981,7 +995,6 @@ class TestManualScriptConsistency:
             "voice": "test-voice",
         }
         orch = PhaseOrchestrator(
-            script_bridge=Mock(),
             subtitle_svc=Mock(),
             video_svc=Mock(),
             config_reader=mock_config,
