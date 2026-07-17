@@ -136,8 +136,35 @@ export default function JobPipeline() {
     }
   };
 
-  const handleRetry = () => {
-    api.retryJob(job.job_id);
+  const formatRetryError = (e: unknown): string => {
+    const fallback = "重试前验证失败";
+    if (!(e instanceof Error)) return fallback;
+    // api client throws Error(`${status}: ${body}`) — surface the structured
+    // 409 detail (code/message) from the server-side revalidation.
+    const match = e.message.match(/^\d+:\s*([\s\S]*)$/);
+    if (!match) return fallback;
+    try {
+      const detail = JSON.parse(match[1])?.detail;
+      if (typeof detail === "string") return `${fallback}：${detail}`;
+      if (detail?.message) {
+        return detail.code
+          ? `${fallback}：${detail.message}（${detail.code}）`
+          : `${fallback}：${detail.message}`;
+      }
+    } catch {
+      // non-JSON body — fall through to the generic message
+    }
+    return fallback;
+  };
+
+  const handleRetry = async () => {
+    try {
+      await api.retryJob(job.job_id);
+      await load();
+    } catch (e) {
+      console.error("retry failed", e);
+      setError(formatRetryError(e));
+    }
   };
 
   const handleEditScript = async (newScript: string) => {
@@ -410,20 +437,31 @@ export default function JobPipeline() {
           </div>
         );
       }
-      case "failed":
+      case "failed": {
+        const executionError = job.execution?.error;
         return (
           <div className="text-center py-12">
             <div className="text-[var(--color-alert-red)] text-5xl mb-4">{"✗"}</div>
             <h3 className="text-lg font-semibold text-[var(--color-alert-red)] mb-2">任务失败</h3>
-            <p className="text-[var(--text-tertiary)] text-sm">{job.last_error || "未知错误"}</p>
+            {executionError ? (
+              <div className="space-y-2 text-sm text-[var(--text-tertiary)]">
+                <p className="font-mono text-[var(--color-alert-red)]">{executionError.code}</p>
+                <p>{executionError.message}</p>
+                <p>失败阶段：<span className="font-mono">{job.failed_phase || "unknown"}</span></p>
+                <p>尝试次数：{job.execution.current_attempt} / {job.execution.max_attempts}</p>
+              </div>
+            ) : (
+              <p className="text-[var(--text-tertiary)] text-sm">{job.last_error || "未知错误"}</p>
+            )}
             <button
               className="mt-4 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
               onClick={handleRetry}
             >
-              {"↻"} 重试
+              重试失败阶段
             </button>
           </div>
         );
+      }
       case "cancelled":
         return (
           <div className="text-center py-12">
@@ -467,6 +505,12 @@ export default function JobPipeline() {
         <div className="mb-4 bg-[var(--alert-red-muted)] border border-[var(--danger-border)] text-[var(--alert-red)] px-4 py-3 rounded-lg text-sm flex items-center justify-between">
           <span>{error}</span>
           <button onClick={() => setError("")} className="text-[var(--text-tertiary)] hover:text-[var(--alert-red)] text-lg leading-none">&times;</button>
+        </div>
+      )}
+
+      {job.execution?.status === "retrying" && (
+        <div className="mb-4 bg-[var(--bg-table-head)] px-4 py-3 rounded-lg text-sm">
+          正在重试，第 {job.execution.current_attempt} / {job.execution.max_attempts} 次
         </div>
       )}
 

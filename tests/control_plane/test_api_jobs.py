@@ -155,6 +155,198 @@ def test_get_job_round_trips_failed_execution_state(tmp_path: Path) -> None:
     assert response.json()["execution"] == raw["execution"]
 
 
+def test_failed_job_response_exposes_failed_phase(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"]},
+    ).json()
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{created['job_id']}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    raw.update(
+        {
+            "phase": "failed",
+            "failed_phase": "video_rendering",
+            "execution": {
+                "status": "failed",
+                "current_attempt": 3,
+                "max_attempts": 3,
+                "error": {
+                    "code": "VIDEO_SOURCE_MISSING",
+                    "message": "No video source.",
+                    "retryable": False,
+                },
+            },
+        }
+    )
+    job_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    response = client.get(f"/api/jobs/{created['job_id']}")
+
+    assert response.status_code == 200
+    assert response.json()["failed_phase"] == "video_rendering"
+
+
+def test_retry_restores_failed_phase_and_preserves_artifacts(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"], "mode": "import"},
+    ).json()
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{created['job_id']}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    artifact = {
+        "kind": "scene_segment",
+        "relative_path": "scene.mp4",
+        "url": "",
+        "sha256": "",
+        "size_bytes": 1,
+        "active": False,
+    }
+    raw.update(
+        {
+            "phase": "failed",
+            "failed_phase": "video_rendering",
+            "artifacts": [artifact],
+            "execution": {
+                "status": "failed",
+                "current_attempt": 3,
+                "max_attempts": 3,
+                "error": {
+                    "code": "MEDIA_PROCESSING_TIMEOUT",
+                    "message": "Timed out.",
+                    "retryable": True,
+                },
+            },
+        }
+    )
+    job_path.write_text(json.dumps(raw), encoding="utf-8")
+    job_runtime = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "runtime"
+        / "jobs"
+        / created["job_id"]
+    )
+    job_runtime.mkdir(parents=True)
+    (job_runtime / "assembled.mp4").write_bytes(b"fixed input")
+
+    response = client.post(f"/api/jobs/{created['job_id']}/retry")
+
+    assert response.status_code == 200
+    saved = json.loads(job_path.read_text(encoding="utf-8"))
+    assert saved["phase"] == "video_rendering"
+    assert saved["failed_phase"] is None
+    assert saved["artifacts"] == [artifact]
+    assert saved["execution"]["status"] == "pending"
+    assert saved["execution"]["current_attempt"] == 0
+
+
+def test_retry_revalidates_with_media_handler_contract(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"], "mode": "import"},
+    ).json()
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{created['job_id']}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    raw.update(
+        {
+            "phase": "failed",
+            "failed_phase": "video_rendering",
+            "execution": {
+                "status": "failed",
+                "current_attempt": 1,
+                "max_attempts": 3,
+                "error": {
+                    "code": "VIDEO_SOURCE_MISSING",
+                    "message": "No source.",
+                    "retryable": False,
+                },
+            },
+        }
+    )
+    job_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    response = client.post(f"/api/jobs/{created['job_id']}/retry")
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "VIDEO_SOURCE_MISSING"
+    saved = json.loads(job_path.read_text(encoding="utf-8"))
+    assert saved["phase"] == "failed"
+    assert saved["failed_phase"] == "video_rendering"
+
+
+def test_retry_legacy_failed_job_without_failed_phase_resets_to_queued(
+    tmp_path: Path,
+) -> None:
+    """存量失败 job（failed_phase 为空）保留旧的重置为 queued 重试行为。"""
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"]},
+    ).json()
+    job_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "prj_001"
+        / "control"
+        / "jobs"
+        / f"{created['job_id']}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    raw.update({"phase": "failed", "review_status": "none"})
+    raw.pop("failed_phase", None)
+    job_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    response = client.post(f"/api/jobs/{created['job_id']}/retry")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "queued_for_retry"
+    saved = json.loads(job_path.read_text(encoding="utf-8"))
+    assert saved["phase"] == "queued"
+    assert saved["execution"]["status"] == "pending"
+
+
+def test_retry_non_failed_job_is_rejected(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"]},
+    ).json()
+
+    response = client.post(f"/api/jobs/{created['job_id']}/retry")
+
+    assert response.status_code == 409
+
+
 def test_create_job_persists_language_and_cover_title(tmp_path: Path) -> None:
     """单次 create_job 将 language 与 cover_title 写入 JobRecord。"""
     client = _make_client(tmp_path)

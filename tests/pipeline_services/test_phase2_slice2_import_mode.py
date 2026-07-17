@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from packages.domain_core.models import JobRecord
+from packages.domain_core.phase_execution import PhaseExecutionSuccess
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
     _compute_transition,
@@ -69,15 +70,10 @@ def ctx(project_dir: Path, tmp_root: Path) -> PhaseContext:
 
 @pytest.fixture()
 def orchestrator() -> PhaseOrchestrator:
-    config_resolver = MagicMock()
-    config_resolver.tts.return_value = {"model": "test-model", "voice": "test-voice"}
-    config_resolver.secrets = MagicMock()
     return PhaseOrchestrator(
-        script_generator=MagicMock(),
+        script_bridge=MagicMock(),
         subtitle_svc=MagicMock(),
         video_svc=MagicMock(),
-        media_compositor=MagicMock(),
-        config_resolver=config_resolver,
         schedule_store=MagicMock(),
     )
 
@@ -223,13 +219,34 @@ class TestSceneAssembling:
             transition_duration_ms=500,
         )
 
-        def _side_effect(clips, out, transition_duration):
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text("fake scene video")
-            return out
+        # Patch ffmpeg to avoid needing real ffmpeg and mock subprocess
+        with patch.object(
+            orchestrator, "_get_ffmpeg_path", return_value="/usr/bin/false"
+        ):
+            with patch.object(
+                orchestrator,
+                "_get_media_duration",
+                return_value=5.0,
+            ):
+                with patch.object(subprocess, "run") as mock_run:
+                    # Make the mocked subprocess not raise
+                    mock_run.return_value = MagicMock(returncode=0)
 
-        orchestrator._media_compositor.crossfade_scene.side_effect = _side_effect
-        result = orchestrator.run_phase("scene_assembling", ctx)
+                    # Also make the scene path "exist" by creating it after mock_call
+                    def _side_effect(*args, **kwargs):
+                        scene_path = (
+                            project_dir
+                            / "runtime"
+                            / "jobs"
+                            / "job-001"
+                            / "scene_segment.mp4"
+                        )
+                        scene_path.parent.mkdir(parents=True, exist_ok=True)
+                        scene_path.write_text("fake scene video")
+                        return MagicMock(returncode=0)
+
+                    mock_run.side_effect = _side_effect
+                    result = orchestrator.run_phase("scene_assembling", ctx)
 
         assert len(result) == 1
         assert result[0].kind == "scene_segment"
@@ -256,18 +273,29 @@ class TestSceneAssembling:
             transition_duration_ms=500,
         )
 
-        def _make_scene(clips, out, transition_duration):
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text("fake output")
-            return out
+        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
+            with patch.object(orchestrator, "_get_media_duration", return_value=3.0):
+                with patch.object(subprocess, "run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0)
 
-        orchestrator._media_compositor.crossfade_scene.side_effect = _make_scene
-        result = orchestrator.run_phase("scene_assembling", ctx)
+                    def _make_scene(*args, **kwargs):
+                        scene_path = (
+                            project_dir
+                            / "runtime"
+                            / "jobs"
+                            / "job-001"
+                            / "scene_segment.mp4"
+                        )
+                        scene_path.parent.mkdir(parents=True, exist_ok=True)
+                        scene_path.write_text("fake output")
+                        return MagicMock(returncode=0)
+
+                    mock_run.side_effect = _make_scene
+                    result = orchestrator.run_phase("scene_assembling", ctx)
 
         assert len(result) == 1
         # Should have chosen 1 file from each of the 2 folders
-        call_args = orchestrator._media_compositor.crossfade_scene.call_args
-        assert len(call_args[0][0]) == 2
+        self._verify_subprocess_call(mock_run, 2)
 
     @staticmethod
     def _verify_subprocess_call(mock_run: MagicMock, expected_clip_count: int) -> None:
@@ -394,22 +422,27 @@ class TestMontageAssembling:
         (job_dir / "scene_segment.mp4").write_text("scene")
         (job_dir / "base.mp4").write_text("base")
 
-        def _make_assembled(first, second, out):
-            out.write_text("concatenated")
-            return out
+        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
+            with patch.object(subprocess, "run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
 
-        orchestrator._media_compositor.concat_two.side_effect = _make_assembled
-        result = orchestrator.run_phase("montage_assembling", ctx)
+                def _make_assembled(*args, **kwargs):
+                    (job_dir / "assembled.mp4").write_text("concatenated")
+                    return MagicMock(returncode=0)
+
+                mock_run.side_effect = _make_assembled
+
+                result = orchestrator.run_phase("montage_assembling", ctx)
 
         assert len(result) == 1
         assert result[0].kind == "assembled_video"
         assert (job_dir / "assembled.mp4").exists()
 
-        # Verify concat_two was called with scene + base
-        call_args = orchestrator._media_compositor.concat_two.call_args
-        assert call_args[0][0] == job_dir / "scene_segment.mp4"
-        assert call_args[0][1] == job_dir / "base.mp4"
-        assert call_args[0][2] == job_dir / "assembled.mp4"
+        # Verify ffmpeg was called with concat filter
+        call_args = mock_run.call_args[0][0]
+        assert "-filter_complex" in call_args
+        filter_idx = call_args.index("-filter_complex")
+        assert "concat=n=2" in call_args[filter_idx + 1]
 
 
 # ---------------------------------------------------------------------------
@@ -455,23 +488,27 @@ class TestImportModeTickFlow:
         mock_repo.load_job.return_value = record
 
         mock_orch = MagicMock(spec=PhaseOrchestrator)
-        mock_orch.run_phases_parallel.return_value = {
-            "scene_assembling": [
-                ArtifactPointer(
-                    kind="scene_segment",
-                    relative_path="projects/proj-001/runtime/jobs/job-001/scene_segment.mp4",
-                    url="/workspace/projects/proj-001/runtime/jobs/job-001/scene_segment.mp4",
-                    size_bytes=1000,
-                )
-            ],
-            "tts_generating": [
-                ArtifactPointer(
-                    kind="tts_audio",
-                    relative_path="projects/proj-001/runtime/jobs/job-001/audio.mp3",
-                    url="/workspace/projects/proj-001/runtime/jobs/job-001/audio.mp3",
-                    size_bytes=500,
-                )
-            ],
+        mock_orch.execute_phases_parallel.return_value = {
+            "scene_assembling": PhaseExecutionSuccess(
+                artifacts=[
+                    ArtifactPointer(
+                        kind="scene_segment",
+                        relative_path="projects/proj-001/runtime/jobs/job-001/scene_segment.mp4",
+                        url="/workspace/projects/proj-001/runtime/jobs/job-001/scene_segment.mp4",
+                        size_bytes=1000,
+                    )
+                ]
+            ),
+            "tts_generating": PhaseExecutionSuccess(
+                artifacts=[
+                    ArtifactPointer(
+                        kind="tts_audio",
+                        relative_path="projects/proj-001/runtime/jobs/job-001/audio.mp3",
+                        url="/workspace/projects/proj-001/runtime/jobs/job-001/audio.mp3",
+                        size_bytes=500,
+                    )
+                ]
+            ),
         }
 
         svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
@@ -484,7 +521,7 @@ class TestImportModeTickFlow:
         )
 
         # Verify parallel dispatch was called with both phases
-        call_args = mock_orch.run_phases_parallel.call_args
+        call_args = mock_orch.execute_phases_parallel.call_args
         assert call_args is not None
         phases_arg = call_args[0][0]
         assert "scene_assembling" in phases_arg
@@ -511,6 +548,14 @@ class TestImportModeTickFlow:
         mock_repo = MagicMock()
         mock_repo.load_job.return_value = record
         mock_orch = MagicMock(spec=PhaseOrchestrator)
+        mock_orch.execute_phases_parallel.return_value = {
+            "scene_assembling": PhaseExecutionSuccess(
+                artifacts=[
+                    ArtifactPointer(kind="scene_segment", relative_path="scene.mp4")
+                ]
+            ),
+            "tts_generating": PhaseExecutionSuccess(artifacts=[]),
+        }
 
         svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
         svc.tick(
@@ -521,7 +566,7 @@ class TestImportModeTickFlow:
             project_dir=Path("/tmp/proj"),
         )
 
-        call_args = mock_orch.run_phases_parallel.call_args
+        call_args = mock_orch.execute_phases_parallel.call_args
         assert call_args is not None
         ctx_arg = call_args[0][1]
         # Scene paths should be populated (may be empty if no config file exists)

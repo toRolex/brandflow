@@ -4,11 +4,24 @@ export type Phase =
   | "queued" | "script_generating" | "script_review"
   | "tts_generating" | "tts_review" | "subtitle_generating" | "asset_retrieving"
   | "asset_review"
-  | "video_rendering" | "final_review"
+  | "video_rendering" | "final_rendering" | "final_review"
   | "schedule_writing" | "scene_assembling" | "montage_assembling"
   | "completed" | "failed" | "cancelled" | "paused";
 
 export type ReviewStatus = "none" | "pending" | "approved" | "rejected" | "overridden";
+
+export interface ExecutionFailure {
+  code: string;
+  message: string;
+  retryable: boolean;
+}
+
+export interface PhaseExecutionState {
+  status: "pending" | "running" | "retrying" | "failed" | "succeeded";
+  current_attempt: number;
+  max_attempts: number;
+  error: ExecutionFailure | null;
+}
 
 export interface Project {
   id: string;
@@ -23,7 +36,9 @@ export interface JobSummary {
   brand?: string;
   name?: string;
   phase: Phase;
+  failed_phase?: Phase | null;
   review_status: ReviewStatus;
+  execution?: PhaseExecutionState;
   phase_index: number;
   phase_total: number;
   last_error?: string;
@@ -102,26 +117,6 @@ export interface Artifact {
   url: string;
 }
 
-export type ExecutionStatus =
-  | "pending"
-  | "running"
-  | "retrying"
-  | "failed"
-  | "succeeded";
-
-export interface ExecutionFailure {
-  code: string;
-  message: string;
-  retryable: boolean;
-}
-
-export interface PhaseExecutionState {
-  status: ExecutionStatus;
-  current_attempt: number;
-  max_attempts: number;
-  error: ExecutionFailure | null;
-}
-
 export interface JobDetail {
   job_id: string;
   project_id: string;
@@ -130,8 +125,9 @@ export interface JobDetail {
   name?: string;
   platforms: string[];
   phase: Phase;
+  failed_phase?: Phase | null;
   review_status: ReviewStatus;
-  execution?: PhaseExecutionState;
+  execution: PhaseExecutionState;
   artifacts: Artifact[];
   last_error?: string;
   logs?: string;

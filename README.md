@@ -135,10 +135,11 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 - **auto_approve**：Job 可自动跳过所有审核门，实现全自动流水线
 - **批量模式**：支持一次性创建多个 Job（`POST /api/projects/{id}/jobs/batch`），每个 Job 可独立配置脚本模式和字幕选项
 
-### Phase 执行状态（Issue #169）
+### Phase 执行状态与重试（Issue #169 / #170）
 
 Job API 响应包含 `execution` 字段（`PhaseExecutionState`），暴露当前 phase 的执行生命周期：`pending / running / retrying / failed / succeeded`、attempt 计数（`current_attempt` / `max_attempts`，默认最多 3 次）与结构化错误（`code` / `message` / `retryable`）。结构化 phase 结果模型定义于 `packages/domain_core/phase_execution.py`。
 
+Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 attempt，确定性错误立即终态并记录 `failed_phase`。`POST /api/jobs/{id}/retry` 会先 revalidate 失败阶段输入，通过则从失败阶段恢复（保留已有 artifacts）；不通过返回 409 + 结构化 detail。存量失败 job（无 `failed_phase`）回退为重置 `queued` 重试。
 ## 知识库 API（Issue #28）
 
 上传产品介绍文档，LLM 自动提取结构化知识并注入脚本生成 system prompt。

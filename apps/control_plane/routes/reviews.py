@@ -8,8 +8,7 @@ from pydantic import BaseModel
 
 from packages.domain_core.state import next_phase
 from packages.file_store.repository import FileStoreRepository
-from packages.pipeline_services.script_service import generate_script
-from packages.provider_config.config_resolver import ConfigResolver
+from packages.pipeline_services.legacy_script_bridge import LegacyScriptBridge
 
 logger = logging.getLogger(__name__)
 
@@ -188,15 +187,11 @@ def regenerate_with_prompt(
     )
 
     try:
-        config_reader = request.app.state.config_reader
-        secret_store = request.app.state.secret_store
-        config_resolver = ConfigResolver(reader=config_reader, secrets=secret_store)
-        result = generate_script(
+        bridge = LegacyScriptBridge(root_dir)
+        result = bridge.generate(
             product=product,
             output_dir=job_dir,
-            language="mandarin",
-            brand="",
-            config_resolver=config_resolver,
+            mock=False,
             custom_prompt=payload.custom_prompt,
         )
         logger.info(

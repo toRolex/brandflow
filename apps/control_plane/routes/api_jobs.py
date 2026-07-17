@@ -13,6 +13,7 @@ from packages.domain_core.models import (
     CoverTitleStyle,
     JobRecord,
     Language,
+    PhaseExecutionState,
     ProductionMode,
 )
 from packages.file_store.repository import FileStoreRepository
@@ -129,6 +130,7 @@ def _make_job_response(
         "mode": record.mode,
         "platforms": platforms,
         "phase": record.phase,
+        "failed_phase": record.failed_phase,
         "review_status": record.review_status,
         "execution": record.execution.model_dump(),
         "artifacts": [a.model_dump() for a in record.artifacts],
@@ -270,11 +272,72 @@ def retry_job(request: Request, job_id: str):
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
+    if record.phase != "failed":
+        raise HTTPException(status_code=409, detail="job has no failed phase to retry")
+    if record.failed_phase is None:
+        # Legacy failed jobs (no structured failed_phase yet, e.g. generate/
+        # worker paths not migrated to the execution contract): keep the old
+        # reset-to-queued retry behaviour instead of rejecting them.
+        repo.save_job(
+            project_id,
+            record.model_copy(
+                update={
+                    "phase": "queued",
+                    "review_status": "none",
+                    "execution": PhaseExecutionState(
+                        max_attempts=record.execution.max_attempts
+                    ),
+                }
+            ),
+        )
+        return {"status": "queued_for_retry", "job_id": job_id}
+
+    from packages.pipeline_services.phase_orchestrator import PhaseContext
+
+    project_dir = request.app.state.root_dir / "workspace" / "projects" / project_id
+    scene_config = request.app.state.config_reader.get_scene_config(
+        product_id=record.product
+    )
+    ctx = PhaseContext(
+        job_id=record.job_id,
+        project_dir=project_dir,
+        root_dir=request.app.state.root_dir,
+        product=record.product,
+        brand=record.brand,
+        options={
+            "manual_script": record.manual_script,
+            "uploaded_audio_path": record.uploaded_audio_path,
+            "language": record.language,
+            "mode": record.mode,
+        },
+        scene_folder_paths=[
+            entry.get("path", "")
+            for entry in scene_config.get("folders", [])
+            if entry.get("path")
+        ],
+        transition_duration_ms=scene_config.get("transition_duration_ms", 500),
+        scene_config=scene_config,
+    )
+    validation_error = request.app.state.orchestrator.validate_phase_input(
+        record.failed_phase, ctx
+    )
+    if validation_error is not None:
+        raise HTTPException(status_code=409, detail=validation_error.model_dump())
+
     repo.save_job(
         project_id,
-        record.model_copy(update={"phase": "queued", "review_status": "none"}),
+        record.model_copy(
+            update={
+                "phase": record.failed_phase,
+                "failed_phase": None,
+                "review_status": "none",
+                "execution": PhaseExecutionState(
+                    max_attempts=record.execution.max_attempts
+                ),
+            }
+        ),
     )
-    return {"status": "queued_for_retry", "job_id": job_id}
+    return {"status": "phase_queued_for_retry", "job_id": job_id}
 
 
 @router.delete("/api/jobs/{job_id}")
