@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 Language = Literal["mandarin", "cantonese"]
 
@@ -42,6 +42,65 @@ class ArtifactPointer(BaseModel):
     active: bool = False
 
 
+class ExecutionFailure(BaseModel):
+    """Stable, user-actionable details for an unsuccessful execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1, pattern=r"^[A-Z][A-Z0-9_]*$")
+    message: str = Field(min_length=1)
+    retryable: StrictBool
+
+    @model_validator(mode="after")
+    def reject_blank_text(self) -> "ExecutionFailure":
+        if not self.code.strip() or not self.message.strip():
+            raise ValueError("failure code and message must not be blank")
+        return self
+
+
+ExecutionStatus = Literal[
+    "pending",
+    "running",
+    "retrying",
+    "failed",
+    "succeeded",
+]
+
+
+class PhaseExecutionState(BaseModel):
+    """Lifecycle and attempt information exposed by a Job."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: ExecutionStatus = "pending"
+    current_attempt: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=3, ge=1)
+    error: ExecutionFailure | None = None
+
+    @model_validator(mode="after")
+    def validate_status_attempts_and_error(self) -> "PhaseExecutionState":
+        if self.current_attempt > self.max_attempts:
+            raise ValueError("current_attempt must not exceed max_attempts")
+        if self.status in {"running", "retrying", "failed", "succeeded"}:
+            if self.current_attempt < 1:
+                raise ValueError(f"{self.status} requires at least one attempt")
+        if self.status == "retrying" and self.current_attempt >= self.max_attempts:
+            raise ValueError("retrying requires a remaining attempt")
+        if self.status == "failed" and self.error is None:
+            raise ValueError("failed execution requires error details")
+        if self.status not in {"failed", "retrying"} and self.error is not None:
+            raise ValueError(
+                "only failed or retrying execution may include error details"
+            )
+        if (
+            self.status == "retrying"
+            and self.error is not None
+            and not self.error.retryable
+        ):
+            raise ValueError("retrying execution requires a retryable error")
+        return self
+
+
 class CoverTitleStyle(BaseModel):
     primary_color: str = "#FFD700"
     outline_color: str = "#000000"
@@ -68,6 +127,7 @@ class JobRecord(BaseModel):
     active_attempt_id: str = ""
     active_versions: dict[str, str] = Field(default_factory=dict)
     last_error: str = ""
+    execution: PhaseExecutionState = Field(default_factory=PhaseExecutionState)
     artifacts: list[ArtifactPointer] = []
     manual_script: str = ""  # 手动输入的文案，如果非空则跳过LLM生成
     uploaded_audio_path: str = ""  # 上传的音频文件路径，如果非空则跳过TTS生成

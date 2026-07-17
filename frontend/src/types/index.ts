@@ -102,6 +102,26 @@ export interface Artifact {
   url: string;
 }
 
+export type ExecutionStatus =
+  | "pending"
+  | "running"
+  | "retrying"
+  | "failed"
+  | "succeeded";
+
+export interface ExecutionFailure {
+  code: string;
+  message: string;
+  retryable: boolean;
+}
+
+export interface PhaseExecutionState {
+  status: ExecutionStatus;
+  current_attempt: number;
+  max_attempts: number;
+  error: ExecutionFailure | null;
+}
+
 export interface JobDetail {
   job_id: string;
   project_id: string;
@@ -111,6 +131,7 @@ export interface JobDetail {
   platforms: string[];
   phase: Phase;
   review_status: ReviewStatus;
+  execution?: PhaseExecutionState;
   artifacts: Artifact[];
   last_error?: string;
   logs?: string;

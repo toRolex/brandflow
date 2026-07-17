@@ -21,6 +21,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from packages.domain_core.models import ArtifactPointer
+from packages.domain_core.phase_execution import (
+    PhaseExecutionResult,
+    adapt_legacy_artifacts,
+)
 from packages.pipeline_services.media_compositor import MediaCompositor
 from packages.pipeline_services.script_service import (
     build_generator_config,
@@ -136,6 +140,16 @@ class PhaseOrchestrator:
                 f"Unknown phase: {phase!r}.  Known: {list(self._handlers)}"
             )
         return handler(ctx)
+
+    def execute_phase(self, phase: str, ctx: PhaseContext) -> PhaseExecutionResult:
+        """Execute a legacy handler through the structured result boundary.
+
+        ``run_phase`` remains the artifact-list interface until the later
+        handler contract migration (Issue #171) removes this compatibility
+        adapter.
+        """
+
+        return adapt_legacy_artifacts(self.run_phase(phase, ctx))
 
     def run_phases_parallel(
         self, phases: list[str], ctx: PhaseContext
