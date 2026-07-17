@@ -50,6 +50,7 @@ HANDLED_PHASES: frozenset[str] = frozenset(
         "tts_review",
         "subtitle_generating",
         "asset_retrieving",
+        "montage_assembling",
         "video_rendering",
         "final_rendering",
     }
@@ -246,27 +247,6 @@ def _compute_transition(
             message="scene_assembling + tts_generating (parallel) → subtitle_generating",
         )
 
-    if phase == "subtitle_generating" and record.mode == "import":
-        if record.skip_subtitle:
-            return TickAction(
-                new_phase="montage_assembling",
-                message="skip subtitle_generating (import mode) → montage_assembling",
-            )
-        if artifacts:
-            return TickAction(
-                new_phase="montage_assembling",
-                message="subtitle_generating → montage_assembling (import mode)",
-            )
-        # fall through: no artifacts, not skipping → run subtitle handler
-
-    if phase == "montage_assembling":
-        return TickAction(
-            run_handler=True,
-            handler_phase="montage_assembling",
-            new_phase="video_rendering",
-            message="montage_assembling → video_rendering",
-        )
-
     # ------------------------------------------------------------------
     # 2. Review phases
     # ------------------------------------------------------------------
@@ -376,17 +356,6 @@ def _transition_after_artifacts(
         hack in ``JobTickService.tick()``.
     """
     effective_phase = phase if phase is not None else record.phase
-
-    # Import mode: subtitle_generating → montage_assembling (not asset_retrieving)
-    if (
-        record.mode == "import"
-        and effective_phase == "subtitle_generating"
-        and artifacts
-    ):
-        return TickAction(
-            new_phase="montage_assembling",
-            message="subtitle_generating → montage_assembling (import mode)",
-        )
 
     # 1. Artifacts produced → advance
     if artifacts:

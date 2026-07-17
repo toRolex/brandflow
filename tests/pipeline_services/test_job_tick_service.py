@@ -74,6 +74,7 @@ def _next(phase: str) -> str:
         "subtitle_generating",
         "asset_retrieving",
         "asset_review",
+        "montage_assembling",
         "video_rendering",
         "final_rendering",
         "final_review",
@@ -229,14 +230,13 @@ class TestReviewAutoApprove:
 
     def test_auto_approve_skip_subtitle_no_handler(self) -> None:
         """auto_approve + skip_subtitle on a no-handler review still chains."""
-        # asset_review has no handler, normally → video_rendering.
-        # subtitle_generating is not in the chain from asset_review,
-        # so this should behave normally.
+        # asset_review has no handler, now advances to montage_assembling
+        # (montage_assembling is now between asset_review and video_rendering).
         action = _compute_transition(
             make_record(phase="asset_review", auto_approve=True, skip_subtitle=True),
             (),
         )
-        assert action.new_phase == "video_rendering"
+        assert action.new_phase == "montage_assembling"
         assert action.new_review_status == "approved"
 
     def test_auto_approve_no_skip_subtitle_goes_to_subtitle(self) -> None:
