@@ -26,6 +26,10 @@ from packages.domain_core.phase_execution import (
 )
 from packages.pipeline_services.script_service import generate_script
 from packages.pipeline_services.script_service.generator import ScriptGenerator
+from packages.pipeline_services.sentence_tts_service import (
+    SentenceTiming,
+    SentenceTTSService,
+)
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
 from packages.provider_config.config_reader import ConfigReader
@@ -624,11 +628,12 @@ class PhaseOrchestrator:
     # -- tts_generating handler ---------------------------------------------
 
     def _run_tts(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """Execute TTS synthesis or copy uploaded audio.
+        """Execute per-sentence TTS synthesis or copy uploaded audio.
 
         Discovery order for uploaded audio:
             1. ``ctx.options["uploaded_audio_path"]`` → copy file directly
             2. Otherwise discover script text from ``*口播文案.txt`` then ``*.json``
+               and synthesize each canonical Script Sentence separately.
         """
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
@@ -663,10 +668,26 @@ class PhaseOrchestrator:
                     if job_tts_voice:
                         tts_cfg["voice"] = job_tts_voice
 
-                    config = _TTSConfigShim(tts_cfg)
                     tts_provider = self._build_tts_provider(tts_cfg)
-                    audio_bytes = tts_provider.synthesize(existing_script, config)
-                    audio_path.write_bytes(audio_bytes)
+                    service = self._create_sentence_tts_service(
+                        tts_provider, tts_cfg, ctx
+                    )
+                    timings = service.synthesize_script(existing_script, audio_path)
+
+                    sentences_path = job_dir / "sentences.json"
+                    sentences_path.write_text(
+                        json.dumps(
+                            [t.model_dump() for t in timings],
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                        encoding="utf-8",
+                    )
+                    result.append(
+                        self._to_artifact(
+                            "sentence_timings", sentences_path, workspace_dir
+                        )
+                    )
                     print(
                         f"[TTS] Synthesized: {audio_path.exists()}, "
                         f"size={audio_path.stat().st_size if audio_path.exists() else 0}",
@@ -685,6 +706,17 @@ class PhaseOrchestrator:
 
         return result
 
+    def _create_sentence_tts_service(
+        self, provider: Any, tts_cfg: dict[str, Any], ctx: PhaseContext
+    ) -> SentenceTTSService:
+        """Factory hook for the sentence-level TTS service (overridable in tests)."""
+        cache_dir = ctx.root_dir / "workspace" / ".cache" / "tts"
+        return SentenceTTSService(
+            provider=provider,
+            config=tts_cfg,
+            cache_dir=cache_dir,
+        )
+
     def _run_tts_review(self, ctx: PhaseContext) -> list[ArtifactPointer]:
         """tts_review: return existing audio artifact for review."""
         job_dir = self._job_dir(ctx)
@@ -697,7 +729,12 @@ class PhaseOrchestrator:
         return []
 
     def _run_subtitle(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """subtitle_generating: build SRT from audio + script text."""
+        """subtitle_generating: build SRT from audio + script text.
+
+        When ``sentences.json`` is present, subtitle chunks are constrained to
+        the Script Sentence boundaries so that no subtitle block crosses a
+        sentence boundary.
+        """
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
         audio_path = job_dir / "audio.mp3"
@@ -714,7 +751,16 @@ class PhaseOrchestrator:
             )
             if script_text:
                 try:
-                    self._subtitle_svc.build_srt(audio_path, srt_path, script_text)
+                    sentence_timings = self._discover_sentence_timings(job_dir)
+                    if sentence_timings:
+                        self._subtitle_svc.build_srt(
+                            audio_path,
+                            srt_path,
+                            script_text,
+                            sentence_timings=sentence_timings,
+                        )
+                    else:
+                        self._subtitle_svc.build_srt(audio_path, srt_path, script_text)
                     print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
                 except Exception as e:
                     print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
@@ -1236,6 +1282,21 @@ class PhaseOrchestrator:
             text = jdata.get("text", "").strip()
             return text or None
         return None
+
+    @staticmethod
+    def _discover_sentence_timings(job_dir: Path) -> list[SentenceTiming]:
+        """Return sentence timings from sentences.json if present and valid."""
+        path = job_dir / "sentences.json"
+        if not path.exists():
+            return []
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return [SentenceTiming.model_validate(item) for item in data]
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"[TTS TIMING WARN] Failed to load sentence timings: {exc}", flush=True
+            )
+            return []
 
     # -- ffmpeg helpers (lazy imports) -----------------------------------------
 
