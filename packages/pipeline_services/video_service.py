@@ -275,20 +275,31 @@ class VideoService:
     def __init__(self, dry_run: bool = False) -> None:
         self.dry_run = dry_run
 
-    def build_base_video(self, project_dir: Path, job: dict, output_path: Path) -> None:
+    def build_base_video(
+        self,
+        project_dir: Path,
+        job: dict,
+        output_path: Path,
+        trim_params: list[dict] | None = None,
+    ) -> list[dict]:
         """拼接素材片段生成基础视频。
 
         Args:
             project_dir: 项目目录（临时文件存放于此）。
             job: Job 字典，包含 asset_bundle -> audio_path / selected_clips。
             output_path: 输出基础视频路径。
+            trim_params: 预计算的裁剪参数（可选）。提供时跳过内部随机计算，
+                使调用方能复用同一份参数生成权威 Final Timeline（issue #179）。
+
+        Returns:
+            实际用于渲染的 trim_params 列表（每段含 ss/duration/visual_type）。
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if self.dry_run:
             output_path.write_bytes(b"DRY_RUN_BASE_VIDEO")
             clips = job.get("asset_bundle", {}).get("selected_clips", [])
             job["used_asset_ids"] = [c["asset_id"] for c in clips if c.get("asset_id")]
-            return
+            return trim_params if trim_params is not None else []
 
         audio_path = Path(job["asset_bundle"]["audio_path"])
         if not audio_path.exists():
@@ -302,7 +313,8 @@ class VideoService:
         if not selected_clips:
             raise RuntimeError(f"未找到素材检索结果: {job['job_id']}")
 
-        trim_params = _compute_trim_params(selected_clips, audio_duration)
+        if trim_params is None:
+            trim_params = _compute_trim_params(selected_clips, audio_duration)
 
         trimmed_paths: list[Path] = []
         ffmpeg = get_ffmpeg_path()
@@ -377,6 +389,7 @@ class VideoService:
         job["used_asset_ids"] = [
             c["asset_id"] for c in selected_clips if c.get("asset_id")
         ]
+        return trim_params
 
     def burn_final_video(
         self,

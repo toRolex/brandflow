@@ -75,14 +75,18 @@ def build_export_bundle(
         # 4. Source clips — scene (from config folders) + montage (from selected_clips.json)
         _add_source_clips_to_zip(job_dir, workspace_dir, zf, zip_prefix, scene_cfg)
 
-        # 5. Generated timeline description
-        timeline = generate_timeline_json(
-            job_dir, workspace_dir, project_dir, scene_cfg=scene_cfg
-        )
-        zf.writestr(
-            f"{zip_prefix}timeline.json",
-            json.dumps(timeline, ensure_ascii=False, indent=2),
-        )
+        # 5. Timeline description — prefer the authoritative render-time Final
+        #    Timeline (issue #179); fall back to the legacy directory-derived
+        #    timeline only when no render-time timeline was persisted.
+        final_timeline_path = job_dir / "final_timeline.json"
+        if final_timeline_path.exists():
+            timeline_json = final_timeline_path.read_text(encoding="utf-8")
+        else:
+            timeline = generate_timeline_json(
+                job_dir, workspace_dir, project_dir, scene_cfg=scene_cfg
+            )
+            timeline_json = json.dumps(timeline, ensure_ascii=False, indent=2)
+        zf.writestr(f"{zip_prefix}timeline.json", timeline_json)
 
     return zip_path
 
