@@ -17,8 +17,8 @@ jobs:
         with:
           script: |
             const issue = context.payload.issue;
-            const triageLabels = ['needs-triage', 'ready-for-agent', 'ready-for-human', 'needs-info', 'wontfix'];
-            const hasTriageLabel = issue.labels.some(label => triageLabels.includes(label.name));
+            const triageLabels = ['needs-triage', 'ready-for-agent', 'ready-for-human', 'needs-info', 'wontfix', 'wayfinder:research', 'wayfinder:grilling', 'wayfinder:prototype', 'wayfinder:task'];
+            const hasTriageLabel = issue.labels.some(label => triageLabels.includes(label.name) || label.name.startsWith('wayfinder:'));
             core.setOutput('has_triage_label', hasTriageLabel.toString());
 
       - name: Apply needs-triage label
@@ -29,7 +29,7 @@ jobs:
 
       # 独立 triage 流程修复，不属于 #182/#183/#184 智能素材流水线相关改动
       - name: Remove needs-triage when final label is set (labeled event)
-        if: github.event.action == 'labeled' && (github.event.label.name == 'ready-for-agent' || github.event.label.name == 'ready-for-human' || github.event.label.name == 'needs-info' || github.event.label.name == 'wontfix')
+        if: github.event.action == 'labeled' && (github.event.label.name == 'ready-for-agent' || github.event.label.name == 'ready-for-human' || github.event.label.name == 'needs-info' || github.event.label.name == 'wontfix' || github.event.label.name.startsWith('wayfinder:'))
         uses: actions/github-script@v7
         with:
           script: |
