@@ -109,9 +109,32 @@ class TestCreateProduct:
             config = store.get_product_config("羊肚菌")
             assert config["default_name"] == "羊肚菌"
 
-    def test_create_product_does_not_change_active_product(self) -> None:
+    def test_create_product_becomes_active_product(self) -> None:
+        """创建新 product 后自动切换为 active product。"""
         with tempfile.TemporaryDirectory() as tmpdir:
             store = _make_store(tmpdir)
+            store.switch_product("prod_a")
+            store.create_product("羊肚菌")
+            assert store.active_id == "羊肚菌"
+
+    def test_create_product_preserves_existing_products(self) -> None:
+        """创建新 product 后，已有 product 仍存在于列表中。"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = _make_store(tmpdir)
+            store.switch_product("prod_a")
+            store.create_product("羊肚菌")
+            products = store.list_products()
+            assert any(p["id"] == "prod_a" for p in products)
+            assert any(p["id"] == "羊肚菌" for p in products)
+
+    def test_create_duplicate_product_does_not_change_active(self) -> None:
+        """重复创建同名 product 时不改变 active 状态。"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = _make_store(tmpdir)
+            store.switch_product("prod_a")
+            store.create_product("羊肚菌")
+            assert store.active_id == "羊肚菌"
+            # 第二次创建同名 product
             store.switch_product("prod_a")
             store.create_product("羊肚菌")
             assert store.active_id == "prod_a"
@@ -166,7 +189,7 @@ class TestRenameProduct:
             store.switch_product("prod_a")
             store.create_product("羊肚菌")
             store.rename_product("羊肚菌", "新鲜羊肚菌")
-            assert store.active_id == "prod_a"
+            assert store.active_id == "羊肚菌"
 
     def test_rename_nonexistent_raises(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
