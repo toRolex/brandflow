@@ -401,7 +401,7 @@ def _transition_after_artifacts(
     # 2. No artifacts — per-phase failure handling
     # 2a. video_rendering: retry once, then fail
     if effective_phase == "video_rendering":
-        if "video_rendering" in (record.last_error or ""):
+        if record.execution.error is not None:
             return TickAction(
                 new_phase="failed",
                 message="video_rendering failed after retry",

@@ -42,19 +42,6 @@ def parse_phase_execution_result(value: object) -> PhaseExecutionResult:
     return _PHASE_EXECUTION_RESULT_ADAPTER.validate_python(value)
 
 
-def adapt_legacy_artifacts(
-    artifacts: list[ArtifactPointer],
-) -> PhaseExecutionSuccess:
-    """Temporarily adapt an artifact-list handler to the expanded contract.
-
-    This compatibility boundary is intentionally explicit so the later handler
-    contract migration (Issue #171) can remove it without changing the result
-    models.
-    """
-
-    return PhaseExecutionSuccess(artifacts=artifacts)
-
-
 # Re-export lifecycle types from the result boundary for callers that do not
 # need to know how JobRecord stores them.
 __all__ = [
@@ -64,6 +51,5 @@ __all__ = [
     "PhaseExecutionResult",
     "PhaseExecutionState",
     "PhaseExecutionSuccess",
-    "adapt_legacy_artifacts",
     "parse_phase_execution_result",
 ]

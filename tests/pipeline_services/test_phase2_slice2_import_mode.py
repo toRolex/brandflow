@@ -71,7 +71,6 @@ def ctx(project_dir: Path, tmp_root: Path) -> PhaseContext:
 @pytest.fixture()
 def orchestrator() -> PhaseOrchestrator:
     return PhaseOrchestrator(
-        script_bridge=MagicMock(),
         subtitle_svc=MagicMock(),
         video_svc=MagicMock(),
         schedule_store=MagicMock(),

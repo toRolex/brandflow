@@ -51,12 +51,10 @@ def ctx(project_dir: Path, tmp_root: Path) -> PhaseContext:
 
 @pytest.fixture()
 def orchestrator() -> PhaseOrchestrator:
-    bridge = MagicMock()
     subtitle_svc = MagicMock()
     video_svc = MagicMock()
     schedule_store = MagicMock()
     return PhaseOrchestrator(
-        script_bridge=bridge,
         subtitle_svc=subtitle_svc,
         video_svc=video_svc,
         schedule_store=schedule_store,
@@ -115,20 +113,18 @@ class TestToUrlPath:
 
 
 class TestPhaseOrchestratorInit:
-    def test_accepts_five_deps(self):
+    def test_accepts_core_deps(self):
         orch = PhaseOrchestrator(
-            script_bridge=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
             schedule_store=MagicMock(),
         )
-        assert orch._script_bridge is not None
         assert orch._subtitle_svc is not None
         assert orch._video_svc is not None
         assert orch._schedule_store is not None
 
     def test_has_handler_map(self):
-        orch = PhaseOrchestrator(*[MagicMock()] * 3)
+        orch = PhaseOrchestrator(*[MagicMock()] * 2)
         assert isinstance(orch._handlers, dict)
         assert "script_generating" in orch._handlers
 
@@ -149,10 +145,11 @@ class TestRunPhase:
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
         """run_phase with script_generating should return a list (even if empty)."""
+        ctx.options["manual_script"] = "测试文案"
         result = orchestrator.run_phase("script_generating", ctx)
         assert isinstance(result, list)
 
-    def test_execute_phase_adapts_legacy_artifact_list(
+    def test_execute_phase_wraps_artifact_list(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
         artifact = ArtifactPointer(kind="script", relative_path="script.json")
@@ -305,8 +302,10 @@ class TestRunScriptManual:
 
 
 class TestRunScriptLLM:
-    def test_llm_generation_calls_bridge_and_returns_artifacts(
+    @patch("packages.pipeline_services.phase_orchestrator.generate_script")
+    def test_llm_generation_calls_script_generator_and_returns_artifacts(
         self,
+        mock_generate_script: MagicMock,
         orchestrator: PhaseOrchestrator,
         ctx: PhaseContext,
     ):
@@ -317,7 +316,7 @@ class TestRunScriptLLM:
         txt_path.write_text("LLM生成的文案", encoding="utf-8")
         json_path.write_text("{}", encoding="utf-8")
 
-        orchestrator._script_bridge.generate.return_value = {
+        mock_generate_script.return_value = {
             "txt_path": str(txt_path),
             "json_path": str(json_path),
             "final_script": "LLM生成的文案",
@@ -325,13 +324,7 @@ class TestRunScriptLLM:
 
         artifacts = orchestrator.run_phase("script_generating", ctx)
 
-        orchestrator._script_bridge.generate.assert_called_once_with(
-            product="羊肚菌",
-            output_dir=job_dir,
-            mock=False,
-            language="mandarin",
-            brand="",
-        )
+        mock_generate_script.assert_called_once()
         assert len(artifacts) == 2
         assert all(isinstance(a, ArtifactPointer) for a in artifacts)
 
@@ -500,7 +493,6 @@ _FAKE_TTS_CONFIG = {
 def _make_orchestrator_with_tts_config(tts_provider=None, tts_config=None):
     """Build a PhaseOrchestrator with get_tts_config injected and _build_tts_provider mocked."""
     orch = PhaseOrchestrator(
-        script_bridge=MagicMock(),
         subtitle_svc=MagicMock(),
         video_svc=MagicMock(),
         schedule_store=MagicMock(),
