@@ -27,6 +27,7 @@ from packages.pipeline_services.job_tick_service import (
     _compute_transition,
     _transition_after_artifacts,
 )
+from packages.pipeline_services.sentence_tts_service import SentenceTiming
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
@@ -1023,11 +1024,31 @@ class TestManualScriptConsistency:
         discovered = PhaseOrchestrator._discover_script(job_dir)
         assert discovered == manual_text
 
-        # --- seam C: _run_tts passes exact text to TTS provider ---
+        # --- seam C: _run_tts passes the exact script text to the SentenceTTSService ---
+        def _fake_synthesize_script(
+            script_text: str, output_path: Path
+        ) -> list[SentenceTiming]:
+            output_path.write_bytes(b"fake_audio_data")
+            return [
+                SentenceTiming(
+                    index=0,
+                    text=script_text,
+                    start_seconds=0.0,
+                    end_seconds=1.0,
+                    model="test-model",
+                    voice="test-voice",
+                )
+            ]
+
+        fake_service = Mock()
+        fake_service.synthesize_script.side_effect = _fake_synthesize_script
+        orch._create_sentence_tts_service = Mock(return_value=fake_service)
+
         orch._run_tts(ctx)
-        mock_tts.synthesize.assert_called_once()
-        tts_text = mock_tts.synthesize.call_args[0][0]
-        assert tts_text == manual_text
+        orch._create_sentence_tts_service.assert_called_once()
+        fake_service.synthesize_script.assert_called_once()
+        tts_script_text = fake_service.synthesize_script.call_args[0][0]
+        assert tts_script_text == manual_text
 
         # --- seam D: _run_subtitle passes exact text to subtitle service ---
         orch._run_subtitle(ctx)

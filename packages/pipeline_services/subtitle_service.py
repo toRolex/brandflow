@@ -14,6 +14,7 @@ from pathlib import Path
 
 from packages.pipeline_services.media_utils import get_ffmpeg_path, get_media_duration
 from packages.pipeline_services.script_service.quality import EMOJI_RE
+from packages.pipeline_services.sentence_tts_service import SentenceTiming
 
 _logger = logging.getLogger(__name__)
 
@@ -178,24 +179,51 @@ class SubtitleService:
 
     # ---- public API ----
 
-    def build_srt(self, audio_path: Path, srt_path: Path, script_text: str) -> None:
+    def build_srt(
+        self,
+        audio_path: Path,
+        srt_path: Path,
+        script_text: str,
+        sentence_timings: list[SentenceTiming] | None = None,
+    ) -> None:
         """Build a timed .srt subtitle file from script text and audio duration.
+
+        When ``sentence_timings`` is provided, each subtitle chunk is allocated
+        within its Script Sentence boundary and never crosses a sentence boundary.
 
         Raises RuntimeError if duration cannot be determined or text is empty.
         """
         duration = get_media_duration(audio_path)
         print(
             f"[SUBTITLE] Building SRT: audio={audio_path.name}"
-            f" duration={duration:.2f}s script_len={len(script_text)}",
+            f" duration={duration:.2f}s script_len={len(script_text)}"
+            f" sentence_timings={len(sentence_timings) if sentence_timings else None}",
             flush=True,
         )
         if duration <= 0:
             raise RuntimeError(f"无法识别配音时长: {audio_path}")
 
+        if sentence_timings:
+            blocks = self._build_blocks_from_sentences(
+                audio_path, script_text, sentence_timings
+            )
+        else:
+            blocks = self._build_blocks_legacy(audio_path, script_text, duration)
+
+        if not blocks:
+            raise RuntimeError("字幕原文为空")
+
+        self.serialize_srt(blocks, srt_path)
+        self.fix_srt(srt_path)
+
+    def _build_blocks_legacy(
+        self, audio_path: Path, script_text: str, duration: float
+    ) -> list[tuple[int, float, float, str]]:
+        """Original weight-based timing over the whole script."""
         cleaned = self.clean_script(script_text)
         chunks = self.split_text_to_chunks(cleaned)
         if not chunks:
-            raise RuntimeError("字幕原文为空")
+            return []
 
         weights = [self.subtitle_weight(c) for c in chunks]
         total = sum(weights)
@@ -208,9 +236,77 @@ class SubtitleService:
             cursor = min(end, duration)
 
         silence = detect_silence_points(audio_path)
-        blocks = self.snap_to_silence(blocks, silence, duration)
-        self.serialize_srt(blocks, srt_path)
-        self.fix_srt(srt_path)
+        return self.snap_to_silence(blocks, silence, duration)
+
+    def _build_blocks_from_sentences(
+        self,
+        audio_path: Path,
+        script_text: str,
+        sentence_timings: list[SentenceTiming],
+    ) -> list[tuple[int, float, float, str]]:
+        """Build subtitle chunks constrained to Script Sentence boundaries."""
+        silence = detect_silence_points(audio_path)
+        blocks: list[tuple[int, float, float, str]] = []
+        for st in sentence_timings:
+            sentence_text = self.clean_script(st.text)
+            if not sentence_text:
+                continue
+            chunks = self.split_text_to_chunks(sentence_text)
+            if not chunks:
+                continue
+
+            weights = [self.subtitle_weight(c) for c in chunks]
+            total = sum(weights)
+            sentence_duration = st.end_seconds - st.start_seconds
+
+            cursor = st.start_seconds
+            sentence_blocks: list[tuple[int, float, float, str]] = []
+            for idx, (chunk, w) in enumerate(zip(chunks, weights), 1):
+                end = (
+                    st.end_seconds
+                    if idx == len(chunks)
+                    else cursor + sentence_duration * (w / total)
+                )
+                sentence_blocks.append((idx, cursor, min(end, st.end_seconds), chunk))
+                cursor = min(end, st.end_seconds)
+
+            # Only snap to silence points that fall inside this sentence.
+            sentence_silence = [
+                p for p in silence if st.start_seconds <= p <= st.end_seconds
+            ]
+            sentence_blocks = self._snap_to_silence_in_interval(
+                sentence_blocks, sentence_silence, st.start_seconds, st.end_seconds
+            )
+            blocks.extend(sentence_blocks)
+
+        # Renumber globally after per-sentence snapping.
+        return [(i + 1, s, e, t) for i, (_idx, s, e, t) in enumerate(blocks)]
+
+    def _snap_to_silence_in_interval(
+        self,
+        blocks: list[tuple[int, float, float, str]],
+        silence_points: list[float],
+        interval_start: float,
+        interval_end: float,
+    ) -> list[tuple[int, float, float, str]]:
+        """Snap boundaries inside ``[interval_start, interval_end]`` and clamp."""
+        if not blocks:
+            return blocks
+
+        shifted = [
+            (idx, s - interval_start, e - interval_start, t) for idx, s, e, t in blocks
+        ]
+        interval_duration = interval_end - interval_start
+        snapped = self.snap_to_silence(shifted, silence_points, interval_duration)
+        return [
+            (
+                idx,
+                max(interval_start, s + interval_start),
+                min(interval_end, e + interval_start),
+                t,
+            )
+            for idx, s, e, t in snapped
+        ]
 
     # ---- text helpers ----
 
