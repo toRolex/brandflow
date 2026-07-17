@@ -479,7 +479,9 @@ class TestImportModeTickFlow:
         action = _compute_transition(record, ())
         assert action.run_handler is True
         assert action.handler_phase == "montage_assembling"
-        assert action.new_phase is None  # general dispatch: advance happens after artifacts
+        assert (
+            action.new_phase is None
+        )  # general dispatch: advance happens after artifacts
 
     def test_import_mode_full_tick_with_mock_orchestrator(self) -> None:
         """JobTickService.tick handles import mode through scene_assembling."""

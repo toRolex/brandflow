@@ -4,6 +4,7 @@ import json
 import re
 from pathlib import Path
 import shutil
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
@@ -234,7 +235,10 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     if not product.strip():
         raise HTTPException(status_code=400, detail="product is required")
     validation_error = _validate_import_scene_folders(
-        Path(request.app.state.root_dir), product, payload.mode, payload.scene_folder_ids
+        Path(request.app.state.root_dir),
+        product,
+        payload.mode,
+        payload.scene_folder_ids,
     )
     if validation_error is not None:
         raise HTTPException(status_code=400, detail=validation_error.model_dump())
@@ -443,9 +447,7 @@ class MigrateScenesRequest(BaseModel):
 
 
 @router.post("/api/jobs/{job_id}/migrate-scenes")
-def migrate_scenes(
-    request: Request, job_id: str, payload: MigrateScenesRequest
-):
+def migrate_scenes(request: Request, job_id: str, payload: MigrateScenesRequest):
     """Migrate an import job that lacks valid scene input to use new folders.
 
     Preserves user-level configuration (manual script, TTS/language settings,
@@ -719,18 +721,24 @@ class UpdateTTSVoiceRequest(BaseModel):
     confirm: bool = False
 
 
-def _resolve_tts_voice_info(
-    record: JobRecord, config_reader: ConfigReader
-) -> dict:
+def _resolve_tts_voice_info(record: JobRecord, config_reader: ConfigReader) -> dict:
     """Resolve effective model/voice and which level it came from.
 
     Priority: Job-level > Product-level > Global-level.
     """
-    product_tts = config_reader.get_tts_config(product_id=record.product) if record.product else {}
+    product_tts = (
+        config_reader.get_tts_config(product_id=record.product)
+        if record.product
+        else {}
+    )
     global_tts = config_reader.get_tts_config()
 
-    effective_model = record.tts_model or product_tts.get("model", "") or global_tts.get("model", "")
-    effective_voice = record.tts_voice or product_tts.get("voice", "") or global_tts.get("voice", "")
+    effective_model = (
+        record.tts_model or product_tts.get("model", "") or global_tts.get("model", "")
+    )
+    effective_voice = (
+        record.tts_voice or product_tts.get("voice", "") or global_tts.get("voice", "")
+    )
 
     # Determine source level
     if record.tts_model or record.tts_voice:
@@ -852,7 +860,9 @@ def preview_job_tts(job_id: str, request: Request):
 
     # Discover script text: runtime file first, then manual_script on record
     script_text = ""
-    job_dir = root_dir / "workspace" / "projects" / project_id / "runtime" / "jobs" / job_id
+    job_dir = (
+        root_dir / "workspace" / "projects" / project_id / "runtime" / "jobs" / job_id
+    )
     for p in job_dir.glob("*口播文案.txt"):
         script_text = p.read_text(encoding="utf-8").strip()
         break
@@ -907,9 +917,7 @@ _INVALIDATE_ARTIFACT_KINDS: frozenset[str] = frozenset(
 
 
 @router.put("/api/jobs/{job_id}/tts/voice")
-def update_job_tts_voice(
-    job_id: str, payload: UpdateTTSVoiceRequest, request: Request
-):
+def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: Request):
     """Update job-level TTS model/voice selection.
 
     When formal TTS audio exists (audio.mp3), the caller must set
@@ -928,8 +936,14 @@ def update_job_tts_voice(
 
     # Check for existing formal audio
     audio_path = (
-        root_dir / "workspace" / "projects" / project_id
-        / "runtime" / "jobs" / job_id / "audio.mp3"
+        root_dir
+        / "workspace"
+        / "projects"
+        / project_id
+        / "runtime"
+        / "jobs"
+        / job_id
+        / "audio.mp3"
     )
     audio_exists = audio_path.exists()
 
@@ -958,9 +972,7 @@ def update_job_tts_voice(
     if audio_exists and payload.confirm:
         # Invalidate downstream artifacts (preserve script + asset selections)
         preserved = [
-            a
-            for a in record.artifacts
-            if a.kind not in _INVALIDATE_ARTIFACT_KINDS
+            a for a in record.artifacts if a.kind not in _INVALIDATE_ARTIFACT_KINDS
         ]
         updates["artifacts"] = preserved
         updates["phase"] = "tts_generating"

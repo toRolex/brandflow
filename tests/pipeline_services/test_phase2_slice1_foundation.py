@@ -152,7 +152,8 @@ class TestImportModeQueued:
     def test_queued_import_advances_to_scene_assembling(self) -> None:
         """queued + import → advance to scene_assembling (no handler)."""
         action = _compute_transition(
-            make_record(phase="queued", mode="import", scene_folder_ids=["scenes/one"]), ()
+            make_record(phase="queued", mode="import", scene_folder_ids=["scenes/one"]),
+            (),
         )
         assert action.run_handler is False
         assert action.new_phase == "scene_assembling"
@@ -163,7 +164,8 @@ class TestImportModeQueued:
     def test_queued_import_does_not_run_script_handler(self) -> None:
         """Import mode should NOT route to script_generating."""
         action = _compute_transition(
-            make_record(phase="queued", mode="import", scene_folder_ids=["scenes/one"]), ()
+            make_record(phase="queued", mode="import", scene_folder_ids=["scenes/one"]),
+            (),
         )
         assert (
             action.handler_phase is None or action.handler_phase != "script_generating"
@@ -216,7 +218,9 @@ class TestImportModeMontageAssembling:
         )
         assert action.run_handler is True
         assert action.handler_phase == "montage_assembling"
-        assert action.new_phase is None  # general dispatch: handler runs, advance after artifacts
+        assert (
+            action.new_phase is None
+        )  # general dispatch: handler runs, advance after artifacts
 
     def test_montage_assembling_generate_mode(self) -> None:
         """montage_assembling + generate mode also triggers handler via general dispatch."""
@@ -418,7 +422,10 @@ class TestImportModeFullFlow:
         sequence = [
             ("queued", "scene_assembling"),  # first transition
             ("scene_assembling", "subtitle_generating"),  # after parallel dispatch
-            ("subtitle_generating", "asset_retrieving"),  # import mode: goes to asset_retrieving
+            (
+                "subtitle_generating",
+                "asset_retrieving",
+            ),  # import mode: goes to asset_retrieving
             ("asset_retrieving", "asset_review"),  # standard flow
             ("asset_review", "montage_assembling"),  # review approved → montage
             ("montage_assembling", "video_rendering"),  # montage → video
