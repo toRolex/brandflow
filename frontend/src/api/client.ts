@@ -367,6 +367,28 @@ export const api = {
     return URL.createObjectURL(blob);
   },
 
+  // Job-level TTS (#177)
+  getJobTTSVoice: (jobId: string) =>
+    request<{ model: string; voice: string; resolved_from: string }>(
+      `/api/jobs/${jobId}/tts/voice`
+    ),
+
+  updateJobTTSVoice: (jobId: string, body: { model?: string; voice?: string; confirm?: boolean }) =>
+    request<{ model: string; voice: string; resolved_from: string }>(
+      `/api/jobs/${jobId}/tts/voice`,
+      { method: "PUT", body: JSON.stringify(body) }
+    ),
+
+  previewJobTTS: async (jobId: string) => {
+    const res = await fetch(`/api/jobs/${jobId}/tts/preview`, { method: "POST" });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text}`);
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
+
   // Music Library
   listMusic: () =>
     request<{ tracks: import("../types").MusicTrack[] }>("/api/music"),

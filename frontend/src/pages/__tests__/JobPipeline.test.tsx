@@ -13,6 +13,12 @@ vi.mock("../../api/client", () => ({
     getJobLogs: vi.fn(),
     migrateScenes: vi.fn(),
     getSceneFolders: vi.fn(),
+    getTTSVoices: vi.fn(),
+    getJobTTSVoice: vi.fn(),
+    updateJobTTSVoice: vi.fn(),
+    previewJobTTS: vi.fn(),
+    approveReview: vi.fn(),
+    rejectReview: vi.fn(),
   },
 }));
 
@@ -170,5 +176,88 @@ describe("JobPipeline migration_required workflow", () => {
     await waitFor(() => {
       expect(api.migrateScenes).toHaveBeenCalledWith("job-migration", ["scenes/one"]);
     });
+  });
+});
+
+describe("JobPipeline TTS voice selection (#177)", () => {
+  const ttsGenJob = {
+    job_id: "job-tts-1",
+    project_id: "project-1",
+    product: "product",
+    platforms: ["douyin"],
+    phase: "tts_generating" as const,
+    failed_phase: null,
+    review_status: "none" as const,
+    artifacts: [],
+    execution: {
+      status: "succeeded" as const,
+      current_attempt: 1,
+      max_attempts: 3,
+      error: null,
+    },
+    tts_model: "",
+    tts_voice: "",
+    mode: "generate" as const,
+  };
+
+  function renderTTSPage() {
+    return render(
+      <MemoryRouter initialEntries={["/jobs/job-tts-1"]}>
+        <Routes><Route path="/jobs/:id" element={<JobPipeline />} /></Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.getJob).mockResolvedValue(ttsGenJob);
+    vi.mocked(api.getTTSVoices).mockResolvedValue({
+      preset_voices: [
+        { id: "Cherry", label: "芊悦", note: "阳光积极女声", model: "qwen3-tts-flash" },
+        { id: "Mia", label: "Mia", note: "英文女声", model: "mimo-v2.5-tts" },
+        { id: "Dean", label: "Dean", note: "英文男声", model: "mimo-v2.5-tts" },
+      ],
+    });
+    vi.mocked(api.getJobTTSVoice).mockResolvedValue({
+      model: "mimo-v2.5-tts",
+      voice: "Mia",
+      resolved_from: "global",
+    });
+    vi.mocked(api.updateJobTTSVoice).mockResolvedValue({
+      model: "mimo-v2.5-tts",
+      voice: "Dean",
+      resolved_from: "job",
+    });
+    vi.mocked(api.previewJobTTS).mockResolvedValue("blob:preview-audio");
+  });
+
+  it("renders TTS voice selector with available voices", async () => {
+    renderTTSPage();
+
+    // Should show the TTS step title
+    expect(await screen.findByText("TTS 配音")).toBeInTheDocument();
+
+    // Should show resolution badge
+    expect(await screen.findByText(/全局/)).toBeInTheDocument();
+  });
+
+  it("renders preview button and calls preview API", async () => {
+    renderTTSPage();
+
+    const previewBtn = await screen.findByRole("button", { name: /试听/ });
+    expect(previewBtn).toBeInTheDocument();
+
+    fireEvent.click(previewBtn);
+    await waitFor(() => {
+      expect(api.previewJobTTS).toHaveBeenCalledWith("job-tts-1");
+    });
+  });
+
+  it("shows link to global TTS config page", async () => {
+    renderTTSPage();
+
+    const link = await screen.findByText(/高级 TTS 配置/);
+    expect(link).toBeInTheDocument();
+    expect(link.closest("a")?.getAttribute("href")).toBe("/tts-config");
   });
 });
