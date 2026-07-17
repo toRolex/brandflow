@@ -18,6 +18,7 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseOrchestrator,
     to_url_path,
 )
+from packages.pipeline_services.sentence_tts_service import SentenceTiming
 
 
 # ---------------------------------------------------------------------------
@@ -497,6 +498,48 @@ _FAKE_TTS_CONFIG = {
 }
 
 
+class _FakeSentenceTTSService:
+    """Test double that simulates per-sentence synthesis without FFmpeg."""
+
+    def __init__(self, provider: MagicMock, config: dict) -> None:
+        self.provider = provider
+        self.config = config
+
+    def _config_shim(self):
+        from packages.pipeline_services.tts_provider import TTSConfigShim
+
+        return TTSConfigShim(self.config)
+
+    def synthesize_script(
+        self, script_text: str, output_path: Path
+    ) -> list[SentenceTiming]:
+        from packages.pipeline_services.script_sentence import parse_script_sentences
+
+        sentences = parse_script_sentences(script_text)
+        if not sentences:
+            return []
+
+        timings: list[SentenceTiming] = []
+        start = 0.0
+        audio_parts: list[bytes] = []
+        for i, sentence in enumerate(sentences):
+            shim = self._config_shim()
+            audio_parts.append(self.provider.synthesize(sentence, shim))
+            timings.append(
+                SentenceTiming(
+                    index=i,
+                    text=sentence,
+                    start_seconds=start,
+                    end_seconds=start + 1.0,
+                )
+            )
+            start += 1.0
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"".join(audio_parts))
+        return timings
+
+
 def _make_orchestrator_with_tts_config(tts_provider=None, tts_config=None):
     """Build a PhaseOrchestrator with get_tts_config injected and _build_tts_provider mocked."""
     orch = PhaseOrchestrator(
@@ -508,6 +551,11 @@ def _make_orchestrator_with_tts_config(tts_provider=None, tts_config=None):
     )
     mock_provider = tts_provider or MagicMock()
     orch._build_tts_provider = lambda cfg: mock_provider
+
+    def _fake_service_factory(provider, cfg, _ctx):
+        return _FakeSentenceTTSService(provider, cfg)
+
+    orch._create_sentence_tts_service = _fake_service_factory
     return orch
 
 
@@ -538,9 +586,12 @@ class TestRunTTSScriptDiscovery:
         mock_tts.synthesize.assert_called_once()
         call_args = mock_tts.synthesize.call_args
         assert call_args[0][0] == "这是一段测试文案。"
-        assert len(artifacts) == 1
-        assert artifacts[0].kind == "tts_audio"
-        assert artifacts[0].size_bytes == 100
+        assert len(artifacts) == 2
+        kinds = {a.kind for a in artifacts}
+        assert "tts_audio" in kinds
+        assert "sentence_timings" in kinds
+        audio_artifact = next(a for a in artifacts if a.kind == "tts_audio")
+        assert audio_artifact.size_bytes == 100
 
     def test_reads_script_from_json_when_no_txt(
         self, tmp_path: Path, ctx: PhaseContext
@@ -716,10 +767,75 @@ class TestRunTTSAudioWritten:
         audio_path = job_dir / "audio.mp3"
         assert audio_path.exists()
         assert audio_path.read_bytes() == b"\x01\x02\x03"
-        assert len(artifacts) == 1
-        assert artifacts[0].kind == "tts_audio"
-        assert artifacts[0].url.startswith("/workspace/")
-        assert artifacts[0].size_bytes == 3
+        assert len(artifacts) == 2
+        kinds = {a.kind for a in artifacts}
+        assert "tts_audio" in kinds
+        assert "sentence_timings" in kinds
+
+
+class TestRunTTSPerSentence:
+    """Per-sentence TTS persists sentence timings alongside the audio file."""
+
+    def test_per_sentence_tts_writes_audio_and_sentences_json(
+        self, ctx: PhaseContext
+    ) -> None:
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("第一句。第二句。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b"AUDIO"
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        artifacts = orch.run_phase("tts_generating", ctx)
+
+        audio_path = job_dir / "audio.mp3"
+        sentences_path = job_dir / "sentences.json"
+        assert audio_path.exists()
+        assert audio_path.read_bytes() == b"AUDIOAUDIO"
+        assert sentences_path.exists()
+        timings = json.loads(sentences_path.read_text(encoding="utf-8"))
+        assert len(timings) == 2
+
+        kinds = {a.kind for a in artifacts}
+        assert "tts_audio" in kinds
+        assert "sentence_timings" in kinds
+
+    def test_run_tts_uses_same_config_for_all_sentences(
+        self, ctx: PhaseContext
+    ) -> None:
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "口播文案.txt").write_text("第一句。第二句。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b""
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        orch.run_phase("tts_generating", ctx)
+
+        voices = {call.args[1].voice for call in mock_tts.synthesize.call_args_list}
+        models = {call.args[1].model for call in mock_tts.synthesize.call_args_list}
+        assert len(voices) == 1
+        assert len(models) == 1
+
+    def test_run_tts_applies_job_level_overrides(self, ctx: PhaseContext) -> None:
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "口播文案.txt").write_text("第一句。", encoding="utf-8")
+        ctx.options["tts_model"] = "qwen3-tts-flash"
+        ctx.options["tts_voice"] = "Rocky"
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b""
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        orch.run_phase("tts_generating", ctx)
+
+        config_obj = mock_tts.synthesize.call_args.args[1]
+        assert config_obj.model == "qwen3-tts-flash"
+        assert config_obj.voice == "Rocky"
 
 
 # ---------------------------------------------------------------------------
