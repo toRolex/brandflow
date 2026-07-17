@@ -7,11 +7,21 @@ for secondary editing in professional software (DaVinci Resolve, Premiere Pro).
 from __future__ import annotations
 
 import json
+import shutil
 import zipfile
 from pathlib import Path
 from typing import Any, Callable
 
+from packages.pipeline_services.segment_export import (
+    build_timeline_2,
+    segment_final_video,
+)
+
 ALLOWED_VIDEO_EXTENSIONS = frozenset({".mp4", ".mov", ".avi", ".webm"})
+
+
+class RerenderRequiredError(RuntimeError):
+    """Raised when a job has no render-time Final Timeline to segment against."""
 
 
 def _get_scene_config_default() -> dict[str, Any]:
@@ -53,14 +63,25 @@ def build_export_bundle(
         get_scene_config = _get_scene_config_default
     scene_cfg = get_scene_config()
 
+    # Export requires the authoritative render-time Final Timeline (issue #179);
+    # a legacy job without one must be re-rendered before it can be exported.
+    final_timeline_path = job_dir / "final_timeline.json"
+    if not final_timeline_path.exists():
+        raise RerenderRequiredError(
+            f"job {job_dir.name} has no Final Timeline; re-render before export"
+        )
+    final_timeline = json.loads(final_timeline_path.read_text(encoding="utf-8"))
+    timeline_2 = build_timeline_2(final_timeline)
+
     job_id = job_dir.name
     export_dir.mkdir(parents=True, exist_ok=True)
     zip_path = export_dir / f"export_{job_id}.zip"
     zip_prefix = f"export_{job_id}/"
 
+    final_path = job_dir / "final.mp4"
+
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         # 1. Final rendered video
-        final_path = job_dir / "final.mp4"
         if final_path.exists():
             zf.write(final_path, f"{zip_prefix}final/final.mp4")
 
@@ -75,18 +96,22 @@ def build_export_bundle(
         # 4. Source clips — scene (from config folders) + montage (from selected_clips.json)
         _add_source_clips_to_zip(job_dir, workspace_dir, zf, zip_prefix, scene_cfg)
 
-        # 5. Timeline description — prefer the authoritative render-time Final
-        #    Timeline (issue #179); fall back to the legacy directory-derived
-        #    timeline only when no render-time timeline was persisted.
-        final_timeline_path = job_dir / "final_timeline.json"
-        if final_timeline_path.exists():
-            timeline_json = final_timeline_path.read_text(encoding="utf-8")
-        else:
-            timeline = generate_timeline_json(
-                job_dir, workspace_dir, project_dir, scene_cfg=scene_cfg
-            )
-            timeline_json = json.dumps(timeline, ensure_ascii=False, indent=2)
-        zf.writestr(f"{zip_prefix}timeline.json", timeline_json)
+        # 5. Precise per-segment chunks (seg_NNN.mp4) split from final.mp4 on the
+        #    Final Timeline boundaries (issue #181), plus the flat 2.0 timeline.
+        if final_path.exists():
+            seg_dir = export_dir / f".segs_{job_id}"
+            try:
+                for seg_path in segment_final_video(
+                    final_path, final_timeline.get("segments", []), seg_dir
+                ):
+                    zf.write(seg_path, f"{zip_prefix}final/{seg_path.name}")
+            finally:
+                shutil.rmtree(seg_dir, ignore_errors=True)
+
+        zf.writestr(
+            f"{zip_prefix}timeline.json",
+            json.dumps(timeline_2, ensure_ascii=False, indent=2),
+        )
 
     return zip_path
 

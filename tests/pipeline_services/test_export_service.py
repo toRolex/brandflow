@@ -60,10 +60,34 @@ def export_dir(project_dir: Path) -> Path:
     return project_dir / "runtime" / "exports"
 
 
+def _write_minimal_final_timeline(job_dir: Path) -> None:
+    """Write an empty-segments Final Timeline so export passes the re-render guard.
+
+    Empty segments make ``segment_final_video`` a no-op (no ffmpeg call), which
+    keeps these ZIP-structure tests free of a real-FFmpeg dependency; the real
+    segmentation behaviour is covered by test_segment_export_181.py.
+    """
+    (job_dir / "final_timeline.json").write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "duration_ms": 0,
+                "aligned": True,
+                "fingerprint": "minimal",
+                "segments": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _populate_full_job(job_dir: Path, workspace_dir: Path) -> None:
     """Create a complete set of job artifacts for testing."""
     # final.mp4
     (job_dir / "final.mp4").write_text("final video data")
+
+    # authoritative render-time Final Timeline (required for export since #181)
+    _write_minimal_final_timeline(job_dir)
 
     # audio.mp3 (no wav — tests mp3->wav rename)
     (job_dir / "audio.mp3").write_text("audio data")
@@ -202,6 +226,7 @@ class TestBuildExportBundle:
         self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
     ) -> None:
         """Empty job directory produces a ZIP with only timeline.json."""
+        _write_minimal_final_timeline(job_dir)
         zip_path = build_export_bundle(
             job_dir,
             workspace_dir,
@@ -223,6 +248,7 @@ class TestBuildExportBundle:
     ) -> None:
         """MP3 audio is stored as tts.wav in the ZIP."""
         (job_dir / "audio.mp3").write_text("mp3 data")
+        _write_minimal_final_timeline(job_dir)
 
         zip_path = build_export_bundle(
             job_dir,
@@ -244,6 +270,7 @@ class TestBuildExportBundle:
         """When both exist, audio.wav is preferred over audio.mp3."""
         (job_dir / "audio.wav").write_text("wav data")
         (job_dir / "audio.mp3").write_text("mp3 data")
+        _write_minimal_final_timeline(job_dir)
 
         zip_path = build_export_bundle(
             job_dir,
@@ -262,6 +289,7 @@ class TestBuildExportBundle:
         """Export directory is created if it does not exist."""
         export_dir = project_dir / "runtime" / "exports"
         assert not export_dir.exists()
+        _write_minimal_final_timeline(job_dir)
 
         build_export_bundle(
             job_dir,
@@ -290,6 +318,7 @@ class TestBuildExportBundle:
             "transition_duration_ms": 500,
         }
 
+        _write_minimal_final_timeline(job_dir)
         zip_path = build_export_bundle(
             job_dir,
             workspace_dir,
@@ -315,6 +344,7 @@ class TestBuildExportBundle:
             "transition_duration_ms": 500,
         }
 
+        _write_minimal_final_timeline(job_dir)
         zip_path = build_export_bundle(
             job_dir,
             workspace_dir,
