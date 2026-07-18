@@ -92,8 +92,6 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(
         ) -> int:
             return 1
 
-    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
-
     video_svc = StubVideoService()
     schedule_store = StubScheduleStore(root_dir)
     orchestrator = _make_orchestrator(video_svc, schedule_store, monkeypatch)
@@ -172,8 +170,6 @@ def test_final_rendering_allows_missing_srt_when_skip_subtitle_is_enabled(
         ) -> int:
             self.calls.append((job_id, platform, title, description))
             return 1
-
-    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
 
     video_svc = StubVideoService()
     schedule_store = StubScheduleStore(root_dir)
