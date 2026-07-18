@@ -19,9 +19,9 @@ import pytest
 
 from packages.domain_core.models import (
     JobRecord,
+    PHASE_ORDER,
     ProductionMode,
 )
-from packages.domain_core.state import PHASE_ORDER
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
     _compute_transition,

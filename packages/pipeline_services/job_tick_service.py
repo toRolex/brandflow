@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
 from packages.domain_core.models import ArtifactPointer, JobRecord
-from packages.domain_core.state import PHASE_ORDER, next_phase
+from packages.domain_core.models import PHASE_ORDER, next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,

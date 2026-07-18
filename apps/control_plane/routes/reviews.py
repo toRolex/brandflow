@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from packages.domain_core.state import next_phase
+from packages.domain_core.models import next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.script_service import generate_script
 from packages.provider_config.config_resolver import ConfigResolver
