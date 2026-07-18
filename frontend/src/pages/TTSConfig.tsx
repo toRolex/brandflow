@@ -137,81 +137,50 @@ const AUDIO_TAGS = [
 ];
 
 export default function TTSConfigPage() {
-<<<<<<< HEAD
-  const [config, setConfig] = useState<TTSConfig | null>(null);
-  const [previewText, setPreviewText] = useState("这是产品展示的示例语音，用于测试语音合成效果和音色表现。");
-  const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [voices, setVoices] = useState<Voice[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
-  const prevModelRef = useRef<string | undefined>(undefined);
-=======
 	const [config, setConfig] = useState<TTSConfig | null>(null);
-	const [previewText, setPreviewText] = useState(
-		"这是产品展示的示例语音，用于测试语音合成效果和音色表现。",
-	);
+	const [previewText, setPreviewText] = useState("这是产品展示的示例语音，用于测试语音合成效果和音色表现。");
 	const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
 	const [previewError, setPreviewError] = useState<string | null>(null);
 	const [voices, setVoices] = useState<Voice[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [saveMsg, setSaveMsg] = useState<string | null>(null);
->>>>>>> f84eca0 (infra: toolchain setup — ty, Biome, CI, pnpm v11)
+	const prevModelRef = useRef<string | undefined>(undefined);
 
 	useEffect(() => {
 		loadConfig();
 	}, []);
 
-<<<<<<< HEAD
-  useEffect(() => {
-    if (config?.model) {
-      const modelChanged = prevModelRef.current !== undefined && prevModelRef.current !== config.model;
-      prevModelRef.current = config.model;
-      loadVoicesForModel(config.model, modelChanged);
-    }
-  }, [config?.model]);
-=======
 	useEffect(() => {
 		if (config?.model) {
-			loadVoices(config.model);
+			const modelChanged = prevModelRef.current !== undefined && prevModelRef.current !== config.model;
+			prevModelRef.current = config.model;
+			loadVoicesForModel(config.model, modelChanged);
 		}
 	}, [config?.model]);
->>>>>>> f84eca0 (infra: toolchain setup — ty, Biome, CI, pnpm v11)
 
 	const loadConfig = async () => {
 		const data = await api.getTTSConfig();
 		setConfig(data as unknown as TTSConfig);
 	};
 
-<<<<<<< HEAD
-  const loadVoicesForModel = async (model: string, setDefault: boolean) => {
-    try {
-      const data = await api.getTTSVoices(undefined, model);
-      const loadedVoices = data.preset_voices;
-      setVoices(loadedVoices);
-      if (setDefault && loadedVoices.length > 0) {
-        const isPresetModel =
-          model === "mimo-v2.5-tts" ||
-          model === "qwen3-tts-flash" ||
-          model === "qwen3-tts-instruct-flash";
-        if (isPresetModel) {
-          setConfig((prev) => (prev ? { ...prev, voice: loadedVoices[0].id } : prev));
-        }
-      }
-    } catch {
-      setVoices([]);
-    }
-  };
-=======
-	const loadVoices = async (model: string) => {
+	const loadVoicesForModel = async (model: string, setDefault: boolean) => {
 		try {
 			const data = await api.getTTSVoices(undefined, model);
-			setVoices(data.preset_voices);
+			const loadedVoices = data.preset_voices;
+			setVoices(loadedVoices);
+			if (setDefault && loadedVoices.length > 0) {
+				const isPresetModel =
+					model === "mimo-v2.5-tts" ||
+					model === "qwen3-tts-flash" ||
+					model === "qwen3-tts-instruct-flash";
+				if (isPresetModel) {
+					setConfig((prev) => (prev ? { ...prev, voice: loadedVoices[0].id } : prev));
+				}
+			}
 		} catch {
 			setVoices([]);
 		}
 	};
->>>>>>> f84eca0 (infra: toolchain setup — ty, Biome, CI, pnpm v11)
 
 	const handleSave = async () => {
 		if (!config) return;
@@ -309,159 +278,6 @@ export default function TTSConfigPage() {
 				</div>
 			)}
 
-<<<<<<< HEAD
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
-            <h2 className="text-lg font-semibold mb-4">TTS 模型选择</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div
-                className={`border-2 rounded-xl p-4 cursor-pointer ${
-                  config.model === "mimo-v2.5-tts"
-                    ? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
-                    : "border-[var(--border-default)] hover:border-[var(--text-tertiary)]"
-                }`}
-                onClick={() => setConfig({ ...config, model: "mimo-v2.5-tts" })}
-              >
-                <h3 className="font-semibold">预置音色</h3>
-                <p className="text-sm text-[var(--text-tertiary)]">mimo-v2.5-tts</p>
-                <p className="text-sm text-[var(--text-secondary)] mt-2">使用官方精选音色</p>
-              </div>
-              <div
-                className={`border-2 rounded-xl p-4 cursor-pointer ${
-                  config.model === "mimo-v2.5-tts-voicedesign"
-                    ? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
-                    : "border-[var(--border-default)] hover:border-[var(--border-default)]"
-                }`}
-                onClick={() => setConfig({ ...config, model: "mimo-v2.5-tts-voicedesign" })}
-              >
-                <h3 className="font-semibold">音色设计</h3>
-                <p className="text-sm text-[var(--text-tertiary)]">mimo-v2.5-tts-voicedesign</p>
-                <p className="text-sm text-[var(--text-secondary)] mt-2">通过文字描述自定义音色</p>
-              </div>
-              <div
-                className={`border-2 rounded-xl p-4 cursor-pointer ${
-                  config.model === "mimo-v2.5-tts-voiceclone"
-                    ? "border-[var(--success)] bg-[var(--success-bg)]"
-                    : "border-[var(--border-default)] hover:border-[var(--border-default)]"
-                }`}
-                onClick={() => setConfig({ ...config, model: "mimo-v2.5-tts-voiceclone" })}
-              >
-                <h3 className="font-semibold">音色克隆</h3>
-                <p className="text-sm text-[var(--text-tertiary)]">mimo-v2.5-tts-voiceclone</p>
-                <p className="text-sm text-[var(--text-secondary)] mt-2">通过音频样本克隆音色</p>
-              </div>
-              <div
-                className={`border-2 rounded-xl p-4 cursor-pointer ${
-                  config.model === "qwen3-tts-flash"
-                    ? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
-                    : "border-[var(--border-default)] hover:border-[var(--border-default)]"
-                }`}
-                onClick={() => setConfig({ ...config, model: "qwen3-tts-flash" })}
-              >
-                <h3 className="font-semibold">Qwen Flash</h3>
-                <p className="text-sm text-[var(--text-tertiary)]">qwen3-tts-flash</p>
-                <p className="text-sm text-[var(--text-secondary)] mt-2">基础非实时合成</p>
-              </div>
-              <div
-                className={`border-2 rounded-xl p-4 cursor-pointer ${
-                  config.model === "qwen3-tts-instruct-flash"
-                    ? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
-                    : "border-[var(--border-default)] hover:border-[var(--border-default)]"
-                }`}
-                onClick={() => setConfig({ ...config, model: "qwen3-tts-instruct-flash" })}
-              >
-                <h3 className="font-semibold">Qwen Instruct</h3>
-                <p className="text-sm text-[var(--text-tertiary)]">qwen3-tts-instruct-flash</p>
-                <p className="text-sm text-[var(--text-secondary)] mt-2">指令控制风格</p>
-              </div>
-            </div>
-          </section>
-
-          <div className="flex items-center gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">格式</label>
-              <select
-                className="w-full px-3 py-2 border border-[var(--border-default)] rounded-lg"
-                value={config.audio_format}
-                onChange={(e) => setConfig({ ...config, audio_format: e.target.value })}
-              >
-                <option value="wav">wav</option>
-                <option value="pcm16">pcm16</option>
-              </select>
-            </div>
-          </div>
-
-          {(config.model === "mimo-v2.5-tts" || config.model?.startsWith("qwen3-tts")) && (
-            <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
-              <h2 className="text-lg font-semibold mb-4">预置音色配置</h2>
-              {(() => {
-                const pool = voices;
-                return (
-                  <>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">主音色</label>
-                        <select
-                          className="w-full px-4 py-2 border border-[var(--border-default)] rounded-lg"
-                          value={config.voice}
-                          onChange={(e) => setConfig({ ...config, voice: e.target.value })}
-                        >
-                          {pool.map(v => (
-                            <option key={v.id} value={v.id}>{v.label} - {v.note}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">备用音色</label>
-                        <select
-                          className="w-full px-4 py-2 border border-[var(--border-default)] rounded-lg"
-                          value={config.fallback_voice}
-                          onChange={(e) => setConfig({ ...config, fallback_voice: e.target.value })}
-                        >
-                          {pool.map(v => (
-                            <option key={v.id} value={v.id}>{v.label} - {v.note}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 mb-4">
-                      <input
-                        type="checkbox"
-                        id="randomize"
-                        checked={config.randomize_voice}
-                        onChange={(e) => setConfig({ ...config, randomize_voice: e.target.checked })}
-                        className="rounded"
-                      />
-                      <label htmlFor="randomize" className="text-sm">启用音色随机化</label>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">随机音色池</label>
-                      <div className="flex flex-wrap gap-2 p-3 bg-[var(--bg-table-head)] rounded-lg">
-                        {config.random_voices.map(voiceId => (
-                          <span key={voiceId} className="px-3 py-1 bg-[var(--accent)] text-[var(--text-inverse)] text-sm rounded-full flex items-center gap-1">
-                            {voiceId}
-                            <button onClick={() => removeVoiceFromPool(voiceId)} className="hover:text-[var(--danger)]">×</button>
-                          </span>
-                        ))}
-                        <select
-                          className="px-3 py-1 border-2 border-dashed border-[var(--border-default)] text-sm rounded-full"
-                          onChange={(e) => { addVoiceToPool(e.target.value); e.target.value = ""; }}
-                          value=""
-                        >
-                          <option value="" disabled>+ 添加音色</option>
-                          {pool.filter(v => !config.random_voices.includes(v.id)).map(v => (
-                            <option key={v.id} value={v.id}>{v.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </section>
-          )}
-=======
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 				<div className="lg:col-span-2 space-y-6">
 					<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
@@ -526,11 +342,7 @@ export default function TTSConfigPage() {
 										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
 								}`}
 								onClick={() =>
-									setConfig({
-										...config,
-										model: "qwen3-tts-flash",
-										voice: "Rocky",
-									})
+									setConfig({ ...config, model: "qwen3-tts-flash" })
 								}
 							>
 								<h3 className="font-semibold">Qwen Flash</h3>
@@ -548,11 +360,7 @@ export default function TTSConfigPage() {
 										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
 								}`}
 								onClick={() =>
-									setConfig({
-										...config,
-										model: "qwen3-tts-instruct-flash",
-										voice: "Rocky",
-									})
+									setConfig({ ...config, model: "qwen3-tts-instruct-flash" })
 								}
 							>
 								<h3 className="font-semibold">Qwen Instruct</h3>
@@ -677,7 +485,6 @@ export default function TTSConfigPage() {
 							})()}
 						</section>
 					)}
->>>>>>> f84eca0 (infra: toolchain setup — ty, Biome, CI, pnpm v11)
 
 					{config.model === "mimo-v2.5-tts-voicedesign" && (
 						<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
@@ -871,44 +678,9 @@ export default function TTSConfigPage() {
 						</section>
 					)}
 
-<<<<<<< HEAD
-          {!config.model?.startsWith("qwen3-tts") && (
-          <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
-            <h2 className="text-lg font-semibold mb-4">风格控制</h2>
-            
-            {/* 风格控制模式选择 */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">控制模式</label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="style_control_mode"
-                    value="simple"
-                    checked={config.style_control_mode === "simple"}
-                    onChange={(e) => setConfig({ ...config, style_control_mode: e.target.value })}
-                    className="rounded"
-                  />
-                  <span className="text-sm">简单模式</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="style_control_mode"
-                    value="director"
-                    checked={config.style_control_mode === "director"}
-                    onChange={(e) => setConfig({ ...config, style_control_mode: e.target.value })}
-                    className="rounded"
-                  />
-                  <span className="text-sm">导演模式</span>
-                </label>
-              </div>
-            </div>
-=======
+					{!config.model?.startsWith("qwen3-tts") && (
 					<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
 						<h2 className="text-lg font-semibold mb-4">风格控制</h2>
->>>>>>> f84eca0 (infra: toolchain setup — ty, Biome, CI, pnpm v11)
-
 						{/* 风格控制模式选择 */}
 						<div className="mb-4">
 							<label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
@@ -1114,28 +886,6 @@ export default function TTSConfigPage() {
 											))}
 										</div>
 									</div>
-
-<<<<<<< HEAD
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">标签预览</label>
-                    <input
-                      type="text"
-                      className="w-full px-4 py-2 border border-[var(--border-default)] rounded-lg"
-                      placeholder="(风格标签)文本内容[音频标签]"
-                      value={config.audio_tags}
-                      onChange={(e) => setConfig({ ...config, audio_tags: e.target.value })}
-                    />
-                    <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                      格式：(风格)开头，[标签]可插入文本任意位置
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-          )}
-
-=======
 									<div>
 										<label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
 											音频标签
@@ -1180,8 +930,7 @@ export default function TTSConfigPage() {
 							)}
 						</div>
 					</section>
->>>>>>> f84eca0 (infra: toolchain setup — ty, Biome, CI, pnpm v11)
-
+					)}
 					<div className="flex items-center gap-4 mb-4">
 						<div>
 							<label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
