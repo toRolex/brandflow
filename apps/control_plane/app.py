@@ -27,8 +27,7 @@ from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import JobTickService
 from packages.pipeline_services.phase_orchestrator import create_orchestrator
-from packages.provider_config.config_reader import ConfigReader
-from packages.provider_config.product_store import ProductStore
+from packages.provider_config.config_reader import ConfigReader, ProductStore
 from packages.provider_config.secret_store import SecretStore
 
 
