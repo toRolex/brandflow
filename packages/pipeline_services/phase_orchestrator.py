@@ -965,6 +965,12 @@ class PhaseOrchestrator:
             ]
 
             if selected:
+                sentence_timings = self._discover_sentence_timings(job_dir)
+                timing_dicts = (
+                    [t.model_dump() for t in sentence_timings]
+                    if sentence_timings
+                    else None
+                )
                 returned = self._video_svc.build_base_video(
                     ctx.project_dir,
                     {
@@ -976,6 +982,7 @@ class PhaseOrchestrator:
                         "sequence": 1,
                     },
                     clip_base_path,
+                    sentence_timings=timing_dicts,
                 )
                 # Reuse the trim params computed inside build_base_video so the
                 # Final Timeline's montage segments match the render exactly.
@@ -1244,33 +1251,97 @@ class PhaseOrchestrator:
         clips: list[Path] = []
 
         if manifest_path.exists() and not force_reselect:
-            # Verify source file fingerprints before reusing
+            # Verify source file fingerprints per-entry (issue #227 / #174 AC-6)
             manifest = _json.loads(manifest_path.read_text(encoding="utf-8"))
-            _fp_match = True
-            for entry in manifest:
+            valid_entries: list[int] = []  # indices whose fingerprint still matches
+            invalid_entries: list[int] = []  # indices whose source has changed
+            for idx, entry in enumerate(manifest):
                 src = Path(entry["source"])
                 if src.exists():
                     st = src.stat()
-                    if st.st_size != entry["size"] or st.st_mtime != entry["mtime"]:
+                    if st.st_size == entry["size"] and st.st_mtime == entry["mtime"]:
+                        valid_entries.append(idx)
+                    else:
                         # ponytail: mtime-based fingerprint; content hash if drift
-                        _fp_match = False
-                        break
-                # missing source = snapshot still valid (we have the local copy)
-            if _fp_match:
-                for entry in manifest:
-                    local_path = snapshot_dir / entry["local"]
-                    if local_path.exists():
-                        clips.append(local_path)
-            else:
-                print("[SCENE] Source fingerprint changed, re-randomizing", flush=True)
-            if clips:
+                        invalid_entries.append(idx)
+                else:
+                    # missing source = snapshot still valid (we have the local copy)
+                    valid_entries.append(idx)
+
+            if invalid_entries:
                 print(
-                    f"[SCENE] Reusing snapshot: {len(clips)} clips from {snapshot_dir}",
+                    f"[SCENE] {len(invalid_entries)}/{len(manifest)} source fingerprints "
+                    f"changed, re-randomizing only those entries",
                     flush=True,
                 )
 
+            for idx in valid_entries:
+                local_path = snapshot_dir / manifest[idx]["local"]
+                if local_path.exists():
+                    clips.append(local_path)
+
+            # Re-randomize only the invalidated entries from their source folders
+            if invalid_entries:
+                for idx in invalid_entries:
+                    if idx < len(folders) and folders[idx].exists():
+                        candidates = self._scene_candidates(folders[idx])
+                        if candidates:
+                            clips.insert(idx, random.choice(candidates))
+                        else:
+                            # Fallback: use existing snapshot even if stale
+                            local_path = snapshot_dir / manifest[idx]["local"]
+                            if local_path.exists():
+                                clips.insert(idx, local_path)
+                    else:
+                        local_path = snapshot_dir / manifest[idx]["local"]
+                        if local_path.exists():
+                            clips.insert(idx, local_path)
+
+            if clips:
+                print(
+                    f"[SCENE] Using snapshot ({len(valid_entries)} cached + "
+                    f"{len(invalid_entries)} re-randomized)",
+                    flush=True,
+                )
+
+            # Update snapshot for re-randomized entries
+            if invalid_entries:
+                snapshot_dir.mkdir(parents=True, exist_ok=True)
+                for idx in invalid_entries:
+                    if idx < len(clips):
+                        clip = clips[idx]
+                        local_name = f"{idx}{clip.suffix}"
+                        _shutil.copy2(clip, snapshot_dir / local_name)
+                        st = clip.stat()
+                        found = False
+                        for entry in manifest:
+                            if entry["local"] == manifest[idx]["local"]:
+                                entry.update(
+                                    {
+                                        "source": str(clip.resolve()),
+                                        "local": local_name,
+                                        "size": st.st_size,
+                                        "mtime": st.st_mtime,
+                                    }
+                                )
+                                found = True
+                                break
+                        if not found:
+                            manifest.append(
+                                {
+                                    "source": str(clip.resolve()),
+                                    "local": local_name,
+                                    "size": st.st_size,
+                                    "mtime": st.st_mtime,
+                                }
+                            )
+                (snapshot_dir / "manifest.json").write_text(
+                    _json.dumps(manifest, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+
         if not clips:
-            # 2b. Pick one random video from each folder (or re-randomize)
+            # Fully fresh selection: every entry was invalid or no manifest
             for folder in folders:
                 if not folder.exists():
                     print(f"[SCENE] Folder not found: {folder}", flush=True)

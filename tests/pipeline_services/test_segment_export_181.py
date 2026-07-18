@@ -377,3 +377,34 @@ class TestAtomicSegmentFailure:
         assert result["error"]
         # atomic publish: no partial/corrupt ZIP left downloadable
         assert not Path(result["zip_path"]).exists()
+
+
+class TestSegmentFfmpegTimeout:
+    """segment_final_video calls subprocess.run with timeout=300."""
+
+    def test_segment_ffmpeg_has_timeout(self, tmp_path: Path) -> None:
+        from packages.pipeline_services.segment_export import segment_final_video
+        import packages.pipeline_services.segment_export as segmod
+
+        final = tmp_path / "final.mp4"
+        _make_av_mp4(final, 2.0)
+        calls: list = []
+        orig_run = segmod.subprocess.run
+
+        def _spy(*args: object, **kwargs: object) -> object:
+            calls.append((args[0], kwargs))
+            return orig_run(*args, **kwargs)
+
+        segmod.subprocess.run = _spy
+        try:
+            segment_final_video(
+                final, [{"start_ms": 0, "end_ms": 1000}], tmp_path / "s"
+            )
+        finally:
+            segmod.subprocess.run = orig_run
+
+        assert calls, "subprocess.run should have been called"
+        for _, kwargs in calls:
+            assert kwargs.get("timeout") == 300, (
+                f"subprocess.run should have timeout=300, got: {kwargs.get('timeout')}"
+            )

@@ -95,6 +95,7 @@ def segment_final_video(
             check=True,
             capture_output=True,
             text=True,
+            timeout=300,
         )
         produced.append(out_path)
 

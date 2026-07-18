@@ -281,6 +281,7 @@ class VideoService:
         job: dict,
         output_path: Path,
         trim_params: list[dict] | None = None,
+        sentence_timings: list[dict] | None = None,
     ) -> list[dict]:
         """拼接素材片段生成基础视频。
 
@@ -290,6 +291,8 @@ class VideoService:
             output_path: 输出基础视频路径。
             trim_params: 预计算的裁剪参数（可选）。提供时跳过内部随机计算，
                 使调用方能复用同一份参数生成权威 Final Timeline（issue #179）。
+            sentence_timings: 逐句 timing（可选）。提供时 blank 段直接取对应
+                句的 timing 而非均分音频总长（#178 AC-5）。
 
         Returns:
             实际用于渲染的 trim_params 列表（每段含 ss/duration/visual_type）。
@@ -314,7 +317,9 @@ class VideoService:
             raise RuntimeError(f"未找到素材检索结果: {job['job_id']}")
 
         if trim_params is None:
-            trim_params = _compute_trim_params(selected_clips, audio_duration)
+            trim_params = _compute_trim_params(
+                selected_clips, audio_duration, sentence_timings
+            )
 
         trimmed_paths: list[Path] = []
         ffmpeg = get_ffmpeg_path()

@@ -146,26 +146,44 @@ def _add_source_clips_to_zip(
     """Enumerate scene + montage clips and write them into the ZIP.
 
     Scene clips come first (``scene_001``, ``scene_002``, …) followed by
-    montage clips (``montage_001``, …).  The same numbering order is used
-    by ``generate_timeline_json`` to produce matching references.
+    montage clips (``montage_001``, …).
+
+    When a ``.scene_snapshot/manifest.json`` exists (issue #174), scene clips
+    are read from the snapshot to match the actual rendered frames instead of
+    enumerating the full scene folders (issue #227 / #181 AC-7).
     """
     clip_counter = 1
 
-    # Scene clips from config scene folders
-    for entry in scene_cfg.get("folders", []):
-        folder_path_str = entry.get("path", "")
-        if not folder_path_str:
-            continue
-        folder = workspace_dir / folder_path_str
-        if not folder.exists():
-            continue
-        for f in sorted(folder.iterdir()):
-            if f.is_file() and f.suffix.lower() in ALLOWED_VIDEO_EXTENSIONS:
-                arc_name = (
-                    f"{zip_prefix}source_clips/scene_{clip_counter:03d}{f.suffix}"
-                )
-                zf.write(f, arc_name)
-                clip_counter += 1
+    # Scene clips: prefer snapshot manifest, fall back to config folders
+    snapshot_manifest_path = job_dir / ".scene_snapshot" / "manifest.json"
+    if snapshot_manifest_path.exists():
+        try:
+            manifest = json.loads(snapshot_manifest_path.read_text(encoding="utf-8"))
+            for entry in manifest:
+                clip_path = job_dir / ".scene_snapshot" / entry["local"]
+                if clip_path.exists():
+                    ext = clip_path.suffix.lower()
+                    arc_name = f"{zip_prefix}source_clips/scene_{clip_counter:03d}{ext}"
+                    zf.write(clip_path, arc_name)
+                    clip_counter += 1
+        except Exception:
+            pass
+    else:
+        # Fallback: enumerate scene config folders
+        for entry in scene_cfg.get("folders", []):
+            folder_path_str = entry.get("path", "")
+            if not folder_path_str:
+                continue
+            folder = workspace_dir / folder_path_str
+            if not folder.exists():
+                continue
+            for f in sorted(folder.iterdir()):
+                if f.is_file() and f.suffix.lower() in ALLOWED_VIDEO_EXTENSIONS:
+                    arc_name = (
+                        f"{zip_prefix}source_clips/scene_{clip_counter:03d}{f.suffix}"
+                    )
+                    zf.write(f, arc_name)
+                    clip_counter += 1
 
     # Montage clips from selected_clips.json
     clip_list_path = job_dir / "selected_clips.json"
@@ -190,116 +208,3 @@ def _add_source_clips_to_zip(
                 clip_counter += 1
         except Exception:
             pass
-
-
-def generate_timeline_json(
-    job_dir: Path,
-    workspace_dir: Path,
-    project_dir: Path,  # noqa: ARG001  -- kept for API stability
-    *,
-    scene_cfg: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Generate *timeline.json* describing the edit decision list.
-
-    The returned dict is serialised into the ZIP as ``timeline.json``.
-    File references use ZIP-relative paths (e.g. ``source_clips/scene_001.mp4``)
-    so the file is self-contained when extracted.
-    """
-    if scene_cfg is None:
-        scene_cfg = _get_scene_config_default()
-
-    segments: list[dict[str, Any]] = []
-    clip_counter = 1
-    transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
-
-    # 1. Scene clips segment
-    scene_clips: list[dict[str, Any]] = []
-    for entry in scene_cfg.get("folders", []):
-        folder_path_str = entry.get("path", "")
-        if not folder_path_str:
-            continue
-        folder = workspace_dir / folder_path_str
-        if not folder.exists():
-            continue
-        for f in sorted(folder.iterdir()):
-            if f.is_file() and f.suffix.lower() in ALLOWED_VIDEO_EXTENSIONS:
-                scene_clips.append(
-                    {
-                        "file": f"source_clips/scene_{clip_counter:03d}{f.suffix}",
-                        "duration_ms": _try_get_duration_ms(f),
-                        "transition": "crossfade",
-                        "transition_duration_ms": transition_duration_ms,
-                    }
-                )
-                clip_counter += 1
-
-    if scene_clips:
-        segments.append({"type": "scene", "clips": scene_clips})
-
-    # 2. Montage clips segment
-    montage_clips: list[dict[str, Any]] = []
-    clip_list_path = job_dir / "selected_clips.json"
-    if clip_list_path.exists():
-        try:
-            selected: list[dict[str, Any]] = json.loads(
-                clip_list_path.read_text(encoding="utf-8")
-            )
-            for idx, item in enumerate(selected):
-                file_path = item.get("file_path", "")
-                if not file_path:
-                    continue
-                src = Path(file_path)
-                if not src.exists():
-                    src = workspace_dir / file_path
-                if not src.exists():
-                    continue
-                duration_ms = _try_get_duration_ms(src)
-                montage_clips.append(
-                    {
-                        "file": f"source_clips/montage_{clip_counter:03d}{src.suffix}",
-                        "in_point_ms": 0,
-                        "out_point_ms": duration_ms,
-                        "sentence_index": idx,
-                    }
-                )
-                clip_counter += 1
-        except Exception:
-            pass
-
-    if montage_clips:
-        segments.append({"type": "montage", "clips": montage_clips})
-
-    # 3. Audio metadata
-    audio: dict[str, Any] = {"file": "audio/tts.wav"}
-    wav_path = job_dir / "audio.wav"
-    mp3_path = job_dir / "audio.mp3"
-    audio_src: Path | None = None
-    if wav_path.exists():
-        audio_src = wav_path
-    elif mp3_path.exists():
-        audio_src = mp3_path
-    if audio_src is not None:
-        audio["duration_ms"] = _try_get_duration_ms(audio_src)
-
-    # 4. Subtitle metadata (optional)
-    timeline: dict[str, Any] = {
-        "version": "1.0",
-        "segments": segments,
-        "audio": audio,
-    }
-    srt_path = job_dir / "subtitles.srt"
-    if srt_path.exists():
-        timeline["subtitle"] = {"file": "subtitle/script.srt"}
-
-    return timeline
-
-
-def _try_get_duration_ms(path: Path) -> int:
-    """Return media duration in milliseconds, or 0 on error."""
-    try:
-        from packages.pipeline_services.media_utils import get_media_duration
-
-        seconds = get_media_duration(path)
-        return int(seconds * 1000)
-    except Exception:
-        return 0
