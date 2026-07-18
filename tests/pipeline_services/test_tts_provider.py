@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import base64
-import io
+from collections.abc import Callable
 from unittest.mock import MagicMock, patch
-import wave
 
 import pytest
 
@@ -75,16 +74,6 @@ class TestMiMoTTSProvider:
 
 
 class TestMiMoTTSProviderSynthesize:
-    @staticmethod
-    def _wav_bytes() -> bytes:
-        output = io.BytesIO()
-        with wave.open(output, "wb") as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(24000)
-            wav_file.writeframes(b"\x00\x00" * 240)
-        return output.getvalue()
-
     def _make_provider(self):
         return MiMoTTSProvider(
             api_key="test-key", base_url="https://api.xiaomimimo.com/v1"
@@ -123,8 +112,10 @@ class TestMiMoTTSProviderSynthesize:
         assert len(audio) > 0
 
     @patch("packages.pipeline_services.tts_provider.requests")
-    def test_synthesize_decodes_nested_audio_data_byte_for_byte(self, mock_requests):
-        source_audio = self._wav_bytes()
+    def test_synthesize_decodes_nested_audio_data_byte_for_byte(
+        self, mock_requests, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = wav_bytes()
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
             "choices": [
@@ -146,9 +137,9 @@ class TestMiMoTTSProviderSynthesize:
     @pytest.mark.parametrize("field", ["audio", "data", "b64_json", "base64"])
     @patch("packages.pipeline_services.tts_provider.requests")
     def test_synthesize_accepts_supported_direct_string_fields(
-        self, mock_requests, field
+        self, mock_requests, field, wav_bytes: Callable[..., bytes]
     ):
-        source_audio = self._wav_bytes()
+        source_audio = wav_bytes()
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
             field: base64.b64encode(source_audio).decode("ascii")
@@ -161,8 +152,10 @@ class TestMiMoTTSProviderSynthesize:
         )
 
     @patch("packages.pipeline_services.tts_provider.requests")
-    def test_synthesize_recurses_through_audio_objects_and_lists(self, mock_requests):
-        source_audio = self._wav_bytes()
+    def test_synthesize_recurses_through_audio_objects_and_lists(
+        self, mock_requests, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = wav_bytes()
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {
             "result": {
@@ -180,8 +173,10 @@ class TestMiMoTTSProviderSynthesize:
         )
 
     @patch("packages.pipeline_services.tts_provider.requests")
-    def test_synthesize_decodes_data_uri(self, mock_requests):
-        source_audio = self._wav_bytes()
+    def test_synthesize_decodes_data_uri(
+        self, mock_requests, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = wav_bytes()
         encoded = base64.b64encode(source_audio).decode("ascii")
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {"audio": f"data:audio/wav;base64,{encoded}"}
@@ -208,8 +203,10 @@ class TestMiMoTTSProviderSynthesize:
         )
 
     @patch("packages.pipeline_services.tts_provider.requests")
-    def test_synthesize_decodes_explicit_hex(self, mock_requests):
-        source_audio = self._wav_bytes()
+    def test_synthesize_decodes_explicit_hex(
+        self, mock_requests, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = wav_bytes()
         mock_resp = MagicMock(status_code=200)
         mock_resp.json.return_value = {"audio": f"hex:{source_audio.hex()}"}
         mock_requests.post.return_value = mock_resp
