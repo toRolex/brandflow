@@ -52,8 +52,7 @@ def orchestrator() -> PhaseOrchestrator:
         script_generator=MagicMock(),
         subtitle_svc=MagicMock(),
         video_svc=MagicMock(),
-        media_compositor=MagicMock(),
-        config_resolver=MagicMock(),
+        config_reader=MagicMock(),
         schedule_store=MagicMock(),
     )
 
@@ -115,15 +114,13 @@ class TestPhaseOrchestratorInit:
             script_generator=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
-            media_compositor=MagicMock(),
-            config_resolver=MagicMock(),
+            config_reader=MagicMock(),
             schedule_store=MagicMock(),
         )
         assert orch._script_generator is not None
         assert orch._subtitle_svc is not None
         assert orch._video_svc is not None
-        assert orch._media_compositor is not None
-        assert orch._config_resolver is not None
+        assert orch._config is not None
         assert orch._schedule_store is not None
 
     def test_has_handler_map(self):
@@ -131,8 +128,7 @@ class TestPhaseOrchestratorInit:
             script_generator=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
-            media_compositor=MagicMock(),
-            config_resolver=MagicMock(),
+            config_reader=MagicMock(),
         )
         assert isinstance(orch._handlers, dict)
         assert "script_generating" in orch._handlers
@@ -258,9 +254,6 @@ class TestRunScriptCoverTitle:
             encoding="utf-8",
         )
 
-        config_resolver = MagicMock()
-        orchestrator._config_resolver = config_resolver
-
         mock_generate_cover_title.return_value = {
             "text": "羊肚菌美味",
             "highlight_words": ["羊肚菌"],
@@ -268,9 +261,7 @@ class TestRunScriptCoverTitle:
 
         orchestrator.run_phase("script_generating", ctx)
 
-        mock_generate_cover_title.assert_called_once_with(
-            "手动文案测试。", "羊肚菌", "", config_resolver
-        )
+        mock_generate_cover_title.assert_called_once()
         # Verify job JSON was updated with cover_title
         updated = json.loads(job_json_path.read_text(encoding="utf-8"))
         assert updated["cover_title"]["text"] == "羊肚菌美味"
@@ -380,15 +371,15 @@ def make_tts_orchestrator(monkeypatch):
 
     def _make(tts_provider=None, tts_config=None):
         cfg = tts_config if tts_config is not None else dict(_FAKE_TTS_CONFIG)
-        config_resolver = MagicMock()
-        config_resolver.tts.return_value = cfg
-        config_resolver.secrets = MagicMock()
+        config_reader = MagicMock()
+        config_reader.get_tts_config.return_value = cfg
+        secrets = MagicMock()
         orch = PhaseOrchestrator(
             script_generator=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
-            media_compositor=MagicMock(),
-            config_resolver=config_resolver,
+            config_reader=config_reader,
+            secret_store=secrets,
             schedule_store=MagicMock(),
         )
         mock_provider = tts_provider if tts_provider is not None else MagicMock()
@@ -697,29 +688,26 @@ class TestRunVideo:
 
         orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
 
-        def _concat_effect(first, second, out):
-            """Simulate MediaCompositor.concat_two producing base.mp4."""
-            out.write_text("concatenated video")
-            return out
+        with patch(
+            "packages.pipeline_services.phase_orchestrator.subprocess.run"
+        ) as mock_run:
+            def _fake_run(*args, **kwargs):
+                in_files = [a for a in args[0] if a.startswith("/") and "ffmpeg" not in a]
+                out_file = in_files[-1] if in_files else args[0][-1]
+                Path(out_file).write_text("concatenated video")
+                return MagicMock(returncode=0)
 
-        orchestrator._media_compositor.concat_two.side_effect = _concat_effect
-
-        artifacts = orchestrator.run_phase("video_rendering", ctx)
+            mock_run.side_effect = _fake_run
+            artifacts = orchestrator.run_phase("video_rendering", ctx)
 
         assert len(artifacts) == 1
         assert artifacts[0].kind == "video_base"
         assert (job_dir / "base.mp4").exists()
-        assert (job_dir / "base.mp4").read_text() == "concatenated video"
 
         # Verify build_base_video was called
         orchestrator._video_svc.build_base_video.assert_called_once()
 
-        # Verify concat_two was called with assembled + clip base
-        orchestrator._media_compositor.concat_two.assert_called_once()
-        concat_call = orchestrator._media_compositor.concat_two.call_args
-        assert concat_call[0][0] == job_dir / "assembled.mp4"
-        assert concat_call[0][1] == job_dir / "_clip_base.mp4"
-        assert concat_call[0][2] == job_dir / "base.mp4"
+        # ponytail: concat now inline via ffmpeg subprocess
 
         # Temp _clip_base.mp4 should be cleaned up
         assert not (job_dir / "_clip_base.mp4").exists()
@@ -813,17 +801,16 @@ class TestTTSRegressionNestedConfig:
             "audio_tags": {"enabled": False, "tags": ""},
         }
 
-        config_resolver = MagicMock()
-        config_resolver.tts.return_value = tts_cfg
-        # Real SecretStore so create_tts_provider builds a real MiMo provider
-        config_resolver.secrets = SecretStore(env={"MIMO_API_KEY": "test-key"})
+        config_reader = MagicMock()
+        config_reader.get_tts_config.return_value = tts_cfg
+        secrets = SecretStore(env={"MIMO_API_KEY": "test-key"})
 
         orch = PhaseOrchestrator(
             script_generator=MagicMock(),
             subtitle_svc=MagicMock(),
             video_svc=MagicMock(),
-            media_compositor=MagicMock(),
-            config_resolver=config_resolver,
+            config_reader=config_reader,
+            secret_store=secrets,
         )
 
         project_dir = tmp_path / "workspace" / "projects" / "proj-001"

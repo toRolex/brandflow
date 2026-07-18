@@ -279,15 +279,15 @@ class TestImportModeSkipReviews:
 
 
 def _make_orchestrator() -> PhaseOrchestrator:
-    config_resolver = MagicMock()
-    config_resolver.tts.return_value = {"model": "test-model", "voice": "test-voice"}
-    config_resolver.secrets = MagicMock()
+    config_reader = MagicMock()
+    config_reader.get_tts_config.return_value = {"model": "test-model", "voice": "test-voice"}
+    secrets = MagicMock()
     return PhaseOrchestrator(
         script_generator=MagicMock(),
         subtitle_svc=MagicMock(),
         video_svc=MagicMock(),
-        media_compositor=MagicMock(),
-        config_resolver=config_resolver,
+        config_reader=config_reader,
+        secret_store=secrets,
         schedule_store=MagicMock(),
     )
 

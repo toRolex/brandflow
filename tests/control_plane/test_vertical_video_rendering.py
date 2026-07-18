@@ -21,19 +21,15 @@ def _make_orchestrator(video_svc, schedule_store, monkeypatch) -> PhaseOrchestra
         def synthesize(self, text: str, config: Any) -> bytes:
             return b"tts"
 
-    config_resolver = MagicMock()
-    config_resolver.tts.return_value = {"model": "test-model", "voice": "test-voice"}
-    config_resolver.secrets = MagicMock()
-    media_compositor = MagicMock()
-    media_compositor.concat_two.side_effect = lambda first, second, out: (
-        out.write_bytes(b"concatenated") or out
-    )
+    config_reader = MagicMock()
+    config_reader.get_tts_config.return_value = {"model": "test-model", "voice": "test-voice"}
+    secrets = MagicMock()
     orch = PhaseOrchestrator(
         script_generator=MagicMock(),
         subtitle_svc=SubtitleService(),
         video_svc=video_svc,
-        media_compositor=media_compositor,
-        config_resolver=config_resolver,
+        config_reader=config_reader,
+        secret_store=secrets,
         schedule_store=schedule_store,
     )
     stub = StubTTSProvider()

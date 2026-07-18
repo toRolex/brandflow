@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import random
 import shutil
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from functools import partial
@@ -420,7 +421,23 @@ class PhaseOrchestrator:
         assembled_exists = assembled_path.exists()
 
         if assembled_exists and clip_base_built:
-            self._media_compositor.concat_two(assembled_path, clip_base_path, base_path)
+            # Import mode: concat scene segment + montage clips via ffmpeg
+            subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", str(assembled_path),
+                    "-i", str(clip_base_path),
+                    "-filter_complex",
+                    "[0:v]settb=AVTB[sv];[1:v]settb=AVTB[bv];"
+                    "[sv][bv]concat=n=2:v=1:a=0",
+                    "-map", "[v]", "-an",
+                    "-c:v", "libx264", "-preset", "ultrafast",
+                    "-crf", "23", "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    str(base_path),
+                ],
+                check=True, capture_output=True, text=True, timeout=600,
+            )
             print(
                 f"[VIDEO] Concatenated assembled + clip base for {ctx.job_id}",
                 flush=True,
@@ -560,10 +577,51 @@ class PhaseOrchestrator:
             shutil.copy2(clips[0], scene_path)
             print(f"[SCENE] Single clip copied to {scene_path}", flush=True)
         else:
-            self._media_compositor.crossfade_scene(
-                clips, scene_path, ctx.transition_duration_ms / 1000.0
+            transition = ctx.transition_duration_ms / 1000.0
+            durations = [_get_media_duration(c) for c in clips]
+            filter_parts = []
+            accumulated = durations[0]
+            for i in range(1, len(clips)):
+                offset = accumulated - transition
+                prev_label = f"r{i-1}" if i > 1 else "c0"
+                cur_label = f"c{i}"
+                out_label = f"t{i}"
+                filter_parts.append(
+                    f"[{i}:v]settb=AVTB,fps=30,scale=720:1280:"
+                    f"force_original_aspect_ratio=decrease,"
+                    f"pad=720:1280:(ow-iw)/2:(oh-ih)/2[{cur_label}]"
+                )
+                filter_parts.append(
+                    f"[{prev_label}][{cur_label}]"
+                    f"xfade=transition=fade:duration={transition:.3f}:"
+                    f"offset={offset:.3f}[{out_label}]"
+                )
+                if i < len(clips) - 1:
+                    filter_parts.append(
+                        f"[{out_label}]setpts=PTS-STARTPTS,fps=30[r{i}]"
+                    )
+                accumulated += durations[i] - transition
+
+            filter_complex = (
+                "[0:v]settb=AVTB,fps=30,scale=720:1280:"
+                "force_original_aspect_ratio=decrease,"
+                "pad=720:1280:(ow-iw)/2:(oh-ih)/2[c0];"
+                + ";".join(filter_parts)
             )
+            final_label = f"t{len(clips)-1}"
+            cmd = ["ffmpeg", "-y"]
+            for clip in clips:
+                cmd.extend(["-i", str(clip)])
+            cmd.extend([
+                "-filter_complex", filter_complex,
+                "-map", f"[{final_label}]", "-an",
+                "-c:v", "libx264", "-preset", "ultrafast",
+                "-crf", "23", "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                str(scene_path),
+            ])
             print(f"[SCENE] Running ffmpeg xfade for {len(clips)} clips", flush=True)
+            subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
 
         if scene_path.exists():
             print(
@@ -597,7 +655,22 @@ class PhaseOrchestrator:
                 f"[MONTAGE] Concatenating scene_segment + base for {ctx.job_id}",
                 flush=True,
             )
-            self._media_compositor.concat_two(scene_path, base_path, assembled_path)
+            subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", str(scene_path),
+                    "-i", str(base_path),
+                    "-filter_complex",
+                    "[0:v]settb=AVTB[sv];[1:v]settb=AVTB[bv];"
+                    "[sv][bv]concat=n=2:v=1:a=0",
+                    "-map", "[v]", "-an",
+                    "-c:v", "libx264", "-preset", "ultrafast",
+                    "-crf", "23", "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    str(assembled_path),
+                ],
+                check=True, capture_output=True, text=True, timeout=600,
+            )
         elif scene_exists:
             print(
                 f"[MONTAGE] Using scene_segment as assembled for {ctx.job_id}",
@@ -699,3 +772,15 @@ def _resolve_scene_folders(ctx: PhaseContext) -> list[Path]:
             continue
         folders.append(ctx.root_dir / "workspace" / path_str)
     return folders
+
+
+def _get_media_duration(file_path: Path) -> float:
+    """Get media duration in seconds via ffprobe."""
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-show_entries",
+            "format=duration", "-of", "csv=p=0", str(file_path),
+        ],
+        capture_output=True, text=True, timeout=30,
+    )
+    return float(result.stdout.strip()) if result.stdout.strip() else 0.0

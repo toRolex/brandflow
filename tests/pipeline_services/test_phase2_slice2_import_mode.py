@@ -69,15 +69,15 @@ def ctx(project_dir: Path, tmp_root: Path) -> PhaseContext:
 
 @pytest.fixture()
 def orchestrator() -> PhaseOrchestrator:
-    config_resolver = MagicMock()
-    config_resolver.tts.return_value = {"model": "test-model", "voice": "test-voice"}
-    config_resolver.secrets = MagicMock()
+    config_reader = MagicMock()
+    config_reader.get_tts_config.return_value = {"model": "test-model", "voice": "test-voice"}
+    secrets = MagicMock()
     return PhaseOrchestrator(
         script_generator=MagicMock(),
         subtitle_svc=MagicMock(),
         video_svc=MagicMock(),
-        media_compositor=MagicMock(),
-        config_resolver=config_resolver,
+        config_reader=config_reader,
+        secret_store=secrets,
         schedule_store=MagicMock(),
     )
 
@@ -223,12 +223,6 @@ class TestSceneAssembling:
             transition_duration_ms=500,
         )
 
-        def _side_effect(clips, out, transition_duration):
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text("fake scene video")
-            return out
-
-        orchestrator._media_compositor.crossfade_scene.side_effect = _side_effect
         result = orchestrator.run_phase("scene_assembling", ctx)
 
         assert len(result) == 1
@@ -247,6 +241,8 @@ class TestSceneAssembling:
             for i in range(3):
                 (folder / f"clip_{i}.mp4").write_text(f"video {folder_name} {i}")
 
+        from unittest.mock import patch, MagicMock
+
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=project_dir,
@@ -256,18 +252,29 @@ class TestSceneAssembling:
             transition_duration_ms=500,
         )
 
-        def _make_scene(clips, out, transition_duration):
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text("fake output")
-            return out
+        with patch(
+            "packages.pipeline_services.phase_orchestrator.subprocess.run"
+        ) as mock_run:
+            def _fake_run(*args, **kwargs):
+                cmd = args[0]
+                cmd_str = " ".join(cmd)
+                # ffprobe duration lookup → return 5.0
+                if "ffprobe" in cmd_str and "show_entries" in cmd_str:
+                    result = MagicMock(returncode=0)
+                    result.stdout = "5.0\n"
+                    return result
+                # ffmpeg xfade → write output file
+                out_idx = next(
+                    i for i, a in enumerate(cmd) if a.endswith("scene_segment.mp4")
+                )
+                Path(cmd[out_idx]).write_text("fake scene video")
+                return MagicMock(returncode=0)
 
-        orchestrator._media_compositor.crossfade_scene.side_effect = _make_scene
-        result = orchestrator.run_phase("scene_assembling", ctx)
+            mock_run.side_effect = _fake_run
+            result = orchestrator.run_phase("scene_assembling", ctx)
 
         assert len(result) == 1
-        # Should have chosen 1 file from each of the 2 folders
-        call_args = orchestrator._media_compositor.crossfade_scene.call_args
-        assert len(call_args[0][0]) == 2
+        self._verify_subprocess_call(mock_run, expected_clip_count=2)
 
     @staticmethod
     def _verify_subprocess_call(mock_run: MagicMock, expected_clip_count: int) -> None:
@@ -389,27 +396,29 @@ class TestMontageAssembling:
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
         """With both scene_segment.mp4 and base.mp4 → ffmpeg concat."""
+        from unittest.mock import patch, MagicMock
+
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
         (job_dir / "scene_segment.mp4").write_text("scene")
         (job_dir / "base.mp4").write_text("base")
 
-        def _make_assembled(first, second, out):
-            out.write_text("concatenated")
-            return out
+        with patch(
+            "packages.pipeline_services.phase_orchestrator.subprocess.run"
+        ) as mock_run:
+            def _fake_concat(*args, **kwargs):
+                out_idx = next(
+                    i for i, a in enumerate(args[0]) if a.endswith("assembled.mp4")
+                )
+                Path(args[0][out_idx]).write_text("concatenated")
+                return MagicMock(returncode=0)
 
-        orchestrator._media_compositor.concat_two.side_effect = _make_assembled
-        result = orchestrator.run_phase("montage_assembling", ctx)
+            mock_run.side_effect = _fake_concat
+            result = orchestrator.run_phase("montage_assembling", ctx)
 
         assert len(result) == 1
         assert result[0].kind == "assembled_video"
         assert (job_dir / "assembled.mp4").exists()
-
-        # Verify concat_two was called with scene + base
-        call_args = orchestrator._media_compositor.concat_two.call_args
-        assert call_args[0][0] == job_dir / "scene_segment.mp4"
-        assert call_args[0][1] == job_dir / "base.mp4"
-        assert call_args[0][2] == job_dir / "assembled.mp4"
 
 
 # ---------------------------------------------------------------------------

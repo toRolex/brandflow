@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 from packages.provider_config.config_reader import ConfigReader
-from packages.provider_config.product_store import ProductStore
+from packages.provider_config.config_reader import ProductStore
 
 
 def _make_store(tmpdir: str) -> ProductStore:

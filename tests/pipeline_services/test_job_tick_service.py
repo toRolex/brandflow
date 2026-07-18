@@ -723,18 +723,18 @@ class TestManualScriptConsistency:
         project_dir = root_dir / "workspace" / "projects" / "proj-001"
 
         # PhaseOrchestrator with mocked external deps
-        mock_config = Mock()
-        mock_config.tts.return_value = {
+        config_reader = Mock()
+        config_reader.get_tts_config.return_value = {
             "model": "test-model",
             "voice": "test-voice",
         }
-        mock_config.secrets = Mock()
+        secrets = Mock()
         orch = PhaseOrchestrator(
             script_generator=Mock(),
             subtitle_svc=Mock(),
             video_svc=Mock(),
-            media_compositor=Mock(),
-            config_resolver=mock_config,
+            config_reader=config_reader,
+            secret_store=secrets,
         )
 
         # Mock TTS provider to avoid real API calls

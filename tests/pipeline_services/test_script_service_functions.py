@@ -8,16 +8,15 @@ from packages.pipeline_services.script_service import (
     generate_cover_title,
     generate_script,
 )
-from packages.provider_config.config_resolver import ConfigResolver
 
 
-def _make_config_resolver(product: str = "") -> ConfigResolver:
+def _make_config_mocks(product: str = ""):
     reader = MagicMock()
-    reader.get_llm_config.return_value = {"model": "deepseek-v4-pro"}
+    reader.get_llm_config.return_value = {"model": "deepseek-v4-pro", "provider": "deepseek"}
     secrets = MagicMock()
     secrets.get_api_key.return_value = "fake-api-key"
     secrets.get_api_base_url.return_value = "https://api.example.com/v1"
-    return ConfigResolver(reader=reader, secrets=secrets)
+    return reader, secrets
 
 
 @patch("packages.pipeline_services.script_service.generator.validate_script")
@@ -48,13 +47,14 @@ class TestGenerateScript:
             ),
         ]
 
-        config_resolver = _make_config_resolver()
+        reader, secrets = _make_config_mocks()
         result = generate_script(
             product="羊肚菌",
             output_dir=tmp_path,
             language="mandarin",
             brand="滋元堂",
-            config_resolver=config_resolver,
+            config_reader=reader,
+            secret_store=secrets,
         )
 
         txt_path = tmp_path / "口播文案.txt"
@@ -81,19 +81,18 @@ class TestGenerateScript:
             json.dumps({"sentence_2": "第二句。"}, ensure_ascii=False),
         ]
 
-        config_resolver = _make_config_resolver()
+        reader, secrets = _make_config_mocks()
         generate_script(
             product="测试",
             output_dir=tmp_path,
             language="mandarin",
             brand="",
-            config_resolver=config_resolver,
+            config_reader=reader,
+            secret_store=secrets,
         )
 
-        config_resolver._reader.get_llm_config.assert_called_once_with(
-            product_id="测试"
-        )
-        config_resolver._secrets.get_api_key.assert_called_once_with("deepseek")
+        reader.get_llm_config.assert_called_once_with(product_id="测试")
+        secrets.get_api_key.assert_called_once_with("deepseek")
 
 
 @patch("packages.pipeline_services.script_service.generator.ScriptGenerator._call_llm")
@@ -104,12 +103,13 @@ class TestGenerateCoverTitle:
             ensure_ascii=False,
         )
 
-        config_resolver = _make_config_resolver()
+        reader, secrets = _make_config_mocks()
         result = generate_cover_title(
             script_text="今天给大家介绍羊肚菌的做法，滋元堂品质保证。",
             product="羊肚菌",
             brand="滋元堂",
-            config_resolver=config_resolver,
+            config_reader=reader,
+            secret_store=secrets,
         )
 
         assert result["text"] == "羊肚菌美味推荐"
@@ -120,15 +120,14 @@ class TestGenerateCoverTitle:
             {"title": "标题", "highlight_words": []}, ensure_ascii=False
         )
 
-        config_resolver = _make_config_resolver()
+        reader, secrets = _make_config_mocks()
         generate_cover_title(
             script_text="测试文案。",
             product="测试",
             brand="",
-            config_resolver=config_resolver,
+            config_reader=reader,
+            secret_store=secrets,
         )
 
-        config_resolver._reader.get_llm_config.assert_called_once_with(
-            product_id="测试"
-        )
-        config_resolver._secrets.get_api_key.assert_called_once_with("deepseek")
+        reader.get_llm_config.assert_called_once_with(product_id="测试")
+        secrets.get_api_key.assert_called_once_with("deepseek")
