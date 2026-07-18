@@ -67,7 +67,8 @@ class TestTTSPreviewBlackBox:
         monkeypatch.delenv("MIMO_API_KEY", raising=False)
         monkeypatch.delenv("TTS_API_KEY", raising=False)
         response = client.post(
-            "/api/tts/preview", json={"text": "测试文本", "model": "mimo-v2.5-tts", "voice": "Mia"}
+            "/api/tts/preview",
+            json={"text": "测试文本", "model": "mimo-v2.5-tts", "voice": "Mia"},
         )
         assert response.status_code == 500
         assert "MIMO_API_KEY" in response.json()["detail"]

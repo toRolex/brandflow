@@ -87,7 +87,11 @@ class QwenTTSProvider:
                 msg = error_body.get("message", "")
                 code = error_body.get("code", "")
                 if msg:
-                    detail = f"Qwen TTS error: {code} - {msg}" if code else f"Qwen TTS error: {msg}"
+                    detail = (
+                        f"Qwen TTS error: {code} - {msg}"
+                        if code
+                        else f"Qwen TTS error: {msg}"
+                    )
             except Exception:
                 pass
             raise TTSBlockedError(detail)
