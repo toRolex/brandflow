@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import io
+import wave
+
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pathlib import Path
@@ -13,6 +16,20 @@ router = APIRouter(prefix="/api/tts", tags=["tts"])
 _secret_store = SecretStore()
 app_config = _secret_store  # backward compatibility alias
 config_manager = TTSConfigManager()
+
+
+def _is_playable_wav(audio_bytes: bytes) -> bool:
+    try:
+        with wave.open(io.BytesIO(audio_bytes), "rb") as wav_file:
+            frame_count = wav_file.getnframes()
+            if frame_count <= 0 or wav_file.getframerate() <= 0:
+                return False
+            expected_size = (
+                frame_count * wav_file.getnchannels() * wav_file.getsampwidth()
+            )
+            return len(wav_file.readframes(frame_count)) == expected_size
+    except (EOFError, wave.Error):
+        return False
 
 
 class TTSConfigRequest(BaseModel):
@@ -496,11 +513,7 @@ async def preview_tts(request: TTSPreviewRequest):
 
         audio_format = config.audio_format or "wav"
         if audio_format == "wav":
-            if not (
-                len(audio_bytes) >= 12
-                and audio_bytes[:4] == b"RIFF"
-                and audio_bytes[8:12] == b"WAVE"
-            ):
+            if not _is_playable_wav(audio_bytes):
                 raise TTSError("TTS returned invalid WAV audio")
             media_type = "audio/wav"
             filename = "preview.wav"
