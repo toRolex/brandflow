@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any, Callable
 
 from packages.domain_core.models import ArtifactPointer
-from packages.pipeline_services.media_compositor import MediaCompositor
 from packages.pipeline_services.script_service import (
     build_generator_config,
     generate_cover_title,
@@ -31,7 +30,6 @@ from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.tts_provider import TTSConfigShim, create_tts_provider
 from packages.pipeline_services.video_service import VideoService
-from packages.provider_config.config_resolver import ConfigResolver
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
 
@@ -51,15 +49,14 @@ def create_orchestrator(
 ) -> "PhaseOrchestrator":
     """Factory: build a PhaseOrchestrator with real service dependencies."""
     secrets = SecretStore()
-    config_resolver = ConfigResolver(reader=config_reader, secrets=secrets)
-    script_generator = partial(generate_script, config_resolver=config_resolver)
+    script_generator = partial(generate_script, config_reader=config_reader, secret_store=secrets)
 
     return PhaseOrchestrator(
         script_generator=script_generator,
         subtitle_svc=SubtitleService(),
         video_svc=VideoService(dry_run=False),
-        media_compositor=MediaCompositor(),
-        config_resolver=config_resolver,
+        config_reader=config_reader,
+        secret_store=secrets,
     )
 
 
@@ -99,16 +96,16 @@ class PhaseOrchestrator:
         script_generator: Callable[..., dict[str, Any]],
         subtitle_svc: SubtitleService,
         video_svc: VideoService,
-        media_compositor: MediaCompositor,
-        config_resolver: ConfigResolver,
+        config_reader: ConfigReader,
         schedule_store: Any = None,
+        secret_store: SecretStore | None = None,
     ) -> None:
         self._script_generator = script_generator
         self._subtitle_svc = subtitle_svc
         self._video_svc = video_svc
-        self._media_compositor = media_compositor
-        self._config_resolver = config_resolver
         self._schedule_store = schedule_store
+        self._config = config_reader
+        self._secrets = secret_store if secret_store is not None else SecretStore()
 
         self._handlers: dict[str, Callable[[PhaseContext], list[ArtifactPointer]]] = {
             "script_generating": self._run_script,
@@ -215,7 +212,7 @@ class PhaseOrchestrator:
         """Convert *text* to Cantonese using the configured LLM."""
         try:
             gen = ScriptGenerator(
-                build_generator_config(self._config_resolver, ctx.product)
+                build_generator_config(self._config, self._secrets, ctx.product)
             )
             converted = gen.to_cantonese(text, ctx.product, ctx.brand)
             print("[SCRIPT] Converted manual script to Cantonese", flush=True)
@@ -251,7 +248,7 @@ class PhaseOrchestrator:
 
         try:
             cover_title = generate_cover_title(
-                script_text, ctx.product, ctx.brand, self._config_resolver
+                script_text, ctx.product, ctx.brand, self._config, self._secrets
             )
             job_data["cover_title"] = cover_title
             job_json_path.write_text(
@@ -282,7 +279,7 @@ class PhaseOrchestrator:
             if not existing_script:
                 raise RuntimeError(f"No script text found in {job_dir}")
 
-            tts_cfg = self._config_resolver.tts(product_id=ctx.product)
+            tts_cfg = self._config.get_tts_config(product_id=ctx.product)
             job_tts_model: str = ctx.options.get("tts_model", "")
             job_tts_voice: str = ctx.options.get("tts_voice", "")
             if job_tts_model:
@@ -290,7 +287,7 @@ class PhaseOrchestrator:
             if job_tts_voice:
                 tts_cfg["voice"] = job_tts_voice
 
-            provider = create_tts_provider(tts_cfg, self._config_resolver.secrets)
+            provider = create_tts_provider(tts_cfg, self._secrets)
             audio_bytes = provider.synthesize(existing_script, TTSConfigShim(tts_cfg))
             audio_path.write_bytes(audio_bytes)
             print(
@@ -357,15 +354,20 @@ class PhaseOrchestrator:
         from packages.pipeline_services.asset_library.classify import create_classify_fn
 
         db_path = shared_asset_db_path(ctx.root_dir)
-        llm_config, api_key, api_url = self._config_resolver.llm(product_id=ctx.product)
+        llm_cfg = self._config.get_llm_config(product_id=ctx.product)
+        llm_provider = llm_cfg.get("provider", "deepseek")
+        llm_api_key = self._secrets.get_api_key(llm_provider)
+        llm_api_url = self._secrets.get_api_base_url(llm_provider)
+        if llm_api_url and not llm_api_url.endswith("/chat/completions"):
+            llm_api_url = f"{llm_api_url}/chat/completions"
 
         classify_fn = None
-        if api_key and api_url:
+        if llm_api_key and llm_api_url:
             classify_fn = create_classify_fn(
-                api_url=api_url,
-                api_key=api_key,
-                model=self._config_resolver.category_suggestion_model(),
-                category_names=self._config_resolver.categories(product_id=ctx.product),
+                api_url=llm_api_url,
+                api_key=llm_api_key,
+                model=self._config.get_category_suggestion_model(),
+                category_names=_resolve_categories(self._config, ctx),
             )
 
         repo = AssetRepository(db_path)
@@ -657,6 +659,26 @@ def _write_manual_script(job_dir: Path, text: str) -> dict[str, Any]:
         "json_path": str(json_path),
         "final_script": text,
     }
+
+
+def _resolve_categories(config_reader: ConfigReader, ctx: PhaseContext) -> list[str]:
+    """Resolve category names with priority: product > asset_library > defaults."""
+    product_config = config_reader.get_product_config(product_id=ctx.product)
+    product_cats = product_config.get("categories", [])
+    if product_cats:
+        return [c.get("name", "") for c in product_cats if c.get("name")]
+
+    al_config = config_reader.get_asset_library_config()
+    raw = al_config.get("categories", [])
+    if raw:
+        return [c.get("name", "") for c in raw if c.get("name")]
+
+    # Default food categories
+    return [
+        "产地溯源", "原料展示", "加工过程", "质检品控",
+        "包装仓储", "物流配送", "食用场景", "用户反馈",
+        "品牌理念", "产品特写",
+    ]
 
 
 def _resolve_scene_folders(ctx: PhaseContext) -> list[Path]:

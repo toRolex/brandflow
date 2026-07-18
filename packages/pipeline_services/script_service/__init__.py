@@ -9,7 +9,8 @@ from packages.pipeline_services.script_service.generator import (
     ScriptGenerator,
     ScriptResult,
 )
-from packages.provider_config.config_resolver import ConfigResolver
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 
 __all__ = [
     "ScriptGenerator",
@@ -20,9 +21,26 @@ __all__ = [
 ]
 
 
-def build_generator_config(config_resolver: ConfigResolver, product: str) -> Any:
-    """Build a duck-typed config object for ScriptGenerator from ConfigResolver."""
-    llm_config, api_key, api_url = config_resolver.llm(product_id=product or None)
+def _resolve_llm(
+    config_reader: ConfigReader,
+    secret_store: SecretStore,
+    product_id: str = "",
+) -> tuple[dict[str, Any], str, str]:
+    """Resolve LLM config, API key, and chat-completions URL."""
+    cfg = config_reader.get_llm_config(product_id=product_id or None)
+    provider = cfg.get("provider", "deepseek")
+    api_key = secret_store.get_api_key(provider)
+    api_url = secret_store.get_api_base_url(provider)
+    if api_url and not api_url.endswith("/chat/completions"):
+        api_url = f"{api_url}/chat/completions"
+    return cfg, api_key, api_url
+
+
+def build_generator_config(
+    config_reader: ConfigReader, secret_store: SecretStore, product: str
+) -> Any:
+    """Build a duck-typed config object for ScriptGenerator from ConfigReader + SecretStore."""
+    llm_config, api_key, api_url = _resolve_llm(config_reader, secret_store, product or None)
     return SimpleNamespace(
         api_key=api_key,
         base_url=api_url,
@@ -36,15 +54,15 @@ def generate_script(
     *,
     language: str,
     brand: str,
-    config_resolver: ConfigResolver,
+    config_reader: ConfigReader,
+    secret_store: SecretStore,
     custom_prompt: str = "",
 ) -> dict[str, Any]:
     """Generate a script via LLM and persist txt/json artifacts to *output_dir*.
 
-    LLM config is resolved via *config_resolver*. Replaces the old
-    ``LegacyScriptBridge.generate()`` call path.
+    LLM config is resolved via *config_reader* + *secret_store*.
     """
-    config = build_generator_config(config_resolver, product)
+    config = build_generator_config(config_reader, secret_store, product)
     generator = ScriptGenerator(config)
     result = generator.run(
         product=product,
@@ -95,12 +113,13 @@ def generate_cover_title(
     script_text: str,
     product: str,
     brand: str,
-    config_resolver: ConfigResolver,
+    config_reader: ConfigReader,
+    secret_store: SecretStore,
 ) -> dict[str, Any]:
     """Generate a cover title from *script_text*.
 
-    LLM config is resolved via *config_resolver*.
+    LLM config is resolved via *config_reader* + *secret_store*.
     """
-    config = build_generator_config(config_resolver, product)
+    config = build_generator_config(config_reader, secret_store, product)
     generator = ScriptGenerator(config)
     return generator.generate_cover_title(script_text, product, brand)
