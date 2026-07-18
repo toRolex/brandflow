@@ -1,3 +1,1 @@
-"""Runtime adapters package for phase 1."""
-
-__all__ = ["base", "mac_local", "windows_prod"]
+"""Runtime adapters — single RuntimeAdapter class replacing old ABC hierarchy."""

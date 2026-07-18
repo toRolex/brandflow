@@ -3,28 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 
 from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
-from packages.runtime_adapters.base import BaseRuntimeAdapter
 
 
-class MacLocalRuntimeAdapter(BaseRuntimeAdapter):
-    """Runtime adapter for macOS development environment.
+class RuntimeAdapter:
+    """Resolve ffmpeg and manage workspace directories."""
 
-    Locates ffmpeg using the shared resolver:
-      1. ``FFMPEG_PATH`` environment variable
-      2. ``tools/bin/ffmpeg`` relative to CWD
-      3. ``shutil.which('ffmpeg')`` (system PATH)
-    """
-
-    profile_name = "mac-local"
+    def __init__(self, profile_name: str = "mac-local") -> None:
+        self.profile_name = profile_name
 
     def ensure_tools(self) -> None:
         return None
 
     def ffmpeg_path(self) -> Path:
-        """Return the resolved path to ``ffmpeg``.
-
-        Raises :class:`ToolNotFoundError` if ffmpeg cannot be located.
-        """
         return Path(_resolve_ffmpeg_path())
 
     def attempt_root(self, workspace_root: Path, attempt_id: str) -> Path:
