@@ -6,7 +6,7 @@ Covers:
 - Import mode transition routing in _compute_transition
 - Generate mode preserves existing flow
 - Import mode skips script_review/tts_review defensively
-- run_phases_parallel dispatch
+- execute_phases_parallel dispatch
 - Skeleton handlers for scene_assembling / montage_assembling
 """
 
@@ -285,62 +285,6 @@ class TestImportModeSkipReviews:
         # Should wait for human review (empty action)
         assert action.run_handler is False
         assert action.new_phase is None
-
-
-# ---------------------------------------------------------------------------
-# 6. run_phases_parallel dispatch
-# ---------------------------------------------------------------------------
-
-
-class TestRunPhasesParallel:
-    def test_executes_all_phases(self) -> None:
-        """run_phases_parallel executes every phase in the list."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 2)
-        ctx = PhaseContext(
-            job_id="job-001",
-            project_dir=Path("/tmp/proj"),
-            root_dir=Path("/tmp"),
-            product="test",
-        )
-        results = orch.run_phases_parallel(["scene_assembling", "tts_generating"], ctx)
-        assert "scene_assembling" in results
-        assert "tts_generating" in results
-
-    def test_returns_dict_of_lists(self) -> None:
-        """Returns dict[str, list[ArtifactPointer]]."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 2)
-        ctx = PhaseContext(
-            job_id="job-001",
-            project_dir=Path("/tmp/proj"),
-            root_dir=Path("/tmp"),
-            product="test",
-        )
-        results = orch.run_phases_parallel(["scene_assembling"], ctx)
-        assert isinstance(results, dict)
-        assert isinstance(results["scene_assembling"], list)
-
-    def test_no_one_phase_crash_kills_all(self) -> None:
-        """One failing phase should not prevent other phases from completing."""
-        orch = PhaseOrchestrator(*[MagicMock()] * 2)
-        ctx = PhaseContext(
-            job_id="job-001",
-            project_dir=Path("/tmp/proj"),
-            root_dir=Path("/tmp"),
-            product="test",
-        )
-
-        # Inject a failing handler
-        def _failing(_ctx):
-            raise RuntimeError("oh no")
-
-        orch._handlers["scene_assembling"] = _failing
-        results = orch.run_phases_parallel(
-            ["scene_assembling", "montage_assembling"], ctx
-        )
-        assert "scene_assembling" in results
-        assert "montage_assembling" in results
-        assert results["scene_assembling"] == []
-        assert results["montage_assembling"] == []
 
     def test_merges_all_results_in_job_tick_service(self) -> None:
         """JobTickService.tick with parallel_phases merges all artifacts."""

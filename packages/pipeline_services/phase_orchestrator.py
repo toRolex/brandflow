@@ -411,35 +411,6 @@ class PhaseOrchestrator:
                 results[phase_name] = result
         return results
 
-    def run_phases_parallel(
-        self, phases: list[str], ctx: PhaseContext
-    ) -> dict[str, list[ArtifactPointer]]:
-        """Execute multiple phases concurrently via ``ThreadPoolExecutor``.
-
-        Each phase runs its registered handler.  Errors are caught per-phase
-        so that one failure does not kill the entire batch.
-
-        Returns
-        -------
-        dict[str, list[ArtifactPointer]]
-            Mapping from phase name to its produced artifacts.
-        """
-        results: dict[str, list[ArtifactPointer]] = {}
-
-        with ThreadPoolExecutor(max_workers=len(phases)) as executor:
-            future_map = {
-                executor.submit(self.run_phase, phase, ctx): phase for phase in phases
-            }
-            for future in as_completed(future_map):
-                phase_name = future_map[future]
-                try:
-                    results[phase_name] = future.result()
-                except Exception as e:
-                    print(f"[PARALLEL] Phase {phase_name} failed: {e}", flush=True)
-                    results[phase_name] = []
-
-        return results
-
     # -- helpers ------------------------------------------------------------
 
     def _job_dir(self, ctx: PhaseContext) -> Path:
