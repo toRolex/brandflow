@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../api/client";
 
 interface TTSConfig {
@@ -144,6 +144,7 @@ export default function TTSConfigPage() {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [loading, setLoading] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const prevModelRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     loadConfig();
@@ -151,7 +152,9 @@ export default function TTSConfigPage() {
 
   useEffect(() => {
     if (config?.model) {
-      loadVoices(config.model);
+      const modelChanged = prevModelRef.current !== undefined && prevModelRef.current !== config.model;
+      prevModelRef.current = config.model;
+      loadVoicesForModel(config.model, modelChanged);
     }
   }, [config?.model]);
 
@@ -160,10 +163,20 @@ export default function TTSConfigPage() {
     setConfig(data as unknown as TTSConfig);
   };
 
-  const loadVoices = async (model: string) => {
+  const loadVoicesForModel = async (model: string, setDefault: boolean) => {
     try {
       const data = await api.getTTSVoices(undefined, model);
-      setVoices(data.preset_voices);
+      const loadedVoices = data.preset_voices;
+      setVoices(loadedVoices);
+      if (setDefault && loadedVoices.length > 0) {
+        const isPresetModel =
+          model === "mimo-v2.5-tts" ||
+          model === "qwen3-tts-flash" ||
+          model === "qwen3-tts-instruct-flash";
+        if (isPresetModel) {
+          setConfig((prev) => (prev ? { ...prev, voice: loadedVoices[0].id } : prev));
+        }
+      }
     } catch {
       setVoices([]);
     }
@@ -290,7 +303,7 @@ export default function TTSConfigPage() {
                     ? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
                     : "border-[var(--border-default)] hover:border-[var(--border-default)]"
                 }`}
-                onClick={() => setConfig({ ...config, model: "qwen3-tts-flash", voice: "Rocky" })}
+                onClick={() => setConfig({ ...config, model: "qwen3-tts-flash" })}
               >
                 <h3 className="font-semibold">Qwen Flash</h3>
                 <p className="text-sm text-[var(--text-tertiary)]">qwen3-tts-flash</p>
@@ -302,7 +315,7 @@ export default function TTSConfigPage() {
                     ? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
                     : "border-[var(--border-default)] hover:border-[var(--border-default)]"
                 }`}
-                onClick={() => setConfig({ ...config, model: "qwen3-tts-instruct-flash", voice: "Rocky" })}
+                onClick={() => setConfig({ ...config, model: "qwen3-tts-instruct-flash" })}
               >
                 <h3 className="font-semibold">Qwen Instruct</h3>
                 <p className="text-sm text-[var(--text-tertiary)]">qwen3-tts-instruct-flash</p>
@@ -310,6 +323,20 @@ export default function TTSConfigPage() {
               </div>
             </div>
           </section>
+
+          <div className="flex items-center gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">格式</label>
+              <select
+                className="w-full px-3 py-2 border border-[var(--border-default)] rounded-lg"
+                value={config.audio_format}
+                onChange={(e) => setConfig({ ...config, audio_format: e.target.value })}
+              >
+                <option value="wav">wav</option>
+                <option value="pcm16">pcm16</option>
+              </select>
+            </div>
+          </div>
 
           {(config.model === "mimo-v2.5-tts" || config.model?.startsWith("qwen3-tts")) && (
             <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
@@ -513,6 +540,7 @@ export default function TTSConfigPage() {
             </section>
           )}
 
+          {!config.model?.startsWith("qwen3-tts") && (
           <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
             <h2 className="text-lg font-semibold mb-4">风格控制</h2>
             
@@ -702,20 +730,8 @@ export default function TTSConfigPage() {
               )}
             </div>
           </section>
+          )}
 
-          <div className="flex items-center gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">格式</label>
-              <select
-                className="w-full px-3 py-2 border border-[var(--border-default)] rounded-lg"
-                value={config.audio_format}
-                onChange={(e) => setConfig({ ...config, audio_format: e.target.value })}
-              >
-                <option value="wav">wav</option>
-                <option value="pcm16">pcm16</option>
-              </select>
-            </div>
-          </div>
 
 
           <div className="flex items-center gap-4">
