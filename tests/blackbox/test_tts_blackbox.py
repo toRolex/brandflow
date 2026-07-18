@@ -30,9 +30,8 @@ class TestTTSConfigBlackBox:
             "voice_design_prompt": "年轻女性",
             "style_prompt": "活泼热情",
             "audio_format": "wav",
-            "sample_rate": 44100,
-            "bitrate": 192000,
-            "channel": 2,
+            "style_control_mode": "simple",
+            "style_prompt": "natural",
         }
         response = client.put("/api/tts/config", json=config)
         assert response.status_code == 200

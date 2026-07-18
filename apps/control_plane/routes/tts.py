@@ -30,9 +30,6 @@ class TTSConfigRequest(BaseModel):
     audio_tags_enabled: bool | None = None
     audio_tags: str | None = None
     audio_format: str | None = None
-    sample_rate: int | None = None
-    bitrate: int | None = None
-    channel: int | None = None
     # Qwen-TTS fields
     instructions: str | None = None
     optimize_instructions: bool | None = None
@@ -58,9 +55,6 @@ class TTSConfigResponse(BaseModel):
     audio_tags_enabled: bool
     audio_tags: str
     audio_format: str
-    sample_rate: int | None
-    bitrate: int | None
-    channel: int | None
     # Qwen-TTS fields
     instructions: str
     optimize_instructions: bool

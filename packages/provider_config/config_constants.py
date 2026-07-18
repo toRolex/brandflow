@@ -35,12 +35,6 @@ DEFAULTS: dict[str, Any] = {
             "tags": "",
         },
         "audio_format": "wav",
-        "sample_rate": None,
-        "bitrate": None,
-        "channel": None,
-        "enable_request_logging": False,
-        "enable_performance_metrics": True,
-        "log_audio_duration": True,
     },
     "vision": {
         "provider": "xiaomi",
