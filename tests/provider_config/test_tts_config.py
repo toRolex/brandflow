@@ -44,30 +44,6 @@ def test_default_audio_format() -> None:
     assert TTSConfig().with_defaults().audio_format == "wav"
 
 
-def test_default_sample_rate() -> None:
-    assert TTSConfig().with_defaults().sample_rate is None
-
-
-def test_default_bitrate() -> None:
-    assert TTSConfig().with_defaults().bitrate is None
-
-
-def test_default_channel() -> None:
-    assert TTSConfig().with_defaults().channel is None
-
-
-def test_default_enable_request_logging() -> None:
-    assert TTSConfig().with_defaults().enable_request_logging is False
-
-
-def test_default_enable_performance_metrics() -> None:
-    assert TTSConfig().with_defaults().enable_performance_metrics is True
-
-
-def test_default_log_audio_duration() -> None:
-    assert TTSConfig().with_defaults().log_audio_duration is True
-
-
 # ---------------------------------------------------------------------------
 # TTSConfig custom values
 # ---------------------------------------------------------------------------
@@ -85,18 +61,6 @@ def test_custom_random_voices() -> None:
     assert TTSConfig(random_voices=["A", "B", "C"]).random_voices == ["A", "B", "C"]
 
 
-def test_custom_sample_rate() -> None:
-    assert TTSConfig(sample_rate=44100).sample_rate == 44100
-
-
-def test_custom_bitrate() -> None:
-    assert TTSConfig(bitrate=128000).bitrate == 128000
-
-
-def test_custom_channel() -> None:
-    assert TTSConfig(channel=2).channel == 2
-
-
 # ---------------------------------------------------------------------------
 # TTSConfig.to_dict
 # ---------------------------------------------------------------------------
@@ -105,7 +69,7 @@ def test_custom_channel() -> None:
 def test_to_dict_returns_all_fields() -> None:
     config = TTSConfig()
     data = config.to_dict()
-    assert len(data) == 26
+    assert len(data) == 20
 
 
 def test_to_dict_values_match_defaults() -> None:
@@ -148,11 +112,11 @@ def test_from_dict_empty_dict() -> None:
 
 
 def test_roundtrip_to_dict_from_dict() -> None:
-    original = TTSConfig(model="test", voice="voice", sample_rate=44100)
+    original = TTSConfig(model="test", voice="voice", style_prompt="sp")
     restored = TTSConfig.from_dict(original.to_dict())
     assert restored.model == original.model
     assert restored.voice == original.voice
-    assert restored.sample_rate == original.sample_rate
+    assert restored.style_prompt == original.style_prompt
 
 
 def test_from_dict_ignores_unknown_keys() -> None:
@@ -160,6 +124,14 @@ def test_from_dict_ignores_unknown_keys() -> None:
     config = TTSConfig.from_dict(data)
     assert config.model == "test"
     assert not hasattr(config, "unknown_key")
+
+
+def test_from_dict_ignores_dead_fields() -> None:
+    """from_dict uses .get() so dead field keys in old JSON are silently ignored."""
+    from packages.provider_config.tts_config import TTSConfig as TC
+
+    config = TC.from_dict({"sample_rate": 32000, "model": "test"})
+    assert config.model == "test"
 
 
 # ---------------------------------------------------------------------------
@@ -291,10 +263,10 @@ def test_merge_later_overrides_earlier() -> None:
 
 
 def test_merge_none_values_not_overridden() -> None:
-    base = TTSConfig(sample_rate=44100)
-    override = TTSConfig(sample_rate=None)
+    base = TTSConfig(style_prompt="sp")
+    override = TTSConfig(style_prompt=None)
     merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.sample_rate == 44100  # None does not override
+    assert merged.style_prompt == "sp"  # None does not override
 
 
 def test_merge_empty_string_not_overridden() -> None:
@@ -312,11 +284,11 @@ def test_merge_empty_list_not_overridden() -> None:
 
 
 def test_merge_non_empty_overrides_empty() -> None:
-    base = TTSConfig(voice_design_prompt="", sample_rate=None)
-    override = TTSConfig(voice_design_prompt="new prompt", sample_rate=48000)
+    base = TTSConfig(voice_design_prompt="", style_prompt=None)
+    override = TTSConfig(voice_design_prompt="new prompt", style_prompt="sp")
     merged = TTSConfigManager._merge_configs(base, override)
     assert merged.voice_design_prompt == "new prompt"
-    assert merged.sample_rate == 48000
+    assert merged.style_prompt == "sp"
 
 
 def test_merge_false_not_overridden_by_none() -> None:

@@ -16,9 +16,6 @@ interface TTSConfig {
   audio_tags_enabled: boolean;
   audio_tags: string;
   audio_format: string;
-  sample_rate: number | null;
-  bitrate: number | null;
-  channel: number | null;
   optimize_text_preview?: boolean;
   voice_clone_sample_path?: string | null;
   voice_clone_mime_type?: string | null;
@@ -706,60 +703,20 @@ export default function TTSConfigPage() {
             </div>
           </section>
 
-          <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
-            <h2 className="text-lg font-semibold mb-4">音频参数</h2>
-            <div className="grid grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">格式</label>
-                <select
-                  className="w-full px-3 py-2 border border-[var(--border-default)] rounded-lg"
-                  value={config.audio_format}
-                  onChange={(e) => setConfig({ ...config, audio_format: e.target.value })}
-                >
-                  <option value="wav">wav</option>
-                  <option value="pcm16">pcm16</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">采样率</label>
-                <select
-                  className="w-full px-3 py-2 border border-[var(--border-default)] rounded-lg"
-                  value={config.sample_rate || ""}
-                  onChange={(e) => setConfig({ ...config, sample_rate: e.target.value ? Number(e.target.value) : null })}
-                >
-                  <option value="">默认</option>
-                  <option value="16000">16000</option>
-                  <option value="24000">24000</option>
-                  <option value="32000">32000</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">比特率</label>
-                <select
-                  className="w-full px-3 py-2 border border-[var(--border-default)] rounded-lg"
-                  value={config.bitrate || ""}
-                  onChange={(e) => setConfig({ ...config, bitrate: e.target.value ? Number(e.target.value) : null })}
-                >
-                  <option value="">默认</option>
-                  <option value="64000">64000</option>
-                  <option value="128000">128000</option>
-                  <option value="192000">192000</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">声道</label>
-                <select
-                  className="w-full px-3 py-2 border border-[var(--border-default)] rounded-lg"
-                  value={config.channel || ""}
-                  onChange={(e) => setConfig({ ...config, channel: e.target.value ? Number(e.target.value) : null })}
-                >
-                  <option value="">默认</option>
-                  <option value="1">单声道</option>
-                  <option value="2">立体声</option>
-                </select>
-              </div>
+          <div className="flex items-center gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">格式</label>
+              <select
+                className="w-full px-3 py-2 border border-[var(--border-default)] rounded-lg"
+                value={config.audio_format}
+                onChange={(e) => setConfig({ ...config, audio_format: e.target.value })}
+              >
+                <option value="wav">wav</option>
+                <option value="pcm16">pcm16</option>
+              </select>
             </div>
-          </section>
+          </div>
+
 
           <div className="flex items-center gap-4">
             <button

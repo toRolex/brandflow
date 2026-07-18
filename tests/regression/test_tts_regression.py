@@ -17,10 +17,10 @@ class TestTTSConfigRegression:
         assert merged.random_voices == ["A", "B"]
 
     def test_merge_none_does_not_override(self):
-        base = TTSConfig(sample_rate=44100)
-        override = TTSConfig(sample_rate=None)
+        base = TTSConfig(style_prompt="sp")
+        override = TTSConfig(style_prompt=None)
         merged = TTSConfigManager._merge_configs(base, override)
-        assert merged.sample_rate == 44100
+        assert merged.style_prompt == "sp"
 
     def test_project_config_overrides_global(self, tmp_path):
         global_path = tmp_path / "tts_config.json"
