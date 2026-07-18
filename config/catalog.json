@@ -1,0 +1,886 @@
+{
+  "provider_options": {
+    "providers": {
+      "llm": {
+        "label": "LLM",
+        "providers": {
+          "deepseek": {
+            "label": "DeepSeek",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "temperature",
+                "label": "Temperature",
+                "kind": "text"
+              },
+              {
+                "name": "max_tokens",
+                "label": "Max Tokens",
+                "kind": "text"
+              },
+              {
+                "name": "thinking",
+                "label": "Thinking",
+                "kind": "select",
+                "options": [
+                  "disabled",
+                  "enabled"
+                ]
+              },
+              {
+                "name": "organization_id",
+                "label": "Organization ID",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          },
+          "kimi": {
+            "label": "Kimi",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "temperature",
+                "label": "Temperature",
+                "kind": "text"
+              },
+              {
+                "name": "max_tokens",
+                "label": "Max Tokens",
+                "kind": "text"
+              },
+              {
+                "name": "thinking",
+                "label": "Thinking",
+                "kind": "text"
+              },
+              {
+                "name": "organization_id",
+                "label": "Organization ID",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          },
+          "openai": {
+            "label": "OpenAI",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "temperature",
+                "label": "Temperature",
+                "kind": "text"
+              },
+              {
+                "name": "max_tokens",
+                "label": "Max Tokens",
+                "kind": "text"
+              },
+              {
+                "name": "thinking",
+                "label": "Thinking",
+                "kind": "text"
+              },
+              {
+                "name": "organization_id",
+                "label": "Organization ID",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          },
+          "custom": {
+            "label": "Custom",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "temperature",
+                "label": "Temperature",
+                "kind": "text"
+              },
+              {
+                "name": "max_tokens",
+                "label": "Max Tokens",
+                "kind": "text"
+              },
+              {
+                "name": "thinking",
+                "label": "Thinking",
+                "kind": "text"
+              },
+              {
+                "name": "organization_id",
+                "label": "Organization ID",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          }
+        }
+      },
+      "tts": {
+        "label": "TTS",
+        "providers": {
+          "qwen": {
+            "label": "Qwen-TTS",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "voice",
+                "label": "Voice",
+                "kind": "text"
+              },
+              {
+                "name": "instructions",
+                "label": "Instructions",
+                "kind": "text"
+              },
+              {
+                "name": "language_type",
+                "label": "Language",
+                "kind": "text"
+              },
+              {
+                "name": "audio_format",
+                "label": "Audio Format",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          },
+          "mimo": {
+            "label": "MiMo",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "group_id",
+                "label": "Group ID",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "voice",
+                "label": "Voice",
+                "kind": "text"
+              },
+              {
+                "name": "speed",
+                "label": "Speed",
+                "kind": "text"
+              },
+              {
+                "name": "vol",
+                "label": "Volume",
+                "kind": "text"
+              },
+              {
+                "name": "pitch",
+                "label": "Pitch",
+                "kind": "text"
+              },
+              {
+                "name": "emotion",
+                "label": "Emotion",
+                "kind": "text"
+              },
+              {
+                "name": "audio_format",
+                "label": "Audio Format",
+                "kind": "text"
+              },
+              {
+                "name": "sample_rate",
+                "label": "Sample Rate",
+                "kind": "text"
+              },
+              {
+                "name": "bitrate",
+                "label": "Bitrate",
+                "kind": "text"
+              },
+              {
+                "name": "channel",
+                "label": "Channel",
+                "kind": "text"
+              },
+              {
+                "name": "style",
+                "label": "Style",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          },
+          "minimax": {
+            "label": "MiniMax",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "group_id",
+                "label": "Group ID",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "voice_id",
+                "label": "Voice ID",
+                "kind": "text"
+              },
+              {
+                "name": "voice",
+                "label": "Voice",
+                "kind": "text"
+              },
+              {
+                "name": "speed",
+                "label": "Speed",
+                "kind": "text"
+              },
+              {
+                "name": "vol",
+                "label": "Volume",
+                "kind": "text"
+              },
+              {
+                "name": "pitch",
+                "label": "Pitch",
+                "kind": "text"
+              },
+              {
+                "name": "emotion",
+                "label": "Emotion",
+                "kind": "text"
+              },
+              {
+                "name": "audio_format",
+                "label": "Audio Format",
+                "kind": "text"
+              },
+              {
+                "name": "sample_rate",
+                "label": "Sample Rate",
+                "kind": "text"
+              },
+              {
+                "name": "bitrate",
+                "label": "Bitrate",
+                "kind": "text"
+              },
+              {
+                "name": "channel",
+                "label": "Channel",
+                "kind": "text"
+              },
+              {
+                "name": "style",
+                "label": "Style",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          },
+          "custom": {
+            "label": "Custom",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "group_id",
+                "label": "Group ID",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "voice",
+                "label": "Voice",
+                "kind": "text"
+              },
+              {
+                "name": "voice_id",
+                "label": "Voice ID",
+                "kind": "text"
+              },
+              {
+                "name": "speed",
+                "label": "Speed",
+                "kind": "text"
+              },
+              {
+                "name": "vol",
+                "label": "Volume",
+                "kind": "text"
+              },
+              {
+                "name": "pitch",
+                "label": "Pitch",
+                "kind": "text"
+              },
+              {
+                "name": "emotion",
+                "label": "Emotion",
+                "kind": "text"
+              },
+              {
+                "name": "audio_format",
+                "label": "Audio Format",
+                "kind": "text"
+              },
+              {
+                "name": "sample_rate",
+                "label": "Sample Rate",
+                "kind": "text"
+              },
+              {
+                "name": "bitrate",
+                "label": "Bitrate",
+                "kind": "text"
+              },
+              {
+                "name": "channel",
+                "label": "Channel",
+                "kind": "text"
+              },
+              {
+                "name": "style",
+                "label": "Style",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          }
+        }
+      },
+      "text_to_image": {
+        "label": "Text to Image",
+        "providers": {}
+      },
+      "image_to_video": {
+        "label": "Image to Video",
+        "providers": {}
+      },
+      "vision": {
+        "label": "Vision",
+        "providers": {
+          "xiaomi": {
+            "label": "Xiaomi Vision",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "temperature",
+                "label": "Temperature",
+                "kind": "text"
+              },
+              {
+                "name": "max_tokens",
+                "label": "Max Tokens",
+                "kind": "text"
+              },
+              {
+                "name": "thinking",
+                "label": "Thinking",
+                "kind": "select",
+                "options": [
+                  "disabled",
+                  "enabled"
+                ]
+              },
+              {
+                "name": "organization_id",
+                "label": "Organization ID",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          },
+          "openai": {
+            "label": "OpenAI Vision",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "temperature",
+                "label": "Temperature",
+                "kind": "text"
+              },
+              {
+                "name": "max_tokens",
+                "label": "Max Tokens",
+                "kind": "text"
+              },
+              {
+                "name": "thinking",
+                "label": "Thinking",
+                "kind": "select",
+                "options": [
+                  "disabled",
+                  "enabled"
+                ]
+              },
+              {
+                "name": "organization_id",
+                "label": "Organization ID",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          },
+          "claude": {
+            "label": "Claude Vision",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "temperature",
+                "label": "Temperature",
+                "kind": "text"
+              },
+              {
+                "name": "max_tokens",
+                "label": "Max Tokens",
+                "kind": "text"
+              },
+              {
+                "name": "thinking",
+                "label": "Thinking",
+                "kind": "select",
+                "options": [
+                  "disabled",
+                  "enabled"
+                ]
+              },
+              {
+                "name": "organization_id",
+                "label": "Organization ID",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          },
+          "custom": {
+            "label": "Custom Vision",
+            "fields": [
+              {
+                "name": "api_key",
+                "label": "API Key",
+                "kind": "text",
+                "secret": true
+              },
+              {
+                "name": "endpoint",
+                "label": "Endpoint",
+                "kind": "text"
+              },
+              {
+                "name": "model",
+                "label": "Model",
+                "kind": "text"
+              },
+              {
+                "name": "temperature",
+                "label": "Temperature",
+                "kind": "text"
+              },
+              {
+                "name": "max_tokens",
+                "label": "Max Tokens",
+                "kind": "text"
+              },
+              {
+                "name": "thinking",
+                "label": "Thinking",
+                "kind": "select",
+                "options": [
+                  "disabled",
+                  "enabled"
+                ]
+              },
+              {
+                "name": "organization_id",
+                "label": "Organization ID",
+                "kind": "text"
+              },
+              {
+                "name": "extra_headers",
+                "label": "Extra Headers",
+                "kind": "json"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "default_provider_document": {
+    "providers": {
+      "llm": {
+        "selected": "deepseek",
+        "providers": {
+          "deepseek": {
+            "api_key": "",
+            "endpoint": "https://api.deepseek.com/chat/completions",
+            "model": "deepseek-v4-pro",
+            "temperature": "",
+            "max_tokens": "",
+            "thinking": "disabled",
+            "organization_id": "",
+            "extra_headers": ""
+          },
+          "kimi": {
+            "api_key": "",
+            "endpoint": "https://api.moonshot.cn/v1/chat/completions",
+            "model": "moonshot-v1-8k",
+            "temperature": "",
+            "max_tokens": "",
+            "thinking": "",
+            "organization_id": "",
+            "extra_headers": ""
+          },
+          "openai": {
+            "api_key": "",
+            "endpoint": "https://api.openai.com/v1/chat/completions",
+            "model": "gpt-4o-mini",
+            "temperature": "",
+            "max_tokens": "",
+            "thinking": "",
+            "organization_id": "",
+            "extra_headers": ""
+          },
+          "custom": {
+            "api_key": "",
+            "endpoint": "",
+            "model": "",
+            "temperature": "",
+            "max_tokens": "",
+            "thinking": "",
+            "organization_id": "",
+            "extra_headers": ""
+          }
+        }
+      },
+      "tts": {
+        "selected": "mimo",
+        "providers": {
+          "qwen": {
+            "api_key": "",
+            "endpoint": "https://dashscope.aliyuncs.com/api/v1",
+            "model": "qwen3-tts-flash",
+            "voice": "Rocky",
+            "instructions": "",
+            "language_type": "Chinese",
+            "audio_format": "wav",
+            "extra_headers": ""
+          },
+          "mimo": {
+            "api_key": "",
+            "endpoint": "https://api.xiaomimimo.com/v1",
+            "group_id": "",
+            "model": "mimo-v2.5-tts",
+            "voice": "Mia",
+            "speed": "",
+            "vol": "",
+            "pitch": "",
+            "emotion": "",
+            "audio_format": "wav",
+            "sample_rate": "",
+            "bitrate": "",
+            "channel": "",
+            "style": "自然 清晰 适合短视频带货口播",
+            "extra_headers": ""
+          },
+          "minimax": {
+            "api_key": "",
+            "endpoint": "https://api-bj.minimaxi.com/v1/t2a_v2",
+            "group_id": "",
+            "model": "speech-2.8-hd",
+            "voice_id": "male-qn-qingse",
+            "voice": "",
+            "speed": "1.15",
+            "vol": "1.0",
+            "pitch": "0",
+            "emotion": "calm",
+            "audio_format": "mp3",
+            "sample_rate": "32000",
+            "bitrate": "128000",
+            "channel": "1",
+            "style": "",
+            "extra_headers": ""
+          },
+          "custom": {
+            "api_key": "",
+            "endpoint": "",
+            "group_id": "",
+            "model": "",
+            "voice": "",
+            "voice_id": "",
+            "speed": "",
+            "vol": "",
+            "pitch": "",
+            "emotion": "",
+            "audio_format": "",
+            "sample_rate": "",
+            "bitrate": "",
+            "channel": "",
+            "style": "",
+            "extra_headers": ""
+          }
+        }
+      },
+      "text_to_image": {
+        "selected": "",
+        "providers": {}
+      },
+      "image_to_video": {
+        "selected": "",
+        "providers": {}
+      },
+      "vision": {
+        "selected": "",
+        "providers": {
+          "xiaomi": {
+            "api_key": "",
+            "endpoint": "",
+            "model": "",
+            "temperature": "",
+            "max_tokens": "300",
+            "thinking": "",
+            "organization_id": "",
+            "extra_headers": ""
+          },
+          "openai": {
+            "api_key": "",
+            "endpoint": "https://api.openai.com/v1/chat/completions",
+            "model": "gpt-4o",
+            "temperature": "",
+            "max_tokens": "300",
+            "thinking": "",
+            "organization_id": "",
+            "extra_headers": ""
+          },
+          "claude": {
+            "api_key": "",
+            "endpoint": "https://api.anthropic.com/v1/messages",
+            "model": "claude-sonnet-4-20250514",
+            "temperature": "",
+            "max_tokens": "300",
+            "thinking": "",
+            "organization_id": "",
+            "extra_headers": ""
+          },
+          "custom": {
+            "api_key": "",
+            "endpoint": "",
+            "model": "",
+            "temperature": "",
+            "max_tokens": "300",
+            "thinking": "",
+            "organization_id": "",
+            "extra_headers": ""
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 """Shared provider configuration helpers."""
 
-from packages.provider_config.catalog import (
+from packages.provider_config.config_constants import (
     default_provider_document,
     provider_options_payload,
 )

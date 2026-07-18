@@ -1,11 +1,14 @@
-"""Shared config constants and utilities used by both ``app_config`` and ``config_reader``.
+"""Shared config constants and utilities used by ``config_reader``.
 
-This module exists solely to break the circular import between the two.
+This module exists solely to break the circular import between ``config_reader``
+and the rest of the config layer.
 """
 
 from __future__ import annotations
 
+import json
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 
@@ -134,3 +137,28 @@ def _set_nested(data: dict[str, Any], key_path: str, value: Any) -> None:
             current[key] = {}
         current = current[key]
     current[keys[-1]] = value
+
+
+# ---------------------------------------------------------------------------
+# Provider catalog: static data moved from catalog.py → config/catalog.json
+# ---------------------------------------------------------------------------
+
+_CATALOG_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "config" / "catalog.json"
+)
+_CATALOG_CACHE: dict[str, Any] | None = None
+
+
+def _load_catalog() -> dict[str, Any]:
+    global _CATALOG_CACHE
+    if _CATALOG_CACHE is None:
+        _CATALOG_CACHE = json.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
+    return _CATALOG_CACHE
+
+
+def default_provider_document() -> dict:
+    return deepcopy(_load_catalog()["default_provider_document"])
+
+
+def provider_options_payload() -> dict:
+    return deepcopy(_load_catalog()["provider_options"])
