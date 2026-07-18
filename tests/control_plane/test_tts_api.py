@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import pytest
@@ -210,16 +209,14 @@ class TestTTSPreviewAPI:
             patch("apps.control_plane.routes.tts.app_config") as mock_config,
         ):
             mock_config.get_api_key.return_value = "test-api-key"
-            mock_config.get_api_base_url.return_value = "https://dashscope.aliyuncs.com/api/v1"
+            mock_config.get_api_base_url.return_value = (
+                "https://dashscope.aliyuncs.com/api/v1"
+            )
 
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {
-                "output": {
-                    "audio": {
-                        "url": "https://example.com/audio.wav"
-                    }
-                }
+                "output": {"audio": {"url": "https://example.com/audio.wav"}}
             }
             mock_post.return_value = mock_response
 
@@ -318,12 +315,15 @@ class TestTTSConfigNewFieldsRoundTrip:
     def test_save_and_restore_qwen_fields(self, client):
         """PUT 含 instructions/language_type/optimize_instructions → GET 可还原"""
         get_mock, save_mock = self._mock_manager()
-        with patch(
-            "apps.control_plane.routes.tts.config_manager.get_config",
-            side_effect=get_mock,
-        ), patch(
-            "apps.control_plane.routes.tts.config_manager.save_config",
-            side_effect=save_mock,
+        with (
+            patch(
+                "apps.control_plane.routes.tts.config_manager.get_config",
+                side_effect=get_mock,
+            ),
+            patch(
+                "apps.control_plane.routes.tts.config_manager.save_config",
+                side_effect=save_mock,
+            ),
         ):
             config = {
                 "model": "qwen3-tts-flash",
@@ -346,12 +346,15 @@ class TestTTSConfigNewFieldsRoundTrip:
     def test_save_and_restore_voiceclone_voicedesign_fields(self, client):
         """PUT 含 voice_clone_sample_path/voice_clone_mime_type/optimize_text_preview → GET 可还原"""
         get_mock, save_mock = self._mock_manager()
-        with patch(
-            "apps.control_plane.routes.tts.config_manager.get_config",
-            side_effect=get_mock,
-        ), patch(
-            "apps.control_plane.routes.tts.config_manager.save_config",
-            side_effect=save_mock,
+        with (
+            patch(
+                "apps.control_plane.routes.tts.config_manager.get_config",
+                side_effect=get_mock,
+            ),
+            patch(
+                "apps.control_plane.routes.tts.config_manager.save_config",
+                side_effect=save_mock,
+            ),
         ):
             config = {
                 "model": "mimo-v2.5-tts-voicedesign",
