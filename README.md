@@ -232,7 +232,7 @@ cd frontend && npm run build
 
 智能素材库（全局 `/api/assets`）支持多维度前端筛选：分类、状态、时长（滑块）、关键词、置信度、使用次数。置信度和使用次数在"更多筛选"折叠面板中。支持结果计数、一键清除和空状态提示。
 
-> 旧版 per-project 素材端点（`/{project_id}/assets/*`）已标记为 DEPRECATED，请迁移到全局 `/api/assets` 端点。
+> 旧版 per-project 素材端点（`/{project_id}/assets/*`）已迁移到全局 `/api/assets` 端点，旧端点已删除（Issue #239）。
 
 ## 产品配置
 
