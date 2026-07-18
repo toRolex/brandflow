@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -123,7 +122,8 @@ class TestJobTTSPreview:
         _make_project_root(client, proj_id)
         # Script with multiple sentences: "这是第一句文案。这是第二句文案。"
         job = _create_job(
-            client, proj_id,
+            client,
+            proj_id,
             manual_script="这是第一句文案。这是第二句文案。这是第三句文案。",
         )
         resp = client.post(f"/api/jobs/{job['job_id']}/tts/preview")
@@ -139,7 +139,8 @@ class TestJobTTSPreview:
         proj_id = "proj-pv2"
         _make_project_root(client, proj_id)
         job = _create_job(
-            client, proj_id,
+            client,
+            proj_id,
             manual_script="测试文案第一句。",
             tts_voice="Dean",
             tts_model="mimo-v2.5-tts",
@@ -150,9 +151,10 @@ class TestJobTTSPreview:
     def test_preview_does_not_persist_artifacts(self, client):
         """Preview must NOT create artifacts or modify job phase."""
         proj_id = "proj-pv3"
-        proj_dir = _make_project_root(client, proj_id)
+        _make_project_root(client, proj_id)
         job = _create_job(
-            client, proj_id,
+            client,
+            proj_id,
             manual_script="测试文案第一句。",
         )
         job_id = job["job_id"]
@@ -187,9 +189,10 @@ class TestUpdateJobTTSVoice:
     def test_update_voice_no_audio_succeeds(self, client):
         """When no audio.mp3 exists, voice update succeeds without confirmation."""
         proj_id = "proj-uv1"
-        proj_dir = _make_project_root(client, proj_id)
+        _make_project_root(client, proj_id)
         job = _create_job(
-            client, proj_id,
+            client,
+            proj_id,
             manual_script="测试文案。",
             tts_model="",
             tts_voice="",
@@ -236,7 +239,8 @@ class TestUpdateJobTTSVoice:
         proj_id = "proj-uv3"
         proj_dir = _make_project_root(client, proj_id)
         job = _create_job(
-            client, proj_id,
+            client,
+            proj_id,
             manual_script="测试文案。",
             tts_model="old-model",
             tts_voice="old-voice",
@@ -246,7 +250,9 @@ class TestUpdateJobTTSVoice:
         # Put fake audio and downstream artifacts
         _put_audio_file(proj_dir, job_id)
         _put_artifacts_on_job(
-            client, proj_id, job_id,
+            client,
+            proj_id,
+            job_id,
             ["tts_audio", "subtitle", "video_base", "final_video"],
         )
 
@@ -291,7 +297,9 @@ class TestUpdateJobTTSVoice:
         _put_audio_file(proj_dir, job_id)
         # Put script, TTS, and asset selection artifacts
         _put_artifacts_on_job(
-            client, proj_id, job_id,
+            client,
+            proj_id,
+            job_id,
             ["script", "tts_audio", "selected_clips", "video_base", "final_video"],
         )
 
@@ -324,9 +332,10 @@ class TestUpdateJobTTSVoice:
     def test_update_voice_only_model(self, client):
         """Partial update: only change model, keep existing voice."""
         proj_id = "proj-uv5"
-        proj_dir = _make_project_root(client, proj_id)
+        _make_project_root(client, proj_id)
         job = _create_job(
-            client, proj_id,
+            client,
+            proj_id,
             manual_script="测试文案。",
             tts_voice="Mia",
             tts_model="",
@@ -346,9 +355,10 @@ class TestUpdateJobTTSVoice:
     def test_update_voice_only_voice(self, client):
         """Partial update: only change voice, keep existing model."""
         proj_id = "proj-uv6"
-        proj_dir = _make_project_root(client, proj_id)
+        _make_project_root(client, proj_id)
         job = _create_job(
-            client, proj_id,
+            client,
+            proj_id,
             manual_script="测试文案。",
             tts_voice="",
             tts_model="mimo-v2.5-tts",

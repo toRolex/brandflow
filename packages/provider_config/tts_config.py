@@ -41,12 +41,6 @@ class TTSConfig:
     language_type: str | None = None  # 语种 (Auto/Chinese/English/...)
 
     audio_format: str | None = None
-    sample_rate: int | None = None
-    bitrate: int | None = None
-    channel: int | None = None
-    enable_request_logging: bool | None = None
-    enable_performance_metrics: bool | None = None
-    log_audio_duration: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -70,12 +64,6 @@ class TTSConfig:
             "optimize_instructions": self.optimize_instructions,
             "language_type": self.language_type,
             "audio_format": self.audio_format,
-            "sample_rate": self.sample_rate,
-            "bitrate": self.bitrate,
-            "channel": self.channel,
-            "enable_request_logging": self.enable_request_logging,
-            "enable_performance_metrics": self.enable_performance_metrics,
-            "log_audio_duration": self.log_audio_duration,
         }
 
     @classmethod
@@ -101,12 +89,6 @@ class TTSConfig:
             optimize_instructions=data.get("optimize_instructions", False),
             language_type=data.get("language_type"),
             audio_format=data.get("audio_format"),
-            sample_rate=data.get("sample_rate"),
-            bitrate=data.get("bitrate"),
-            channel=data.get("channel"),
-            enable_request_logging=data.get("enable_request_logging"),
-            enable_performance_metrics=data.get("enable_performance_metrics"),
-            log_audio_duration=data.get("log_audio_duration"),
         )
 
     def with_defaults(self) -> TTSConfig:
@@ -160,20 +142,6 @@ class TTSConfig:
             audio_format=self.audio_format
             if self.audio_format is not None
             else defaults["audio_format"],
-            sample_rate=self.sample_rate
-            if self.sample_rate is not None
-            else defaults["sample_rate"],
-            bitrate=self.bitrate if self.bitrate is not None else defaults["bitrate"],
-            channel=self.channel if self.channel is not None else defaults["channel"],
-            enable_request_logging=self.enable_request_logging
-            if self.enable_request_logging is not None
-            else defaults["enable_request_logging"],
-            enable_performance_metrics=self.enable_performance_metrics
-            if self.enable_performance_metrics is not None
-            else defaults["enable_performance_metrics"],
-            log_audio_duration=self.log_audio_duration
-            if self.log_audio_duration is not None
-            else defaults["log_audio_duration"],
         )
 
 
@@ -197,12 +165,6 @@ class TTSConfigManager:
         "optimize_instructions": False,
         "language_type": "Chinese",
         "audio_format": "wav",
-        "sample_rate": None,
-        "bitrate": None,
-        "channel": None,
-        "enable_request_logging": False,
-        "enable_performance_metrics": True,
-        "log_audio_duration": True,
     }
 
     _FLAT_TO_NESTED = {
@@ -255,12 +217,12 @@ class TTSConfigManager:
         return TTSConfig()
 
     def save_config(self, config: TTSConfig, project_id: str | None = None) -> None:
-        # 自动迁移: mimo-v2-tts → qwen3-tts-flash
+        # 自动迁移: mimo-v2-tts -> qwen3-tts-flash
         if config.model == "mimo-v2-tts":
             import logging
 
             logger = logging.getLogger(__name__)
-            logger.warning("Auto-migrating mimo-v2-tts → qwen3-tts-flash")
+            logger.warning("Auto-migrating mimo-v2-tts -> qwen3-tts-flash")
             config.model = "qwen3-tts-flash"
             config.voice = "Rocky"
         if project_id is None:

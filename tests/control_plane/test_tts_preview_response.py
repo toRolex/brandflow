@@ -30,7 +30,8 @@ def test_preview_response_wav_content_type(client):
         mock_post.return_value = mock_response
 
         response = client.post(
-            "/api/tts/preview", json={"text": "测试", "model": "mimo-v2.5-tts"}
+            "/api/tts/preview",
+            json={"text": "测试", "model": "mimo-v2.5-tts", "voice": "Mia"},
         )
 
         assert response.status_code == 200

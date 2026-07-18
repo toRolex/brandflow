@@ -30,9 +30,7 @@ class TestTTSConfigBlackBox:
             "voice_design_prompt": "年轻女性",
             "style_prompt": "活泼热情",
             "audio_format": "wav",
-            "sample_rate": 44100,
-            "bitrate": 192000,
-            "channel": 2,
+            "style_control_mode": "simple",
         }
         response = client.put("/api/tts/config", json=config)
         assert response.status_code == 200
@@ -68,7 +66,8 @@ class TestTTSPreviewBlackBox:
         monkeypatch.delenv("MIMO_API_KEY", raising=False)
         monkeypatch.delenv("TTS_API_KEY", raising=False)
         response = client.post(
-            "/api/tts/preview", json={"text": "测试文本", "model": "mimo-v2.5-tts"}
+            "/api/tts/preview",
+            json={"text": "测试文本", "model": "mimo-v2.5-tts", "voice": "Mia"},
         )
         assert response.status_code == 500
         assert "MIMO_API_KEY" in response.json()["detail"]

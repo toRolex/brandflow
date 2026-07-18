@@ -30,9 +30,14 @@ class TTSConfigRequest(BaseModel):
     audio_tags_enabled: bool | None = None
     audio_tags: str | None = None
     audio_format: str | None = None
-    sample_rate: int | None = None
-    bitrate: int | None = None
-    channel: int | None = None
+    # Qwen-TTS fields
+    instructions: str | None = None
+    optimize_instructions: bool | None = None
+    language_type: str | None = None
+    # VoiceClone / VoiceDesign fields
+    voice_clone_sample_path: str | None = None
+    voice_clone_mime_type: str | None = None
+    optimize_text_preview: bool | None = None
 
 
 class TTSConfigResponse(BaseModel):
@@ -50,9 +55,14 @@ class TTSConfigResponse(BaseModel):
     audio_tags_enabled: bool
     audio_tags: str
     audio_format: str
-    sample_rate: int | None
-    bitrate: int | None
-    channel: int | None
+    # Qwen-TTS fields
+    instructions: str
+    optimize_instructions: bool
+    language_type: str
+    # VoiceClone / VoiceDesign fields
+    voice_clone_sample_path: str | None
+    voice_clone_mime_type: str | None
+    optimize_text_preview: bool
 
 
 class TTSPreviewRequest(BaseModel):
@@ -61,6 +71,10 @@ class TTSPreviewRequest(BaseModel):
     voice: str | None = None
     style_prompt: str | None = None
     voice_design_prompt: str | None = None
+    # Qwen-TTS fields
+    instructions: str | None = None
+    optimize_instructions: bool | None = None
+    language_type: str | None = None
 
 
 PRESET_VOICES = [
@@ -342,6 +356,8 @@ async def save_tts_config(request: TTSConfigRequest, project_id: str | None = No
     for key, value in update_data.items():
         setattr(current, key, value)
 
+    validate_voice_for_model(current.model, current.voice)
+
     config_manager.save_config(current, project_id)
     return {"success": True}
 
@@ -353,6 +369,57 @@ MODEL_TO_PROVIDER = {
     "qwen3-tts-flash": "qwen",
     "qwen3-tts-instruct-flash": "qwen",
 }
+
+
+def get_valid_preset_voice_ids(model: str) -> set[str] | None:
+    """Return valid preset voice IDs for a model, or None if the model doesn't use preset voices.
+
+    VoiceDesign/VoiceClone sub-models return None (skip validation).
+    Unknown models also return None.
+    """
+    if not model:
+        return None
+    provider = MODEL_TO_PROVIDER.get(model)
+    if provider is None:
+        return None
+    # VoiceDesign/VoiceClone sub-models have no preset voice concept
+    if model in ("mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone"):
+        return None
+    if provider == "mimo":
+        return {v["id"] for v in PRESET_VOICES}
+    if provider == "qwen":
+        if model == "qwen3-tts-instruct-flash":
+            return {
+                v["id"]
+                for v in QWEN_VOICES
+                if v["id"] not in INSTRUCT_UNSUPPORTED_VOICES
+            }
+        return {v["id"] for v in QWEN_VOICES}
+    return None
+
+
+def validate_voice_for_model(model: str | None, voice: str | None) -> None:
+    """Validate that voice belongs to the model's provider.
+
+    Raises HTTPException(422) with a list of valid preset voices when invalid.
+    Skips validation for VoiceDesign/VoiceClone sub-models and unknown models.
+    """
+    if not voice or not model:
+        return
+    valid_ids = get_valid_preset_voice_ids(model)
+    if valid_ids is None:
+        return
+    if voice in valid_ids:
+        return
+    provider = MODEL_TO_PROVIDER.get(model, "unknown")
+    sorted_ids = sorted(valid_ids)
+    preview = sorted_ids[:12]
+    detail = (
+        f"音色 '{voice}' 不属于模型 {model} ({provider} provider)。"
+        f"有效音色 ({len(sorted_ids)} 个): {', '.join(preview)}"
+        + (" ..." if len(sorted_ids) > 12 else "")
+    )
+    raise HTTPException(status_code=422, detail=detail)
 
 
 @router.get("/voices")
@@ -383,6 +450,7 @@ async def preview_tts(request: TTSPreviewRequest):
         from packages.pipeline_services.tts_provider import (
             MiMoTTSProvider,
             QwenTTSProvider,
+            TTSError,
         )
 
         config = config_manager.get_config().with_defaults()
@@ -395,6 +463,16 @@ async def preview_tts(request: TTSPreviewRequest):
             config.style_prompt = request.style_prompt
         if request.voice_design_prompt:
             config.voice_design_prompt = request.voice_design_prompt
+        # Pass through Qwen-specific fields from the request so
+        # preview uses the current page values, not stale saved ones.
+        if request.instructions is not None:
+            config.instructions = request.instructions
+        if request.optimize_instructions is not None:
+            config.optimize_instructions = request.optimize_instructions
+        if request.language_type is not None:
+            config.language_type = request.language_type
+
+        validate_voice_for_model(config.model, config.voice)
 
         model = config.model or ""
         if model.startswith("qwen"):
@@ -435,6 +513,8 @@ async def preview_tts(request: TTSPreviewRequest):
 
     except HTTPException:
         raise
+    except TTSError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
