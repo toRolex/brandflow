@@ -5,9 +5,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from packages.script_template.models import ScriptTemplate
-from packages.script_template.renderer import render_template
-from packages.script_template.store import ScriptTemplateStore
+from packages.script_template import (
+    ScriptTemplate,
+    render_template,
+    ScriptTemplateStore,
+)
 
 router = APIRouter(prefix="/api/config/templates", tags=["templates"])
 

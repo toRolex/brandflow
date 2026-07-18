@@ -3,11 +3,11 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from packages.script_template.store import ScriptTemplateStore
-from packages.script_template.models import (
+from packages.script_template import (
     ScriptTemplate,
     TemplateSlot,
     TemplateVariable,
+    ScriptTemplateStore,
 )
 
 
@@ -176,11 +176,13 @@ def test_persistence() -> None:
         assert tmpl.name == "通用带货脚本"
 
 
-def test_generate_id() -> None:
-    """generate_id 应返回合法 ID"""
+def test_create_generates_id() -> None:
+    """不传 ID 时自动生成 tmpl_ 前缀的 ID"""
     with tempfile.TemporaryDirectory() as tmpdir:
         store = ScriptTemplateStore(tmpdir)
-        id1 = store.generate_id()
-        assert id1.startswith("tmpl_")
-        id2 = store.generate_id()
-        assert id1 != id2
+        tmpl = ScriptTemplate(
+            id="", name="auto-id", slots=[], variables=[], default_config_override={}
+        )
+        created = store.create_template(tmpl)
+        assert created.id.startswith("tmpl_")
+        assert len(created.id) == 17  # "tmpl_" + 12 hex chars
