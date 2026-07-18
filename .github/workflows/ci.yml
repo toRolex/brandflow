@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-test:
+  python:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -28,12 +28,21 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
-      - name: Type check (optional, uncomment when ready)
-        # run: uv run ty
-        run: echo "type check skipped"
+      - name: Type check
+        run: uv run ty check
 
       - name: Install ffmpeg
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Run tests
+        run: uv run pytest tests/ -q --tb=short -m "not e2e"
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -43,9 +52,9 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 11
 
-      - name: Cache Vite build
+      - name: Cache Vite
         uses: actions/cache@v4
         with:
           path: frontend/node_modules/.vite
@@ -53,13 +62,18 @@ jobs:
           restore-keys: |
             vite-
 
-      - name: Install frontend dependencies
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
         working-directory: frontend
 
-      - name: Build frontend
-        run: pnpm build
+      - name: Biome check
+        run: pnpm biome check src/
         working-directory: frontend
 
-      - name: Run tests
-        run: uv run pytest tests/ -q --tb=short -m "not e2e"
+      - name: Test
+        run: pnpm test
+        working-directory: frontend
+
+      - name: Build
+        run: pnpm build
+        working-directory: frontend

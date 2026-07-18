@@ -9,61 +9,62 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  /* ---- Typography: Font Families ---- */
-  --font-family-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
-    'Segoe UI', Roboto, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
-  --font-family-title: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
-    'Segoe UI', Roboto, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
-  --font-family-label: 'SF Mono', 'JetBrains Mono', 'Cascadia Code',
-    'Fira Code', 'Noto Sans SC', monospace;
+	/* ---- Typography: Font Families ---- */
+	--font-family-body:
+		-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+		"Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+	--font-family-title:
+		-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto,
+		"Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+	--font-family-label:
+		"SF Mono", "JetBrains Mono", "Cascadia Code", "Fira Code", "Noto Sans SC",
+		monospace;
 
-  /* ---- Typography: Hierarchy ---- */
-  --font-body: 400 0.875rem/1.5 var(--font-family-body);
-  --font-title: 600 1.125rem/1.35 var(--font-family-title);
-  --font-title-spacing: -0.01em;
-  --font-label: 500 0.75rem/1.3 var(--font-family-label);
-  --font-label-spacing: 0.02em;
+	/* ---- Typography: Hierarchy ---- */
+	--font-body: 400 0.875rem / 1.5 var(--font-family-body);
+	--font-title: 600 1.125rem / 1.35 var(--font-family-title);
+	--font-title-spacing: -0.01em;
+	--font-label: 500 0.75rem / 1.3 var(--font-family-label);
+	--font-label-spacing: 0.02em;
 
-  /* ---- Spacing (4px baseline, 6 levels) ---- */
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 24px;
-  --space-2xl: 32px;
+	/* ---- Spacing (4px baseline, 6 levels) ---- */
+	--space-xs: 4px;
+	--space-sm: 8px;
+	--space-md: 12px;
+	--space-lg: 16px;
+	--space-xl: 24px;
+	--space-2xl: 32px;
 
-  /* ---- Elevation: Shadows ---- */
-  --shadow-ambient-low: 0 1px 3px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.12),
-    0 2px 4px rgba(0, 0, 0, 0.06);
-  --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.18),
-    0 4px 8px rgba(0, 0, 0, 0.08);
+	/* ---- Elevation: Shadows ---- */
+	--shadow-ambient-low:
+		0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+	--shadow-elevated:
+		0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
+	--shadow-modal:
+		0 12px 32px rgba(0, 0, 0, 0.18), 0 4px 8px rgba(0, 0, 0, 0.08);
 
-  /* ---- Elevation: Z-Index Scale ---- */
-  --z-dropdown: 100;
-  --z-sticky: 200;
-  --z-modal-backdrop: 300;
-  --z-modal: 400;
-  --z-toast: 500;
-  --z-tooltip: 600;
+	/* ---- Elevation: Z-Index Scale ---- */
+	--z-dropdown: 100;
+	--z-sticky: 200;
+	--z-modal-backdrop: 300;
+	--z-modal: 400;
+	--z-toast: 500;
+	--z-tooltip: 600;
 
-  /* ---- Animation Curves ---- */
-  --ease-standard: 150ms ease;
-  --ease-enter: 200ms ease-out;
-  --ease-exit: 150ms ease-in;
+	/* ---- Animation Curves ---- */
+	--ease-standard: 150ms ease;
+	--ease-enter: 200ms ease-out;
+	--ease-exit: 150ms ease-in;
 
-  /* ---- Motion Tokens (respects prefers-reduced-motion) ---- */
-  --transition-duration: 150ms;
-  --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-duration-slow: 300ms;
+	/* ---- Motion Tokens (respects prefers-reduced-motion) ---- */
+	--transition-duration: 150ms;
+	--transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+	--transition-duration-slow: 300ms;
 
-  /* ---- Border Radius ---- */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
+	/* ---- Border Radius ---- */
+	--radius-sm: 4px;
+	--radius-md: 6px;
+	--radius-lg: 10px;
 }
 
 /* --------------------------------------------------------------------------
@@ -72,306 +73,306 @@
    -------------------------------------------------------------------------- */
 
 :root,
-[data-theme='light'] {
-  /* ---- Primary ---- */
-  --color-electric-blue: oklch(62% 0.19 252);
-  --color-electric-blue-hover: oklch(68% 0.19 252);
-  --color-electric-blue-muted: oklch(62% 0.19 252 / 0.12);
+[data-theme="light"] {
+	/* ---- Primary ---- */
+	--color-electric-blue: oklch(62% 0.19 252);
+	--color-electric-blue-hover: oklch(68% 0.19 252);
+	--color-electric-blue-muted: oklch(62% 0.19 252 / 0.12);
 
-  /* ---- Neutral: Dark ---- */
-  --color-void: oklch(14% 0.006 258);
-  --color-obsidian: oklch(18% 0.006 258);
-  --color-obsidian-raised: oklch(22% 0.006 258);
-  --color-steel: oklch(28% 0.006 258);
-  --color-steel-strong: oklch(35% 0.006 258);
+	/* ---- Neutral: Dark ---- */
+	--color-void: oklch(14% 0.006 258);
+	--color-obsidian: oklch(18% 0.006 258);
+	--color-obsidian-raised: oklch(22% 0.006 258);
+	--color-steel: oklch(28% 0.006 258);
+	--color-steel-strong: oklch(35% 0.006 258);
 
-  /* ---- Neutral: Light ---- */
-  --color-chalk: oklch(97% 0.003 258);
-  --color-frost: oklch(100% 0 0);
-  --color-mist: oklch(88% 0.004 258);
-  --color-graphite: oklch(18% 0.004 258);
-  --color-slate: oklch(40% 0.006 258);
-  --color-fog: oklch(55% 0.006 258);
-  --color-white-smoke: oklch(92% 0 0);
+	/* ---- Neutral: Light ---- */
+	--color-chalk: oklch(97% 0.003 258);
+	--color-frost: oklch(100% 0 0);
+	--color-mist: oklch(88% 0.004 258);
+	--color-graphite: oklch(18% 0.004 258);
+	--color-slate: oklch(40% 0.006 258);
+	--color-fog: oklch(55% 0.006 258);
+	--color-white-smoke: oklch(92% 0 0);
 
-  /* ---- Semantic ---- */
-  --color-signal-green: oklch(58% 0.17 145);
-  --color-signal-green-muted: oklch(58% 0.17 145 / 0.12);
-  --color-alert-red: oklch(55% 0.21 20);
-  --color-alert-red-muted: oklch(55% 0.21 20 / 0.1);
-  --color-caution-amber: oklch(65% 0.14 75);
-  --color-caution-amber-muted: oklch(65% 0.14 75 / 0.12);
+	/* ---- Semantic ---- */
+	--color-signal-green: oklch(58% 0.17 145);
+	--color-signal-green-muted: oklch(58% 0.17 145 / 0.12);
+	--color-alert-red: oklch(55% 0.21 20);
+	--color-alert-red-muted: oklch(55% 0.21 20 / 0.1);
+	--color-caution-amber: oklch(65% 0.14 75);
+	--color-caution-amber-muted: oklch(65% 0.14 75 / 0.12);
 
-  /* ---- Backward-Compat: Backgrounds ---- */
-  --bg-page: var(--color-chalk);
-  --bg-card: var(--color-frost);
-  --bg-nav: var(--color-frost);
-  --bg-header: var(--color-frost);
-  --bg-input: var(--color-frost);
-  --bg-table-head: var(--color-chalk);
-  --bg-nav-active: var(--color-electric-blue-muted);
-  --bg-tag-green: var(--color-signal-green-muted);
-  --bg-tag-yellow: var(--color-caution-amber-muted);
-  --bg-tag-blue: var(--color-electric-blue-muted);
+	/* ---- Backward-Compat: Backgrounds ---- */
+	--bg-page: var(--color-chalk);
+	--bg-card: var(--color-frost);
+	--bg-nav: var(--color-frost);
+	--bg-header: var(--color-frost);
+	--bg-input: var(--color-frost);
+	--bg-table-head: var(--color-chalk);
+	--bg-nav-active: var(--color-electric-blue-muted);
+	--bg-tag-green: var(--color-signal-green-muted);
+	--bg-tag-yellow: var(--color-caution-amber-muted);
+	--bg-tag-blue: var(--color-electric-blue-muted);
 
-  /* ---- Backward-Compat: Text ---- */
-  --text-primary: var(--color-graphite);
-  --text-secondary: var(--color-slate);
-  --text-tertiary: var(--color-fog);
-  --text-inverse: var(--color-frost);
-  --text-nav-active: var(--color-electric-blue);
-  --text-tag-green: var(--color-signal-green);
-  --text-tag-yellow: var(--color-caution-amber);
-  --text-tag-blue: var(--color-electric-blue);
-  --text-link: var(--color-electric-blue);
+	/* ---- Backward-Compat: Text ---- */
+	--text-primary: var(--color-graphite);
+	--text-secondary: var(--color-slate);
+	--text-tertiary: var(--color-fog);
+	--text-inverse: var(--color-frost);
+	--text-nav-active: var(--color-electric-blue);
+	--text-tag-green: var(--color-signal-green);
+	--text-tag-yellow: var(--color-caution-amber);
+	--text-tag-blue: var(--color-electric-blue);
+	--text-link: var(--color-electric-blue);
 
-  /* ---- Backward-Compat: Borders ---- */
-  --border-default: var(--color-mist);
-  --border-subtle: oklch(92% 0.003 258);
+	/* ---- Backward-Compat: Borders ---- */
+	--border-default: var(--color-mist);
+	--border-subtle: oklch(92% 0.003 258);
 
-  /* ---- Backward-Compat: Legacy semantic aliases ---- */
-  --danger: var(--color-alert-red);
-  --danger-bg: var(--color-alert-red-muted);
-  --danger-border: oklch(55% 0.21 20 / 0.2);
-  --success: var(--color-signal-green);
-  --success-bg: var(--color-signal-green-muted);
-  --success-border: oklch(58% 0.17 145 / 0.3);
+	/* ---- Backward-Compat: Legacy semantic aliases ---- */
+	--danger: var(--color-alert-red);
+	--danger-bg: var(--color-alert-red-muted);
+	--danger-border: oklch(55% 0.21 20 / 0.2);
+	--success: var(--color-signal-green);
+	--success-bg: var(--color-signal-green-muted);
+	--success-border: oklch(58% 0.17 145 / 0.3);
 
-  /* ---- Backward-Compat: Misc ---- */
-  --metric-color: var(--color-electric-blue);
-  --accent: var(--color-electric-blue);
-  --alert-red: var(--color-alert-red);
-  --alert-red-muted: var(--color-alert-red-muted);
+	/* ---- Backward-Compat: Misc ---- */
+	--metric-color: var(--color-electric-blue);
+	--accent: var(--color-electric-blue);
+	--alert-red: var(--color-alert-red);
+	--alert-red-muted: var(--color-alert-red-muted);
 
-  /* ---- Component: Button Primary ---- */
-  --btn-primary-bg: var(--color-electric-blue);
-  --btn-primary-text: var(--color-frost);
-  --btn-primary-hover: var(--color-electric-blue-hover);
-  --btn-primary-padding: 8px 20px;
-  --btn-primary-radius: var(--radius-md);
+	/* ---- Component: Button Primary ---- */
+	--btn-primary-bg: var(--color-electric-blue);
+	--btn-primary-text: var(--color-frost);
+	--btn-primary-hover: var(--color-electric-blue-hover);
+	--btn-primary-padding: 8px 20px;
+	--btn-primary-radius: var(--radius-md);
 
-  /* ---- Component: Button Danger ---- */
-  --btn-danger-bg: var(--color-alert-red);
-  --btn-danger-text: var(--color-frost);
-  --btn-danger-hover: oklch(60% 0.21 20);
-  --btn-danger-padding: 8px 20px;
-  --btn-danger-radius: var(--radius-md);
+	/* ---- Component: Button Danger ---- */
+	--btn-danger-bg: var(--color-alert-red);
+	--btn-danger-text: var(--color-frost);
+	--btn-danger-hover: oklch(60% 0.21 20);
+	--btn-danger-padding: 8px 20px;
+	--btn-danger-radius: var(--radius-md);
 
-  /* ---- Component: Button Ghost ---- */
-  --btn-ghost-bg: transparent;
-  --btn-ghost-text: var(--color-slate);
-  --btn-ghost-hover-bg: var(--color-electric-blue-muted);
-  --btn-ghost-padding: 6px 14px;
-  --btn-ghost-radius: var(--radius-md);
+	/* ---- Component: Button Ghost ---- */
+	--btn-ghost-bg: transparent;
+	--btn-ghost-text: var(--color-slate);
+	--btn-ghost-hover-bg: var(--color-electric-blue-muted);
+	--btn-ghost-padding: 6px 14px;
+	--btn-ghost-radius: var(--radius-md);
 
-  /* ---- Component: Badge Default ---- */
-  --badge-default-bg: var(--color-electric-blue-muted);
-  --badge-default-text: var(--color-electric-blue);
+	/* ---- Component: Badge Default ---- */
+	--badge-default-bg: var(--color-electric-blue-muted);
+	--badge-default-text: var(--color-electric-blue);
 
-  /* ---- Component: Badge Success ---- */
-  --badge-success-bg: var(--color-signal-green-muted);
-  --badge-success-text: var(--color-signal-green);
+	/* ---- Component: Badge Success ---- */
+	--badge-success-bg: var(--color-signal-green-muted);
+	--badge-success-text: var(--color-signal-green);
 
-  /* ---- Component: Badge Warning ---- */
-  --badge-warning-bg: var(--color-caution-amber-muted);
-  --badge-warning-text: var(--color-caution-amber);
+	/* ---- Component: Badge Warning ---- */
+	--badge-warning-bg: var(--color-caution-amber-muted);
+	--badge-warning-text: var(--color-caution-amber);
 
-  /* ---- Component: Badge Danger ---- */
-  --badge-danger-bg: var(--color-alert-red-muted);
-  --badge-danger-text: var(--color-alert-red);
+	/* ---- Component: Badge Danger ---- */
+	--badge-danger-bg: var(--color-alert-red-muted);
+	--badge-danger-text: var(--color-alert-red);
 
-  /* ---- Component: Badge Common ---- */
-  --badge-padding: 2px 8px;
-  --badge-radius: var(--radius-sm);
+	/* ---- Component: Badge Common ---- */
+	--badge-padding: 2px 8px;
+	--badge-radius: var(--radius-sm);
 
-  /* ---- Component: Input Field ---- */
-  --input-bg: var(--color-frost);
-  --input-text: var(--color-graphite);
-  --input-border: var(--color-mist);
-  --input-focus-border: var(--color-electric-blue);
-  --input-focus-ring: var(--color-electric-blue-muted);
-  --input-placeholder: var(--color-fog);
-  --input-padding: 8px 12px;
-  --input-radius: var(--radius-md);
+	/* ---- Component: Input Field ---- */
+	--input-bg: var(--color-frost);
+	--input-text: var(--color-graphite);
+	--input-border: var(--color-mist);
+	--input-focus-border: var(--color-electric-blue);
+	--input-focus-ring: var(--color-electric-blue-muted);
+	--input-placeholder: var(--color-fog);
+	--input-padding: 8px 12px;
+	--input-radius: var(--radius-md);
 
-  /* ---- Component: Card ---- */
-  --card-bg: var(--color-frost);
-  --card-border: var(--color-mist);
-  --card-shadow: var(--shadow-ambient-low);
-  --card-padding: 20px;
-  --card-radius: var(--radius-lg);
+	/* ---- Component: Card ---- */
+	--card-bg: var(--color-frost);
+	--card-border: var(--color-mist);
+	--card-shadow: var(--shadow-ambient-low);
+	--card-padding: 20px;
+	--card-radius: var(--radius-lg);
 
-  /* ---- Component: Modal Backdrop ---- */
-  --shadow-modal-backdrop: rgba(0, 0, 0, 0.4);
+	/* ---- Component: Modal Backdrop ---- */
+	--shadow-modal-backdrop: rgba(0, 0, 0, 0.4);
 
-  /* ---- Component: ConfigPage Section Colors (light) ---- */
-  --section-llm-color: #3b82f6;
-  --section-llm-color-muted: rgba(59, 130, 246, 0.08);
-  --section-tts-color: #22c55e;
-  --section-tts-color-muted: rgba(34, 197, 94, 0.08);
-  --section-vision-color: #7c3aed;
-  --section-vision-color-muted: rgba(124, 58, 237, 0.08);
-  --section-text_to_image-color: #f59e0b;
-  --section-text_to_image-color-muted: rgba(245, 158, 11, 0.08);
-  --section-image_to_video-color: #0891b2;
-  --section-image_to_video-color-muted: rgba(8, 145, 178, 0.08);
+	/* ---- Component: ConfigPage Section Colors (light) ---- */
+	--section-llm-color: #3b82f6;
+	--section-llm-color-muted: rgba(59, 130, 246, 0.08);
+	--section-tts-color: #22c55e;
+	--section-tts-color-muted: rgba(34, 197, 94, 0.08);
+	--section-vision-color: #7c3aed;
+	--section-vision-color-muted: rgba(124, 58, 237, 0.08);
+	--section-text_to_image-color: #f59e0b;
+	--section-text_to_image-color-muted: rgba(245, 158, 11, 0.08);
+	--section-image_to_video-color: #0891b2;
+	--section-image_to_video-color-muted: rgba(8, 145, 178, 0.08);
 
-  /* ---- Legacy spacing/radius aliases ---- */
-  --spacing-sm: 0.25rem;
-  --spacing-md: 0.5rem;
-  --spacing-lg: 1rem;
-  --font-size-sm: 0.8125rem;
-  --font-size-base: 0.875rem;
-  --font-size-lg: 1rem;
-  --radius: 0.5rem;
+	/* ---- Legacy spacing/radius aliases ---- */
+	--spacing-sm: 0.25rem;
+	--spacing-md: 0.5rem;
+	--spacing-lg: 1rem;
+	--font-size-sm: 0.8125rem;
+	--font-size-base: 0.875rem;
+	--font-size-lg: 1rem;
+	--radius: 0.5rem;
 }
 
 /* --------------------------------------------------------------------------
    3. Dark Mode — Override color tokens and backward-compat aliases
    -------------------------------------------------------------------------- */
 
-[data-theme='dark'] {
-  /* ---- Primary ---- */
-  --color-electric-blue: oklch(62% 0.19 252);
-  --color-electric-blue-hover: oklch(68% 0.19 252);
-  --color-electric-blue-muted: oklch(62% 0.19 252 / 0.15);
+[data-theme="dark"] {
+	/* ---- Primary ---- */
+	--color-electric-blue: oklch(62% 0.19 252);
+	--color-electric-blue-hover: oklch(68% 0.19 252);
+	--color-electric-blue-muted: oklch(62% 0.19 252 / 0.15);
 
-  /* ---- Neutral: Light (re-purposed for dark text roles) ---- */
-  --color-chalk: oklch(97% 0.003 258);
-  --color-frost: oklch(100% 0 0);
-  --color-mist: oklch(88% 0.004 258);
-  --color-graphite: oklch(18% 0.004 258);
-  --color-slate: oklch(40% 0.006 258);
-  --color-fog: oklch(55% 0.006 258);
-  --color-white-smoke: oklch(92% 0 0);
+	/* ---- Neutral: Light (re-purposed for dark text roles) ---- */
+	--color-chalk: oklch(97% 0.003 258);
+	--color-frost: oklch(100% 0 0);
+	--color-mist: oklch(88% 0.004 258);
+	--color-graphite: oklch(18% 0.004 258);
+	--color-slate: oklch(40% 0.006 258);
+	--color-fog: oklch(55% 0.006 258);
+	--color-white-smoke: oklch(92% 0 0);
 
-  /* ---- Semantic (brighter for dark backgrounds) ---- */
-  --color-signal-green: oklch(68% 0.17 145);
-  --color-signal-green-muted: oklch(68% 0.17 145 / 0.15);
-  --color-alert-red: oklch(60% 0.21 20);
-  --color-alert-red-muted: oklch(60% 0.21 20 / 0.15);
-  --color-caution-amber: oklch(72% 0.14 75);
-  --color-caution-amber-muted: oklch(72% 0.14 75 / 0.15);
+	/* ---- Semantic (brighter for dark backgrounds) ---- */
+	--color-signal-green: oklch(68% 0.17 145);
+	--color-signal-green-muted: oklch(68% 0.17 145 / 0.15);
+	--color-alert-red: oklch(60% 0.21 20);
+	--color-alert-red-muted: oklch(60% 0.21 20 / 0.15);
+	--color-caution-amber: oklch(72% 0.14 75);
+	--color-caution-amber-muted: oklch(72% 0.14 75 / 0.15);
 
-  /* ---- Backward-Compat: Backgrounds ---- */
-  --bg-page: var(--color-void);
-  --bg-card: var(--color-obsidian);
-  --bg-nav: var(--color-obsidian);
-  --bg-header: var(--color-obsidian);
-  --bg-input: var(--color-void);
-  --bg-table-head: var(--color-obsidian);
-  --bg-nav-active: var(--color-electric-blue-muted);
-  --bg-tag-green: var(--color-signal-green-muted);
-  --bg-tag-yellow: var(--color-caution-amber-muted);
-  --bg-tag-blue: var(--color-electric-blue-muted);
+	/* ---- Backward-Compat: Backgrounds ---- */
+	--bg-page: var(--color-void);
+	--bg-card: var(--color-obsidian);
+	--bg-nav: var(--color-obsidian);
+	--bg-header: var(--color-obsidian);
+	--bg-input: var(--color-void);
+	--bg-table-head: var(--color-obsidian);
+	--bg-nav-active: var(--color-electric-blue-muted);
+	--bg-tag-green: var(--color-signal-green-muted);
+	--bg-tag-yellow: var(--color-caution-amber-muted);
+	--bg-tag-blue: var(--color-electric-blue-muted);
 
-  /* ---- Backward-Compat: Text ---- */
-  --text-primary: var(--color-white-smoke);
-  --text-secondary: var(--color-fog);
-  --text-tertiary: var(--color-slate);
-  --text-inverse: var(--color-void);
-  --text-nav-active: var(--color-electric-blue);
-  --text-tag-green: var(--color-signal-green);
-  --text-tag-yellow: var(--color-caution-amber);
-  --text-tag-blue: var(--color-electric-blue);
-  --text-link: var(--color-electric-blue);
+	/* ---- Backward-Compat: Text ---- */
+	--text-primary: var(--color-white-smoke);
+	--text-secondary: var(--color-fog);
+	--text-tertiary: var(--color-slate);
+	--text-inverse: var(--color-void);
+	--text-nav-active: var(--color-electric-blue);
+	--text-tag-green: var(--color-signal-green);
+	--text-tag-yellow: var(--color-caution-amber);
+	--text-tag-blue: var(--color-electric-blue);
+	--text-link: var(--color-electric-blue);
 
-  /* ---- Backward-Compat: Borders ---- */
-  --border-default: var(--color-steel);
-  --border-subtle: var(--color-obsidian-raised);
+	/* ---- Backward-Compat: Borders ---- */
+	--border-default: var(--color-steel);
+	--border-subtle: var(--color-obsidian-raised);
 
-  /* ---- Backward-Compat: Legacy semantic aliases ---- */
-  --danger: var(--color-alert-red);
-  --danger-bg: var(--color-alert-red-muted);
-  --danger-border: oklch(60% 0.21 20 / 0.3);
-  --success: var(--color-signal-green);
-  --success-bg: var(--color-signal-green-muted);
-  --success-border: oklch(68% 0.17 145 / 0.3);
+	/* ---- Backward-Compat: Legacy semantic aliases ---- */
+	--danger: var(--color-alert-red);
+	--danger-bg: var(--color-alert-red-muted);
+	--danger-border: oklch(60% 0.21 20 / 0.3);
+	--success: var(--color-signal-green);
+	--success-bg: var(--color-signal-green-muted);
+	--success-border: oklch(68% 0.17 145 / 0.3);
 
-  /* ---- Backward-Compat: Misc ---- */
-  --metric-color: var(--color-electric-blue);
-  --accent: var(--color-electric-blue);
-  --alert-red: var(--color-alert-red);
-  --alert-red-muted: var(--color-alert-red-muted);
+	/* ---- Backward-Compat: Misc ---- */
+	--metric-color: var(--color-electric-blue);
+	--accent: var(--color-electric-blue);
+	--alert-red: var(--color-alert-red);
+	--alert-red-muted: var(--color-alert-red-muted);
 
-  /* ---- Component: Button Primary ---- */
-  --btn-primary-bg: var(--color-electric-blue);
-  --btn-primary-text: var(--color-white-smoke);
-  --btn-primary-hover: var(--color-electric-blue-hover);
+	/* ---- Component: Button Primary ---- */
+	--btn-primary-bg: var(--color-electric-blue);
+	--btn-primary-text: var(--color-white-smoke);
+	--btn-primary-hover: var(--color-electric-blue-hover);
 
-  /* ---- Component: Button Danger ---- */
-  --btn-danger-bg: var(--color-alert-red);
-  --btn-danger-text: var(--color-white-smoke);
-  --btn-danger-hover: oklch(66% 0.21 20);
+	/* ---- Component: Button Danger ---- */
+	--btn-danger-bg: var(--color-alert-red);
+	--btn-danger-text: var(--color-white-smoke);
+	--btn-danger-hover: oklch(66% 0.21 20);
 
-  /* ---- Component: Button Ghost ---- */
-  --btn-ghost-bg: transparent;
-  --btn-ghost-text: var(--color-fog);
-  --btn-ghost-hover-bg: var(--color-electric-blue-muted);
+	/* ---- Component: Button Ghost ---- */
+	--btn-ghost-bg: transparent;
+	--btn-ghost-text: var(--color-fog);
+	--btn-ghost-hover-bg: var(--color-electric-blue-muted);
 
-  /* ---- Component: Badge ---- */
-  --badge-default-bg: var(--color-electric-blue-muted);
-  --badge-default-text: var(--color-electric-blue);
-  --badge-success-bg: var(--color-signal-green-muted);
-  --badge-success-text: var(--color-signal-green);
-  --badge-warning-bg: var(--color-caution-amber-muted);
-  --badge-warning-text: var(--color-caution-amber);
-  --badge-danger-bg: var(--color-alert-red-muted);
-  --badge-danger-text: var(--color-alert-red);
+	/* ---- Component: Badge ---- */
+	--badge-default-bg: var(--color-electric-blue-muted);
+	--badge-default-text: var(--color-electric-blue);
+	--badge-success-bg: var(--color-signal-green-muted);
+	--badge-success-text: var(--color-signal-green);
+	--badge-warning-bg: var(--color-caution-amber-muted);
+	--badge-warning-text: var(--color-caution-amber);
+	--badge-danger-bg: var(--color-alert-red-muted);
+	--badge-danger-text: var(--color-alert-red);
 
-  /* ---- Component: Input Field ---- */
-  --input-bg: var(--color-void);
-  --input-text: var(--color-white-smoke);
-  --input-border: var(--color-steel);
-  --input-focus-border: var(--color-electric-blue);
-  --input-focus-ring: var(--color-electric-blue-muted);
-  --input-placeholder: var(--color-slate);
+	/* ---- Component: Input Field ---- */
+	--input-bg: var(--color-void);
+	--input-text: var(--color-white-smoke);
+	--input-border: var(--color-steel);
+	--input-focus-border: var(--color-electric-blue);
+	--input-focus-ring: var(--color-electric-blue-muted);
+	--input-placeholder: var(--color-slate);
 
-  /* ---- Component: Card ---- */
-  --card-bg: var(--color-obsidian);
-  --card-border: var(--color-steel);
-  --card-shadow: var(--shadow-ambient-low);
+	/* ---- Component: Card ---- */
+	--card-bg: var(--color-obsidian);
+	--card-border: var(--color-steel);
+	--card-shadow: var(--shadow-ambient-low);
 
-  /* ---- Component: Modal Backdrop ---- */
-  --shadow-modal-backdrop: rgba(0, 0, 0, 0.6);
+	/* ---- Component: Modal Backdrop ---- */
+	--shadow-modal-backdrop: rgba(0, 0, 0, 0.6);
 
-  /* ---- Component: ConfigPage Section Colors (dark — brighter for contrast) ---- */
-  --section-llm-color: #60a5fa;
-  --section-llm-color-muted: rgba(96, 165, 250, 0.15);
-  --section-tts-color: #4ade80;
-  --section-tts-color-muted: rgba(74, 222, 128, 0.15);
-  --section-vision-color: #a78bfa;
-  --section-vision-color-muted: rgba(167, 139, 250, 0.15);
-  --section-text_to_image-color: #fbbf24;
-  --section-text_to_image-color-muted: rgba(251, 191, 36, 0.15);
-  --section-image_to_video-color: #22d3ee;
-  --section-image_to_video-color-muted: rgba(34, 211, 238, 0.15);
+	/* ---- Component: ConfigPage Section Colors (dark — brighter for contrast) ---- */
+	--section-llm-color: #60a5fa;
+	--section-llm-color-muted: rgba(96, 165, 250, 0.15);
+	--section-tts-color: #4ade80;
+	--section-tts-color-muted: rgba(74, 222, 128, 0.15);
+	--section-vision-color: #a78bfa;
+	--section-vision-color-muted: rgba(167, 139, 250, 0.15);
+	--section-text_to_image-color: #fbbf24;
+	--section-text_to_image-color-muted: rgba(251, 191, 36, 0.15);
+	--section-image_to_video-color: #22d3ee;
+	--section-image_to_video-color-muted: rgba(34, 211, 238, 0.15);
 }
 
 /* --------------------------------------------------------------------------
    4. Compact Layout — Override spacing and font-size tokens only
    -------------------------------------------------------------------------- */
 
-[data-layout='compact'] {
-  --space-xs: 2px;
-  --space-sm: 4px;
-  --space-md: 6px;
-  --space-lg: 8px;
-  --space-xl: 12px;
-  --space-2xl: 16px;
+[data-layout="compact"] {
+	--space-xs: 2px;
+	--space-sm: 4px;
+	--space-md: 6px;
+	--space-lg: 8px;
+	--space-xl: 12px;
+	--space-2xl: 16px;
 
-  --spacing-sm: 0.125rem;
-  --spacing-md: 0.25rem;
-  --spacing-lg: 0.5rem;
-  --font-size-sm: 0.75rem;
-  --font-size-base: 0.8125rem;
-  --font-size-lg: 0.875rem;
+	--spacing-sm: 0.125rem;
+	--spacing-md: 0.25rem;
+	--spacing-lg: 0.5rem;
+	--font-size-sm: 0.75rem;
+	--font-size-base: 0.8125rem;
+	--font-size-lg: 0.875rem;
 
-  /* ---- Compact Tab ---- */
-  --tab-padding-y: 6px;
-  --tab-padding-x: 12px;
-  --tab-font-size: 0.75rem;
-  --tab-gap: 4px;
+	/* ---- Compact Tab ---- */
+	--tab-padding-y: 6px;
+	--tab-padding-x: 12px;
+	--tab-font-size: 0.75rem;
+	--tab-gap: 4px;
 }
 
 /* --------------------------------------------------------------------------
@@ -387,39 +388,39 @@
 *,
 *::before,
 *::after {
-  transition-duration: var(--transition-duration);
-  transition-timing-function: var(--transition-easing);
+	transition-duration: var(--transition-duration);
+	transition-timing-function: var(--transition-easing);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root {
-    --transition-duration: 0s;
-    --transition-duration-slow: 0s;
-    --transition-easing: step-start;
-    --ease-standard: 0ms step-start;
-    --ease-enter: 0ms step-start;
-    --ease-exit: 0ms step-start;
-  }
+	:root {
+		--transition-duration: 0s;
+		--transition-duration-slow: 0s;
+		--transition-easing: step-start;
+		--ease-standard: 0ms step-start;
+		--ease-enter: 0ms step-start;
+		--ease-exit: 0ms step-start;
+	}
 
-  /* Stop non-functional animations (transition is already handled by variables) */
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-  }
+	/* Stop non-functional animations (transition is already handled by variables) */
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0s !important;
+		animation-delay: 0s !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+	}
 
-  /* Preserve functional loading animations (skeleton pulses, spinners) */
-  .animate-pulse,
-  .animate-pulse::before,
-  .animate-pulse::after,
-  .animate-spin,
-  .animate-spin::before,
-  .animate-spin::after {
-    animation-duration: revert !important;
-    animation-delay: revert !important;
-    animation-iteration-count: revert !important;
-  }
+	/* Preserve functional loading animations (skeleton pulses, spinners) */
+	.animate-pulse,
+	.animate-pulse::before,
+	.animate-pulse::after,
+	.animate-spin,
+	.animate-spin::before,
+	.animate-spin::after {
+		animation-duration: revert !important;
+		animation-delay: revert !important;
+		animation-iteration-count: revert !important;
+	}
 }

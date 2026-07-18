@@ -27,6 +27,15 @@ dev = [
     "ruff>=0.15.20",
 ]
 
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.src]
+include = ["apps", "packages"]
+
+[tool.ty.terminal]
+output-format = "github"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
