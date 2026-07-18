@@ -496,6 +496,12 @@ async def preview_tts(request: TTSPreviewRequest):
 
         audio_format = config.audio_format or "wav"
         if audio_format == "wav":
+            if not (
+                len(audio_bytes) >= 12
+                and audio_bytes[:4] == b"RIFF"
+                and audio_bytes[8:12] == b"WAVE"
+            ):
+                raise TTSError("TTS returned invalid WAV audio")
             media_type = "audio/wav"
             filename = "preview.wav"
         elif audio_format == "pcm16":

@@ -280,37 +280,70 @@ class MiMoTTSProvider:
         if resp.status_code in (401, 403):
             raise TTSBlockedError(f"TTS 鉴权失败: {resp.status_code}")
         if resp.status_code >= 400:
-            detail = f"MiMo TTS HTTP {resp.status_code}"
-            try:
-                error_body = resp.json()
-                if "error" in error_body:
-                    detail = f"MiMo TTS error: {error_body['error']}"
-            except Exception:
-                pass
-            raise TTSBlockedError(detail)
+            raise TTSBlockedError(f"MiMo TTS HTTP {resp.status_code}")
 
-        body = resp.json()
+        try:
+            body = resp.json()
+        except (TypeError, ValueError):
+            raise TTSBlockedError("MiMo TTS returned an invalid response") from None
+        if not isinstance(body, dict):
+            raise TTSBlockedError("MiMo TTS returned an invalid response")
         if "error" in body:
             msg = str(body["error"])
             if "quota" in msg.lower():
-                raise TTSQuotaExceededError(msg)
-            raise TTSBlockedError(msg)
+                raise TTSQuotaExceededError("MiMo TTS quota exceeded")
+            raise TTSBlockedError("MiMo TTS request was rejected")
 
         audio = self._extract_audio(body)
         if not audio:
-            raise TTSBlockedError("TTS 响应中未找到音频数据")
+            raise TTSBlockedError("MiMo TTS response did not contain valid audio data")
         return audio
 
     @staticmethod
-    def _extract_audio(body: dict) -> bytes | None:
+    def _extract_audio(body: dict[str, Any]) -> bytes | None:
         """递归搜索响应中的音频数据（base64 / hex / data URI）。"""
         import base64
+        import binascii
+        import re
 
-        def _search(obj):
+        audio_keys = ("audio", "data", "b64_json", "base64")
+
+        def _try_decode(value: Any) -> bytes | None:
+            if not isinstance(value, str) or not value:
+                return None
+
+            if value.startswith("data:"):
+                metadata, separator, encoded = value.partition(",")
+                if not separator or not metadata.lower().endswith(";base64"):
+                    return None
+                try:
+                    return base64.b64decode(encoded, validate=True)
+                except (binascii.Error, ValueError):
+                    return None
+
+            try:
+                return base64.b64decode(value, validate=True)
+            except (binascii.Error, ValueError):
+                pass
+
+            hex_value = value[4:] if value.startswith("hex:") else value
+            if len(hex_value) % 2 == 0 and re.fullmatch(r"[0-9a-fA-F]+", hex_value):
+                try:
+                    return bytes.fromhex(hex_value)
+                except ValueError:
+                    return None
+            return None
+
+        def _search(obj: Any) -> bytes | None:
             if isinstance(obj, dict):
-                for key in ("audio", "data", "b64_json", "base64"):
+                for key in audio_keys:
                     if key in obj:
-                        result = _try_decode(str(obj[key]))
+                        candidate = obj[key]
+                        result = _try_decode(candidate)
+                        if result:
+                            return result
+                        if isinstance(candidate, (dict, list)):
+                            result = _search(candidate)
                         if result:
                             return result
                 for val in obj.values():
@@ -322,22 +355,6 @@ class MiMoTTSProvider:
                     result = _search(item)
                     if result:
                         return result
-            return None
-
-        def _try_decode(s: str) -> bytes | None:
-            if not s or len(s) < 10:
-                return None
-            if s.startswith("data:"):
-                _, encoded = s.split(",", 1)
-                return base64.b64decode(encoded)
-            try:
-                return base64.b64decode(s)
-            except Exception:
-                pass
-            try:
-                return bytes.fromhex(s)
-            except (ValueError, AttributeError):
-                pass
             return None
 
         return _search(body)
