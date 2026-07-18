@@ -31,7 +31,6 @@ class TestTTSConfigBlackBox:
             "style_prompt": "活泼热情",
             "audio_format": "wav",
             "style_control_mode": "simple",
-            "style_prompt": "natural",
         }
         response = client.put("/api/tts/config", json=config)
         assert response.status_code == 200
