@@ -138,9 +138,7 @@ const AUDIO_TAGS = [
 
 export default function TTSConfigPage() {
 	const [config, setConfig] = useState<TTSConfig | null>(null);
-	const [previewText, setPreviewText] = useState(
-		"这是产品展示的示例语音，用于测试语音合成效果和音色表现。",
-	);
+	const [previewText, setPreviewText] = useState("这是产品展示的示例语音，用于测试语音合成效果和音色表现。");
 	const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
 	const [previewError, setPreviewError] = useState<string | null>(null);
 	const [voices, setVoices] = useState<Voice[]>([]);
@@ -344,11 +342,7 @@ export default function TTSConfigPage() {
 										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
 								}`}
 								onClick={() =>
-									setConfig({
-										...config,
-										model: "qwen3-tts-flash",
-										voice: "Rocky",
-									})
+									setConfig({ ...config, model: "qwen3-tts-flash" })
 								}
 							>
 								<h3 className="font-semibold">Qwen Flash</h3>
@@ -366,11 +360,7 @@ export default function TTSConfigPage() {
 										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
 								}`}
 								onClick={() =>
-									setConfig({
-										...config,
-										model: "qwen3-tts-instruct-flash",
-										voice: "Rocky",
-									})
+									setConfig({ ...config, model: "qwen3-tts-instruct-flash" })
 								}
 							>
 								<h3 className="font-semibold">Qwen Instruct</h3>
@@ -688,9 +678,9 @@ export default function TTSConfigPage() {
 						</section>
 					)}
 
+					{!config.model?.startsWith("qwen3-tts") && (
 					<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
 						<h2 className="text-lg font-semibold mb-4">风格控制</h2>
-
 						{/* 风格控制模式选择 */}
 						<div className="mb-4">
 							<label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
@@ -896,7 +886,6 @@ export default function TTSConfigPage() {
 											))}
 										</div>
 									</div>
-
 									<div>
 										<label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
 											音频标签
@@ -941,7 +930,7 @@ export default function TTSConfigPage() {
 							)}
 						</div>
 					</section>
-
+					)}
 					<div className="flex items-center gap-4 mb-4">
 						<div>
 							<label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
