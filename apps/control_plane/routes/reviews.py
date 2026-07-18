@@ -271,9 +271,8 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
             AssetRepository,
             AssetRetriever,
         )
-        from packages.file_store.paths import shared_asset_db_path
 
-        db_path = shared_asset_db_path(root_dir)
+        db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
         repo = AssetRepository(db_path)
         _ = AssetRetriever(repo)
 

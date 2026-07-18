@@ -12,7 +12,6 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
-from packages.file_store.paths import shared_asset_db_path
 
 
 def _create_project_db(
@@ -117,7 +116,7 @@ def test_migrate_source_videos_direct_transfer(tmp_path: Path) -> None:
     assert resp.json()["migrated_clips"] == 2
 
     # Verify source_videos table in global DB
-    global_db = shared_asset_db_path(tmp_path)
+    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     conn = sqlite3.connect(str(global_db))
     rows = conn.execute(
         "SELECT source_path FROM source_videos ORDER BY source_path"
@@ -158,7 +157,7 @@ def test_migrate_source_videos_multi_project(tmp_path: Path) -> None:
     assert resp.status_code == 200
     assert resp.json()["migrated_projects"] == 2
 
-    global_db = shared_asset_db_path(tmp_path)
+    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     conn = sqlite3.connect(str(global_db))
     rows = conn.execute(
         "SELECT source_path FROM source_videos ORDER BY source_path"
@@ -219,7 +218,7 @@ def test_migrate_source_videos_backfill_conflict(tmp_path: Path) -> None:
     assert resp2.status_code == 200
 
     # Assets table should still have only one record (shared_a1 from project A)
-    global_db = shared_asset_db_path(tmp_path)
+    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     conn = sqlite3.connect(str(global_db))
     asset_count = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
     assert asset_count == 1, "Only 1 asset should exist (the 2nd was INSERT OR IGNORE)"
@@ -273,7 +272,7 @@ def test_migrate_source_videos_parity_with_old_project(tmp_path: Path) -> None:
     client = TestClient(create_app(tmp_path))
     client.post("/api/assets/migrate")
 
-    global_db = shared_asset_db_path(tmp_path)
+    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     conn = sqlite3.connect(str(global_db))
     rows = conn.execute(
         "SELECT source_path, indexed_at FROM source_videos ORDER BY source_path"
@@ -335,7 +334,7 @@ def test_migrate_source_videos_empty_old_table(tmp_path: Path) -> None:
     assert resp.status_code == 200
     assert resp.json()["migrated_projects"] == 1
 
-    global_db = shared_asset_db_path(tmp_path)
+    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     conn = sqlite3.connect(str(global_db))
     rows = conn.execute("SELECT source_path FROM source_videos").fetchall()
     conn.close()

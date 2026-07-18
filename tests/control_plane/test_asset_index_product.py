@@ -126,7 +126,6 @@ def test_indexed_asset_has_non_empty_product(tmp_path: Path, monkeypatch) -> Non
     """索引后的素材 product 字段非空，可被 AssetRetriever 匹配。"""
     _mock_vision_config_ok(monkeypatch)
     from packages.pipeline_services.asset_library.repository import AssetRepository
-    from packages.file_store.paths import shared_asset_db_path
 
     client = _client(tmp_path)
     _setup_source_videos(tmp_path)
@@ -162,7 +161,7 @@ def test_indexed_asset_has_non_empty_product(tmp_path: Path, monkeypatch) -> Non
     assert resp.json()["indexed"] == 1
 
     # 验证 DB 中素材 product 字段为 "零食测试"
-    db_path = shared_asset_db_path(tmp_path)
+    db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     repo = AssetRepository(db_path)
     results = repo.query_all_available("零食测试")
     assert len(results) == 1
@@ -539,13 +538,12 @@ def test_async_index_fails_when_vision_not_configured(tmp_path, monkeypatch):
 
 def test_batch_update_categories(tmp_path: Path) -> None:
     """PATCH /api/assets/categories 批量更新素材分类。"""
-    from packages.file_store.paths import shared_asset_db_path
     from packages.pipeline_services.asset_library.repository import AssetRepository
 
     client = _client(tmp_path)
 
     # Insert test assets into the DB
-    db_path = shared_asset_db_path(tmp_path)
+    db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     AssetRepository(db_path)  # Initialize tables
 
@@ -606,11 +604,10 @@ def test_batch_update_categories(tmp_path: Path) -> None:
 
 def test_batch_update_categories_idempotent(tmp_path: Path) -> None:
     """相同请求重复执行返回相同 updated 计数。"""
-    from packages.file_store.paths import shared_asset_db_path
     from packages.pipeline_services.asset_library.repository import AssetRepository
 
     client = _client(tmp_path)
-    db_path = shared_asset_db_path(tmp_path)
+    db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     AssetRepository(db_path)
 
@@ -658,11 +655,10 @@ def test_batch_update_categories_idempotent(tmp_path: Path) -> None:
 
 def test_batch_update_categories_ignores_nonexistent(tmp_path: Path) -> None:
     """不存在的 asset_id 被静默忽略。"""
-    from packages.file_store.paths import shared_asset_db_path
     from packages.pipeline_services.asset_library.repository import AssetRepository
 
     client = _client(tmp_path)
-    db_path = shared_asset_db_path(tmp_path)
+    db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     AssetRepository(db_path)
 
