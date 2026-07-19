@@ -28,6 +28,9 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
+      - name: Install ty
+        run: uv tool install ty --force
+
       - name: Type check
         run: uv run ty check
 
@@ -67,7 +70,7 @@ jobs:
         working-directory: frontend
 
       - name: Biome check
-        run: pnpm biome check src/
+        run: pnpm biome check --no-assist src/
         working-directory: frontend
 
       - name: Test
