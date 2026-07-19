@@ -42,8 +42,8 @@ class TestKnowledgeDocument:
             source_type=SourceType.TXT,
             parsed_text="测试内容",
         )
-        d = doc.to_dict()
-        restored = KnowledgeDocument.from_dict(d)
+        d = doc.model_dump(mode="json")
+        restored = KnowledgeDocument(**d)
         assert restored.id == doc.id
         assert restored.filename == doc.filename
         assert restored.parsed_text == doc.parsed_text
@@ -75,8 +75,8 @@ class TestKnowledgeDocument:
             source_type=SourceType.PDF,
             parsed_text="PDF text",
         )
-        d = doc.to_dict()
-        restored = KnowledgeDocument.from_dict(d)
+        d = doc.model_dump(mode="json")
+        restored = KnowledgeDocument(**d)
         assert restored.source_type == SourceType.PDF
         assert d["source_type"] == "pdf"
 
@@ -130,8 +130,8 @@ class TestKnowledgeItem:
             tags=["口感"],
             source_document="test.txt",
         )
-        d = item.to_dict()
-        restored = KnowledgeItem.from_dict(d)
+        d = item.model_dump(mode="json")
+        restored = KnowledgeItem(**d)
         assert restored.id == item.id
         assert restored.type == item.type
         assert restored.content == item.content

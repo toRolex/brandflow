@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import socket
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -46,51 +45,6 @@ class DeployHealthResult:
             "ports": [_item(p) for p in self.ports],
             "overall": self.overall,
         }
-
-
-def check_external_tool(
-    name: str,
-    missing_fix: str | None = None,
-) -> CheckItem:
-    """检查单个外部工具是否可执行。
-
-    解析顺序：通过 shutil.which 查找可执行文件。
-
-    Args:
-        name: 工具名称（如 "ffmpeg"）。
-        missing_fix: 工具缺失时的修复建议。为 None 时自动生成。
-
-    Returns:
-        CheckItem 包含检查状态和建议。
-    """
-    resolved = shutil.which(name)
-    if resolved:
-        return CheckItem(
-            name=name,
-            status="pass",
-            message=f"已找到: {resolved}",
-        )
-
-    fix = missing_fix or _default_missing_fix(name)
-    return CheckItem(
-        name=name,
-        status="fail",
-        message=f"未找到可执行文件: {name}",
-        fix=fix,
-    )
-
-
-def _default_missing_fix(name: str) -> str:
-    """根据工具名生成默认修复建议。"""
-    suggestions: dict[str, str] = {
-        "ffmpeg": "请安装 ffmpeg: https://ffmpeg.org/download.html 或 'brew install ffmpeg' / 'apt install ffmpeg'",
-        "ffprobe": "ffprobe 通常随 ffmpeg 一起安装。请安装 ffmpeg: https://ffmpeg.org/download.html",
-        "whisper-cli": "请安装 whisper-cpp: https://github.com/ggerganov/whisper.cpp",
-    }
-    return suggestions.get(
-        name,
-        f"请确保 {name} 已安装并在 PATH 中可用",
-    )
 
 
 class DeployHealthChecker:
@@ -145,6 +99,11 @@ class DeployHealthChecker:
         )
 
         results: list[CheckItem] = []
+        fixes = {
+            "ffmpeg": "请安装 ffmpeg: https://ffmpeg.org/download.html 或 'brew install ffmpeg' / 'apt install ffmpeg'",
+            "ffprobe": "ffprobe 通常随 ffmpeg 一起安装。请安装 ffmpeg: https://ffmpeg.org/download.html",
+            "whisper-cli": "请安装 whisper-cpp: https://github.com/ggerganov/whisper.cpp",
+        }
 
         for name, resolver in (
             ("ffmpeg", _resolve_ffmpeg_path),
@@ -166,7 +125,7 @@ class DeployHealthChecker:
                         name=name,
                         status="fail",
                         message=f"未找到可执行文件: {name}",
-                        fix=_default_missing_fix(name),
+                        fix=fixes.get(name),
                     )
                 )
 
@@ -313,12 +272,17 @@ class DeployHealthChecker:
                     )
                 )
             else:
+                fix = (
+                    f"请释放端口 {port}，或设置 PORT 环境变量更换端口"
+                    if port == self.BACKEND_PORT
+                    else f"请释放端口 {port}"
+                )
                 results.append(
                     CheckItem(
                         name=name,
                         status="fail",
                         message=f"{label}端口 {port} 已被占用",
-                        fix=f"请释放端口 {port}，或设置 PORT 环境变量更换端口",
+                        fix=fix,
                     )
                 )
 
