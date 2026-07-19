@@ -1,5 +1,5 @@
 from packages.domain_core.models import JobRecord, WorkerLease
-from packages.domain_core.state import next_phase, rewind_from_phase
+from packages.domain_core.models import next_phase, rewind_from_phase
 from packages.domain_core.worker_protocol import PollCommandRunTask
 
 

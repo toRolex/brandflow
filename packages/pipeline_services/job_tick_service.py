@@ -24,7 +24,7 @@ from packages.domain_core.phase_execution import (
     PhaseExecutionFailure,
     PhaseExecutionSuccess,
 )
-from packages.domain_core.state import PHASE_ORDER, next_phase
+from packages.domain_core.models import PHASE_ORDER, next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,

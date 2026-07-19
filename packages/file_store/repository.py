@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from packages.domain_core.models import JobRecord
-from packages.file_store.paths import project_root
 
 
 class FileStoreRepository:
@@ -14,7 +13,7 @@ class FileStoreRepository:
         self.root = root
 
     def create_project(self, project_id: str, name: str = "") -> Path:
-        root = project_root(self.root, project_id)
+        root = self.root / "workspace" / "projects" / project_id
         for relative in (
             "control/jobs",
             "control/batches",
@@ -33,14 +32,17 @@ class FileStoreRepository:
         return root
 
     def load_project_meta(self, project_id: str) -> dict[str, Any]:
-        path = project_root(self.root, project_id) / "project_meta.json"
+        path = self.root / "workspace" / "projects" / project_id / "project_meta.json"
         if not path.exists():
             return {"id": project_id, "name": project_id}
         return json.loads(path.read_text(encoding="utf-8"))
 
     def save_job(self, project_id: str, record: JobRecord) -> None:
         path = (
-            project_root(self.root, project_id)
+            self.root
+            / "workspace"
+            / "projects"
+            / project_id
             / "control"
             / "jobs"
             / f"{record.job_id}.json"
@@ -50,30 +52,59 @@ class FileStoreRepository:
 
     def load_job(self, project_id: str, job_id: str) -> JobRecord:
         path = (
-            project_root(self.root, project_id) / "control" / "jobs" / f"{job_id}.json"
+            self.root
+            / "workspace"
+            / "projects"
+            / project_id
+            / "control"
+            / "jobs"
+            / f"{job_id}.json"
         )
         return JobRecord.model_validate_json(path.read_text(encoding="utf-8"))
 
     def delete_job(self, project_id: str, job_id: str) -> bool:
         path = (
-            project_root(self.root, project_id) / "control" / "jobs" / f"{job_id}.json"
+            self.root
+            / "workspace"
+            / "projects"
+            / project_id
+            / "control"
+            / "jobs"
+            / f"{job_id}.json"
         )
         if not path.exists():
             return False
         path.unlink()
-        runtime_dir = project_root(self.root, project_id) / "runtime" / "jobs" / job_id
+        runtime_dir = (
+            self.root
+            / "workspace"
+            / "projects"
+            / project_id
+            / "runtime"
+            / "jobs"
+            / job_id
+        )
         if runtime_dir.exists():
             shutil.rmtree(runtime_dir)
         return True
 
     def append_review_event(self, project_id: str, event: dict[str, Any]) -> None:
-        path = project_root(self.root, project_id) / "reviews" / "review_events.jsonl"
+        path = (
+            self.root
+            / "workspace"
+            / "projects"
+            / project_id
+            / "reviews"
+            / "review_events.jsonl"
+        )
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def list_jobs(self, project_id: str) -> list[dict[str, Any]]:
-        jobs_root = project_root(self.root, project_id) / "control" / "jobs"
+        jobs_root = (
+            self.root / "workspace" / "projects" / project_id / "control" / "jobs"
+        )
         if not jobs_root.exists():
             return []
         results: list[dict[str, Any]] = []
@@ -110,7 +141,14 @@ class FileStoreRepository:
         return results
 
     def list_assets(self, project_id: str) -> list[dict[str, Any]]:
-        assets_root = project_root(self.root, project_id) / "runtime" / "source_assets"
+        assets_root = (
+            self.root
+            / "workspace"
+            / "projects"
+            / project_id
+            / "runtime"
+            / "source_assets"
+        )
         if not assets_root.exists():
             return []
         results: list[dict[str, Any]] = []
@@ -127,7 +165,10 @@ class FileStoreRepository:
 
     def delete_asset(self, project_id: str, asset_name: str) -> bool:
         asset_path = (
-            project_root(self.root, project_id)
+            self.root
+            / "workspace"
+            / "projects"
+            / project_id
             / "runtime"
             / "source_assets"
             / asset_name
@@ -138,7 +179,7 @@ class FileStoreRepository:
         return True
 
     def delete_project(self, project_id: str) -> bool:
-        root = project_root(self.root, project_id)
+        root = self.root / "workspace" / "projects" / project_id
         if not root.exists():
             return False
         shutil.rmtree(root)

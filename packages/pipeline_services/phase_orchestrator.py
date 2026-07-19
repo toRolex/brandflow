@@ -881,14 +881,13 @@ class PhaseOrchestrator:
                 )
             ]
 
-        from packages.file_store.paths import shared_asset_db_path
         from packages.pipeline_services.asset_library import (
             AssetRepository,
             AssetRetriever,
         )
         from packages.pipeline_services.asset_library.classify import create_classify_fn
 
-        db_path = shared_asset_db_path(ctx.root_dir)
+        db_path = ctx.root_dir / "workspace" / "shared_assets" / "asset_index.db"
 
         llm_config = self._resolve_llm_config(ctx)
 
