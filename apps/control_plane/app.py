@@ -30,8 +30,7 @@ from packages.pipeline_services.job_tick_service import (
     PhaseExecutionError,
 )
 from packages.pipeline_services.phase_orchestrator import create_orchestrator
-from packages.provider_config.config_reader import ConfigReader
-from packages.provider_config.product_store import ProductStore
+from packages.provider_config.config_reader import ConfigReader, ProductStore
 from packages.provider_config.secret_store import SecretStore
 
 

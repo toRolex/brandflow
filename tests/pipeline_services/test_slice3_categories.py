@@ -74,7 +74,7 @@ def _make_reader(tmpdir: str):
 def _make_store(tmpdir: str):
     """Helper: create a ProductStore with real ConfigReader and config_path."""
     from packages.provider_config.config_reader import ConfigReader
-    from packages.provider_config.product_store import ProductStore
+    from packages.provider_config.config_reader import ProductStore
 
     config_path = Path(tmpdir) / "app_config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)

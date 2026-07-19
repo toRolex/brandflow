@@ -9,8 +9,7 @@ from pydantic import BaseModel
 from packages.domain_core.models import next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.script_service import generate_script
-from packages.provider_config.config_reader import ConfigReader
-from packages.provider_config.config_resolver import ConfigResolver
+from packages.provider_config.config_reader import ConfigReader, ConfigResolver
 from packages.provider_config.secret_store import SecretStore
 
 logger = logging.getLogger(__name__)

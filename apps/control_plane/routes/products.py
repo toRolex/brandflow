@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from fastapi import APIRouter, HTTPException, Request
 
-from packages.provider_config.product_store import ProductStore
+from packages.provider_config.config_reader import ProductStore
 
 router = APIRouter(tags=["products"])
 

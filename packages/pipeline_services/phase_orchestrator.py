@@ -43,8 +43,7 @@ from packages.pipeline_services.sentence_tts_service import (
 )
 from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
-from packages.provider_config.config_reader import ConfigReader
-from packages.provider_config.config_resolver import ConfigResolver
+from packages.provider_config.config_reader import ConfigReader, ConfigResolver
 from packages.provider_config.secret_store import SecretStore
 
 STRUCTURED_MEDIA_PHASES = frozenset(
