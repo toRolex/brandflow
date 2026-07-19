@@ -1,15 +1,7 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
-	"vcs": {
-		"enabled": true,
-		"clientKind": "git",
-		"useIgnoreFile": true
-	},
 	"files": {
-		"includes": [
-			"**",
-			"!!**/dist"
-		]
+		"includes": ["**", "!!**/dist"]
 	},
 	"formatter": {
 		"enabled": true,
@@ -19,14 +11,7 @@
 		"enabled": true,
 		"rules": {
 			"preset": "recommended",
-			"a11y": "warn",
-			"correctness": {
-				"useExhaustiveDependencies": "off"
-			},
-			"suspicious": {
-				"noArrayIndexKey": "off",
-				"useIterableCallbackReturn": "off"
-			}
+			"a11y": "warn"
 		}
 	},
 	"javascript": {
@@ -41,23 +26,5 @@
 				"organizeImports": "on"
 			}
 		}
-	},
-	"overrides": [
-		{
-			"linter": {
-				"rules": {
-					"a11y": "off"
-				}
-			},
-			"includes": [
-				"src/components/AssetCard.tsx",
-				"src/components/AssetDetailModal.tsx",
-				"src/components/AssetGrid.tsx",
-				"src/components/AssetPreviewPanel.tsx",
-				"src/components/BatchActionBar.tsx",
-				"src/__tests__/ProductContext.test.tsx",
-				"src/components/ClipReviewCard.tsx"
-			]
-		}
-	]
+	}
 }
