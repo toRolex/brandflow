@@ -69,8 +69,11 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: frontend
 
-      - name: Biome check
-        run: pnpm biome check --skip=source.organizeImports src/
+      - name: Biome lint
+        run: pnpm biome lint src/
+
+      - name: Biome format check
+        run: pnpm biome format --write src/
         working-directory: frontend
 
       - name: Test
