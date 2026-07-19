@@ -11,12 +11,10 @@
 		"enabled": true,
 		"rules": {
 			"preset": "recommended",
-			"a11y": {
-				"level": "warn"
-			},
-			"correctness": {
-				"level": "warn"
-			}
+			"a11y": "warn",
+			"correctness": "warn",
+			"style": "warn",
+			"suspicious": "warn"
 		}
 	},
 	"javascript": {
