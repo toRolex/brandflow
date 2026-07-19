@@ -25,10 +25,12 @@ from apps.control_plane.routes.templates import router as templates_router
 from apps.control_plane.routes.products import router as products_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
-from packages.pipeline_services.job_tick_service import JobTickService
+from packages.pipeline_services.job_tick_service import (
+    JobTickService,
+    PhaseExecutionError,
+)
 from packages.pipeline_services.phase_orchestrator import create_orchestrator
-from packages.provider_config.config_reader import ConfigReader
-from packages.provider_config.product_store import ProductStore
+from packages.provider_config.config_reader import ConfigReader, ProductStore
 from packages.provider_config.secret_store import SecretStore
 
 
@@ -87,6 +89,11 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
                                 f"[AUTO-TICK] {job_id}: {summary.from_phase} -> {summary.to_phase} ({summary.action})",
                                 flush=True,
                             )
+                    except PhaseExecutionError as e:
+                        print(
+                            f"[AUTO-TICK] {e.job_id}: {e.phase} phase failed: {e}",
+                            flush=True,
+                        )
                     except Exception as e:
                         print(f"[AUTO-TICK ERROR] {f.name}: {e}", flush=True)
                         import traceback
@@ -136,6 +143,28 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
         reader=reader, config_path=config_dir / "app_config.json"
     )
     app.state.secret_store = SecretStore()
+
+    # Background executor for export tasks (#180). EXPORT_SYNC=1 runs inline —
+    # deterministic for tests and single-process dev.
+    if os.environ.get("EXPORT_SYNC", "0") == "1":
+        from concurrent.futures import Future
+
+        class _SyncExecutor:
+            def submit(self, fn, *args, **kwargs):
+                fut: Future = Future()
+                try:
+                    fut.set_result(fn(*args, **kwargs))
+                except Exception as exc:  # noqa: BLE001
+                    fut.set_exception(exc)
+                return fut
+
+        app.state.export_executor = _SyncExecutor()
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+
+        app.state.export_executor = ThreadPoolExecutor(
+            max_workers=2, thread_name_prefix="export"
+        )
     app.include_router(api_assets_router)
     app.include_router(api_projects_router)
     app.include_router(api_jobs_router)
@@ -153,7 +182,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     async def health(deploy_check: bool = False):
         from packages.deploy_health.checker import DeployHealthChecker
 
-        result: dict = {"status": "ok", "version": "0.7.11"}
+        result: dict = {"status": "ok", "version": "0.7.0"}
         if deploy_check:
             checker = DeployHealthChecker(root_dir=app.state.root_dir)
             health_result = checker.check_all()

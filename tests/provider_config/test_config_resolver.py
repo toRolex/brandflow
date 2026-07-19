@@ -8,8 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from packages.provider_config.config_reader import ConfigReader
-from packages.provider_config.config_resolver import ConfigResolver
+from packages.provider_config.config_reader import ConfigReader, ConfigResolver
 from packages.provider_config.secret_store import SecretStore
 
 

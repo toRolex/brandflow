@@ -21,7 +21,7 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseOrchestrator,
 )
 from packages.provider_config.config_reader import ConfigReader
-from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
+from packages.runtime_adapters import RuntimeAdapter
 
 
 class WorkerLoop:
@@ -140,7 +140,15 @@ class WorkerLoop:
                 traceback.print_exc()
                 status = "failed"
                 logs = f"phase execution error: {e}"
-                error = {"message": str(e), "type": type(e).__name__}
+                # Structured error matching ExecutionFailure contract (#171):
+                # code, message, and retryable so the control plane can apply
+                # consistent retry / terminal logic.
+                error = {
+                    "message": str(e),
+                    "type": type(e).__name__,
+                    "code": "WORKER_EXCEPTION",
+                    "retryable": True,
+                }
                 uploaded_files = []
 
             finished_at = datetime.now(timezone.utc).isoformat()
@@ -163,10 +171,10 @@ class WorkerLoop:
             )
 
     @property
-    def adapter(self) -> MacLocalRuntimeAdapter:
+    def adapter(self) -> RuntimeAdapter:
         """Lazy adapter for ensure_tools() (no-op on mac-local)."""
         if not hasattr(self, "_adapter"):
-            self._adapter = MacLocalRuntimeAdapter()
+            self._adapter = RuntimeAdapter(profile_name="mac-local")
         return self._adapter
 
 

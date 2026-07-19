@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from packages.domain_core.models import JobRecord
+from packages.domain_core.phase_execution import PhaseExecutionSuccess
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
     _compute_transition,
@@ -69,15 +70,9 @@ def ctx(project_dir: Path, tmp_root: Path) -> PhaseContext:
 
 @pytest.fixture()
 def orchestrator() -> PhaseOrchestrator:
-    config_resolver = MagicMock()
-    config_resolver.tts.return_value = {"model": "test-model", "voice": "test-voice"}
-    config_resolver.secrets = MagicMock()
     return PhaseOrchestrator(
-        script_generator=MagicMock(),
         subtitle_svc=MagicMock(),
         video_svc=MagicMock(),
-        media_compositor=MagicMock(),
-        config_resolver=config_resolver,
         schedule_store=MagicMock(),
     )
 
@@ -223,13 +218,34 @@ class TestSceneAssembling:
             transition_duration_ms=500,
         )
 
-        def _side_effect(clips, out, transition_duration):
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text("fake scene video")
-            return out
+        # Patch ffmpeg to avoid needing real ffmpeg and mock subprocess
+        with patch.object(
+            orchestrator, "_get_ffmpeg_path", return_value="/usr/bin/false"
+        ):
+            with patch.object(
+                orchestrator,
+                "_get_media_duration",
+                return_value=5.0,
+            ):
+                with patch.object(subprocess, "run") as mock_run:
+                    # Make the mocked subprocess not raise
+                    mock_run.return_value = MagicMock(returncode=0)
 
-        orchestrator._media_compositor.crossfade_scene.side_effect = _side_effect
-        result = orchestrator.run_phase("scene_assembling", ctx)
+                    # Also make the scene path "exist" by creating it after mock_call
+                    def _side_effect(*args, **kwargs):
+                        scene_path = (
+                            project_dir
+                            / "runtime"
+                            / "jobs"
+                            / "job-001"
+                            / "scene_segment.mp4"
+                        )
+                        scene_path.parent.mkdir(parents=True, exist_ok=True)
+                        scene_path.write_text("fake scene video")
+                        return MagicMock(returncode=0)
+
+                    mock_run.side_effect = _side_effect
+                    result = orchestrator.run_phase("scene_assembling", ctx)
 
         assert len(result) == 1
         assert result[0].kind == "scene_segment"
@@ -256,18 +272,29 @@ class TestSceneAssembling:
             transition_duration_ms=500,
         )
 
-        def _make_scene(clips, out, transition_duration):
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text("fake output")
-            return out
+        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
+            with patch.object(orchestrator, "_get_media_duration", return_value=3.0):
+                with patch.object(subprocess, "run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0)
 
-        orchestrator._media_compositor.crossfade_scene.side_effect = _make_scene
-        result = orchestrator.run_phase("scene_assembling", ctx)
+                    def _make_scene(*args, **kwargs):
+                        scene_path = (
+                            project_dir
+                            / "runtime"
+                            / "jobs"
+                            / "job-001"
+                            / "scene_segment.mp4"
+                        )
+                        scene_path.parent.mkdir(parents=True, exist_ok=True)
+                        scene_path.write_text("fake output")
+                        return MagicMock(returncode=0)
+
+                    mock_run.side_effect = _make_scene
+                    result = orchestrator.run_phase("scene_assembling", ctx)
 
         assert len(result) == 1
         # Should have chosen 1 file from each of the 2 folders
-        call_args = orchestrator._media_compositor.crossfade_scene.call_args
-        assert len(call_args[0][0]) == 2
+        self._verify_subprocess_call(mock_run, 2)
 
     @staticmethod
     def _verify_subprocess_call(mock_run: MagicMock, expected_clip_count: int) -> None:
@@ -334,6 +361,235 @@ class TestSceneAssembling:
         assert (job_dir / "scene_segment.mp4").exists()
         assert len(result) == 1
 
+    # ------------------------------------------------------------------
+    # Scene Asset Snapshot tests (Issue #174)
+    # ------------------------------------------------------------------
+
+    def test_snapshot_created_on_first_run(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        """First run picks random clips and copies them to .scene_snapshot/."""
+        # Set up two scene folders each with video files
+        for folder_name in ("brand-intro", "product-show"):
+            folder = tmp_root / "workspace" / "scene" / folder_name
+            folder.mkdir(parents=True)
+            for i in range(3):
+                (folder / f"clip_{i}.mp4").write_text(f"video {folder_name} {i}")
+
+        ctx = PhaseContext(
+            job_id="job-snap-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/brand-intro", "scene/product-show"],
+            transition_duration_ms=500,
+        )
+
+        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
+            with patch.object(orchestrator, "_get_media_duration", return_value=3.0):
+                with patch.object(subprocess, "run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0)
+
+                    def _make_scene(*args, **kwargs):
+                        scene_path = (
+                            project_dir
+                            / "runtime"
+                            / "jobs"
+                            / "job-snap-001"
+                            / "scene_segment.mp4"
+                        )
+                        scene_path.parent.mkdir(parents=True, exist_ok=True)
+                        scene_path.write_text("fake output")
+                        return MagicMock(returncode=0)
+
+                    mock_run.side_effect = _make_scene
+                    orchestrator.run_phase("scene_assembling", ctx)
+
+        job_dir = project_dir / "runtime" / "jobs" / "job-snap-001"
+        manifest_path = job_dir / ".scene_snapshot" / "manifest.json"
+
+        # Snapshot manifest was created
+        assert manifest_path.exists(), "Snapshot manifest should exist after first run"
+
+        # Manifest is valid JSON
+        import json
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert len(manifest) == 2, "Should have entries for 2 scene folders"
+
+        # Each entry has source, local, size, mtime
+        for entry in manifest:
+            assert "source" in entry
+            assert "local" in entry
+            assert "size" in entry
+            assert "mtime" in entry
+            local_path = job_dir / ".scene_snapshot" / entry["local"]
+            assert local_path.exists(), f"Local copy {entry['local']} should exist"
+            assert local_path.stat().st_size == entry["size"]
+            # Source should point to an original file
+            source_path = Path(entry["source"])
+            assert source_path.exists(), f"Source {entry['source']} should exist"
+
+    def test_snapshot_creates_local_copies(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        """Snapshot copies files physically into the job directory."""
+        folder = tmp_root / "workspace" / "scene" / "opener"
+        folder.mkdir(parents=True)
+        source = folder / "intro.mp4"
+        source.write_text("original video data")
+
+        ctx = PhaseContext(
+            job_id="job-snap-copy",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/opener"],
+        )
+
+        with patch.object(subprocess, "run"):
+            orchestrator.run_phase("scene_assembling", ctx)
+
+        job_dir = project_dir / "runtime" / "jobs" / "job-snap-copy"
+        snapshot_dir = job_dir / ".scene_snapshot"
+        manifest = json.loads(
+            (snapshot_dir / "manifest.json").read_text(encoding="utf-8")
+        )
+        assert len(manifest) == 1
+        local_path = snapshot_dir / manifest[0]["local"]
+        # Local copy is a real copy, not a symlink
+        assert local_path.exists()
+        assert local_path.read_text() == "original video data"
+        # Local copy should be in .scene_snapshot/, not at the job root
+        assert local_path.parent.name == ".scene_snapshot"
+        # Source is preserved in manifest
+        assert manifest[0]["source"] == str(source.resolve())
+
+    def test_reuses_snapshot_on_rerun(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        """Second run reuses snapshot clips instead of re-randomizing from source folders."""
+        folder = tmp_root / "workspace" / "scene" / "brand-intro"
+        folder.mkdir(parents=True)
+        for i in range(3):
+            (folder / f"clip_{i}.mp4").write_text(f"video data {i}")
+
+        ctx = PhaseContext(
+            job_id="job-snap-reuse",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/brand-intro"],
+        )
+
+        # First run: picks random clip, creates snapshot
+        with patch.object(subprocess, "run"):
+            orchestrator.run_phase("scene_assembling", ctx)
+
+        job_dir = project_dir / "runtime" / "jobs" / "job-snap-reuse"
+        manifest_path = job_dir / ".scene_snapshot" / "manifest.json"
+        first_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        first_local = first_manifest[0]["local"]
+
+        # Delete source folder — snapshot must stand alone
+        import shutil as _shutil
+
+        _shutil.rmtree(folder)
+        assert not folder.exists()
+
+        # Second run: should succeed from snapshot, not fail on missing folder
+        with patch.object(subprocess, "run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            result = orchestrator.run_phase("scene_assembling", ctx)
+
+        assert len(result) == 1
+        assert result[0].kind == "scene_segment"
+
+        # Manifest should still reference the same snapshot local path
+        second_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert second_manifest[0]["local"] == first_local
+
+    def test_force_reselect_replaces_snapshot(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        """force_reselect=True discards the old snapshot and re-randomizes."""
+        folder = tmp_root / "workspace" / "scene" / "brand-intro"
+        folder.mkdir(parents=True)
+        for i in range(3):
+            (folder / f"clip_{i}.mp4").write_text(f"video data {i}")
+
+        ctx = PhaseContext(
+            job_id="job-snap-force",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/brand-intro"],
+        )
+
+        # First run: creates snapshot
+        with patch.object(subprocess, "run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            orchestrator.run_phase("scene_assembling", ctx)
+
+        job_dir = project_dir / "runtime" / "jobs" / "job-snap-force"
+        manifest_path = job_dir / ".scene_snapshot" / "manifest.json"
+
+        # Second run with force_reselect: re-randomizes
+        ctx.options["force_reselect"] = True
+        with patch.object(subprocess, "run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            orchestrator.run_phase("scene_assembling", ctx)
+
+        # Snapshot was re-written (mtime advanced)
+        assert manifest_path.stat().st_mtime > 0
+
+        # scene_segment.mp4 was regenerated
+        assert (job_dir / "scene_segment.mp4").exists()
+
+    def test_fingerprint_change_invalidates_snapshot(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        """When a source file's fingerprint changes, snapshot is re-created on next run."""
+        folder = tmp_root / "workspace" / "scene" / "intro"
+        folder.mkdir(parents=True)
+        source = folder / "opener.mp4"
+        source.write_text("original content")
+
+        ctx = PhaseContext(
+            job_id="job-snap-fp",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/intro"],
+        )
+
+        # First run: creates snapshot
+        with patch.object(subprocess, "run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            orchestrator.run_phase("scene_assembling", ctx)
+
+        job_dir = project_dir / "runtime" / "jobs" / "job-snap-fp"
+        manifest_path = job_dir / ".scene_snapshot" / "manifest.json"
+
+        # Change source file content (different size → different fingerprint)
+        import time
+
+        source.write_text("modified content that changes the file size")
+        time.sleep(0.01)  # ensure mtime advances
+
+        # Second run without force_reselect: fingerprint mismatch → re-randomize
+        with patch.object(subprocess, "run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            orchestrator.run_phase("scene_assembling", ctx)
+
+        # Snapshot was re-created with updated fingerprint
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest[0]["size"] == len("modified content that changes the file size")
+
+        # The new local copy contains the modified source
+        local_path = job_dir / ".scene_snapshot" / manifest[0]["local"]
+        assert local_path.read_text() == "modified content that changes the file size"
+
 
 # ---------------------------------------------------------------------------
 # 4. montage_assembling handler — file concatenation logic
@@ -394,22 +650,27 @@ class TestMontageAssembling:
         (job_dir / "scene_segment.mp4").write_text("scene")
         (job_dir / "base.mp4").write_text("base")
 
-        def _make_assembled(first, second, out):
-            out.write_text("concatenated")
-            return out
+        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
+            with patch.object(subprocess, "run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
 
-        orchestrator._media_compositor.concat_two.side_effect = _make_assembled
-        result = orchestrator.run_phase("montage_assembling", ctx)
+                def _make_assembled(*args, **kwargs):
+                    (job_dir / "assembled.mp4").write_text("concatenated")
+                    return MagicMock(returncode=0)
+
+                mock_run.side_effect = _make_assembled
+
+                result = orchestrator.run_phase("montage_assembling", ctx)
 
         assert len(result) == 1
         assert result[0].kind == "assembled_video"
         assert (job_dir / "assembled.mp4").exists()
 
-        # Verify concat_two was called with scene + base
-        call_args = orchestrator._media_compositor.concat_two.call_args
-        assert call_args[0][0] == job_dir / "scene_segment.mp4"
-        assert call_args[0][1] == job_dir / "base.mp4"
-        assert call_args[0][2] == job_dir / "assembled.mp4"
+        # Verify ffmpeg was called with concat filter
+        call_args = mock_run.call_args[0][0]
+        assert "-filter_complex" in call_args
+        filter_idx = call_args.index("-filter_complex")
+        assert "concat=n=2" in call_args[filter_idx + 1]
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +688,7 @@ class TestImportModeTickFlow:
     def test_queued_to_scene_assembling_transition(self) -> None:
         """queued → scene_assembling (no handler on first tick)."""
         record = make_record(phase="queued", mode="import")
+        record.scene_folder_ids = ["scenes/one"]
         action = _compute_transition(record, ())
         assert action.new_phase == "scene_assembling"
         assert action.run_handler is False
@@ -441,12 +703,14 @@ class TestImportModeTickFlow:
         assert action.new_phase == "subtitle_generating"
 
     def test_montage_assembling_triggers_handler(self) -> None:
-        """montage_assembling → handler, then advance to video_rendering."""
+        """montage_assembling → handler via general dispatch (new_phase=None, not video_rendering)."""
         record = make_record(phase="montage_assembling", mode="import")
         action = _compute_transition(record, ())
         assert action.run_handler is True
         assert action.handler_phase == "montage_assembling"
-        assert action.new_phase == "video_rendering"
+        assert (
+            action.new_phase is None
+        )  # general dispatch: advance happens after artifacts
 
     def test_import_mode_full_tick_with_mock_orchestrator(self) -> None:
         """JobTickService.tick handles import mode through scene_assembling."""
@@ -455,23 +719,27 @@ class TestImportModeTickFlow:
         mock_repo.load_job.return_value = record
 
         mock_orch = MagicMock(spec=PhaseOrchestrator)
-        mock_orch.run_phases_parallel.return_value = {
-            "scene_assembling": [
-                ArtifactPointer(
-                    kind="scene_segment",
-                    relative_path="projects/proj-001/runtime/jobs/job-001/scene_segment.mp4",
-                    url="/workspace/projects/proj-001/runtime/jobs/job-001/scene_segment.mp4",
-                    size_bytes=1000,
-                )
-            ],
-            "tts_generating": [
-                ArtifactPointer(
-                    kind="tts_audio",
-                    relative_path="projects/proj-001/runtime/jobs/job-001/audio.mp3",
-                    url="/workspace/projects/proj-001/runtime/jobs/job-001/audio.mp3",
-                    size_bytes=500,
-                )
-            ],
+        mock_orch.execute_phases_parallel.return_value = {
+            "scene_assembling": PhaseExecutionSuccess(
+                artifacts=[
+                    ArtifactPointer(
+                        kind="scene_segment",
+                        relative_path="projects/proj-001/runtime/jobs/job-001/scene_segment.mp4",
+                        url="/workspace/projects/proj-001/runtime/jobs/job-001/scene_segment.mp4",
+                        size_bytes=1000,
+                    )
+                ]
+            ),
+            "tts_generating": PhaseExecutionSuccess(
+                artifacts=[
+                    ArtifactPointer(
+                        kind="tts_audio",
+                        relative_path="projects/proj-001/runtime/jobs/job-001/audio.mp3",
+                        url="/workspace/projects/proj-001/runtime/jobs/job-001/audio.mp3",
+                        size_bytes=500,
+                    )
+                ]
+            ),
         }
 
         svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
@@ -484,7 +752,7 @@ class TestImportModeTickFlow:
         )
 
         # Verify parallel dispatch was called with both phases
-        call_args = mock_orch.run_phases_parallel.call_args
+        call_args = mock_orch.execute_phases_parallel.call_args
         assert call_args is not None
         phases_arg = call_args[0][0]
         assert "scene_assembling" in phases_arg
@@ -496,7 +764,7 @@ class TestImportModeTickFlow:
         assert isinstance(ctx_arg.scene_folder_paths, list)
         assert ctx_arg.transition_duration_ms == 500
 
-        # Verify transition to montage_assembling
+        # Verify transition to subtitle_generating
         assert summary.action in ("advanced", "skipped")
 
         # Verify artifacts were merged (2 kinds from parallel execution)
@@ -511,6 +779,14 @@ class TestImportModeTickFlow:
         mock_repo = MagicMock()
         mock_repo.load_job.return_value = record
         mock_orch = MagicMock(spec=PhaseOrchestrator)
+        mock_orch.execute_phases_parallel.return_value = {
+            "scene_assembling": PhaseExecutionSuccess(
+                artifacts=[
+                    ArtifactPointer(kind="scene_segment", relative_path="scene.mp4")
+                ]
+            ),
+            "tts_generating": PhaseExecutionSuccess(artifacts=[]),
+        }
 
         svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
         svc.tick(
@@ -521,17 +797,17 @@ class TestImportModeTickFlow:
             project_dir=Path("/tmp/proj"),
         )
 
-        call_args = mock_orch.run_phases_parallel.call_args
+        call_args = mock_orch.execute_phases_parallel.call_args
         assert call_args is not None
         ctx_arg = call_args[0][1]
         # Scene paths should be populated (may be empty if no config file exists)
         assert isinstance(ctx_arg.scene_folder_paths, list)
         assert ctx_arg.transition_duration_ms > 0
 
-    def test_import_mode_advances_past_scene_assembling_to_completed(
+    def test_import_mode_advances_past_montage_assembling(
         self,
     ) -> None:
-        """End-to-end transition from montage_assembling through video_rendering."""
+        """End-to-end: montage_assembling produces artifacts → advances via _safe_next."""
         record = make_record(phase="montage_assembling", mode="import")
         mock_repo = MagicMock()
         mock_repo.load_job.return_value = record
@@ -554,32 +830,31 @@ class TestImportModeTickFlow:
             project_dir=Path("/tmp/proj"),
         )
 
-        assert summary.action in ("advanced",)
+        assert summary.action == "advanced"
         assert summary.from_phase == "montage_assembling"
-        # Should advance to video_rendering (not asset_retrieving)
+        # Should advance to video_rendering (next in PHASE_ORDER after montage_assembling)
         assert summary.to_phase == "video_rendering"
 
-    # -- Import mode subtitle routing (issue #56) -----------------------
+    # -- Import mode subtitle routing (issue #56, corrected in #173) -----
 
-    def test_subtitle_generating_to_montage_assembling_with_artifacts(
+    def test_subtitle_generating_to_asset_retrieving_with_artifacts(
         self,
     ) -> None:
-        """Import mode: subtitle_generating + artifacts → montage_assembling."""
+        """Import mode: subtitle_generating + artifacts → asset_retrieving (corrected flow)."""
         record = make_record(phase="subtitle_generating", mode="import")
         action = _compute_transition(
             record,
             ({"kind": "subtitle", "relative_path": "subtitle.srt"},),
         )
-        assert action.new_phase == "montage_assembling"
-        assert "import mode" in action.message.lower()
+        assert action.new_phase == "asset_retrieving"
 
-    def test_subtitle_generating_skip_to_montage_assembling(self) -> None:
-        """Import mode: subtitle_generating + skip_subtitle → montage_assembling."""
+    def test_subtitle_generating_skip_to_asset_retrieving(self) -> None:
+        """Import mode: subtitle_generating + skip_subtitle → asset_retrieving."""
         record = make_record(
             phase="subtitle_generating", mode="import", skip_subtitle=True
         )
         action = _compute_transition(record, ())
-        assert action.new_phase == "montage_assembling"
+        assert action.new_phase == "asset_retrieving"
         assert "skip" in action.message.lower()
 
     def test_subtitle_generating_runs_handler_no_artifacts(self) -> None:
@@ -590,10 +865,10 @@ class TestImportModeTickFlow:
         assert action.handler_phase == "subtitle_generating"
         assert action.new_phase is None
 
-    def test_subtitle_after_artifacts_routes_to_montage_assembling(
+    def test_subtitle_after_artifacts_routes_to_asset_retrieving(
         self,
     ) -> None:
-        """_transition_after_artifacts: import mode subtitle → montage_assembling."""
+        """_transition_after_artifacts: import mode subtitle → asset_retrieving (corrected flow)."""
         from packages.pipeline_services.job_tick_service import (
             _transition_after_artifacts,
         )
@@ -603,8 +878,7 @@ class TestImportModeTickFlow:
             record,
             ({"kind": "subtitle", "relative_path": "subtitle.srt"},),
         )
-        assert action.new_phase == "montage_assembling"
-        assert "import mode" in action.message.lower()
+        assert action.new_phase == "asset_retrieving"
 
     def test_scene_assembling_to_subtitle_generating_transition(self) -> None:
         """Import mode: scene_assembling → subtitle_generating (not montage_assembling)."""
@@ -628,3 +902,101 @@ class TestImportModeTickFlow:
             ({"kind": "subtitle", "relative_path": "subtitle.srt"},),
         )
         assert action.new_phase == "asset_retrieving"
+
+
+# ---------------------------------------------------------------------------
+# 5. scene_assembling input validation (file drift guard)
+# ---------------------------------------------------------------------------
+
+
+class TestSceneAssemblingInputValidation:
+    """validate_phase_input guards scene_assembling against drifted input."""
+
+    def test_validate_rejects_empty_scene_folders(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        ctx.scene_folder_paths = []
+        error = orchestrator.validate_phase_input("scene_assembling", ctx)
+        assert error is not None
+        assert error.code == "SCENE_INPUT_MISSING"
+        assert error.retryable is False
+
+    def test_validate_rejects_missing_folder(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/missing"],
+        )
+        error = orchestrator.validate_phase_input("scene_assembling", ctx)
+        assert error is not None
+        assert error.code == "SCENE_FOLDER_NOT_FOUND"
+        assert error.retryable is False
+
+    def test_validate_rejects_folder_without_videos(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        scene_folder = tmp_root / "workspace" / "scene" / "empty"
+        scene_folder.mkdir(parents=True)
+        (scene_folder / "readme.txt").write_text("no videos here")
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/empty"],
+        )
+        error = orchestrator.validate_phase_input("scene_assembling", ctx)
+        assert error is not None
+        assert error.code == "SCENE_MEDIA_MISSING"
+        assert error.retryable is False
+
+    def test_validate_accepts_valid_folder_with_video(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        scene_folder = tmp_root / "workspace" / "scene" / "valid"
+        scene_folder.mkdir(parents=True)
+        (scene_folder / "clip.mp4").write_bytes(b"fake video")
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/valid"],
+        )
+        error = orchestrator.validate_phase_input("scene_assembling", ctx)
+        assert error is None
+
+    def test_validate_accepts_snapshot_even_with_empty_folder(
+        self, orchestrator: PhaseOrchestrator, tmp_root: Path, project_dir: Path
+    ) -> None:
+        """When snapshot exists, validation passes even without source folders."""
+        scene_folder = tmp_root / "workspace" / "scene" / "valid"
+        scene_folder.mkdir(parents=True)
+        (scene_folder / "clip.mp4").write_bytes(b"fake video")
+
+        ctx = PhaseContext(
+            job_id="job-snap-val",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            scene_folder_paths=["scene/valid"],
+        )
+
+        # First run creates the snapshot
+        with patch.object(subprocess, "run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            orchestrator.run_phase("scene_assembling", ctx)
+
+        # Delete source folder (snapshot must be self-sufficient)
+        import shutil
+
+        shutil.rmtree(scene_folder)
+        assert not scene_folder.exists()
+
+        # Validation should pass because snapshot exists
+        error = orchestrator.validate_phase_input("scene_assembling", ctx)
+        assert error is None

@@ -197,7 +197,7 @@ def get_document_items(request: Request, doc_id: str):
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
     items = store.list_items(document_id=doc_id)
-    return [item.to_dict() for item in items]
+    return [item.model_dump(mode="json") for item in items]
 
 
 @router.get("/selling-points")
@@ -217,7 +217,7 @@ def list_selling_points(
         priority_max=priority_max,
         tags=tag_list,
     )
-    return [item.to_dict() for item in items]
+    return [item.model_dump(mode="json") for item in items]
 
 
 @router.put("/selling-points/{item_id}")
@@ -238,7 +238,7 @@ def update_selling_point(
     updated = store.update_item(item_id, **fields)
     if updated is None:
         raise HTTPException(status_code=404, detail="Selling point not found")
-    return updated.to_dict()
+    return updated.model_dump(mode="json")
 
 
 @router.post("/refresh")

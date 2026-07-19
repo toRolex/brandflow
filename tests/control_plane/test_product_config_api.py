@@ -52,6 +52,15 @@ class TestProductConfigAPI:
         resp = client.get("/api/config/product")
         assert resp.json()["default_name"] == ""
 
+    def test_delete_keeps_product_entity(self, tmp_path: Path) -> None:
+        """重置后产品实体仍保留在产品列表中"""
+        client = _client(tmp_path)
+        client.put("/api/config/product", json={"default_name": "临时"})
+        client.delete("/api/config/product")
+        products = client.get("/api/products").json()
+        assert len(products) == 1
+        assert products[0]["id"] == "default"
+
     def test_delete_returns_ok(self, tmp_path: Path) -> None:
         client = _client(tmp_path)
         resp = client.delete("/api/config/product")

@@ -43,7 +43,7 @@ class WorkerReport(BaseModel):
     task_id: str
     attempt_id: str
     lease_id: str
-    status: Literal["succeeded", "failed", "blocked", "cancelled"]
+    status: Literal["succeeded", "failed"]
     started_at: str
     finished_at: str
     artifact_manifest: dict = Field(default_factory=dict)

@@ -1,9 +1,9 @@
 import type {
-  AssetCategory,
-  AssetRecord,
-  AssetStats,
-  IndexResult,
-  IndexStatus,
+	AssetCategory,
+	AssetRecord,
+	AssetStats,
+	IndexResult,
+	IndexStatus,
 } from "./index";
 
 function assertType<T>(_value: T): void {}
@@ -12,31 +12,31 @@ const category: AssetCategory = "产地溯源";
 const indexStatus: IndexStatus = "processing";
 
 assertType<AssetRecord>({
-  asset_id: "asset_001",
-  file_path: "/clips/asset_001.mp4",
-  category,
-  product: "龙井茶",
-  confidence: 0.95,
-  duration_seconds: 5,
-  status: "available",
-  usage_count: 1,
-  source_video: "source.mp4",
-  tags: ["采摘", "茶园"],
-  created_at: "2026-05-28T14:30:00Z",
-  last_used_at: "2026-05-29T08:00:00Z",
+	asset_id: "asset_001",
+	file_path: "/clips/asset_001.mp4",
+	category,
+	product: "龙井茶",
+	confidence: 0.95,
+	duration_seconds: 5,
+	status: "available",
+	usage_count: 1,
+	source_video: "source.mp4",
+	tags: ["采摘", "茶园"],
+	created_at: "2026-05-28T14:30:00Z",
+	last_used_at: "2026-05-29T08:00:00Z",
 });
 
 assertType<AssetStats>({
-  total: 12,
-  available: 10,
-  disabled: 2,
-  source_videos: 3,
+	total: 12,
+	available: 10,
+	disabled: 2,
+	source_videos: 3,
 });
 
 assertType<IndexResult>({
-  indexed: 2,
-  skipped: 1,
-  total_clips: 8,
+	indexed: 2,
+	skipped: 1,
+	total_clips: 8,
 });
 
 assertType<IndexStatus>(indexStatus);

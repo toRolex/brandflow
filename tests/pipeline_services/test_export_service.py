@@ -20,7 +20,6 @@ from packages.pipeline_services.export_service import (
     _add_audio_to_zip,
     _add_source_clips_to_zip,
     build_export_bundle,
-    generate_timeline_json,
 )
 
 
@@ -60,10 +59,34 @@ def export_dir(project_dir: Path) -> Path:
     return project_dir / "runtime" / "exports"
 
 
+def _write_minimal_final_timeline(job_dir: Path) -> None:
+    """Write an empty-segments Final Timeline so export passes the re-render guard.
+
+    Empty segments make ``segment_final_video`` a no-op (no ffmpeg call), which
+    keeps these ZIP-structure tests free of a real-FFmpeg dependency; the real
+    segmentation behaviour is covered by test_segment_export_181.py.
+    """
+    (job_dir / "final_timeline.json").write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "duration_ms": 0,
+                "aligned": True,
+                "fingerprint": "minimal",
+                "segments": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _populate_full_job(job_dir: Path, workspace_dir: Path) -> None:
     """Create a complete set of job artifacts for testing."""
     # final.mp4
     (job_dir / "final.mp4").write_text("final video data")
+
+    # authoritative render-time Final Timeline (required for export since #181)
+    _write_minimal_final_timeline(job_dir)
 
     # audio.mp3 (no wav — tests mp3->wav rename)
     (job_dir / "audio.mp3").write_text("audio data")
@@ -202,6 +225,7 @@ class TestBuildExportBundle:
         self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
     ) -> None:
         """Empty job directory produces a ZIP with only timeline.json."""
+        _write_minimal_final_timeline(job_dir)
         zip_path = build_export_bundle(
             job_dir,
             workspace_dir,
@@ -223,6 +247,7 @@ class TestBuildExportBundle:
     ) -> None:
         """MP3 audio is stored as tts.wav in the ZIP."""
         (job_dir / "audio.mp3").write_text("mp3 data")
+        _write_minimal_final_timeline(job_dir)
 
         zip_path = build_export_bundle(
             job_dir,
@@ -244,6 +269,7 @@ class TestBuildExportBundle:
         """When both exist, audio.wav is preferred over audio.mp3."""
         (job_dir / "audio.wav").write_text("wav data")
         (job_dir / "audio.mp3").write_text("mp3 data")
+        _write_minimal_final_timeline(job_dir)
 
         zip_path = build_export_bundle(
             job_dir,
@@ -262,6 +288,7 @@ class TestBuildExportBundle:
         """Export directory is created if it does not exist."""
         export_dir = project_dir / "runtime" / "exports"
         assert not export_dir.exists()
+        _write_minimal_final_timeline(job_dir)
 
         build_export_bundle(
             job_dir,
@@ -290,6 +317,7 @@ class TestBuildExportBundle:
             "transition_duration_ms": 500,
         }
 
+        _write_minimal_final_timeline(job_dir)
         zip_path = build_export_bundle(
             job_dir,
             workspace_dir,
@@ -315,6 +343,7 @@ class TestBuildExportBundle:
             "transition_duration_ms": 500,
         }
 
+        _write_minimal_final_timeline(job_dir)
         zip_path = build_export_bundle(
             job_dir,
             workspace_dir,
@@ -331,123 +360,8 @@ class TestBuildExportBundle:
 
 
 # ---------------------------------------------------------------------------
-# generate_timeline_json
+# generate_timeline_json — removed (replaced by segment_export.build_timeline_2)
 # ---------------------------------------------------------------------------
-
-
-class TestGenerateTimelineJson:
-    def test_empty_job_dir(self, job_dir: Path, workspace_dir: Path) -> None:
-        """Empty job dir produces minimal timeline with version and empty segments."""
-        timeline = generate_timeline_json(
-            job_dir,
-            workspace_dir,
-            Path("/tmp/proj"),
-            scene_cfg=_SCENE_CFG_FULL,
-        )
-
-        assert timeline["version"] == "1.0"
-        assert timeline["segments"] == []
-        assert timeline["audio"] == {"file": "audio/tts.wav"}
-        assert "subtitle" not in timeline
-
-    def test_with_full_artifacts(self, job_dir: Path, workspace_dir: Path) -> None:
-        """Full artifacts produce complete timeline with all sections."""
-        (job_dir / "audio.mp3").write_text("audio")
-        (job_dir / "subtitles.srt").write_text("1\n00:00:01 --> 00:00:02\ntest\n")
-
-        timeline = generate_timeline_json(
-            job_dir,
-            workspace_dir,
-            Path("/tmp/proj"),
-            scene_cfg=_SCENE_CFG_FULL,
-        )
-
-        assert timeline["version"] == "1.0"
-        assert timeline["audio"]["file"] == "audio/tts.wav"
-        assert timeline["subtitle"]["file"] == "subtitle/script.srt"
-
-    def test_timeline_includes_audio_duration(
-        self, job_dir: Path, workspace_dir: Path
-    ) -> None:
-        """Audio duration is included when ffprobe succeeds."""
-        (job_dir / "audio.mp3").write_text("fake audio")
-
-        timeline = generate_timeline_json(
-            job_dir,
-            workspace_dir,
-            Path("/tmp/proj"),
-            scene_cfg=_SCENE_CFG_FULL,
-        )
-        assert timeline["audio"]["duration_ms"] == 0
-
-    def test_timeline_scene_clips_from_config(
-        self, job_dir: Path, workspace_dir: Path
-    ) -> None:
-        """Scene clips in timeline reference the correct ZIP-relative paths."""
-        folder = workspace_dir / "scene" / "intro"
-        folder.mkdir(parents=True)
-        (folder / "opener.mp4").write_text("data")
-
-        scene_config = {
-            "folders": [{"name": "intro", "path": "scene/intro"}],
-            "transition_duration_ms": 500,
-        }
-
-        timeline = generate_timeline_json(
-            job_dir,
-            workspace_dir,
-            Path("/tmp/proj"),
-            scene_cfg=scene_config,
-        )
-
-        assert len(timeline["segments"]) == 1
-        scene_seg = timeline["segments"][0]
-        assert scene_seg["type"] == "scene"
-        assert len(scene_seg["clips"]) == 1
-        assert scene_seg["clips"][0]["file"] == "source_clips/scene_001.mp4"
-        assert scene_seg["clips"][0]["transition"] == "crossfade"
-        assert scene_seg["clips"][0]["transition_duration_ms"] == 500
-
-    def test_timeline_montage_clips(self, job_dir: Path, workspace_dir: Path) -> None:
-        """Montage clips are included from selected_clips.json."""
-        clip_dir = workspace_dir / "shared_assets" / "source"
-        clip_dir.mkdir(parents=True)
-        (clip_dir / "montage_0.mp4").write_text("data")
-
-        selected = [
-            {
-                "sentence": "Test",
-                "file_path": str(clip_dir / "montage_0.mp4"),
-                "duration_seconds": 2.5,
-            }
-        ]
-        (job_dir / "selected_clips.json").write_text(json.dumps(selected))
-
-        timeline = generate_timeline_json(
-            job_dir,
-            workspace_dir,
-            Path("/tmp/proj"),
-            scene_cfg=_SCENE_CFG_FULL,
-        )
-
-        montage_segs = [s for s in timeline["segments"] if s["type"] == "montage"]
-        assert len(montage_segs) == 1
-        clips = montage_segs[0]["clips"]
-        assert len(clips) == 1
-        assert clips[0]["file"].startswith("source_clips/montage_")
-        assert clips[0]["sentence_index"] == 0
-
-    def test_timeline_no_duplicate_subtitle(
-        self, job_dir: Path, workspace_dir: Path
-    ) -> None:
-        """Subtitle field is absent when subtitles.srt is missing."""
-        timeline = generate_timeline_json(
-            job_dir,
-            workspace_dir,
-            Path("/tmp/proj"),
-            scene_cfg=_SCENE_CFG_FULL,
-        )
-        assert "subtitle" not in timeline
 
 
 # ---------------------------------------------------------------------------

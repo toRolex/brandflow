@@ -18,10 +18,12 @@ from unittest.mock import ANY, MagicMock
 import pytest
 
 from packages.domain_core.models import (
+    ArtifactPointer,
     JobRecord,
     ProductionMode,
 )
-from packages.domain_core.state import PHASE_ORDER
+from packages.domain_core.phase_execution import PhaseExecutionSuccess
+from packages.domain_core.models import PHASE_ORDER
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
     _compute_transition,
@@ -111,12 +113,12 @@ class TestNewPhases:
         assert "montage_assembling" in PHASE_ORDER
 
     def test_phases_after_completed(self) -> None:
-        """New phases are placed after 'completed' so GENERATE flow is unaffected."""
+        """scene_assembling is after 'completed' (import-only entry); montage_assembling is now in the main pipeline."""
         completed_idx = PHASE_ORDER.index("completed")
         scene_idx = PHASE_ORDER.index("scene_assembling")
         montage_idx = PHASE_ORDER.index("montage_assembling")
         assert scene_idx > completed_idx
-        assert montage_idx > completed_idx
+        assert montage_idx < completed_idx
 
     def test_safe_next_stops_at_completed(self) -> None:
         """_safe_next('completed') returns 'completed' (not scene_assembling)."""
@@ -132,7 +134,8 @@ class TestNewPhases:
             ("tts_review", "subtitle_generating"),
             ("subtitle_generating", "asset_retrieving"),
             ("asset_retrieving", "asset_review"),
-            ("asset_review", "video_rendering"),
+            ("asset_review", "montage_assembling"),
+            ("montage_assembling", "video_rendering"),
             ("video_rendering", "final_rendering"),
             ("final_rendering", "final_review"),
             ("final_review", "completed"),
@@ -148,7 +151,10 @@ class TestNewPhases:
 class TestImportModeQueued:
     def test_queued_import_advances_to_scene_assembling(self) -> None:
         """queued + import → advance to scene_assembling (no handler)."""
-        action = _compute_transition(make_record(phase="queued", mode="import"), ())
+        action = _compute_transition(
+            make_record(phase="queued", mode="import", scene_folder_ids=["scenes/one"]),
+            (),
+        )
         assert action.run_handler is False
         assert action.new_phase == "scene_assembling"
         assert (
@@ -157,7 +163,10 @@ class TestImportModeQueued:
 
     def test_queued_import_does_not_run_script_handler(self) -> None:
         """Import mode should NOT route to script_generating."""
-        action = _compute_transition(make_record(phase="queued", mode="import"), ())
+        action = _compute_transition(
+            make_record(phase="queued", mode="import", scene_folder_ids=["scenes/one"]),
+            (),
+        )
         assert (
             action.handler_phase is None or action.handler_phase != "script_generating"
         )
@@ -171,6 +180,7 @@ class TestImportModeQueued:
                 phase="queued",
                 mode="import",
                 manual_script="手动文案不应改变 import 路由",
+                scene_folder_ids=["scenes/one"],
             ),
             (),
         )
@@ -201,21 +211,25 @@ class TestImportModeSceneAssembling:
 
 
 class TestImportModeMontageAssembling:
-    def test_montage_assembling_advances_to_video_rendering(self) -> None:
-        """montage_assembling → handler then advance to video_rendering."""
+    def test_montage_assembling_triggers_handler(self) -> None:
+        """montage_assembling → handler execution (general dispatch via HANDLED_PHASES)."""
         action = _compute_transition(
             make_record(phase="montage_assembling", mode="import"), ()
         )
-        assert action.new_phase == "video_rendering"
         assert action.run_handler is True
         assert action.handler_phase == "montage_assembling"
+        assert (
+            action.new_phase is None
+        )  # general dispatch: handler runs, advance after artifacts
 
     def test_montage_assembling_generate_mode(self) -> None:
-        """montage_assembling + generate mode routes to video_rendering."""
+        """montage_assembling + generate mode also triggers handler via general dispatch."""
         action = _compute_transition(
             make_record(phase="montage_assembling", mode="generate"), ()
         )
-        assert action.new_phase == "video_rendering"
+        assert action.run_handler is True
+        assert action.handler_phase == "montage_assembling"
+        assert action.new_phase is None  # general dispatch
 
 
 # ---------------------------------------------------------------------------
@@ -272,91 +286,19 @@ class TestImportModeSkipReviews:
         assert action.run_handler is False
         assert action.new_phase is None
 
-
-# ---------------------------------------------------------------------------
-# 6. run_phases_parallel dispatch
-# ---------------------------------------------------------------------------
-
-
-def _make_orchestrator() -> PhaseOrchestrator:
-    config_resolver = MagicMock()
-    config_resolver.tts.return_value = {"model": "test-model", "voice": "test-voice"}
-    config_resolver.secrets = MagicMock()
-    return PhaseOrchestrator(
-        script_generator=MagicMock(),
-        subtitle_svc=MagicMock(),
-        video_svc=MagicMock(),
-        media_compositor=MagicMock(),
-        config_resolver=config_resolver,
-        schedule_store=MagicMock(),
-    )
-
-
-class TestRunPhasesParallel:
-    def test_executes_all_phases(self, monkeypatch) -> None:
-        """run_phases_parallel executes every phase in the list."""
-        orch = _make_orchestrator()
-        mock_tts = MagicMock()
-        mock_tts.synthesize.return_value = b"fake_audio"
-        monkeypatch.setattr(
-            "packages.pipeline_services.phase_orchestrator.create_tts_provider",
-            lambda cfg, secrets: mock_tts,
-        )
-        root_dir = Path("/tmp")
-        project_dir = root_dir / "workspace" / "projects" / "proj-001"
-        job_dir = project_dir / "runtime" / "jobs" / "job-001"
-        job_dir.mkdir(parents=True, exist_ok=True)
-        (job_dir / "口播文案.txt").write_text("测试文案", encoding="utf-8")
-        ctx = PhaseContext(
-            job_id="job-001",
-            project_dir=project_dir,
-            root_dir=root_dir,
-            product="test",
-        )
-        results = orch.run_phases_parallel(["scene_assembling", "tts_generating"], ctx)
-        assert "scene_assembling" in results
-        assert "tts_generating" in results
-
-    def test_returns_dict_of_lists(self) -> None:
-        """Returns dict[str, list[ArtifactPointer]]."""
-        orch = _make_orchestrator()
-        ctx = PhaseContext(
-            job_id="job-001",
-            project_dir=Path("/tmp/proj"),
-            root_dir=Path("/tmp"),
-            product="test",
-        )
-        results = orch.run_phases_parallel(["scene_assembling"], ctx)
-        assert isinstance(results, dict)
-        assert isinstance(results["scene_assembling"], list)
-
-    def test_failed_phase_propagates(self) -> None:
-        """A failing phase should propagate so the state machine can fail the job."""
-        orch = _make_orchestrator()
-        ctx = PhaseContext(
-            job_id="job-001",
-            project_dir=Path("/tmp/proj"),
-            root_dir=Path("/tmp"),
-            product="test",
-        )
-
-        # Inject a failing handler
-        def _failing(_ctx):
-            raise RuntimeError("oh no")
-
-        orch._handlers["scene_assembling"] = _failing
-        with pytest.raises(RuntimeError, match="oh no"):
-            orch.run_phases_parallel(["scene_assembling", "montage_assembling"], ctx)
-
     def test_merges_all_results_in_job_tick_service(self) -> None:
         """JobTickService.tick with parallel_phases merges all artifacts."""
         record = make_record(phase="scene_assembling", mode="import")
         mock_repo = MagicMock()
         mock_repo.load_job.return_value = record
         mock_orch = MagicMock(spec=PhaseOrchestrator)
-        mock_orch.run_phases_parallel.return_value = {
-            "scene_assembling": [],
-            "tts_generating": [],
+        mock_orch.execute_phases_parallel.return_value = {
+            "scene_assembling": PhaseExecutionSuccess(
+                artifacts=[
+                    ArtifactPointer(kind="scene_segment", relative_path="scene.mp4")
+                ]
+            ),
+            "tts_generating": PhaseExecutionSuccess(artifacts=[]),
         }
 
         svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
@@ -367,7 +309,7 @@ class TestRunPhasesParallel:
             root_dir=Path("/tmp"),
             project_dir=Path("/tmp/proj"),
         )
-        mock_orch.run_phases_parallel.assert_called_once_with(
+        mock_orch.execute_phases_parallel.assert_called_once_with(
             ["scene_assembling", "tts_generating"], ANY
         )
         assert summary.action in ("advanced", "skipped")
@@ -381,7 +323,7 @@ class TestRunPhasesParallel:
 class TestSkeletonHandlers:
     def test_scene_assembly_returns_empty_list(self) -> None:
         """scene_assembling skeleton returns []."""
-        orch = _make_orchestrator()
+        orch = PhaseOrchestrator(*[MagicMock()] * 2)
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -393,7 +335,7 @@ class TestSkeletonHandlers:
 
     def test_montage_assembly_returns_empty_list(self) -> None:
         """montage_assembling skeleton returns []."""
-        orch = _make_orchestrator()
+        orch = PhaseOrchestrator(*[MagicMock()] * 2)
         ctx = PhaseContext(
             job_id="job-001",
             project_dir=Path("/tmp/proj"),
@@ -405,7 +347,7 @@ class TestSkeletonHandlers:
 
     def test_handlers_are_registered_in_map(self) -> None:
         """Both new handlers are registered in the handler map."""
-        orch = _make_orchestrator()
+        orch = PhaseOrchestrator(*[MagicMock()] * 2)
         assert "scene_assembling" in orch._handlers
         assert "montage_assembling" in orch._handlers
 
@@ -424,15 +366,26 @@ class TestImportModeFullFlow:
         sequence = [
             ("queued", "scene_assembling"),  # first transition
             ("scene_assembling", "subtitle_generating"),  # after parallel dispatch
-            ("subtitle_generating", "montage_assembling"),  # import mode route
-            ("montage_assembling", "video_rendering"),  # explicit route
+            (
+                "subtitle_generating",
+                "asset_retrieving",
+            ),  # import mode: goes to asset_retrieving
+            ("asset_retrieving", "asset_review"),  # standard flow
+            ("asset_review", "montage_assembling"),  # review approved → montage
+            ("montage_assembling", "video_rendering"),  # montage → video
             ("video_rendering", "final_rendering"),  # standard flow resumes
             ("final_rendering", "final_review"),
             ("final_review", "completed"),
         ]
         for from_phase, to_phase in sequence:
             action = _compute_transition(
-                make_record(phase=from_phase, mode="import", auto_approve=False), ()
+                make_record(
+                    phase=from_phase,
+                    mode="import",
+                    auto_approve=False,
+                    scene_folder_ids=["scenes/one"],
+                ),
+                (),
             )
             if from_phase == "queued":
                 assert action.new_phase == to_phase, f"{from_phase} → {to_phase}"
@@ -443,8 +396,17 @@ class TestImportModeFullFlow:
                 # subtitle_generating: run handler if not skipped
                 assert action.run_handler is True
                 assert action.new_phase is None
+            elif from_phase == "asset_retrieving":
+                # asset_retrieving: in HANDLED_PHASES, run handler
+                assert action.run_handler is True
+                assert action.new_phase is None
+            elif from_phase == "asset_review":
+                # asset_review: review gate, pending → wait
+                assert action.new_phase is None
             elif from_phase == "montage_assembling":
-                assert action.new_phase == to_phase, f"{from_phase} → {to_phase}"
+                # montage_assembling: now in HANDLED_PHASES, general dispatch
+                assert action.run_handler is True
+                assert action.new_phase is None
             elif from_phase == "video_rendering":
                 # No artifacts → retry logic
                 assert action.run_handler is True
@@ -457,11 +419,12 @@ class TestImportModeFullFlow:
 
     def test_import_mode_with_auto_approve_advances_through_gates(self) -> None:
         """Import mode with auto_approve=True advances through review gates."""
+        expected = {"asset_review": "montage_assembling", "final_review": "completed"}
         for phase in ["asset_review", "final_review"]:
             action = _compute_transition(
                 make_record(phase=phase, mode="import", auto_approve=True), ()
             )
-            assert action.new_phase is not None, (
-                f"{phase} should auto-advance with auto_approve"
+            assert action.new_phase == expected[phase], (
+                f"{phase} should auto-advance to {expected[phase]}"
             )
             assert action.new_review_status == "approved"

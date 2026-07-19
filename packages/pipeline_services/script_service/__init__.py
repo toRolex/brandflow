@@ -9,7 +9,7 @@ from packages.pipeline_services.script_service.generator import (
     ScriptGenerator,
     ScriptResult,
 )
-from packages.provider_config.config_resolver import ConfigResolver
+from packages.provider_config.config_reader import ConfigResolver
 
 __all__ = [
     "ScriptGenerator",
@@ -22,7 +22,7 @@ __all__ = [
 
 def build_generator_config(config_resolver: ConfigResolver, product: str) -> Any:
     """Build a duck-typed config object for ScriptGenerator from ConfigResolver."""
-    llm_config, api_key, api_url = config_resolver.llm(product_id=product or None)
+    llm_config, api_key, api_url = config_resolver.llm(product_id=product or "")
     return SimpleNamespace(
         api_key=api_key,
         base_url=api_url,
@@ -41,8 +41,7 @@ def generate_script(
 ) -> dict[str, Any]:
     """Generate a script via LLM and persist txt/json artifacts to *output_dir*.
 
-    LLM config is resolved via *config_resolver*. Replaces the old
-    ``LegacyScriptBridge.generate()`` call path.
+    LLM config is resolved via *config_resolver*.
     """
     config = build_generator_config(config_resolver, product)
     generator = ScriptGenerator(config)

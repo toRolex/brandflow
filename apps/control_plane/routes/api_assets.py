@@ -25,12 +25,6 @@ from packages.provider_config.secret_store import SecretStore
 
 from apps.control_plane.index_tasks import index_task_manager, TaskStatus
 
-from packages.file_store.paths import (
-    shared_asset_db_path,
-    shared_assets_root,
-    shared_indexed_dir,
-    shared_source_dir,
-)
 from packages.pipeline_services.asset_library import (
     AssetIndexer,
     AssetRecord,
@@ -106,7 +100,7 @@ async def upload_asset(request: Request, file: UploadFile):
     if not file.filename:
         raise HTTPException(status_code=400, detail="filename required")
     root_dir: Path = request.app.state.root_dir
-    source_dir = shared_source_dir(root_dir)
+    source_dir = root_dir / "workspace" / "shared_assets" / "source"
     source_dir.mkdir(parents=True, exist_ok=True)
     safe_name = _sanitize_filename(file.filename)
     dest = source_dir / safe_name
@@ -118,7 +112,7 @@ async def upload_asset(request: Request, file: UploadFile):
 @router.get("/list")
 def list_source_assets(request: Request):
     root_dir: Path = request.app.state.root_dir
-    source_dir = shared_source_dir(root_dir)
+    source_dir = root_dir / "workspace" / "shared_assets" / "source"
     if not source_dir.exists():
         return []
     return [
@@ -136,7 +130,7 @@ def get_indexed_assets(
     product: str | None = Query(default=None),
 ):
     root_dir: Path = request.app.state.root_dir
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         return {
             "assets": [],
@@ -205,7 +199,7 @@ async def index_assets(
     product: str | None = Query(None),
 ):
     root_dir: Path = request.app.state.root_dir
-    source_dir = shared_source_dir(root_dir)
+    source_dir = root_dir / "workspace" / "shared_assets" / "source"
     source_dir.mkdir(parents=True, exist_ok=True)
 
     # 读取可选的 source_paths（Issue #144），只索引指定文件
@@ -233,7 +227,7 @@ async def index_assets(
             if f.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv"}
         ]
 
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     indexed_sources: set[str] = set()
     if db_path.exists():
         repository_for_check = AssetRepository(db_path)
@@ -303,7 +297,7 @@ async def index_assets(
         product=product_value,
         category_names=category_names,
     )
-    output_base = shared_indexed_dir(root_dir)
+    output_base = root_dir / "workspace" / "shared_assets" / "indexed"
     for video in new_videos:
         try:
             indexer._ingest_one_video(video, output_base)
@@ -359,6 +353,8 @@ async def _run_index_task(
             )
 
         # 索引前必须校验 Vision 配置完整性
+        assert config_reader is not None, "ConfigReader required"
+        assert secret_store is not None, "SecretStore required"
         try:
             validate_vision_config(config_reader, secret_store)
         except VisionConfigError as e:
@@ -372,7 +368,7 @@ async def _run_index_task(
             product=product,
             category_names=category_names,
         )
-        output_base = shared_indexed_dir(root_dir)
+        output_base = root_dir / "workspace" / "shared_assets" / "indexed"
 
         for i, video in enumerate(videos):
             task.current_video = i + 1
@@ -470,7 +466,7 @@ async def batch_update_categories(request: Request):
         asset_ids = asset_ids[:500]
 
     root_dir: Path = request.app.state.root_dir
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         return {"updated": 0}
 
@@ -597,7 +593,7 @@ async def batch_update_status(request: Request):
         )
 
     root_dir: Path = request.app.state.root_dir
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         return {"updated": 0}
 
@@ -684,11 +680,11 @@ async def batch_update_fields(request: Request):
     root_dir: Path = request.app.state.root_dir
     _validate_category(new_category, root_dir)
 
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
 
-    indexed_dir = shared_indexed_dir(root_dir)
+    indexed_dir = root_dir / "workspace" / "shared_assets" / "indexed"
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     updated = 0
@@ -739,7 +735,7 @@ async def patch_asset_status(request: Request, asset_id: str):
         raise HTTPException(status_code=400, detail="invalid status")
 
     root_dir: Path = request.app.state.root_dir
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         return {"updated": 0}
 
@@ -794,7 +790,7 @@ async def patch_asset_fields(request: Request, asset_id: str):
         raise HTTPException(status_code=400, detail="request body must be object")
 
     root_dir: Path = request.app.state.root_dir
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
 
@@ -814,7 +810,7 @@ async def patch_asset_fields(request: Request, asset_id: str):
     product = new_product or record.product
     category = new_category or record.category
 
-    indexed_dir = shared_indexed_dir(root_dir)
+    indexed_dir = root_dir / "workspace" / "shared_assets" / "indexed"
     new_dir = indexed_dir / product / category
     new_dir.mkdir(parents=True, exist_ok=True)
 
@@ -853,9 +849,9 @@ def migrate_project_assets(request: Request):
             "verification": {"old_count": 0, "new_count": 0, "diff": 0},
         }
 
-    shared_db_path = shared_asset_db_path(root_dir)
-    shared_src = shared_source_dir(root_dir)
-    shared_idx = shared_indexed_dir(root_dir)
+    shared_db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
+    shared_src = root_dir / "workspace" / "shared_assets" / "source"
+    shared_idx = root_dir / "workspace" / "shared_assets" / "indexed"
     shared_src.mkdir(parents=True, exist_ok=True)
     shared_idx.mkdir(parents=True, exist_ok=True)
 
@@ -1029,7 +1025,7 @@ async def batch_delete_assets(request: Request):
         )
 
     root_dir: Path = request.app.state.root_dir
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         return {"deleted": 0}
 
@@ -1038,7 +1034,7 @@ async def batch_delete_assets(request: Request):
     conn.row_factory = sqlite3.Row
     deleted = 0
     files_deleted = 0
-    thumbnail_dir = shared_assets_root(root_dir) / "thumbnails"
+    thumbnail_dir = root_dir / "workspace" / "shared_assets" / "thumbnails"
     source_videos_to_check: set[str] = set()
 
     for aid in asset_ids:
@@ -1083,7 +1079,7 @@ async def batch_delete_assets(request: Request):
 @router.get("/{asset_id}/thumbnail")
 async def get_asset_thumbnail(request: Request, asset_id: str):
     root_dir: Path = request.app.state.root_dir
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
 
@@ -1092,7 +1088,7 @@ async def get_asset_thumbnail(request: Request, asset_id: str):
     if not record:
         raise HTTPException(status_code=404, detail="asset not found")
 
-    thumbnail_dir = shared_assets_root(root_dir) / "thumbnails"
+    thumbnail_dir = root_dir / "workspace" / "shared_assets" / "thumbnails"
     thumbnail_path = thumbnail_dir / f"{asset_id}.jpg"
 
     if not thumbnail_path.exists():
@@ -1111,7 +1107,7 @@ async def get_asset_thumbnail(request: Request, asset_id: str):
 @router.delete("/{asset_id}")
 async def delete_asset(request: Request, asset_id: str):
     root_dir: Path = request.app.state.root_dir
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
 
@@ -1124,7 +1120,9 @@ async def delete_asset(request: Request, asset_id: str):
     if file_path.exists():
         file_path.unlink()
 
-    thumbnail_path = shared_assets_root(root_dir) / "thumbnails" / f"{asset_id}.jpg"
+    thumbnail_path = (
+        root_dir / "workspace" / "shared_assets" / "thumbnails" / f"{asset_id}.jpg"
+    )
     if thumbnail_path.exists():
         thumbnail_path.unlink()
 
@@ -1244,7 +1242,7 @@ async def batch_reclassify_assets(request: Request):
             detail={"code": "vision_config_invalid", "message": str(e)},
         )
 
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
 
@@ -1331,7 +1329,7 @@ async def reclassify_asset(request: Request, asset_id: str):
             detail={"code": "vision_config_invalid", "message": str(e)},
         )
 
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         raise HTTPException(status_code=404, detail="asset db not found")
 

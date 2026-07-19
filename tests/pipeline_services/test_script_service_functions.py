@@ -8,7 +8,7 @@ from packages.pipeline_services.script_service import (
     generate_cover_title,
     generate_script,
 )
-from packages.provider_config.config_resolver import ConfigResolver
+from packages.provider_config.config_reader import ConfigResolver
 
 
 def _make_config_resolver(product: str = "") -> ConfigResolver:

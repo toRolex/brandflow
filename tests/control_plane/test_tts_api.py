@@ -1,6 +1,23 @@
+from pathlib import Path
+
 import pytest
+from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from apps.control_plane.app import create_app
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_tts_config():
+    """Save and restore config/app_config.json so TTS config PUTs don't leak across tests."""
+    config_file = Path("config/app_config.json")
+    original = None
+    if config_file.exists():
+        original = config_file.read_text(encoding="utf-8")
+    yield
+    if original is not None:
+        config_file.write_text(original, encoding="utf-8")
+    elif config_file.exists():
+        config_file.unlink()
 
 
 @pytest.fixture
@@ -85,6 +102,86 @@ class TestTTSConfigAPI:
         response = client.get("/api/tts/voices?provider=unknown")
         assert response.status_code == 400
 
+    # ── voice/model 归属校验 (#222) ──────────────────────────────────
+
+    def test_save_config_mimo_model_qwen_voice_returns_422(self, client):
+        """MiMo 模型 + Qwen 音色 'Rocky' → 422"""
+        response = client.put(
+            "/api/tts/config",
+            json={"model": "mimo-v2.5-tts", "voice": "Rocky"},
+        )
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert "Rocky" in detail
+        assert "Mia" in detail or "mimo-v2.5-tts" in detail
+
+    def test_save_config_voicedesign_model_any_voice_passes(self, client):
+        """voicedesign 模型发送 Qwen 音色 → 正常，不触发校验"""
+        response = client.put(
+            "/api/tts/config",
+            json={
+                "model": "mimo-v2.5-tts-voicedesign",
+                "voice": "Rocky",
+                "voice_design_prompt": "年轻女性",
+            },
+        )
+        assert response.status_code == 200
+
+    def test_save_config_voiceclone_model_any_voice_passes(self, client):
+        """voiceclone 模型发送 Qwen 音色 → 正常，不触发校验"""
+        response = client.put(
+            "/api/tts/config",
+            json={"model": "mimo-v2.5-tts-voiceclone", "voice": "Rocky"},
+        )
+        assert response.status_code == 200
+
+    def test_save_config_voicedesign_empty_voice_passes(self, client):
+        """voicedesign 模型空 voice → 正常"""
+        response = client.put(
+            "/api/tts/config",
+            json={
+                "model": "mimo-v2.5-tts-voicedesign",
+                "voice": "",
+                "voice_design_prompt": "年轻女性",
+            },
+        )
+        assert response.status_code == 200
+
+    def test_save_config_valid_mimo_voice_passes(self, client):
+        """有效 MiMo voice/model 组合正常保存"""
+        response = client.put(
+            "/api/tts/config",
+            json={"model": "mimo-v2.5-tts", "voice": "Mia"},
+        )
+        assert response.status_code == 200
+
+    def test_save_config_valid_qwen_voice_passes(self, client):
+        """有效 Qwen voice/model 组合正常保存"""
+        response = client.put(
+            "/api/tts/config",
+            json={"model": "qwen3-tts-instruct-flash", "voice": "Rocky"},
+        )
+        assert response.status_code == 200
+
+    def test_save_config_qwen_flash_any_voice_passes(self, client):
+        """qwen3-tts-flash 支持全量 35 个音色（含 Jennifer）"""
+        response = client.put(
+            "/api/tts/config",
+            json={"model": "qwen3-tts-flash", "voice": "Jennifer"},
+        )
+        assert response.status_code == 200
+
+    def test_save_config_instruct_with_unsupported_voice_returns_422(self, client):
+        """qwen3-tts-instruct-flash + Jennifer（instruct 不支持的音色）→ 422"""
+        response = client.put(
+            "/api/tts/config",
+            json={"model": "qwen3-tts-instruct-flash", "voice": "Jennifer"},
+        )
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert "Jennifer" in detail
+        assert "qwen3-tts-instruct-flash" in detail
+
 
 class TestTTSPreviewAPI:
     def test_preview_requires_text(self, client):
@@ -102,3 +199,196 @@ class TestTTSPreviewAPI:
             },
         )
         assert response.status_code in [200, 500]
+
+    # ── #221: preview passes qwen fields ─────────────────────────────
+
+    def test_preview_passes_qwen_fields_to_config(self, client):
+        """preview 端点应将 request 的 qwen 字段写入 config 再调用 provider"""
+        with (
+            patch("requests.post") as mock_post,
+            patch("apps.control_plane.routes.tts.app_config") as mock_config,
+        ):
+            mock_config.get_api_key.return_value = "test-api-key"
+            mock_config.get_api_base_url.return_value = (
+                "https://dashscope.aliyuncs.com/api/v1"
+            )
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "output": {"audio": {"url": "https://example.com/audio.wav"}}
+            }
+            mock_post.return_value = mock_response
+
+            client.post(
+                "/api/tts/preview",
+                json={
+                    "text": "测试文本",
+                    "model": "qwen3-tts-flash",
+                    "voice": "Rocky",
+                    "instructions": "用粤语朗读",
+                    "optimize_instructions": True,
+                    "language_type": "Cantonese",
+                },
+            )
+
+            # Verify QwenTTSProvider received the qwen fields in its payload
+            call_args = mock_post.call_args_list[0]
+            payload = call_args[1]["json"]
+            assert payload["input"]["instructions"] == "用粤语朗读"
+            assert payload["input"]["optimize_instructions"] is True
+            assert payload["input"]["language_type"] == "Cantonese"
+
+    # ── #222: voice/model 归属校验 ────────────────────────────────────
+
+    def test_preview_mimo_model_invalid_voice_returns_422(self, client):
+        """MiMo 模型 + Qwen 音色 'Rocky' → 422"""
+        response = client.post(
+            "/api/tts/preview",
+            json={
+                "text": "测试文本",
+                "model": "mimo-v2.5-tts",
+                "voice": "Rocky",
+            },
+        )
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert "Rocky" in detail
+
+    def test_preview_voicedesign_model_any_voice_passes(self, client):
+        """voicedesign 模型发送任意 voice → 正常，不触发校验"""
+        # 422 if missing voice_design_prompt is ok (MiMo API rejects it),
+        # but must NOT be 422 from voice validation
+        response = client.post(
+            "/api/tts/preview",
+            json={
+                "text": "测试文本",
+                "model": "mimo-v2.5-tts-voicedesign",
+                "voice": "Rocky",
+                "voice_design_prompt": "年轻女性",
+            },
+        )
+        # voicedesign needs a valid prompt to succeed — 200 or 500 from MiMo API
+        # but never 422 from our voice validation
+        assert response.status_code != 422
+
+    def test_preview_valid_mimo_voice_passes(self, client):
+        """有效 MiMo voice/model 组合正常预览（200 或 500，不 422）"""
+        response = client.post(
+            "/api/tts/preview",
+            json={
+                "text": "测试文本",
+                "model": "mimo-v2.5-tts",
+                "voice": "Mia",
+            },
+        )
+        assert response.status_code != 422
+
+
+class TestTTSConfigNewFieldsRoundTrip:
+    """PUT /api/tts/config → GET /api/tts/config 新字段可还原
+
+    使用 mock 控制模块级 config_manager 以避免读取/写入真实配置文件。
+    """
+
+    @pytest.fixture
+    def client(self):
+        app = create_app()
+        return TestClient(app)
+
+    def _mock_manager(self):
+        """Return a dict-based manager mock: get returns stored config, save stores it."""
+        from packages.provider_config.tts_config import TTSConfig
+
+        store: dict[str, TTSConfig] = {}
+
+        def _get_config(project_id: str | None = None) -> TTSConfig:
+            key = project_id or "__global__"
+            return store.get(key, TTSConfig().with_defaults())
+
+        def _save_config(config: TTSConfig, project_id: str | None = None) -> None:
+            key = project_id or "__global__"
+            store[key] = config
+
+        return _get_config, _save_config
+
+    def test_save_and_restore_qwen_fields(self, client):
+        """PUT 含 instructions/language_type/optimize_instructions → GET 可还原"""
+        get_mock, save_mock = self._mock_manager()
+        with (
+            patch(
+                "apps.control_plane.routes.tts.config_manager.get_config",
+                side_effect=get_mock,
+            ),
+            patch(
+                "apps.control_plane.routes.tts.config_manager.save_config",
+                side_effect=save_mock,
+            ),
+        ):
+            config = {
+                "model": "qwen3-tts-flash",
+                "voice": "Rocky",
+                "instructions": "用粤语朗读，语速适中",
+                "optimize_instructions": True,
+                "language_type": "Cantonese",
+            }
+            put_resp = client.put("/api/tts/config", json=config)
+            assert put_resp.status_code == 200
+            assert put_resp.json()["success"] is True
+
+            get_resp = client.get("/api/tts/config")
+            assert get_resp.status_code == 200
+            data = get_resp.json()
+            assert data["instructions"] == "用粤语朗读，语速适中"
+            assert data["optimize_instructions"] is True
+            assert data["language_type"] == "Cantonese"
+
+    def test_save_and_restore_voiceclone_voicedesign_fields(self, client):
+        """PUT 含 voice_clone_sample_path/voice_clone_mime_type/optimize_text_preview → GET 可还原"""
+        get_mock, save_mock = self._mock_manager()
+        with (
+            patch(
+                "apps.control_plane.routes.tts.config_manager.get_config",
+                side_effect=get_mock,
+            ),
+            patch(
+                "apps.control_plane.routes.tts.config_manager.save_config",
+                side_effect=save_mock,
+            ),
+        ):
+            config = {
+                "model": "mimo-v2.5-tts-voicedesign",
+                "voice_clone_sample_path": "/tmp/sample.mp3",
+                "voice_clone_mime_type": "audio/mpeg",
+                "optimize_text_preview": True,
+            }
+            put_resp = client.put("/api/tts/config", json=config)
+            assert put_resp.status_code == 200
+            assert put_resp.json()["success"] is True
+
+            get_resp = client.get("/api/tts/config")
+            assert get_resp.status_code == 200
+            data = get_resp.json()
+            assert data["voice_clone_sample_path"] == "/tmp/sample.mp3"
+            assert data["voice_clone_mime_type"] == "audio/mpeg"
+            assert data["optimize_text_preview"] is True
+
+    def test_present_in_response(self, client):
+        """GET 响应中所有 6 个新字段都存在（字段名验证）"""
+        get_mock, save_mock = self._mock_manager()
+        with patch(
+            "apps.control_plane.routes.tts.config_manager.get_config",
+            side_effect=get_mock,
+        ):
+            get_resp = client.get("/api/tts/config")
+            assert get_resp.status_code == 200
+            data = get_resp.json()
+            for field in (
+                "instructions",
+                "optimize_instructions",
+                "language_type",
+                "voice_clone_sample_path",
+                "voice_clone_mime_type",
+                "optimize_text_preview",
+            ):
+                assert field in data, f"missing field: {field}"

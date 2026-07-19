@@ -21,15 +21,10 @@ class TestTTSConfigWhiteBox:
             voice_design_prompt="vdp",
             style_prompt="sp",
             audio_format="wav",
-            sample_rate=44100,
-            bitrate=192000,
-            channel=2,
-            enable_request_logging=True,
-            enable_performance_metrics=False,
-            log_audio_duration=False,
+            style_control_mode="simple",
         )
         data = config.to_dict()
-        assert len(data) == 26
+        assert len(data) == 20
         assert data["model"] == "test"
         assert data["voice"] == "v"
         assert data["fallback_voice"] == "fv"
@@ -38,12 +33,7 @@ class TestTTSConfigWhiteBox:
         assert data["voice_design_prompt"] == "vdp"
         assert data["style_prompt"] == "sp"
         assert data["audio_format"] == "wav"
-        assert data["sample_rate"] == 44100
-        assert data["bitrate"] == 192000
-        assert data["channel"] == 2
-        assert data["enable_request_logging"] is True
-        assert data["enable_performance_metrics"] is False
-        assert data["log_audio_duration"] is False
+        assert data["style_control_mode"] == "simple"
 
     def test_from_dict_handles_missing_keys(self):
         config = TTSConfig.from_dict({})
@@ -60,12 +50,7 @@ class TestTTSConfigWhiteBox:
             voice_design_prompt="vdp",
             style_prompt="sp",
             audio_format="wav",
-            sample_rate=44100,
-            bitrate=192000,
-            channel=2,
-            enable_request_logging=True,
-            enable_performance_metrics=False,
-            log_audio_duration=False,
+            style_control_mode="simple",
         )
         with_defaults = config.with_defaults()
         assert with_defaults.model == "m"
@@ -76,22 +61,16 @@ class TestTTSConfigWhiteBox:
         assert with_defaults.voice_design_prompt == "vdp"
         assert with_defaults.style_prompt == "sp"
         assert with_defaults.audio_format == "wav"
-        assert with_defaults.sample_rate == 44100
-        assert with_defaults.bitrate == 192000
-        assert with_defaults.channel == 2
-        assert with_defaults.enable_request_logging is True
-        assert with_defaults.enable_performance_metrics is False
-        assert with_defaults.log_audio_duration is False
+        assert with_defaults.style_control_mode == "simple"
 
     def test_merge_configs_priority_chain(self):
-        c1 = TTSConfig(model="m1", voice="v1", sample_rate=None)
+        c1 = TTSConfig(model="m1", voice="v1", style_prompt=None)
         c2 = TTSConfig(model="m2", style_prompt="s2")
-        c3 = TTSConfig(model="m3", sample_rate=44100)
+        c3 = TTSConfig(model="m3", style_prompt="s3")
         merged = TTSConfigManager._merge_configs(c1, c2, c3)
         assert merged.model == "m3"
         assert merged.voice == "v1"
-        assert merged.style_prompt == "s2"
-        assert merged.sample_rate == 44100
+        assert merged.style_prompt == "s3"
 
 
 class TestMiMoTTSProviderWhiteBox:

@@ -45,6 +45,7 @@ class AssetRetriever:
                             "asset_id": chosen.asset_id,
                             "duration_seconds": chosen.duration_seconds,
                             "method": "llm_match",
+                            "visual_type": "clip",
                         }
                     )
                     self.repository.increment_usage(chosen.asset_id)
@@ -65,6 +66,7 @@ class AssetRetriever:
                         "asset_id": fallback.asset_id,
                         "duration_seconds": fallback.duration_seconds,
                         "method": "fallback",
+                        "visual_type": "clip",
                     }
                 )
                 self.repository.increment_usage(fallback.asset_id)
@@ -75,6 +77,19 @@ class AssetRetriever:
                 logger.warning(
                     f"[Retriever] 句子 {i + 1}: 无可用素材! 句子内容: {sentence[:30]}..."
                 )
+                selected.append(
+                    {
+                        "sentence": sentence,
+                        "category": requested_category_name or "",
+                        "requested_category": requested_category_name or "",
+                        "file_path": "",
+                        "asset_id": "",
+                        "duration_seconds": 0.0,
+                        "method": "",
+                        "visual_type": "unresolved",
+                    }
+                )
+                logger.info(f"[Retriever] 句子 {i + 1}: 标记为 unresolved")
 
         logger.info(
             f"[Retriever] 检索完成: {len(selected)}/{len(sentences)} 句子匹配成功"
@@ -103,11 +118,18 @@ class AssetRetriever:
         return [s.strip() for s in raw if len(s.strip()) >= 4]
 
 
-def _compute_trim_params(clips: list[dict], audio_duration: float) -> list[dict]:
+def _compute_trim_params(
+    clips: list[dict],
+    audio_duration: float,
+    sentence_timings: list[dict] | None = None,
+) -> list[dict]:
     """为每个素材计算裁剪参数：起始偏移(ss)和裁剪时长(duration)。
 
     每句分配均等时长，ss 在 [0, 1] 随机偏移。
     如果素材时长不足，会调整 ss 确保能裁剪出足够时长。
+
+    当提供 *sentence_timings* 时，blank 段跳过均分，直接取对应句的 timing
+    （spec #178 AC-5：blank 时长只取后端 Sentence Timing）。
     """
     if not clips:
         return []
@@ -116,7 +138,17 @@ def _compute_trim_params(clips: list[dict], audio_duration: float) -> list[dict]
     params: list[dict] = []
     spare_capacity: list[float] = []
 
-    for clip in clips:
+    for idx, clip in enumerate(clips):
+        # Blank clip with sentence timings → use per-sentence duration
+        if sentence_timings and clip.get("visual_type") == "blank":
+            st = sentence_timings[idx] if idx < len(sentence_timings) else None
+            if st:
+                duration = st.get("end_seconds", 0) - st.get("start_seconds", 0)
+                duration = max(duration, 0.1)
+                params.append({**clip, "ss": 0, "duration": duration})
+                spare_capacity.append(0.0)
+                continue
+
         source_duration = float(clip.get("duration_seconds", 0) or 0)
         ss = random.uniform(0, 1)
         duration = per_clip

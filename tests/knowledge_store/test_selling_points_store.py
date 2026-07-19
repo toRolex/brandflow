@@ -168,7 +168,7 @@ class TestKnowledgeStoreSellingPoints:
     def test_get_top_selling_points_returns_by_priority(self, tmp_path: Path) -> None:
         store = KnowledgeStore(tmp_path)
         self._populate(store)
-        top = store.get_top_selling_points(top_k=2)
+        top = store.get_top_k_items(item_type="selling_point", k=2)
         assert len(top) == 2
         # Priorities: 5, 5, 4, 3 → top 2 should be the two 5s
         assert top[0].priority == 5
@@ -177,12 +177,12 @@ class TestKnowledgeStoreSellingPoints:
     def test_get_top_selling_points_default_k(self, tmp_path: Path) -> None:
         store = KnowledgeStore(tmp_path)
         self._populate(store)
-        top = store.get_top_selling_points()
+        top = store.get_top_k_items(item_type="selling_point")
         assert len(top) == 4  # default top_k=5 but only 4 selling points exist
 
     def test_get_top_selling_points_empty(self, tmp_path: Path) -> None:
         store = KnowledgeStore(tmp_path)
-        assert store.get_top_selling_points() == []
+        assert store.get_top_k_items(item_type="selling_point") == []
 
 
 class TestKnowledgeStoreRefresh:

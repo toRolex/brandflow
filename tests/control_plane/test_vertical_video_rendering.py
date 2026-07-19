@@ -2,7 +2,6 @@ import asyncio
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -13,7 +12,7 @@ from packages.pipeline_services.phase_orchestrator import (
 )
 
 
-def _make_orchestrator(video_svc, schedule_store, monkeypatch) -> PhaseOrchestrator:
+def _make_orchestrator(root_dir: Path, video_svc, schedule_store) -> PhaseOrchestrator:
     """Build an orchestrator with stubs for video_svc and schedule_store."""
     from packages.pipeline_services.subtitle_service import SubtitleService
 
@@ -21,26 +20,13 @@ def _make_orchestrator(video_svc, schedule_store, monkeypatch) -> PhaseOrchestra
         def synthesize(self, text: str, config: Any) -> bytes:
             return b"tts"
 
-    config_resolver = MagicMock()
-    config_resolver.tts.return_value = {"model": "test-model", "voice": "test-voice"}
-    config_resolver.secrets = MagicMock()
-    media_compositor = MagicMock()
-    media_compositor.concat_two.side_effect = lambda first, second, out: (
-        out.write_bytes(b"concatenated") or out
-    )
     orch = PhaseOrchestrator(
-        script_generator=MagicMock(),
         subtitle_svc=SubtitleService(),
         video_svc=video_svc,
-        media_compositor=media_compositor,
-        config_resolver=config_resolver,
         schedule_store=schedule_store,
     )
     stub = StubTTSProvider()
-    monkeypatch.setattr(
-        "packages.pipeline_services.phase_orchestrator.create_tts_provider",
-        lambda cfg, secrets: stub,
-    )
+    orch._build_tts_provider = lambda cfg: stub
     return orch
 
 
@@ -76,7 +62,11 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(
             pass
 
         def build_base_video(
-            self, actual_project_dir: Path, payload: dict, output_path: Path
+            self,
+            actual_project_dir: Path,
+            payload: dict,
+            output_path: Path,
+            **kwargs: Any,
         ) -> None:
             captured["project_dir"] = actual_project_dir
             captured["payload"] = payload
@@ -92,11 +82,9 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(
         ) -> int:
             return 1
 
-    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
-
     video_svc = StubVideoService()
     schedule_store = StubScheduleStore(root_dir)
-    orchestrator = _make_orchestrator(video_svc, schedule_store, monkeypatch)
+    orchestrator = _make_orchestrator(root_dir, video_svc, schedule_store)
 
     ctx = PhaseContext(
         job_id="job-001",
@@ -173,11 +161,9 @@ def test_final_rendering_allows_missing_srt_when_skip_subtitle_is_enabled(
             self.calls.append((job_id, platform, title, description))
             return 1
 
-    monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
-
     video_svc = StubVideoService()
     schedule_store = StubScheduleStore(root_dir)
-    orchestrator = _make_orchestrator(video_svc, schedule_store, monkeypatch)
+    orchestrator = _make_orchestrator(root_dir, video_svc, schedule_store)
 
     ctx = PhaseContext(
         job_id="job-001",

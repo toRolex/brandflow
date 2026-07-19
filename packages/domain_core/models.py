@@ -2,9 +2,40 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 Language = Literal["mandarin", "cantonese"]
+
+PHASE_ORDER = [
+    "queued",
+    "script_generating",
+    "script_review",
+    "tts_generating",
+    "tts_review",
+    "subtitle_generating",
+    "asset_retrieving",
+    "asset_review",
+    "montage_assembling",
+    "video_rendering",
+    "final_rendering",
+    "final_review",
+    "completed",
+    "scene_assembling",
+]
+
+
+def next_phase(current: str) -> str:
+    index = PHASE_ORDER.index(current)
+    if index >= len(PHASE_ORDER) - 1:
+        raise ValueError(f"phase {current!r} has no next phase")
+    return PHASE_ORDER[index + 1]
+
+
+def rewind_from_phase(start_phase: str) -> list[str]:
+    index = PHASE_ORDER.index(start_phase)
+    completed_index = PHASE_ORDER.index("completed")
+    return PHASE_ORDER[index:completed_index]
+
 
 Phase = Literal[
     "queued",
@@ -24,13 +55,29 @@ Phase = Literal[
     "failed",
     "cancelled",
     "paused",
+    "migration_required",
 ]
 
 ProductionMode = Literal["import", "generate"]
 ReviewStatus = Literal["none", "pending", "approved", "rejected", "overridden"]
-
+VisualType = Literal["clip", "blank", "unresolved"]
 
 AudioSource = Literal["tts", "upload", "library"]
+
+
+class AssetPosition(BaseModel):
+    """One sentence's asset position in asset review — clip, blank, or unresolved."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sentence: str
+    category: str = ""
+    requested_category: str = ""
+    file_path: str = ""
+    asset_id: str = ""
+    duration_seconds: float = 0.0
+    method: str = ""
+    visual_type: VisualType = "unresolved"
 
 
 class ArtifactPointer(BaseModel):
@@ -40,6 +87,65 @@ class ArtifactPointer(BaseModel):
     sha256: str = ""
     size_bytes: int = 0
     active: bool = False
+
+
+class ExecutionFailure(BaseModel):
+    """Stable, user-actionable details for an unsuccessful execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1, pattern=r"^[A-Z][A-Z0-9_]*$")
+    message: str = Field(min_length=1)
+    retryable: StrictBool
+
+    @model_validator(mode="after")
+    def reject_blank_text(self) -> "ExecutionFailure":
+        if not self.code.strip() or not self.message.strip():
+            raise ValueError("failure code and message must not be blank")
+        return self
+
+
+ExecutionStatus = Literal[
+    "pending",
+    "running",
+    "retrying",
+    "failed",
+    "succeeded",
+]
+
+
+class PhaseExecutionState(BaseModel):
+    """Lifecycle and attempt information exposed by a Job."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: ExecutionStatus = "pending"
+    current_attempt: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=3, ge=1)
+    error: ExecutionFailure | None = None
+
+    @model_validator(mode="after")
+    def validate_status_attempts_and_error(self) -> "PhaseExecutionState":
+        if self.current_attempt > self.max_attempts:
+            raise ValueError("current_attempt must not exceed max_attempts")
+        if self.status in {"running", "retrying", "failed", "succeeded"}:
+            if self.current_attempt < 1:
+                raise ValueError(f"{self.status} requires at least one attempt")
+        if self.status == "retrying" and self.current_attempt >= self.max_attempts:
+            raise ValueError("retrying requires a remaining attempt")
+        if self.status == "failed" and self.error is None:
+            raise ValueError("failed execution requires error details")
+        if self.status not in {"failed", "retrying"} and self.error is not None:
+            raise ValueError(
+                "only failed or retrying execution may include error details"
+            )
+        if (
+            self.status == "retrying"
+            and self.error is not None
+            and not self.error.retryable
+        ):
+            raise ValueError("retrying execution requires a retryable error")
+        return self
 
 
 class CoverTitleStyle(BaseModel):
@@ -64,10 +170,12 @@ class JobRecord(BaseModel):
     name: str = ""  # 用户自定义名称，空则回退到 product
     mode: ProductionMode = "generate"
     phase: Phase
+    failed_phase: Phase | None = None
     review_status: ReviewStatus
     active_attempt_id: str = ""
     active_versions: dict[str, str] = Field(default_factory=dict)
     last_error: str = ""
+    execution: PhaseExecutionState = Field(default_factory=PhaseExecutionState)
     artifacts: list[ArtifactPointer] = []
     manual_script: str = ""  # 手动输入的文案，如果非空则跳过LLM生成
     uploaded_audio_path: str = ""  # 上传的音频文件路径，如果非空则跳过TTS生成

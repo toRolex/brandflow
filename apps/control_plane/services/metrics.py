@@ -802,7 +802,7 @@ def compute_metrics_diff(
             # Updated video (only count if at least one metric changed)
             cur = current_map[key]
             prev = previous_map[key]
-            item = {
+            item: dict[str, Any] = {
                 "title": title,
                 "platform": p,
                 "publish_date": pub_date,

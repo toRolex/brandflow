@@ -14,7 +14,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from packages.file_store.paths import shared_asset_db_path
 from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.media_utils import (
     _resolve_ffmpeg_path,
@@ -320,7 +319,7 @@ def suggest_categories(
     errors: list[str] = []
 
     # 1. Connect to the shared asset DB
-    db_path = shared_asset_db_path(root_dir)
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     if not db_path.exists():
         msg = "Asset library database not found"
         logger.warning(msg)

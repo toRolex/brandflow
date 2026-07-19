@@ -1,5 +1,5 @@
 from packages.domain_core.models import JobRecord, WorkerLease
-from packages.domain_core.state import next_phase, rewind_from_phase
+from packages.domain_core.models import next_phase, rewind_from_phase
 from packages.domain_core.worker_protocol import PollCommandRunTask
 
 
@@ -14,6 +14,7 @@ def test_rewind_from_phase_discards_downstream_phases() -> None:
     assert phases == [
         "asset_retrieving",
         "asset_review",
+        "montage_assembling",
         "video_rendering",
         "final_rendering",
         "final_review",
@@ -74,3 +75,12 @@ def test_worker_lease_tracks_current_phase() -> None:
         current_phase="tts_generating",
     )
     assert lease.current_phase == "tts_generating"
+
+
+def test_job_record_accepts_migration_required_phase() -> None:
+    record = JobRecord(
+        job_id="job-1",
+        phase="migration_required",
+        review_status="none",
+    )
+    assert record.phase == "migration_required"

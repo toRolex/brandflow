@@ -84,9 +84,6 @@ TTS_ENV_MAPPINGS = {
             "MINIMAX_VOICE_PITCH": "pitch",
             "MINIMAX_VOICE_EMOTION": "emotion",
             "MINIMAX_AUDIO_FORMAT": "audio_format",
-            "MINIMAX_AUDIO_SAMPLE_RATE": "sample_rate",
-            "MINIMAX_AUDIO_BITRATE": "bitrate",
-            "MINIMAX_AUDIO_CHANNEL": "channel",
         },
     },
     "custom": {

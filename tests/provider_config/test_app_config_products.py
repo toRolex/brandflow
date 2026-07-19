@@ -6,7 +6,7 @@ from pathlib import Path
 
 from packages.provider_config.config_io import load_config
 from packages.provider_config.config_reader import ConfigReader
-from packages.provider_config.product_store import ProductStore
+from packages.provider_config.config_reader import ProductStore
 
 
 def _make_store(tmpdir: str) -> ProductStore:
@@ -143,15 +143,17 @@ def test_product_config_isolation() -> None:
         assert store.get_product_config("prod_b")["default_brand"] == "品牌 B"
 
 
-def test_reset_product_config_updates_active_when_removed() -> None:
-    """删除活跃产品后，活跃产品应切换到剩余产品。"""
+def test_reset_product_config_retains_all_products() -> None:
+    """重置活跃产品配置不应删除产品实体（#207 语义：只清配置，保留实体）。"""
     with tempfile.TemporaryDirectory() as tmpdir:
         store = _make_store(tmpdir)
         store.switch_product("prod_001")
         store.switch_product("prod_002")
         store.reset_product_config()
 
-        assert len(store.list_products()) == 1
+        # 两个产品都保留（#207 语义）
+        assert len(store.list_products()) == 2
+        # 活跃产品不变
         assert (
-            load_config(store._reader._config_path)["active_product_id"] == "prod_001"
+            load_config(store._reader._config_path)["active_product_id"] == "prod_002"
         )

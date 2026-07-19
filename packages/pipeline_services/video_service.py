@@ -148,8 +148,8 @@ def _render_cover_title_png(
         lw = 0
         for seg_text, _ in line_segs:
             bbox = draw.textbbox((0, 0), seg_text, font=font)
-            lh = max(lh, bbox[3] - bbox[1])
-            lw += bbox[2] - bbox[0]
+            lh = max(lh, int(bbox[3] - bbox[1]))
+            lw += int(bbox[2] - bbox[0])
         line_heights.append(lh)
         line_widths.append(lw)
 
@@ -275,20 +275,34 @@ class VideoService:
     def __init__(self, dry_run: bool = False) -> None:
         self.dry_run = dry_run
 
-    def build_base_video(self, project_dir: Path, job: dict, output_path: Path) -> None:
+    def build_base_video(
+        self,
+        _project_dir: Path,
+        job: dict,
+        output_path: Path,
+        trim_params: list[dict] | None = None,
+        sentence_timings: list[dict] | None = None,
+    ) -> list[dict]:
         """拼接素材片段生成基础视频。
 
         Args:
             project_dir: 项目目录（临时文件存放于此）。
             job: Job 字典，包含 asset_bundle -> audio_path / selected_clips。
             output_path: 输出基础视频路径。
+            trim_params: 预计算的裁剪参数（可选）。提供时跳过内部随机计算，
+                使调用方能复用同一份参数生成权威 Final Timeline（issue #179）。
+            sentence_timings: 逐句 timing（可选）。提供时 blank 段直接取对应
+                句的 timing 而非均分音频总长（#178 AC-5）。
+
+        Returns:
+            实际用于渲染的 trim_params 列表（每段含 ss/duration/visual_type）。
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if self.dry_run:
             output_path.write_bytes(b"DRY_RUN_BASE_VIDEO")
             clips = job.get("asset_bundle", {}).get("selected_clips", [])
             job["used_asset_ids"] = [c["asset_id"] for c in clips if c.get("asset_id")]
-            return
+            return trim_params if trim_params is not None else []
 
         audio_path = Path(job["asset_bundle"]["audio_path"])
         if not audio_path.exists():
@@ -302,38 +316,67 @@ class VideoService:
         if not selected_clips:
             raise RuntimeError(f"未找到素材检索结果: {job['job_id']}")
 
-        trim_params = _compute_trim_params(selected_clips, audio_duration)
+        if trim_params is None:
+            trim_params = _compute_trim_params(
+                selected_clips, audio_duration, sentence_timings
+            )
 
         trimmed_paths: list[Path] = []
         ffmpeg = get_ffmpeg_path()
         for i, tp in enumerate(trim_params):
-            src = Path(tp["file_path"])
             trimmed = output_path.parent / f"{job['job_id']}_trim_{i:02d}.mp4"
-            subprocess.run(
-                [
-                    ffmpeg,
-                    "-ss",
-                    f"{tp['ss']:.3f}",
-                    "-t",
-                    f"{tp['duration']:.3f}",
-                    "-i",
-                    str(src),
-                    "-vf",
-                    "fps=30,setsar=1",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "ultrafast",
-                    "-an",
-                    "-y",
-                    str(trimmed),
-                ],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=True,
-            )
+            # Blank clip: generate #000000 black frame with computed duration
+            if tp.get("visual_type") == "blank" or not tp.get("file_path"):
+                subprocess.run(
+                    [
+                        ffmpeg,
+                        "-y",
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        f"color=c=black:s=1080x1920:d={tp['duration']:.3f}:r=30",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "ultrafast",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-an",
+                        str(trimmed),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=True,
+                )
+            else:
+                src = Path(tp["file_path"])
+                subprocess.run(
+                    [
+                        ffmpeg,
+                        "-ss",
+                        f"{tp['ss']:.3f}",
+                        "-t",
+                        f"{tp['duration']:.3f}",
+                        "-i",
+                        str(src),
+                        "-vf",
+                        "fps=30,setsar=1",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "ultrafast",
+                        "-an",
+                        "-y",
+                        str(trimmed),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=True,
+                )
             trimmed_paths.append(trimmed)
 
         try:
@@ -351,6 +394,7 @@ class VideoService:
         job["used_asset_ids"] = [
             c["asset_id"] for c in selected_clips if c.get("asset_id")
         ]
+        return trim_params
 
     def burn_final_video(
         self,
@@ -396,11 +440,14 @@ class VideoService:
                     prefix="subs_", dir=str(final_video_path.parent)
                 )
                 _srt_clean_path = Path(_srt_temp_dir) / "subtitles.srt"
+                assert srt_path is not None
                 shutil.copy2(srt_path, _srt_clean_path)
                 srt_ffmpeg = _format_ass_path_for_ffmpeg(_srt_clean_path)
             else:
                 srt_ffmpeg = (
-                    _format_ass_path_for_ffmpeg(srt_path) if has_subtitles else ""
+                    _format_ass_path_for_ffmpeg(Path(str(srt_path)))
+                    if has_subtitles
+                    else ""
                 )
 
             cover_title_text = (cover_title or {}).get("text", "")

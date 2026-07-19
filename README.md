@@ -72,15 +72,15 @@ cd frontend && npm run dev
 | 后端 | Python 3.11+ / FastAPI / Pydantic v2 |
 | 依赖管理 | uv |
 | 媒体引擎 | FFmpeg（ffmpeg-full） / ffprobe / whisper-cli |
-| LLM | DeepSeek / Kimi / OpenAI（默认实现见 `AppConfigManager.DEFAULTS`） |
-| TTS | Xiaomi MiMo / MiniMax（支持 preset / voicedesign / voiceclone 三种模式，见 `AppConfigManager.DEFAULTS`） |
-| Vision | Xiaomi / OpenAI / Claude 兼容接口（默认实现见 `AppConfigManager.DEFAULTS`） |
+| LLM | DeepSeek / Kimi / OpenAI（默认实现见 `DEFAULTS`） |
+| TTS | Xiaomi MiMo / MiniMax（支持 preset / voicedesign / voiceclone 三种模式，见 `DEFAULTS`） |
+| Vision | Xiaomi / OpenAI / Claude 兼容接口（默认实现见 `DEFAULTS`） |
 | 排期存储 | SQLite |
 | 目标平台 | 抖音、小红书、视频号、快手 |
 
 ## 配置
 
-运行时统一通过 `packages/provider_config/app_config.py` 中的 `AppConfigManager` 读取配置。
+运行时统一通过 `packages/provider_config/config_reader.py` 中的 `ConfigReader` / `SecretStore` 读取配置。
 
 ```bash
 # 复制示例文件并填入真实密钥
@@ -135,6 +135,15 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 - **auto_approve**：Job 可自动跳过所有审核门，实现全自动流水线
 - **批量模式**：支持一次性创建多个 Job（`POST /api/projects/{id}/jobs/batch`），每个 Job 可独立配置脚本模式和字幕选项
 
+**Import 模式音画对齐（Issue #179）：** 含场景段的 Job 在 `video_rendering` 阶段把 TTS 配音与字幕整体偏移到混剪段起点（场景段无配音/字幕，仅可有背景音乐），并持久化权威 Final Timeline（`final_timeline.json`，渲染时生成、带稳定内容指纹，记录每段 kind/精确起止/来源），导出包优先嵌入该时间线。
+
+**精确 MP4 分块导出（Issue #181）：** 导出包 `final/` 同时含 `final.mp4` 与按 Final Timeline 精确切分的连续编号 `seg_NNN.mp4`（重编码保证精确边界，每段含对应最终音频/字幕/标题/音乐/视觉，独立可播放）。`timeline.json` 升级为平坦播放顺序的 2.0（每段 `rendered_file` → `seg_NNN.mp4`，montage 段另含可选 `source_file`）。无 Final Timeline 的历史 Job 拒绝导出并要求重渲染（不再回退 legacy 目录推算）。
+
+### Phase 执行状态与重试（Issue #169 / #170）
+
+Job API 响应包含 `execution` 字段（`PhaseExecutionState`），暴露当前 phase 的执行生命周期：`pending / running / retrying / failed / succeeded`、attempt 计数（`current_attempt` / `max_attempts`，默认最多 3 次）与结构化错误（`code` / `message` / `retryable`）。结构化 phase 结果模型定义于 `packages/domain_core/phase_execution.py`。
+
+Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 attempt，确定性错误立即终态并记录 `failed_phase`。`POST /api/jobs/{id}/retry` 会先 revalidate 失败阶段输入，通过则从失败阶段恢复（保留已有 artifacts）；不通过返回 409 + 结构化 detail。存量失败 job（无 `failed_phase`）回退为重置 `queued` 重试。
 ## 知识库 API（Issue #28）
 
 上传产品介绍文档，LLM 自动提取结构化知识并注入脚本生成 system prompt。

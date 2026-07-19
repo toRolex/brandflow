@@ -5,23 +5,22 @@ from unittest import mock
 
 import pytest
 
-from packages.runtime_adapters.base import BaseRuntimeAdapter
-from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
+from packages.runtime_adapters import RuntimeAdapter
 
 
-def test_class_inherits_from_base() -> None:
-    adapter = MacLocalRuntimeAdapter()
-    assert isinstance(adapter, BaseRuntimeAdapter)
-
-
-def test_profile_name() -> None:
-    adapter = MacLocalRuntimeAdapter()
+def test_profile_name_mac_local() -> None:
+    adapter = RuntimeAdapter(profile_name="mac-local")
     assert adapter.profile_name == "mac-local"
+
+
+def test_profile_name_windows_prod() -> None:
+    adapter = RuntimeAdapter(profile_name="windows-prod")
+    assert adapter.profile_name == "windows-prod"
 
 
 def test_ffmpeg_path_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FFMPEG_PATH", "/opt/ffmpeg/bin/ffmpeg")
-    adapter = MacLocalRuntimeAdapter()
+    adapter = RuntimeAdapter()
 
     with mock.patch.object(Path, "exists", return_value=True):
         result = adapter.ffmpeg_path()
@@ -30,7 +29,7 @@ def test_ffmpeg_path_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_ffmpeg_path_tools_bin(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("FFMPEG_PATH", raising=False)
-    adapter = MacLocalRuntimeAdapter()
+    adapter = RuntimeAdapter()
 
     def _exists_side_effect(self: Path) -> bool:
         return "ffmpeg" in str(self) and "tools" in str(self) and "bin" in str(self)
@@ -48,7 +47,7 @@ def test_ffmpeg_path_tools_bin(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_ffmpeg_path_shutil_which(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("FFMPEG_PATH", raising=False)
-    adapter = MacLocalRuntimeAdapter()
+    adapter = RuntimeAdapter()
 
     with (
         mock.patch.object(Path, "exists", return_value=False),
@@ -61,7 +60,7 @@ def test_ffmpeg_path_shutil_which(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_ffmpeg_path_all_missing_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("FFMPEG_PATH", raising=False)
-    adapter = MacLocalRuntimeAdapter()
+    adapter = RuntimeAdapter()
 
     with (
         mock.patch.object(Path, "exists", return_value=False),
@@ -72,19 +71,19 @@ def test_ffmpeg_path_all_missing_raises(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_ensure_tools_returns_none() -> None:
-    adapter = MacLocalRuntimeAdapter()
+    adapter = RuntimeAdapter()
     assert adapter.ensure_tools() is None
 
 
 def test_attempt_root_creates_directory(tmp_path: Path) -> None:
-    adapter = MacLocalRuntimeAdapter()
+    adapter = RuntimeAdapter()
     root = adapter.attempt_root(tmp_path, "attempt-001")
     assert root == tmp_path / "attempts" / "attempt-001"
     assert root.exists()
 
 
 def test_build_fake_outputs(tmp_path: Path) -> None:
-    adapter = MacLocalRuntimeAdapter()
+    adapter = RuntimeAdapter()
     attempt = adapter.attempt_root(tmp_path, "attempt-002")
     paths = adapter.build_fake_outputs(attempt)
     names = {p.name for p in paths}

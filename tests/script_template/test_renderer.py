@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from packages.script_template.models import (
+from packages.script_template import (
     ScriptTemplate,
     TemplateSlot,
     TemplateVariable,
+    render_template,
 )
-from packages.script_template.renderer import render_template
 
 
 def _sample_template() -> ScriptTemplate:

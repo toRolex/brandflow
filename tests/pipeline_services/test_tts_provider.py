@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+from collections.abc import Callable
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -108,6 +110,158 @@ class TestMiMoTTSProviderSynthesize:
         audio = provider.synthesize("测试文本", self._mock_config())
         assert isinstance(audio, bytes)
         assert len(audio) > 0
+
+    @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_decodes_nested_audio_data_byte_for_byte(
+        self, mock_requests, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = wav_bytes()
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "audio": {
+                            "data": base64.b64encode(source_audio).decode("ascii")
+                        }
+                    }
+                }
+            ]
+        }
+        mock_requests.post.return_value = mock_resp
+
+        audio = self._make_provider().synthesize("test", self._mock_config())
+
+        assert audio == source_audio
+
+    @pytest.mark.parametrize("field", ["audio", "data", "b64_json", "base64"])
+    @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_accepts_supported_direct_string_fields(
+        self, mock_requests, field, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = wav_bytes()
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            field: base64.b64encode(source_audio).decode("ascii")
+        }
+        mock_requests.post.return_value = mock_resp
+
+        assert (
+            self._make_provider().synthesize("test", self._mock_config())
+            == source_audio
+        )
+
+    @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_recurses_through_audio_objects_and_lists(
+        self, mock_requests, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = wav_bytes()
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "result": {
+                "audio": [
+                    {"metadata": {"ignored": True}},
+                    {"payload": {"data": base64.b64encode(source_audio).decode()}},
+                ]
+            }
+        }
+        mock_requests.post.return_value = mock_resp
+
+        assert (
+            self._make_provider().synthesize("test", self._mock_config())
+            == source_audio
+        )
+
+    @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_decodes_data_uri(
+        self, mock_requests, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = wav_bytes()
+        encoded = base64.b64encode(source_audio).decode("ascii")
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"audio": f"data:audio/wav;base64,{encoded}"}
+        mock_requests.post.return_value = mock_resp
+
+        assert (
+            self._make_provider().synthesize("test", self._mock_config())
+            == source_audio
+        )
+
+    @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_prefers_strict_base64_for_hex_shaped_string(
+        self, mock_requests
+    ):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"audio": "AAAA"}
+        mock_requests.post.return_value = mock_resp
+
+        assert (
+            self._make_provider().synthesize(
+                "test", self._mock_config(audio_format="pcm16")
+            )
+            == b"\x00\x00\x00"
+        )
+
+    @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_decodes_explicit_hex(
+        self, mock_requests, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = wav_bytes()
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"audio": f"hex:{source_audio.hex()}"}
+        mock_requests.post.return_value = mock_resp
+
+        assert (
+            self._make_provider().synthesize("test", self._mock_config())
+            == source_audio
+        )
+
+    @pytest.mark.parametrize(
+        "response_body",
+        [
+            {"audio": "not*valid*base64=="},
+            {"audio": "dGVzdA="},
+            {"audio": {"metadata": "not audio"}},
+            {"choices": [{"message": {"content": "no audio"}}]},
+        ],
+    )
+    @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_rejects_invalid_or_missing_audio(
+        self, mock_requests, response_body
+    ):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = response_body
+        mock_requests.post.return_value = mock_resp
+
+        with pytest.raises(TTSBlockedError, match="valid audio data") as exc_info:
+            self._make_provider().synthesize("test", self._mock_config())
+
+        assert "not audio" not in str(exc_info.value)
+        assert "not*valid" not in str(exc_info.value)
+
+    @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_sanitizes_invalid_json_response(self, mock_requests):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.side_effect = ValueError("secret raw provider response")
+        mock_requests.post.return_value = mock_resp
+
+        with pytest.raises(TTSBlockedError, match="invalid response") as exc_info:
+            self._make_provider().synthesize("test", self._mock_config())
+
+        assert "secret raw provider response" not in str(exc_info.value)
+
+    @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_sanitizes_provider_error(self, mock_requests):
+        mock_resp = MagicMock(status_code=400)
+        mock_resp.json.return_value = {
+            "error": "request rejected; api-key=secret-provider-key"
+        }
+        mock_requests.post.return_value = mock_resp
+
+        with pytest.raises(TTSBlockedError, match="HTTP 400") as exc_info:
+            self._make_provider().synthesize("test", self._mock_config())
+
+        assert "secret-provider-key" not in str(exc_info.value)
 
     @patch("packages.pipeline_services.tts_provider.requests")
     def test_synthesize_raises_quota_on_429(self, mock_requests):

@@ -6,10 +6,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from packages.domain_core.state import next_phase
+from packages.domain_core.models import next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.script_service import generate_script
-from packages.provider_config.config_resolver import ConfigResolver
+from packages.provider_config.config_reader import ConfigReader, ConfigResolver
+from packages.provider_config.secret_store import SecretStore
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,20 @@ router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
 class ReviewAction(BaseModel):
     review_gate: str
+    force: bool = False
+
+
+class AssetIndexRequest(BaseModel):
+    clip_index: int
+
+
+class SetAssetRequest(BaseModel):
+    clip_index: int
+    file_path: str
+    asset_id: str
+    duration_seconds: float = 0.0
+    category: str = ""
+    requested_category: str = ""
 
 
 class EditScriptRequest(BaseModel):
@@ -74,6 +89,38 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
+
+    # ── Asset review specific checks ──
+    if record.phase == "asset_review":
+        root_dir = Path(request.app.state.root_dir)
+        job_dir = _find_job_dir(root_dir, project_id, job_id)
+        clips_path = job_dir / "selected_clips.json"
+        if clips_path.exists():
+            clips = json.loads(clips_path.read_text(encoding="utf-8"))
+
+            # Check for unresolved clips — block approval
+            unresolved = [c for c in clips if c.get("visual_type") == "unresolved"]
+            if unresolved:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"尚有 {len(unresolved)} 个句子素材未解决（unresolved），请先处理",
+                )
+
+            # Check all-blank — warn unless force=True
+            has_clip = any(c.get("visual_type") == "clip" for c in clips)
+            if not has_clip and not payload.force:
+                raise HTTPException(
+                    status_code=409,
+                    detail="所有素材均为空白（blank），确认后请使用 force=true",
+                )
+
+            # Freeze snapshot: write reviewed_assets.json
+            snapshot_path = job_dir / "reviewed_assets.json"
+            snapshot_path.write_text(
+                json.dumps(clips, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            logger.info(f"[Review] 素材审核快照已保存: {snapshot_path}")
 
     try:
         nxt = next_phase(record.phase)
@@ -188,16 +235,15 @@ def regenerate_with_prompt(
     )
 
     try:
-        config_reader = request.app.state.config_reader
-        secret_store = request.app.state.secret_store
-        config_resolver = ConfigResolver(reader=config_reader, secrets=secret_store)
+        config_reader = ConfigReader(config_dir=str(root_dir / "config"))
+        config_resolver = ConfigResolver(reader=config_reader, secrets=SecretStore())
         result = generate_script(
             product=product,
             output_dir=job_dir,
             language="mandarin",
             brand="",
-            config_resolver=config_resolver,
             custom_prompt=payload.custom_prompt,
+            config_resolver=config_resolver,
         )
         logger.info(
             f"[Review] 重新生成成功: job={job_id}, txt={result.get('txt_path')}"
@@ -271,9 +317,8 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
             AssetRepository,
             AssetRetriever,
         )
-        from packages.file_store.paths import shared_asset_db_path
 
-        db_path = shared_asset_db_path(root_dir)
+        db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
         repo = AssetRepository(db_path)
         _ = AssetRetriever(repo)
 
@@ -317,4 +362,209 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         "job_id": job_id,
         "clip_index": payload.clip_index,
         "sentence": sentence,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Asset review shared helpers
+# ---------------------------------------------------------------------------
+
+
+def _resolve_job_context(request: Request, job_id: str) -> tuple[Path, str, Path]:
+    """Resolve root_dir, project_id, job_dir from request and job_id."""
+    root_dir = Path(request.app.state.root_dir)
+    project_id = request.query_params.get("project_id", "")
+    job_dir = _find_job_dir(root_dir, project_id, job_id)
+    return root_dir, project_id, job_dir
+
+
+def _load_clips(job_dir: Path, clip_index: int) -> list[dict]:
+    """Load selected_clips.json and validate clip_index. Raises HTTPException on error."""
+    clips_path = job_dir / "selected_clips.json"
+    if not clips_path.exists():
+        raise HTTPException(status_code=404, detail="selected_clips.json not found")
+    try:
+        clips = json.loads(clips_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read clips: {e}")
+    if clip_index < 0 or clip_index >= len(clips):
+        raise HTTPException(status_code=400, detail=f"Invalid clip index: {clip_index}")
+    return clips
+
+
+def _save_clips(job_dir: Path, clips: list[dict]) -> None:
+    """Write clips back to selected_clips.json."""
+    clips_path = job_dir / "selected_clips.json"
+    clips_path.write_text(
+        json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Asset review: clip / blank / unresolved endpoints (#178)
+# ---------------------------------------------------------------------------
+
+
+def _ensure_original(clips: list[dict], index: int) -> None:
+    """Store the original state of a clip entry before user modification."""
+    entry = clips[index]
+    if "_original" not in entry:
+        entry["_original"] = {
+            "sentence": entry.get("sentence", ""),
+            "category": entry.get("category", ""),
+            "file_path": entry.get("file_path", ""),
+            "asset_id": entry.get("asset_id", ""),
+            "duration_seconds": entry.get("duration_seconds", 0.0),
+            "method": entry.get("method", ""),
+            "visual_type": entry.get("visual_type", "unresolved"),
+        }
+
+
+@router.post("/{job_id}/asset/set-blank")
+def asset_set_blank(job_id: str, payload: AssetIndexRequest, request: Request) -> dict:
+    """Set a clip position to blank (black frame, no asset)."""
+    _, _, job_dir = _resolve_job_context(request, job_id)
+    clips = _load_clips(job_dir, payload.clip_index)
+
+    _ensure_original(clips, payload.clip_index)
+    clips[payload.clip_index].update(
+        {
+            "file_path": "",
+            "asset_id": "",
+            "duration_seconds": 0.0,
+            "method": "blank",
+            "visual_type": "blank",
+        }
+    )
+    _save_clips(job_dir, clips)
+    logger.info(f"[AssetReview] set-blank: job={job_id}, index={payload.clip_index}")
+    return {"status": "set_blank", "job_id": job_id, "clip_index": payload.clip_index}
+
+
+@router.post("/{job_id}/asset/set-asset")
+def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> dict:
+    """Manually assign a specific asset to a clip position."""
+    _, _, job_dir = _resolve_job_context(request, job_id)
+    clips = _load_clips(job_dir, payload.clip_index)
+
+    _ensure_original(clips, payload.clip_index)
+    clips[payload.clip_index].update(
+        {
+            "file_path": payload.file_path,
+            "asset_id": payload.asset_id,
+            "duration_seconds": payload.duration_seconds
+            or clips[payload.clip_index].get("duration_seconds", 0.0),
+            "category": payload.category
+            or clips[payload.clip_index].get("category", ""),
+            "method": "manual",
+            "visual_type": "clip",
+        }
+    )
+    _save_clips(job_dir, clips)
+    logger.info(
+        f"[AssetReview] set-asset: job={job_id}, index={payload.clip_index}, asset={payload.asset_id}"
+    )
+    return {
+        "status": "set_asset",
+        "job_id": job_id,
+        "clip_index": payload.clip_index,
+        "visual_type": "clip",
+    }
+
+
+@router.post("/{job_id}/asset/re-search")
+def asset_re_search(job_id: str, payload: AssetIndexRequest, request: Request) -> dict:
+    """Re-search for an asset at a clip position.
+
+    Does NOT overwrite clips that are explicitly blank.
+    """
+    root_dir, _, job_dir = _resolve_job_context(request, job_id)
+    clips = _load_clips(job_dir, payload.clip_index)
+
+    entry = clips[payload.clip_index]
+    if entry.get("visual_type") == "blank":
+        logger.info(
+            f"[AssetReview] re-search skipped for blank: job={job_id}, index={payload.clip_index}"
+        )
+        return {
+            "status": "re_searched",
+            "job_id": job_id,
+            "clip_index": payload.clip_index,
+            "visual_type": "blank",
+            "note": "blank clip unchanged by re-search",
+        }
+
+    category = entry.get("category", "")
+
+    try:
+        from packages.pipeline_services.asset_library import AssetRepository
+
+        db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
+        arepo = AssetRepository(db_path)
+
+        candidates = (
+            arepo.query_by_category_name(entry.get("product", ""), category or "")
+            if category
+            else []
+        )
+        candidates = [c for c in candidates if c.usage_count < 2]
+        if candidates:
+            chosen = random.choice(candidates)
+            _ensure_original(clips, payload.clip_index)
+            clips[payload.clip_index].update(
+                {
+                    "file_path": chosen.file_path,
+                    "asset_id": chosen.asset_id,
+                    "duration_seconds": chosen.duration_seconds,
+                    "visual_type": "clip",
+                    "method": "re_search",
+                }
+            )
+            logger.info(
+                f"[AssetReview] re-search: job={job_id}, index={payload.clip_index}, asset={chosen.asset_id}"
+            )
+        else:
+            clips[payload.clip_index].update(
+                {
+                    "file_path": "",
+                    "asset_id": "",
+                    "visual_type": "unresolved",
+                    "method": "re_search_no_result",
+                }
+            )
+            logger.info(
+                f"[AssetReview] re-search no result: job={job_id}, index={payload.clip_index}"
+            )
+    except Exception as e:
+        logger.error(f"[AssetReview] re-search failed: {e}")
+        clips[payload.clip_index]["visual_type"] = "unresolved"
+
+    _save_clips(job_dir, clips)
+    return {
+        "status": "re_searched",
+        "job_id": job_id,
+        "clip_index": payload.clip_index,
+        "visual_type": clips[payload.clip_index].get("visual_type"),
+    }
+
+
+@router.post("/{job_id}/asset/restore")
+def asset_restore(job_id: str, payload: AssetIndexRequest, request: Request) -> dict:
+    """Restore a clip position to its original asset suggestion."""
+    _, _, job_dir = _resolve_job_context(request, job_id)
+    clips = _load_clips(job_dir, payload.clip_index)
+
+    entry = clips[payload.clip_index]
+    if "_original" not in entry:
+        raise HTTPException(status_code=400, detail="no original state to restore")
+
+    original = entry.pop("_original")
+    clips[payload.clip_index].update(original)
+    _save_clips(job_dir, clips)
+    logger.info(f"[AssetReview] restore: job={job_id}, index={payload.clip_index}")
+    return {
+        "status": "restored",
+        "job_id": job_id,
+        "clip_index": payload.clip_index,
+        "visual_type": original.get("visual_type"),
     }

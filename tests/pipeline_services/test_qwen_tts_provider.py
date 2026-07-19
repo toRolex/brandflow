@@ -43,6 +43,7 @@ class TestQwenTTSProvider:
 
         with patch.object(provider, "_http_post") as mock_post:
             mock_resp = Mock()
+            mock_resp.status_code = 200
             mock_resp.json.return_value = QWEN_RESPONSE
             mock_resp.raise_for_status = Mock()
             mock_post.return_value = mock_resp
@@ -67,6 +68,7 @@ class TestQwenTTSProvider:
 
         with patch.object(provider, "_http_post") as mock_post:
             mock_resp = Mock()
+            mock_resp.status_code = 200
             mock_resp.json.return_value = QWEN_RESPONSE
             mock_resp.raise_for_status = Mock()
             mock_post.return_value = mock_resp
@@ -93,6 +95,7 @@ class TestQwenTTSProvider:
 
         with patch.object(provider, "_http_post") as mock_post:
             mock_resp = Mock()
+            mock_resp.status_code = 200
             mock_resp.json.return_value = {
                 "code": "InvalidApiKey",
                 "message": "bad key",
