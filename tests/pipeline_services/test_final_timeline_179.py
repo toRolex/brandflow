@@ -457,7 +457,7 @@ class TestRunVideoAlignmentInjection:
                 return_value=3.0,
             ),
         ):
-            artifacts = orchestrator.run_phase("video_rendering", ctx)
+            orchestrator.run_phase("video_rendering", ctx)
 
         timeline = json.loads(
             (job_dir / "final_timeline.json").read_text(encoding="utf-8")
