@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from packages.domain_core.state import next_phase
+from packages.domain_core.models import next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.script_service import generate_script
 from packages.provider_config.config_reader import ConfigReader
@@ -318,9 +318,8 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
             AssetRepository,
             AssetRetriever,
         )
-        from packages.file_store.paths import shared_asset_db_path
 
-        db_path = shared_asset_db_path(root_dir)
+        db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
         repo = AssetRepository(db_path)
         _ = AssetRetriever(repo)
 
@@ -500,9 +499,8 @@ def asset_re_search(job_id: str, payload: AssetIndexRequest, request: Request) -
 
     try:
         from packages.pipeline_services.asset_library import AssetRepository
-        from packages.file_store.paths import shared_asset_db_path
 
-        db_path = shared_asset_db_path(root_dir)
+        db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
         arepo = AssetRepository(db_path)
 
         candidates = (

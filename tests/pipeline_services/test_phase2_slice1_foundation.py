@@ -23,7 +23,7 @@ from packages.domain_core.models import (
     ProductionMode,
 )
 from packages.domain_core.phase_execution import PhaseExecutionSuccess
-from packages.domain_core.state import PHASE_ORDER
+from packages.domain_core.models import PHASE_ORDER
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
     _compute_transition,

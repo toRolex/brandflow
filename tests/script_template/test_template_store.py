@@ -3,9 +3,9 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from packages.script_template.store import ScriptTemplateStore
-from packages.script_template.models import (
+from packages.script_template import (
     ScriptTemplate,
+    ScriptTemplateStore,
     TemplateSlot,
     TemplateVariable,
 )
