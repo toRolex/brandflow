@@ -394,10 +394,6 @@ class TTSConfigShim:
         self.director_guidance: str = cfg.get("director_guidance", "")
 
 
-# Backward compat alias
-_TTSConfigShim = TTSConfigShim
-
-
 # ---------------------------------------------------------------------------
 # TTS provider factory
 # ---------------------------------------------------------------------------

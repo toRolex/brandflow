@@ -62,7 +62,6 @@ class TestTTSConfigBlackBox:
 
 class TestTTSPreviewBlackBox:
     def test_preview_without_api_key_returns_error(self, client, monkeypatch):
-        monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
         monkeypatch.delenv("MIMO_API_KEY", raising=False)
         monkeypatch.delenv("TTS_API_KEY", raising=False)
         response = client.post(
@@ -73,7 +72,6 @@ class TestTTSPreviewBlackBox:
         assert "MIMO_API_KEY" in response.json()["detail"]
 
     def test_preview_with_invalid_model_returns_error(self, client, monkeypatch):
-        monkeypatch.setattr("packages.provider_config.app_config.load_dotenv", None)
         monkeypatch.delenv("MIMO_API_KEY", raising=False)
         monkeypatch.delenv("TTS_API_KEY", raising=False)
         response = client.post(

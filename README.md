@@ -72,15 +72,15 @@ cd frontend && npm run dev
 | 后端 | Python 3.11+ / FastAPI / Pydantic v2 |
 | 依赖管理 | uv |
 | 媒体引擎 | FFmpeg（ffmpeg-full） / ffprobe / whisper-cli |
-| LLM | DeepSeek / Kimi / OpenAI（默认实现见 `AppConfigManager.DEFAULTS`） |
-| TTS | Xiaomi MiMo / MiniMax（支持 preset / voicedesign / voiceclone 三种模式，见 `AppConfigManager.DEFAULTS`） |
-| Vision | Xiaomi / OpenAI / Claude 兼容接口（默认实现见 `AppConfigManager.DEFAULTS`） |
+| LLM | DeepSeek / Kimi / OpenAI（默认实现见 `DEFAULTS`） |
+| TTS | Xiaomi MiMo / MiniMax（支持 preset / voicedesign / voiceclone 三种模式，见 `DEFAULTS`） |
+| Vision | Xiaomi / OpenAI / Claude 兼容接口（默认实现见 `DEFAULTS`） |
 | 排期存储 | SQLite |
 | 目标平台 | 抖音、小红书、视频号、快手 |
 
 ## 配置
 
-运行时统一通过 `packages/provider_config/app_config.py` 中的 `AppConfigManager` 读取配置。
+运行时统一通过 `packages/provider_config/config_reader.py` 中的 `ConfigReader` / `SecretStore` 读取配置。
 
 ```bash
 # 复制示例文件并填入真实密钥

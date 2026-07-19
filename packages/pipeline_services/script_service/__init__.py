@@ -9,7 +9,7 @@ from packages.pipeline_services.script_service.generator import (
     ScriptGenerator,
     ScriptResult,
 )
-from packages.provider_config.config_resolver import ConfigResolver
+from packages.provider_config.config_reader import ConfigResolver
 
 __all__ = [
     "ScriptGenerator",

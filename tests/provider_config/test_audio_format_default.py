@@ -1,7 +1,7 @@
 """测试音频格式默认值修复"""
 
+from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.tts_config import TTSConfig, TTSConfigManager
-from packages.provider_config.app_config import DEFAULTS
 
 
 def test_tts_config_default_audio_format():

@@ -21,7 +21,7 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseOrchestrator,
 )
 from packages.provider_config.config_reader import ConfigReader
-from packages.runtime_adapters.mac_local import MacLocalRuntimeAdapter
+from packages.runtime_adapters import RuntimeAdapter
 
 
 class WorkerLoop:
@@ -171,10 +171,10 @@ class WorkerLoop:
             )
 
     @property
-    def adapter(self) -> MacLocalRuntimeAdapter:
+    def adapter(self) -> RuntimeAdapter:
         """Lazy adapter for ensure_tools() (no-op on mac-local)."""
         if not hasattr(self, "_adapter"):
-            self._adapter = MacLocalRuntimeAdapter()
+            self._adapter = RuntimeAdapter(profile_name="mac-local")
         return self._adapter
 
 

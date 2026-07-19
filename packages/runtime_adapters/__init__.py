@@ -1,3 +1,5 @@
-"""Runtime adapters package for phase 1."""
+"""Runtime adapters package."""
 
-__all__ = ["base", "mac_local", "windows_prod"]
+from packages.runtime_adapters.adapter import RuntimeAdapter
+
+__all__ = ["RuntimeAdapter"]
