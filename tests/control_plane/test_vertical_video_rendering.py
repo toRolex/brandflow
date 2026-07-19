@@ -62,7 +62,11 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(
             pass
 
         def build_base_video(
-            self, actual_project_dir: Path, payload: dict, output_path: Path
+            self,
+            actual_project_dir: Path,
+            payload: dict,
+            output_path: Path,
+            **kwargs: Any,
         ) -> None:
             captured["project_dir"] = actual_project_dir
             captured["payload"] = payload

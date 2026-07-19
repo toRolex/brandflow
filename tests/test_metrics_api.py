@@ -489,6 +489,13 @@ def test_scan_real_data_directory():
         # Copy data structure to temp root
         shutil.copytree(str(real_data), str(root / "data"), dirs_exist_ok=True)
 
+        # Create a sample CSV file so the scan has something to process
+        sample_csv = root / "data" / "metrics_weixin_20260101.csv"
+        sample_csv.write_text(
+            "视频描述,视频ID,发布时间,播放量,喜欢,评论量,分享量,关注量,转发聊天和朋友圈,完播率,平均播放时长,推荐\n"
+            "测试视频一,v001,2026-07-19,100,10,5,2,1,0,50%,30秒,200\n"
+        )
+
         client = TestClient(app)
 
         # 1. Scan should find and import files
@@ -498,7 +505,7 @@ def test_scan_real_data_directory():
         assert data["files_processed"] > 0, f"Expected files_processed > 0, got {data}"
         assert data["total_inserted"] > 0, f"Expected total_inserted > 0, got {data}"
 
-        # 2. Overview should return real aggregated data
+        # 2. Overview should return aggregated data
         resp = client.get("/api/metrics/overview?days=30")
         assert resp.status_code == 200
         overview = resp.json()

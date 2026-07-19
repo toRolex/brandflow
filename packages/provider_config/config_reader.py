@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from packages.provider_config.config_constants import (
     DEFAULTS,
@@ -107,7 +107,10 @@ class ConfigReader:
         raw = config.get("keyword_map", {})
         if not isinstance(raw, dict):
             return {}
-        return {str(k): list(v) for k, v in raw.items() if isinstance(v, list)}
+        return cast(
+            dict[str, list[str]],
+            {str(k): list(v) for k, v in raw.items() if isinstance(v, list)},
+        )
 
     def get_category_suggestion_model(self) -> str:
         """Return the model used for category suggestions."""

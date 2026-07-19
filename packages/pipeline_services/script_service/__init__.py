@@ -22,7 +22,7 @@ __all__ = [
 
 def build_generator_config(config_resolver: ConfigResolver, product: str) -> Any:
     """Build a duck-typed config object for ScriptGenerator from ConfigResolver."""
-    llm_config, api_key, api_url = config_resolver.llm(product_id=product or None)
+    llm_config, api_key, api_url = config_resolver.llm(product_id=product or "")
     return SimpleNamespace(
         api_key=api_key,
         base_url=api_url,

@@ -148,8 +148,8 @@ def _render_cover_title_png(
         lw = 0
         for seg_text, _ in line_segs:
             bbox = draw.textbbox((0, 0), seg_text, font=font)
-            lh = max(lh, bbox[3] - bbox[1])
-            lw += bbox[2] - bbox[0]
+            lh = max(lh, int(bbox[3] - bbox[1]))
+            lw += int(bbox[2] - bbox[0])
         line_heights.append(lh)
         line_widths.append(lw)
 
@@ -277,7 +277,7 @@ class VideoService:
 
     def build_base_video(
         self,
-        project_dir: Path,
+        _project_dir: Path,
         job: dict,
         output_path: Path,
         trim_params: list[dict] | None = None,
@@ -440,11 +440,14 @@ class VideoService:
                     prefix="subs_", dir=str(final_video_path.parent)
                 )
                 _srt_clean_path = Path(_srt_temp_dir) / "subtitles.srt"
+                assert srt_path is not None
                 shutil.copy2(srt_path, _srt_clean_path)
                 srt_ffmpeg = _format_ass_path_for_ffmpeg(_srt_clean_path)
             else:
                 srt_ffmpeg = (
-                    _format_ass_path_for_ffmpeg(srt_path) if has_subtitles else ""
+                    _format_ass_path_for_ffmpeg(Path(str(srt_path)))
+                    if has_subtitles
+                    else ""
                 )
 
             cover_title_text = (cover_title or {}).get("text", "")

@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 import shutil
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
@@ -122,7 +122,7 @@ class CoverTitleStyleRequest(BaseModel):
     outline_color: str = "#000000"
     highlight_color: str = "#FF0000"
     outline_width: float = 2.0
-    position: str = "center"
+    position: Literal["top", "center", "bottom"] = "center"
 
 
 class CoverTitleRequest(BaseModel):
@@ -186,7 +186,7 @@ def _cover_title_from_request(req: CoverTitleRequest | None) -> CoverTitle:
             outline_color=req.style.outline_color,
             highlight_color=req.style.highlight_color,
             outline_width=req.style.outline_width,
-            position=req.style.position,  # type: ignore[arg-type]
+            position=req.style.position,
         )
     return CoverTitle(
         text=req.text,
