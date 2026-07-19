@@ -96,7 +96,7 @@ class TestSceneSnapshotPartialInvalidation:
 
     def test_partial_invalidation(self, tmp_path: Path):
         """One entry's source changes → only that entry is re-randomized."""
-        orch, ctx, root = self._setup_workspace(tmp_path)
+        orch, ctx, root = self._setup_workspace(tmp_path, files_per_folder=5)
         job_dir = orch._job_dir(ctx)
 
         patches = [
@@ -136,7 +136,7 @@ class TestSceneSnapshotPartialInvalidation:
 
     def test_force_reselect_still_works(self, tmp_path: Path):
         """force_reselect=True still causes a full re-randomize."""
-        orch, ctx, root = self._setup_workspace(tmp_path)
+        orch, ctx, root = self._setup_workspace(tmp_path, files_per_folder=5)
         job_dir = orch._job_dir(ctx)
 
         patches = [

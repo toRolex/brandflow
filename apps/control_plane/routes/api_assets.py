@@ -353,6 +353,8 @@ async def _run_index_task(
             )
 
         # 索引前必须校验 Vision 配置完整性
+        assert config_reader is not None, "ConfigReader required"
+        assert secret_store is not None, "SecretStore required"
         try:
             validate_vision_config(config_reader, secret_store)
         except VisionConfigError as e:

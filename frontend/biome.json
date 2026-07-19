@@ -1,10 +1,5 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
-	"vcs": {
-		"enabled": true,
-		"clientKind": "git",
-		"useIgnoreFile": true
-	},
 	"files": {
 		"includes": ["**", "!!**/dist"]
 	},
@@ -16,7 +11,10 @@
 		"enabled": true,
 		"rules": {
 			"preset": "recommended",
-			"a11y": "warn"
+			"a11y": "warn",
+			"correctness": "warn",
+			"style": "warn",
+			"suspicious": "warn"
 		}
 	},
 	"javascript": {
