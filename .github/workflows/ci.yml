@@ -71,9 +71,10 @@ jobs:
 
       - name: Biome lint
         run: pnpm biome lint src/
+        working-directory: frontend
 
       - name: Biome format check
-        run: pnpm biome format --write src/
+        run: pnpm biome format src/
         working-directory: frontend
 
       - name: Test
