@@ -105,7 +105,7 @@ def _check_knowledge_rules(
     # Check require_top_selling_points
     require_top = k_rules.get("require_top_selling_points", False)
     if require_top:
-        top_points = store.get_top_selling_points(top_k=top_k)
+        top_points = store.get_top_k_items(item_type="selling_point", k=top_k)
         if top_points:
             missing = []
             for p in top_points:
@@ -120,7 +120,7 @@ def _check_knowledge_rules(
     # Check min_selling_points_included
     min_points = k_rules.get("min_selling_points_included", 0)
     if min_points > 0:
-        all_points = store.get_top_selling_points(top_k=top_k)
+        all_points = store.get_top_k_items(item_type="selling_point", k=top_k)
         if all_points:
             included_count = sum(
                 1 for p in all_points if p.title in text or p.content in text

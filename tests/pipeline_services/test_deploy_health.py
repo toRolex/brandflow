@@ -8,36 +8,7 @@ from unittest.mock import MagicMock, patch
 from packages.deploy_health.checker import (
     DeployHealthChecker,
     DeployHealthResult,
-    check_external_tool,
 )
-
-
-class TestCheckExternalTool:
-    def test_tool_found_and_executable(self):
-        """当工具可通过 shutil.which 找到时返回 pass。"""
-        with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
-            result = check_external_tool("ffmpeg")
-        assert result.status == "pass"
-        assert result.name == "ffmpeg"
-        assert "/usr/bin/ffmpeg" in result.message
-
-    def test_tool_not_found(self):
-        """当工具不可执行时返回 fail，并给出修复建议。"""
-        with patch("shutil.which", return_value=None):
-            result = check_external_tool("ffmpeg")
-        assert result.status == "fail"
-        assert result.name == "ffmpeg"
-        assert result.fix is not None
-        assert "ffmpeg" in result.fix.lower()
-
-    def test_tool_missing_with_custom_fix(self):
-        """可使用自定义修复建议。"""
-        with patch("shutil.which", return_value=None):
-            result = check_external_tool(
-                "my-tool", missing_fix="请安装 my-tool: brew install my-tool"
-            )
-        assert result.status == "fail"
-        assert "brew install my-tool" in result.fix
 
 
 class TestDeployHealthCheckerCheckTools:

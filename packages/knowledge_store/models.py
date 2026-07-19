@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -36,13 +35,6 @@ class KnowledgeDocument(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
 
-    def to_dict(self) -> dict[str, Any]:
-        return self.model_dump()
-
-    @staticmethod
-    def from_dict(data: dict[str, Any]) -> "KnowledgeDocument":
-        return KnowledgeDocument(**data)
-
 
 class KnowledgeItem(BaseModel):
     """A single knowledge item extracted from a document."""
@@ -55,15 +47,6 @@ class KnowledgeItem(BaseModel):
     priority: int = Field(default=3, ge=1, le=5)
     tags: list[str] = Field(default_factory=list)
     source_document: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        d = self.model_dump()
-        d["type"] = self.type.value
-        return d
-
-    @staticmethod
-    def from_dict(data: dict[str, Any]) -> "KnowledgeItem":
-        return KnowledgeItem(**data)
 
 
 class KnowledgeConfig(BaseModel):
