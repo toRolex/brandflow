@@ -590,21 +590,43 @@ export default function JobPipeline() {
 			case "migration_required":
 				return (
 					<div className="py-4">
-						<h3
-							className="font-semibold text-sm mb-2"
-							style={{ color: "var(--text-primary)" }}
+						<div
+							className="flex items-center gap-2 mb-4 p-3 rounded-lg border"
+							style={{
+								borderColor: "var(--color-caution-amber)",
+								background: "var(--bg-table-head)",
+							}}
 						>
-							需补充场景文件夹
-						</h3>
+							<span
+								className="text-lg shrink-0"
+								style={{ color: "var(--color-caution-amber)" }}
+							>
+								&#9888;
+							</span>
+							<div>
+								<h3
+									className="font-semibold text-sm"
+									style={{ color: "var(--text-primary)" }}
+								>
+									需补充场景文件夹
+								</h3>
+								<p
+									className="text-xs mt-0.5"
+									style={{ color: "var(--text-secondary)" }}
+								>
+									该任务为历史创建的导入任务，缺少有效的场景输入。请从下方选择场景文件夹完成迁移，系统将重建任务并保留现有文案与配置。
+								</p>
+							</div>
+						</div>
 						<p
-							className="text-xs mb-4"
+							className="text-xs mb-4 font-medium"
 							style={{ color: "var(--text-secondary)" }}
 						>
-							该导入任务缺少有效的场景输入，请选择场景文件夹后重新启动。
+							选择要使用的场景文件夹：
 						</p>
 						{sceneFolders.length === 0 ? (
 							<p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-								未配置场景文件夹
+								未配置场景文件夹 — 请先在系统设置中配置场景文件夹
 							</p>
 						) : (
 							<div className="flex flex-wrap gap-3 mb-4">
@@ -646,7 +668,7 @@ export default function JobPipeline() {
 							disabled={selectedSceneFolders.length === 0}
 							onClick={handleMigrateScenes}
 						>
-							重新启动任务
+							补充场景并重新启动任务
 						</button>
 					</div>
 				);
@@ -700,13 +722,13 @@ export default function JobPipeline() {
 								className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
 								onClick={() => handleApprove("tts")}
 							>
-								{"\u2713"} 通过
+								{"✓"} 通过
 							</button>
 							<button
 								className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
 								onClick={() => handleReject("tts")}
 							>
-								{"\u2717"} 打回重新生成
+								{"✗"} 打回重新生成
 							</button>
 						</div>
 					</div>
@@ -740,6 +762,7 @@ export default function JobPipeline() {
 				);
 			}
 			case "asset_retrieving": {
+				const execStatus = job.execution?.status;
 				const clipsArtifact = findArtifact("selected_clips");
 				const assetRecords = selectedClips.map((clip, index) => {
 					const category = String(clip.category || "");
@@ -758,10 +781,44 @@ export default function JobPipeline() {
 						last_used_at: "",
 					};
 				});
+
 				return (
 					<div>
 						<h3 className="font-semibold text-sm mb-3">素材检索</h3>
-						{clipsArtifact ? (
+
+						{/* State 1: waiting to start */}
+						{execStatus === "pending" && (
+							<div className="py-4">
+								<p className="text-[var(--text-tertiary)] text-sm">
+									等待开始切配...
+								</p>
+							</div>
+						)}
+
+						{/* State 2: running / in progress */}
+						{execStatus === "running" && (
+							<div className="py-4">
+								<div className="flex items-center gap-2 mb-2">
+									<div
+										className="w-4 h-4 border-2 rounded-full animate-spin"
+										style={{
+											borderColor: "var(--border-default)",
+											borderTopColor: "var(--btn-primary-bg)",
+										}}
+									/>
+									<p className="text-[var(--text-tertiary)] text-sm">
+										正在切配素材...
+									</p>
+								</div>
+								<p className="text-[var(--text-tertiary)] text-xs">
+									第 {job.execution.current_attempt} /{" "}
+									{job.execution.max_attempts} 次尝试
+								</p>
+							</div>
+						)}
+
+						{/* State 3: succeeded with results */}
+						{execStatus === "succeeded" && clipsArtifact && (
 							<div>
 								<p className="text-[var(--text-tertiary)] text-sm mb-4">
 									已检索到 {selectedClips.length} 个匹配素材
@@ -775,7 +832,42 @@ export default function JobPipeline() {
 									/>
 								</div>
 							</div>
-						) : (
+						)}
+
+						{/* State 4: succeeded but no assets found */}
+						{execStatus === "succeeded" && !clipsArtifact && (
+							<div className="py-4">
+								<div
+									className="p-3 rounded-lg border mb-3"
+									style={{
+										borderColor: "var(--color-caution-amber)",
+										background: "var(--bg-table-head)",
+									}}
+								>
+									<p
+										className="text-sm font-medium"
+										style={{ color: "var(--color-caution-amber)" }}
+									>
+										无可用素材
+									</p>
+									<p
+										className="text-xs mt-1"
+										style={{ color: "var(--text-secondary)" }}
+									>
+										未找到与当前文案匹配的素材。您可以修改文案后重试，或检查素材库内容。
+									</p>
+								</div>
+								<button
+									className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+									onClick={handleRetry}
+								>
+									重新检索素材
+								</button>
+							</div>
+						)}
+
+						{/* State 5: unexpected status (edge case coverage) */}
+						{!["pending", "running", "succeeded"].includes(execStatus || "") && (
 							<p className="text-[var(--text-tertiary)] text-sm">
 								等待素材检索...
 							</p>
@@ -833,13 +925,13 @@ export default function JobPipeline() {
 										className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
 										onClick={() => handleApprove("asset")}
 									>
-										{"\u2713"} 全部通过
+										{"✓"} 全部通过
 									</button>
 									<button
 										className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
 										onClick={() => handleReject("asset")}
 									>
-										{"\u2717"} 全部打回重新检索
+										{"✗"} 全部打回重新检索
 									</button>
 								</div>
 							</div>
@@ -871,13 +963,13 @@ export default function JobPipeline() {
 								className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
 								onClick={() => handleApprove("final")}
 							>
-								{"\u2713"} 通过
+								{"✓"} 通过
 							</button>
 							<button
 								className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
 								onClick={() => handleReject("final")}
 							>
-								{"\u2717"} 打回
+								{"✗"} 打回
 							</button>
 						</div>
 					</div>
@@ -925,13 +1017,29 @@ export default function JobPipeline() {
 			}
 			case "failed": {
 				const executionError = job.execution?.error;
+				const failedPhaseLabel = (() => {
+					const step = PIPELINE_STEPS.find(
+						(s) => s.phase === job.failed_phase,
+					);
+					return step?.label || job.failed_phase || "unknown";
+				})();
+				const isRetryable =
+					executionError?.retryable === true;
+				const isAssetFailed =
+					job.failed_phase === "asset_retrieving" ||
+					job.failed_phase === "asset_review";
+
 				return (
 					<div className="text-center py-12">
 						<div className="text-[var(--color-alert-red)] text-5xl mb-4">
 							{"✗"}
 						</div>
 						<h3 className="text-lg font-semibold text-[var(--color-alert-red)] mb-2">
-							任务失败
+							{isAssetFailed
+								? isRetryable
+									? "素材检索失败（可重试）"
+									: "素材检索失败（已终止）"
+								: "任务失败"}
 						</h3>
 						{executionError ? (
 							<div className="space-y-2 text-sm text-[var(--text-tertiary)]">
@@ -941,26 +1049,40 @@ export default function JobPipeline() {
 								<p>{executionError.message}</p>
 								<p>
 									失败阶段：
-									<span className="font-mono">
-										{job.failed_phase || "unknown"}
-									</span>
+									<span className="font-mono">{failedPhaseLabel}</span>
 								</p>
-								<p>
-									尝试次数：{job.execution.current_attempt} /{" "}
-									{job.execution.max_attempts}
-								</p>
+								{isRetryable ? (
+									<p>
+										尝试次数：{job.execution.current_attempt} /{" "}
+										{job.execution.max_attempts}
+									</p>
+								) : (
+									<p className="text-[var(--color-caution-amber)]">
+										此错误不可重试，请检查配置后重建任务
+									</p>
+								)}
 							</div>
 						) : (
 							<p className="text-[var(--text-tertiary)] text-sm">
 								{job.last_error || "未知错误"}
 							</p>
 						)}
-						<button
-							className="mt-4 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
-							onClick={handleRetry}
-						>
-							重试失败阶段
-						</button>
+						{isRetryable && (
+							<button
+								className="mt-4 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+								onClick={handleRetry}
+							>
+								重试失败阶段
+							</button>
+						)}
+						{!isRetryable && isAssetFailed && (
+							<button
+								className="mt-4 bg-[var(--bg-table-head)] text-[var(--text-link)] border border-[var(--border-default)] px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+								onClick={() => navigate(`/projects/${job.project_id}`)}
+							>
+								返回工作台
+							</button>
+						)}
 					</div>
 				);
 			}
@@ -999,74 +1121,74 @@ export default function JobPipeline() {
 		}
 	};
 
-	return (
-		<div>
-			<div className="flex items-center gap-2 mb-4">
-				<button
-					className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
-					onClick={() => navigate(`/projects/${job.project_id}`)}
-				>
-					{"\u2190"} 返回工作台
-				</button>
-				<span className="text-[var(--text-tertiary)]">|</span>
-				<h1 className="text-lg font-bold font-mono">
-					{job.name || job.job_id}
-				</h1>
-				{job.product && (
-					<span className="text-xs text-[var(--text-tertiary)] bg-[var(--bg-table-head)] px-2 py-0.5 rounded">
-						{job.product}
-					</span>
-				)}
-			</div>
-
-			{error && (
-				<div className="mb-4 bg-[var(--alert-red-muted)] border border-[var(--danger-border)] text-[var(--alert-red)] px-4 py-3 rounded-lg text-sm flex items-center justify-between">
-					<span>{error}</span>
+		return (
+			<div>
+				<div className="flex items-center gap-2 mb-4">
 					<button
-						onClick={() => setError("")}
-						className="text-[var(--text-tertiary)] hover:text-[var(--alert-red)] text-lg leading-none"
+						className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
+						onClick={() => navigate(`/projects/${job.project_id}`)}
 					>
-						&times;
+						{"←"} 返回工作台
 					</button>
+					<span className="text-[var(--text-tertiary)]">|</span>
+					<h1 className="text-lg font-bold font-mono">
+						{job.name || job.job_id}
+					</h1>
+					{job.product && (
+						<span className="text-xs text-[var(--text-tertiary)] bg-[var(--bg-table-head)] px-2 py-0.5 rounded">
+							{job.product}
+						</span>
+					)}
 				</div>
-			)}
 
-			{job.execution?.status === "retrying" && (
-				<div className="mb-4 bg-[var(--bg-table-head)] px-4 py-3 rounded-lg text-sm">
-					正在重试，第 {job.execution.current_attempt} /{" "}
-					{job.execution.max_attempts} 次
-				</div>
-			)}
+				{error && (
+					<div className="mb-4 bg-[var(--alert-red-muted)] border border-[var(--danger-border)] text-[var(--alert-red)] px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+						<span>{error}</span>
+						<button
+							onClick={() => setError("")}
+							className="text-[var(--text-tertiary)] hover:text-[var(--alert-red)] text-lg leading-none"
+						>
+							&times;
+						</button>
+					</div>
+				)}
 
-			<div className="flex flex-col md:flex-row border rounded-xl min-h-[500px]">
-				<PipelineSidebar
-					currentPhase={job.phase}
-					completedPhases={computeCompletedPhases(job.phase)}
-					onStepClick={(key) => setActiveStepKey(key)}
-					activeStepKey={activeStepKey}
-					jobInfo={
-						job.name
-							? `${job.name} (${job.product})`
-							: job.product
-								? `${job.job_id} ${job.product}`
-								: job.job_id
-					}
-					mode={job.mode}
-					onPause={() => api.pauseJob(job.job_id)}
-					onRetry={handleRetry}
-					onViewLogs={async () => {
-						try {
-							const r = await api.getJobLogs(job.job_id);
-							alert(r.logs || "无日志");
-						} catch {
-							alert("无法加载日志");
+				{job.execution?.status === "retrying" && (
+					<div className="mb-4 bg-[var(--bg-table-head)] px-4 py-3 rounded-lg text-sm">
+						正在重试，第 {job.execution.current_attempt} /{" "}
+						{job.execution.max_attempts} 次
+					</div>
+				)}
+
+				<div className="flex flex-col md:flex-row border rounded-xl min-h-[500px]">
+					<PipelineSidebar
+						currentPhase={job.phase}
+						completedPhases={computeCompletedPhases(job.phase)}
+						onStepClick={(key) => setActiveStepKey(key)}
+						activeStepKey={activeStepKey}
+						jobInfo={
+							job.name
+								? `${job.name} (${job.product})`
+								: job.product
+									? `${job.job_id} ${job.product}`
+									: job.job_id
 						}
-					}}
-				/>
-				<div className="flex-1 min-w-0 p-5 bg-[var(--bg-page)] overflow-x-auto">
-					{renderDetail()}
+						mode={job.mode}
+						onPause={() => api.pauseJob(job.job_id)}
+						onRetry={handleRetry}
+						onViewLogs={async () => {
+							try {
+								const r = await api.getJobLogs(job.job_id);
+								alert(r.logs || "无日志");
+							} catch {
+								alert("无法加载日志");
+							}
+						}}
+					/>
+					<div className="flex-1 min-w-0 p-5 bg-[var(--bg-page)] overflow-x-auto">
+						{renderDetail()}
+					</div>
 				</div>
 			</div>
-		</div>
-	);
-}
+		);
+	}

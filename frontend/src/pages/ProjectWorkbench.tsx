@@ -17,6 +17,31 @@ import type { BatchConfig } from "../utils/batchScriptSplit";
 
 type TabKey = "jobs";
 
+function parseApiError(e: unknown): string {
+	if (!(e instanceof Error)) return "操作失败";
+	const match = e.message.match(/^\d+:\s*([\s\S]*)$/);
+	if (!match) return e.message || "操作失败";
+	try {
+		const body = JSON.parse(match[1]);
+		const detail = body?.detail;
+		if (typeof detail === "string") return detail;
+		if (detail?.message) {
+			return detail.code
+				? `${detail.code}: ${detail.message}`
+				: detail.message;
+		}
+		if (detail?.errors && Array.isArray(detail.errors)) {
+			const first = detail.errors[0];
+			if (first?.error?.message) {
+				return first.error.code
+					? `第 ${first.index + 1} 项「${first.item_name}」验证失败: ${first.error.message} (${first.error.code})`
+					: `第 ${first.index + 1} 项「${first.item_name}」验证失败: ${first.error.message}`;
+			}
+		}
+	} catch {}
+	return "操作失败";
+}
+
 export default function ProjectWorkbench() {
 	const { id } = useParams<{ id: string }>();
 	const navigate = useNavigate();
@@ -196,7 +221,7 @@ export default function ProjectWorkbench() {
 			navigate(`/jobs/${job.job_id}`);
 		} catch (e) {
 			console.error("create job failed", e);
-			setError("创建 Job 失败");
+			setError(parseApiError(e));
 		}
 	};
 
@@ -241,7 +266,7 @@ export default function ProjectWorkbench() {
 			load();
 		} catch (e) {
 			console.error("batch create failed", e);
-			setError("批量创建失败");
+			setError(parseApiError(e));
 		}
 	};
 
