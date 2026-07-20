@@ -45,6 +45,7 @@ export default function JobPipeline() {
 		[],
 	);
 	const [rejectedClips, setRejectedClips] = useState<Set<number>>(new Set());
+	const [showAllBlankConfirm, setShowAllBlankConfirm] = useState(false);
 	const [sceneFolders, setSceneFolders] = useState<SceneFolder[]>([]);
 	const [selectedSceneFolders, setSelectedSceneFolders] = useState<string[]>(
 		[],
@@ -1071,6 +1072,58 @@ export default function JobPipeline() {
 						setError("打回素材失败");
 					}
 				};
+
+				const handleToggleBlank = async (clipIndex: number) => {
+					const clip = selectedClips[clipIndex];
+					const currentVisualType = String(clip.visual_type || "");
+					try {
+						if (currentVisualType === "blank") {
+							await api.assetRestore(job.job_id, clipIndex, job.project_id);
+						} else {
+							await api.assetSetBlank(job.job_id, clipIndex, job.project_id);
+						}
+						load();
+					} catch (e) {
+						console.error("toggle blank failed", e);
+						setError("留空操作失败");
+					}
+				};
+
+				const handleRestore = async (clipIndex: number) => {
+					try {
+						await api.assetRestore(job.job_id, clipIndex, job.project_id);
+						load();
+					} catch (e) {
+						console.error("restore clip failed", e);
+						setError("恢复素材失败");
+					}
+				};
+
+				const allBlank =
+					selectedClips.length > 0 &&
+					selectedClips.every(
+						(c) => String(c.visual_type || "") === "blank",
+					);
+
+				const handleAssetApprove = () => {
+					if (allBlank) {
+						setShowAllBlankConfirm(true);
+					} else {
+						handleApprove("asset");
+					}
+				};
+
+				const handleForceApprove = async () => {
+					setShowAllBlankConfirm(false);
+					try {
+						await api.approveReview(job.job_id, "asset", true);
+						load();
+					} catch (e) {
+						console.error("force approve failed", e);
+						setError("强制审核失败");
+					}
+				};
+
 				return (
 					<div>
 						<h3 className="font-semibold text-sm mb-3">素材审核</h3>
@@ -1090,16 +1143,28 @@ export default function JobPipeline() {
 											key={`${clip.asset_id}-${index}`}
 											clip={{
 												sentence: String(clip.sentence || ""),
+												sentence_index: clip.sentence_index != null
+													? Number(clip.sentence_index)
+													: undefined,
 												category: String(clip.category || ""),
 												requested_category: clip.requested_category
 													? String(clip.requested_category)
 													: undefined,
 												file_path: String(clip.file_path || ""),
 												asset_id: String(clip.asset_id || ""),
+												duration_seconds: clip.duration_seconds
+													? Number(clip.duration_seconds)
+													: undefined,
 												method: String(clip.method || ""),
+												visual_type: (clip.visual_type as
+													| "clip"
+													| "blank"
+													| "unresolved") || "unresolved",
 											}}
 											index={index}
 											onReject={handleRejectClip}
+											onToggleBlank={handleToggleBlank}
+											onRestore={handleRestore}
 											rejected={rejectedClips.has(index)}
 										/>
 									))}
@@ -1107,7 +1172,7 @@ export default function JobPipeline() {
 								<div className="flex gap-2">
 									<button
 										className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
-										onClick={() => handleApprove("asset")}
+										onClick={handleAssetApprove}
 									>
 										{"✓"} 全部通过
 									</button>
@@ -1118,6 +1183,36 @@ export default function JobPipeline() {
 										{"✗"} 全部打回重新检索
 									</button>
 								</div>
+
+								{/* All-blank confirmation dialog (#254) */}
+								{showAllBlankConfirm && (
+									<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+										<div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+											<h4 className="text-lg font-semibold text-[var(--text-primary)] mb-2">
+												确认全留空审批
+											</h4>
+											<p className="text-sm text-[var(--text-secondary)] mb-4">
+												所有 {selectedClips.length} 个句子均已标记为"黑帧"（留空）。确认后每个句子位置将渲染黑帧（无画面），您仍可在正式渲染前恢复素材选择。
+											</p>
+											<div className="flex gap-2 justify-end">
+												<button
+													className="px-4 py-2 rounded-md text-xs border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-table-head)]"
+													onClick={() =>
+														setShowAllBlankConfirm(false)
+													}
+												>
+													取消
+												</button>
+												<button
+													className="px-4 py-2 rounded-md text-xs bg-[var(--btn-primary-bg)] text-white hover:brightness-110"
+													onClick={handleForceApprove}
+												>
+													确认留空 (force=true)
+												</button>
+											</div>
+										</div>
+									</div>
+								)}
 							</div>
 						) : (
 							<p className="text-[var(--text-tertiary)] text-sm">
@@ -1125,9 +1220,7 @@ export default function JobPipeline() {
 							</p>
 						)}
 					</div>
-				);
-			}
-			case "video_base": {
+				);case "video_base": {
 				const video = findArtifact("video_base");
 				return (
 					<div>

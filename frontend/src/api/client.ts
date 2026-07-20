@@ -302,10 +302,10 @@ export const api = {
 		}>(`/api/jobs/${jobId}/audio`, file),
 
 	// Reviews
-	approveReview: (jobId: string, gate: string) =>
+	approveReview: (jobId: string, gate: string, force = false) =>
 		request<{ status: string }>(`/api/reviews/${jobId}/approve`, {
 			method: "POST",
-			body: JSON.stringify({ review_gate: gate }),
+			body: JSON.stringify({ review_gate: gate, force }),
 		}),
 
 	rejectReview: (jobId: string, gate: string) =>
@@ -318,6 +318,65 @@ export const api = {
 		const qs = projectId ? `?project_id=${projectId}` : "";
 		return request<{ status: string }>(
 			`/api/reviews/${jobId}/reject-clip${qs}`,
+			{
+				method: "POST",
+				body: JSON.stringify({ clip_index: clipIndex }),
+			},
+		);
+	},
+
+	// Asset review: set-blank / set-asset / re-search / restore (#254)
+	assetSetBlank: (jobId: string, clipIndex: number, projectId?: string) => {
+		const qs = projectId ? `?project_id=${projectId}` : "";
+		return request<{ status: string }>(
+			`/api/reviews/${jobId}/asset/set-blank${qs}`,
+			{
+				method: "POST",
+				body: JSON.stringify({ clip_index: clipIndex }),
+			},
+		);
+	},
+
+	assetSetAsset: (
+		jobId: string,
+		clipIndex: number,
+		filePath: string,
+		assetId: string,
+		durationSeconds?: number,
+		category?: string,
+		projectId?: string,
+	) => {
+		const qs = projectId ? `?project_id=${projectId}` : "";
+		return request<{ status: string; visual_type: string }>(
+			`/api/reviews/${jobId}/asset/set-asset${qs}`,
+			{
+				method: "POST",
+				body: JSON.stringify({
+					clip_index: clipIndex,
+					file_path: filePath,
+					asset_id: assetId,
+					duration_seconds: durationSeconds ?? 0,
+					category: category ?? "",
+				}),
+			},
+		);
+	},
+
+	assetReSearch: (jobId: string, clipIndex: number, projectId?: string) => {
+		const qs = projectId ? `?project_id=${projectId}` : "";
+		return request<{ status: string; visual_type: string }>(
+			`/api/reviews/${jobId}/asset/re-search${qs}`,
+			{
+				method: "POST",
+				body: JSON.stringify({ clip_index: clipIndex }),
+			},
+		);
+	},
+
+	assetRestore: (jobId: string, clipIndex: number, projectId?: string) => {
+		const qs = projectId ? `?project_id=${projectId}` : "";
+		return request<{ status: string; visual_type: string }>(
+			`/api/reviews/${jobId}/asset/restore${qs}`,
 			{
 				method: "POST",
 				body: JSON.stringify({ clip_index: clipIndex }),

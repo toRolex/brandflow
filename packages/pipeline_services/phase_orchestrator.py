@@ -391,10 +391,43 @@ class PhaseOrchestrator:
             if (job_dir / "base.mp4").exists() or (job_dir / "assembled.mp4").exists():
                 return None
             audio_path = job_dir / "audio.mp3"
-            clip_list_path = job_dir / "selected_clips.json"
+            reviewed_path = job_dir / "reviewed_assets.json"
+            clip_list_path = (
+                reviewed_path if reviewed_path.exists() else job_dir / "selected_clips.json"
+            )
             if audio_path.exists() and clip_list_path.exists():
                 try:
                     selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
+
+                    # Consistency check (#254): if reviewed snapshot exists but the
+                    # working file (selected_clips.json) has diverged, log a warning
+                    # and still use the snapshot. The snapshot is immutable — post-approval
+                    # edits to selected_clips.json must not affect render output.
+                    if reviewed_path.exists():
+                        working_path = job_dir / "selected_clips.json"
+                        if working_path.exists():
+                            try:
+                                working = json.loads(
+                                    working_path.read_text(encoding="utf-8")
+                                )
+                                # Compare by visual_type + asset_id (structural divergence)
+                                snap_ids = [
+                                    (c.get("visual_type"), c.get("asset_id"))
+                                    for c in selected
+                                ]
+                                work_ids = [
+                                    (c.get("visual_type"), c.get("asset_id"))
+                                    for c in working
+                                ]
+                                if snap_ids != work_ids:
+                                    print(
+                                        f"[VIDEO VALIDATE] reviewed snapshot differs from "
+                                        f"selected_clips — using snapshot for {ctx.job_id}",
+                                        flush=True,
+                                    )
+                            except (json.JSONDecodeError, KeyError, TypeError):
+                                pass  # working file parse error — snapshot wins
+
                     has_real = any(
                         Path(item["file_path"]).exists()
                         for item in selected
@@ -406,9 +439,14 @@ class PhaseOrchestrator:
                     if has_real or all_blank:
                         return None
                 except (json.JSONDecodeError, KeyError, TypeError):
+                    source_name = (
+                        "reviewed_assets.json"
+                        if reviewed_path.exists()
+                        else "selected_clips.json"
+                    )
                     return ExecutionFailure(
                         code="MEDIA_INPUT_INVALID",
-                        message="selected_clips.json is not a valid media input.",
+                        message=f"{source_name} is not a valid media input.",
                         retryable=False,
                     )
             return ExecutionFailure(
@@ -981,7 +1019,7 @@ class PhaseOrchestrator:
 
         In import mode:
           1. Build a clip-based montage video from ``audio.mp3`` and
-             ``selected_clips.json``.
+             ``reviewed_assets.json`` (or ``selected_clips.json`` as fallback).
           2. Concatenate ``assembled.mp4`` (scene segment from
              ``montage_assembling``) with the clip-based video → ``base.mp4``.
 
@@ -989,11 +1027,20 @@ class PhaseOrchestrator:
         ``assembled.mp4`` expected to exist).
 
         Falls back gracefully when one or both sources are missing.
+
+        Per #254: rendering consumes the immutable ``reviewed_assets.json``
+        snapshot when available, so post-approval edits to ``selected_clips.json``
+        do not affect render output.
         """
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
         audio_path = job_dir / "audio.mp3"
-        clip_list_path = job_dir / "selected_clips.json"
+        # Prefer the reviewed snapshot (#254) — after asset_review is approved,
+        # rendering must use the immutable snapshot, not the mutable working file.
+        reviewed_path = job_dir / "reviewed_assets.json"
+        clip_list_path = (
+            reviewed_path if reviewed_path.exists() else job_dir / "selected_clips.json"
+        )
         base_path = job_dir / "base.mp4"
         assembled_path = job_dir / "assembled.mp4"
 
