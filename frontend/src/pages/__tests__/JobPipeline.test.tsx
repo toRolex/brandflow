@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../api/client";
-import { PIPELINE_STEPS } from "../../types";
+import { KNOWN_PHASES } from "../../types";
 import JobPipeline, { phaseToStepKey } from "../JobPipeline";
 
 vi.mock("../../api/client", () => ({
@@ -952,9 +952,20 @@ describe("JobPipeline review phase guard (#261)", () => {
 
 describe("PIPELINE_STEPS coverage for backend phases (#262)", () => {
 	it("maps every known pipeline phase to a non-empty step key", () => {
-		for (const step of PIPELINE_STEPS) {
-			expect(phaseToStepKey(step.phase), step.phase).not.toBe("");
+		for (const phase of KNOWN_PHASES) {
+			expect(phaseToStepKey(phase), phase).not.toBe("");
 		}
+	});
+
+	it("includes the unknown phase value in its diagnostic warning", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+		expect(phaseToStepKey("legacy_phase" as never)).toBe("");
+		expect(warn).toHaveBeenCalledWith(
+			'phaseToStepKey: no step found for phase "legacy_phase"',
+		);
+
+		warn.mockRestore();
 	});
 });
 
@@ -996,24 +1007,22 @@ describe("JobPipeline new phase rendering (#262)", () => {
 	it("renders montage_assembling job without 'unknown step' fallback", async () => {
 		renderPhaseJob("montage_assembling");
 
-		await waitFor(() => {
-			expect(screen.queryByText("未知步骤")).not.toBeInTheDocument();
-		});
+		expect(await screen.findByText("蒙太奇组装进行中...")).toBeInTheDocument();
 	});
 
 	it("renders final_rendering job without 'unknown step' fallback", async () => {
 		renderPhaseJob("final_rendering");
 
-		await waitFor(() => {
-			expect(screen.queryByText("未知步骤")).not.toBeInTheDocument();
-		});
+		expect(
+			await screen.findByText("终审合成中，等待系统调度..."),
+		).toBeInTheDocument();
 	});
 
 	it("renders scene_assembling job without 'unknown step' fallback", async () => {
 		renderPhaseJob("scene_assembling");
 
-		await waitFor(() => {
-			expect(screen.queryByText("未知步骤")).not.toBeInTheDocument();
-		});
+		expect(
+			await screen.findByText("场景拼接中，等待系统调度..."),
+		).toBeInTheDocument();
 	});
 });

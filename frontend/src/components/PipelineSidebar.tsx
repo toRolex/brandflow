@@ -13,10 +13,13 @@ interface Props {
 	onViewLogs?: () => void;
 }
 
-const IMPORT_HIDE_PHASES: Set<string> = new Set([
+const IMPORT_HIDE_PHASES: ReadonlySet<Phase> = new Set([
+	"script_generating",
 	"script_review",
 	"tts_review",
 ]);
+
+const GENERATE_HIDE_PHASES: ReadonlySet<Phase> = new Set(["scene_assembling"]);
 
 export default function PipelineSidebar({
 	currentPhase,
@@ -29,6 +32,31 @@ export default function PipelineSidebar({
 	onRetry,
 	onViewLogs,
 }: Props) {
+	const terminalPhases: ReadonlySet<Phase> = new Set([
+		"completed",
+		"failed",
+		"cancelled",
+		"paused",
+	]);
+	const visibleSteps = PIPELINE_STEPS.filter((step) => {
+		if (terminalPhases.has(step.phase) && step.phase !== currentPhase) {
+			return false;
+		}
+		if (
+			step.phase === "migration_required" &&
+			currentPhase !== "migration_required"
+		) {
+			return false;
+		}
+		if (mode === "import" && IMPORT_HIDE_PHASES.has(step.phase)) {
+			return false;
+		}
+		if (mode === "generate" && GENERATE_HIDE_PHASES.has(step.phase)) {
+			return false;
+		}
+		return true;
+	});
+
 	return (
 		<div className="w-52 bg-[var(--bg-page)] border-r border-[var(--border-default)] p-3 flex-shrink-0 overflow-y-auto">
 			{jobInfo && (
@@ -39,37 +67,24 @@ export default function PipelineSidebar({
 			<div className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide mb-3">
 				流水线步骤
 			</div>
-			{PIPELINE_STEPS.filter((step) => {
-				const terminalPhases: Phase[] = [
-					"completed",
-					"failed",
-					"cancelled",
-					"paused",
-				];
-				if (
-					terminalPhases.includes(step.phase) &&
-					step.phase !== currentPhase
-				) {
-					return false;
-				}
-				if (mode === "import" && IMPORT_HIDE_PHASES.has(step.phase)) {
-					return false;
-				}
-				return true;
-			}).map((step) => {
-				const stepNum = PIPELINE_STEPS.indexOf(step) + 1;
+			{visibleSteps.map((step, index) => {
+				const stepNum = index + 1;
 				const done = completedPhases.includes(step.phase);
 				const active = step.key === activeStepKey;
 				const isReview = step.isReview;
-				const isOperableReview = active && isReview && step.phase === currentPhase;
-				const isViewOnlyReview = active && isReview && step.phase !== currentPhase;
+				const isOperableReview =
+					active && isReview && step.phase === currentPhase;
+				const isViewOnlyReview =
+					active && isReview && step.phase !== currentPhase;
 
 				return (
 					<button
 						key={step.key}
 						onClick={() => onStepClick(step.key)}
 						aria-current={active ? "step" : undefined}
-						title={isViewOnlyReview ? "当前不在该审核阶段，无法操作" : undefined}
+						title={
+							isViewOnlyReview ? "当前不在该审核阶段，无法操作" : undefined
+						}
 						className={`flex items-center gap-1.5 w-full text-left px-1.5 py-1.5 rounded-md mb-0.5 text-xs transition-colors ${
 							active
 								? isOperableReview
@@ -95,7 +110,10 @@ export default function PipelineSidebar({
 						</span>
 						{step.label}
 						{isViewOnlyReview && (
-							<span className="text-[9px] ml-0.5" style={{ color: "var(--text-tertiary)" }}>
+							<span
+								className="text-[9px] ml-0.5"
+								style={{ color: "var(--text-tertiary)" }}
+							>
 								(仅查看)
 							</span>
 						)}

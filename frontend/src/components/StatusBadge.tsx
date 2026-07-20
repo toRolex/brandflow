@@ -10,7 +10,6 @@ const VARIANT_MAP: Record<string, BadgeVariant> = {
 	subtitle_generating: "default",
 	asset_retrieving: "default",
 	video_rendering: "default",
-	schedule_writing: "default",
 	scene_assembling: "default",
 	montage_assembling: "default",
 	final_rendering: "default",
@@ -41,7 +40,6 @@ const LABEL_OVERRIDES: Partial<Record<Phase, string>> = {
 	asset_retrieving: "取素材",
 	video_rendering: "视频合成",
 	final_review: "最终审核",
-	schedule_writing: "写排期",
 	failed: "失败",
 };
 

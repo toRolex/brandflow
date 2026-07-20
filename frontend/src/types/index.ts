@@ -1,25 +1,27 @@
 export type ProductionMode = "import" | "generate";
 
-export type Phase =
-	| "queued"
-	| "script_generating"
-	| "script_review"
-	| "tts_generating"
-	| "tts_review"
-	| "subtitle_generating"
-	| "asset_retrieving"
-	| "asset_review"
-	| "video_rendering"
-	| "final_rendering"
-	| "final_review"
-	| "schedule_writing"
-	| "scene_assembling"
-	| "montage_assembling"
-	| "completed"
-	| "failed"
-	| "cancelled"
-	| "paused"
-	| "migration_required";
+export const KNOWN_PHASES = [
+	"queued",
+	"script_generating",
+	"script_review",
+	"scene_assembling",
+	"tts_generating",
+	"tts_review",
+	"subtitle_generating",
+	"asset_retrieving",
+	"asset_review",
+	"montage_assembling",
+	"video_rendering",
+	"final_rendering",
+	"final_review",
+	"completed",
+	"failed",
+	"cancelled",
+	"paused",
+	"migration_required",
+] as const;
+
+export type Phase = (typeof KNOWN_PHASES)[number];
 
 export type ReviewStatus =
 	| "none"
