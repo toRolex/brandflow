@@ -393,7 +393,9 @@ class PhaseOrchestrator:
             audio_path = job_dir / "audio.mp3"
             reviewed_path = job_dir / "reviewed_assets.json"
             clip_list_path = (
-                reviewed_path if reviewed_path.exists() else job_dir / "selected_clips.json"
+                reviewed_path
+                if reviewed_path.exists()
+                else job_dir / "selected_clips.json"
             )
             if audio_path.exists() and clip_list_path.exists():
                 try:
@@ -844,9 +846,7 @@ class PhaseOrchestrator:
                     tts_cfg["voice"] = job_tts_voice
 
                 tts_provider = self._build_tts_provider(tts_cfg)
-                service = self._create_sentence_tts_service(
-                    tts_provider, tts_cfg, ctx
-                )
+                service = self._create_sentence_tts_service(tts_provider, tts_cfg, ctx)
                 # Per-sentence retry is handled inside SentenceTTSService
                 # (ADR 0005).  When all sentence-level retries are exhausted
                 # the provider error propagates to execute_phase, which
@@ -863,9 +863,7 @@ class PhaseOrchestrator:
                     encoding="utf-8",
                 )
                 result.append(
-                    self._to_artifact(
-                        "sentence_timings", sentences_path, workspace_dir
-                    )
+                    self._to_artifact("sentence_timings", sentences_path, workspace_dir)
                 )
                 print(
                     f"[TTS] Synthesized: {audio_path.exists()}, "

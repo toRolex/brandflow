@@ -767,7 +767,9 @@ class TestJobTickService:
             ]
             mock_orch.execute_phase.reset_mock()
             mock_orch.execute_phase.return_value = PhaseExecutionSuccess(
-                artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")],
+                artifacts=[
+                    ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")
+                ],
             )
 
             summary = svc.tick(
@@ -1387,7 +1389,9 @@ class TestAutoApproveAssetReviewIntegrity:
         mock_orch = Mock(spec=PhaseOrchestrator)
         svc = JobTickService(mock_orch, repo)
 
-        svc.tick("proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir)
+        svc.tick(
+            "proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir
+        )
 
         # Should NOT have advanced — unresolved clips block auto-approval
         saved = repo.load_job("proj-001", job_id)
@@ -1395,9 +1399,7 @@ class TestAutoApproveAssetReviewIntegrity:
             f"Expected asset_review, got {saved.phase}"
         )
 
-    def test_auto_approve_all_blank_proceeds(
-        self, tmp_path: Path
-    ) -> None:
+    def test_auto_approve_all_blank_proceeds(self, tmp_path: Path) -> None:
         """Auto-approve should proceed for all-blank clips (force=true is implicit)."""
         import json as _json
 
@@ -1440,7 +1442,9 @@ class TestAutoApproveAssetReviewIntegrity:
         mock_orch = Mock(spec=PhaseOrchestrator)
         svc = JobTickService(mock_orch, repo)
 
-        svc.tick("proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir)
+        svc.tick(
+            "proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir
+        )
 
         saved = repo.load_job("proj-001", job_id)
         # Should have advanced past asset_review (auto_approve proceeds for all-blank)
@@ -1449,9 +1453,7 @@ class TestAutoApproveAssetReviewIntegrity:
         )
         assert saved.review_status == "approved"
 
-    def test_auto_approve_writes_reviewed_snapshot(
-        self, tmp_path: Path
-    ) -> None:
+    def test_auto_approve_writes_reviewed_snapshot(self, tmp_path: Path) -> None:
         """Auto-approval writes reviewed_assets.json snapshot."""
         import json as _json
 
@@ -1490,20 +1492,22 @@ class TestAutoApproveAssetReviewIntegrity:
         mock_orch = Mock(spec=PhaseOrchestrator)
         svc = JobTickService(mock_orch, repo)
 
-        svc.tick("proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir)
+        svc.tick(
+            "proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir
+        )
 
         # Snapshot must exist
         snapshot_path = job_dir / "reviewed_assets.json"
-        assert snapshot_path.exists(), "reviewed_assets.json should be written on auto-approve"
+        assert snapshot_path.exists(), (
+            "reviewed_assets.json should be written on auto-approve"
+        )
         snapshot = _json.loads(snapshot_path.read_text(encoding="utf-8"))
         assert len(snapshot) == 1
         assert snapshot[0]["visual_type"] == "clip"
         assert snapshot[0]["asset_id"] == "a1"
         assert snapshot[0]["sentence_index"] == 0
 
-    def test_auto_approve_clean_clips_proceeds(
-        self, tmp_path: Path
-    ) -> None:
+    def test_auto_approve_clean_clips_proceeds(self, tmp_path: Path) -> None:
         """Auto-approve with all-clip entries should advance normally."""
         import json as _json
 
@@ -1548,7 +1552,9 @@ class TestAutoApproveAssetReviewIntegrity:
         mock_orch = Mock(spec=PhaseOrchestrator)
         svc = JobTickService(mock_orch, repo)
 
-        svc.tick("proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir)
+        svc.tick(
+            "proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir
+        )
 
         saved = repo.load_job("proj-001", job_id)
         assert saved.phase != "asset_review"

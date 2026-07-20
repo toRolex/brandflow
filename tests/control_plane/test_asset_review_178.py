@@ -440,8 +440,12 @@ def _set_phase(tmp_path: Path, project_id: str, job_id: str, phase: str) -> None
 class TestPhaseGating:
     """All asset mutation endpoints return 409 when job is not in asset_review phase."""
 
-    @pytest.mark.parametrize("phase", ["queued", "script_generating", "video_rendering", "completed"])
-    def test_set_blank_outside_asset_review_returns_409(self, tmp_path: Path, phase: str) -> None:
+    @pytest.mark.parametrize(
+        "phase", ["queued", "script_generating", "video_rendering", "completed"]
+    )
+    def test_set_blank_outside_asset_review_returns_409(
+        self, tmp_path: Path, phase: str
+    ) -> None:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
         app = create_app(root_dir=ctx["tmp_path"])
@@ -454,8 +458,12 @@ class TestPhaseGating:
         assert resp.status_code == 409
         assert "asset_review" in resp.json()["detail"].lower()
 
-    @pytest.mark.parametrize("phase", ["queued", "script_generating", "video_rendering", "completed"])
-    def test_set_asset_outside_asset_review_returns_409(self, tmp_path: Path, phase: str) -> None:
+    @pytest.mark.parametrize(
+        "phase", ["queued", "script_generating", "video_rendering", "completed"]
+    )
+    def test_set_asset_outside_asset_review_returns_409(
+        self, tmp_path: Path, phase: str
+    ) -> None:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
         app = create_app(root_dir=ctx["tmp_path"])
@@ -468,8 +476,12 @@ class TestPhaseGating:
         assert resp.status_code == 409
         assert "asset_review" in resp.json()["detail"].lower()
 
-    @pytest.mark.parametrize("phase", ["queued", "script_generating", "video_rendering", "completed"])
-    def test_re_search_outside_asset_review_returns_409(self, tmp_path: Path, phase: str) -> None:
+    @pytest.mark.parametrize(
+        "phase", ["queued", "script_generating", "video_rendering", "completed"]
+    )
+    def test_re_search_outside_asset_review_returns_409(
+        self, tmp_path: Path, phase: str
+    ) -> None:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
         app = create_app(root_dir=ctx["tmp_path"])
@@ -482,8 +494,12 @@ class TestPhaseGating:
         assert resp.status_code == 409
         assert "asset_review" in resp.json()["detail"].lower()
 
-    @pytest.mark.parametrize("phase", ["queued", "script_generating", "video_rendering", "completed"])
-    def test_restore_outside_asset_review_returns_409(self, tmp_path: Path, phase: str) -> None:
+    @pytest.mark.parametrize(
+        "phase", ["queued", "script_generating", "video_rendering", "completed"]
+    )
+    def test_restore_outside_asset_review_returns_409(
+        self, tmp_path: Path, phase: str
+    ) -> None:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
         app = create_app(root_dir=ctx["tmp_path"])

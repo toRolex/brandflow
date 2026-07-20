@@ -697,6 +697,7 @@ class JobTickService:
             except AssetValidationError:
                 # Unresolved clips — block the auto-approval, stay in phase
                 import logging
+
                 _log = logging.getLogger(__name__)
                 _log.warning(
                     f"[Tick] auto-approve blocked for {job_id}: "
@@ -709,9 +710,7 @@ class JobTickService:
                 )
                 # Set review_status to pending so the job requires human
                 # attention and won't re-trigger auto-approve on the next tick.
-                record = record.model_copy(
-                    update={"review_status": "pending"}
-                )
+                record = record.model_copy(update={"review_status": "pending"})
                 self._repo.save_job(project_id, record)
                 return _build_tick_summary(initial_phase, action)
             except FileNotFoundError:

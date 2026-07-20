@@ -102,7 +102,9 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
         try:
             clips = validate_assets(job_dir, force=payload.force)
             write_reviewed_snapshot(job_dir, clips)
-            logger.info(f"[Review] 素材审核快照已保存: {job_dir / 'reviewed_assets.json'}")
+            logger.info(
+                f"[Review] 素材审核快照已保存: {job_dir / 'reviewed_assets.json'}"
+            )
         except AssetValidationError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.message)
         except FileNotFoundError:

@@ -304,8 +304,6 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             )
 
     if validation_errors:
-        from typing import Any
-
         first: dict[str, Any] = validation_errors[0]
         first_error: dict[str, Any] = first["error"]
         index: int = int(first["index"])
@@ -1183,7 +1181,12 @@ def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: R
                 job_dir=job_dir,
                 workspace_dir=root_dir / "workspace",
                 project_dir=root_dir / "workspace" / "projects" / project_id,
-                export_dir=root_dir / "workspace" / "projects" / project_id / "runtime" / "exports",
+                export_dir=root_dir
+                / "workspace"
+                / "projects"
+                / project_id
+                / "runtime"
+                / "exports",
             ).mark_stale()
         except Exception:  # noqa: BLE001 — never block voice change on export cleanup
             pass
