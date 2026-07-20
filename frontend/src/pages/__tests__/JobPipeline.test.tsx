@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../api/client";
+import { PIPELINE_STEPS } from "../../types";
 import JobPipeline from "../JobPipeline";
 
 vi.mock("../../api/client", () => ({
@@ -686,6 +687,120 @@ describe("JobPipeline asset phase states", () => {
 			expect(await screen.findByText("生产完成")).toBeInTheDocument();
 			expect(screen.getByText(/已过期/)).toBeInTheDocument();
 			expect(screen.getByText("重新创建")).toBeInTheDocument();
+		});
+	});
+});
+
+describe("PIPELINE_STEPS coverage for backend phases (#262)", () => {
+	it("finds montage_assembling via find-by-phase and returns non-empty key", () => {
+		const step = PIPELINE_STEPS.find((s) => s.phase === "montage_assembling");
+		expect(step).toBeDefined();
+		expect(step!.key).toBe("montage");
+		expect(step!.key).not.toBe("");
+	});
+
+	it("finds final_rendering via find-by-phase and returns non-empty key", () => {
+		const step = PIPELINE_STEPS.find((s) => s.phase === "final_rendering");
+		expect(step).toBeDefined();
+		expect(step!.key).toBe("final_render");
+		expect(step!.key).not.toBe("");
+	});
+
+	it("finds scene_assembling via find-by-phase and returns non-empty key", () => {
+		const step = PIPELINE_STEPS.find((s) => s.phase === "scene_assembling");
+		expect(step).toBeDefined();
+		expect(step!.key).toBe("scene_assemble");
+		expect(step!.key).not.toBe("");
+	});
+});
+
+describe("JobPipeline new phase rendering (#262)", () => {
+	function renderPhaseJob(_phase: string) {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-phase"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("renders montage_assembling job without 'unknown step' fallback", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			job_id: "job-phase",
+			project_id: "project-1",
+			product: "product",
+			platforms: ["douyin"],
+			phase: "montage_assembling" as const,
+			failed_phase: null,
+			review_status: "none" as const,
+			artifacts: [],
+			execution: {
+				status: "succeeded" as const,
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderPhaseJob("montage_assembling");
+
+		await waitFor(() => {
+			expect(screen.queryByText("未知步骤")).not.toBeInTheDocument();
+		});
+	});
+
+	it("renders final_rendering job without 'unknown step' fallback", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			job_id: "job-phase",
+			project_id: "project-1",
+			product: "product",
+			platforms: ["douyin"],
+			phase: "final_rendering" as const,
+			failed_phase: null,
+			review_status: "none" as const,
+			artifacts: [],
+			execution: {
+				status: "succeeded" as const,
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderPhaseJob("final_rendering");
+
+		await waitFor(() => {
+			expect(screen.queryByText("未知步骤")).not.toBeInTheDocument();
+		});
+	});
+
+	it("renders scene_assembling job without 'unknown step' fallback", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			job_id: "job-phase",
+			project_id: "project-1",
+			product: "product",
+			platforms: ["douyin"],
+			phase: "scene_assembling" as const,
+			failed_phase: null,
+			review_status: "none" as const,
+			artifacts: [],
+			execution: {
+				status: "succeeded" as const,
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderPhaseJob("scene_assembling");
+
+		await waitFor(() => {
+			expect(screen.queryByText("未知步骤")).not.toBeInTheDocument();
 		});
 	});
 });

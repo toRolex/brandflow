@@ -13,6 +13,8 @@ const VARIANT_MAP: Record<string, BadgeVariant> = {
 	schedule_writing: "default",
 	scene_assembling: "default",
 	montage_assembling: "default",
+	final_rendering: "default",
+	migration_required: "default",
 	// warning (caution-amber-muted / caution-amber)
 	script_review: "warning",
 	asset_review: "warning",
@@ -41,6 +43,8 @@ const LABEL_MAP: Record<string, string> = {
 	schedule_writing: "写排期",
 	scene_assembling: "场景拼接",
 	montage_assembling: "蒙太奇",
+	final_rendering: "终审·合成",
+	migration_required: "需补充场景",
 	completed: "已完成",
 	failed: "失败",
 	cancelled: "已取消",

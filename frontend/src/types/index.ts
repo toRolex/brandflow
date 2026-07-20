@@ -1,4 +1,4 @@
-export type ProductionMode = "import" | "generate";
+﻿export type ProductionMode = "import" | "generate";
 
 export type Phase =
 	| "queued"
@@ -277,6 +277,12 @@ export interface PipelineStep {
 export const PIPELINE_STEPS: PipelineStep[] = [
 	{ key: "queued", phase: "queued", label: "排队中", isReview: false },
 	{
+		key: "scene_assemble",
+		phase: "scene_assembling",
+		label: "场景拼接",
+		isReview: false,
+	},
+	{
 		key: "migration_required",
 		phase: "migration_required",
 		label: "需补充场景",
@@ -315,9 +321,21 @@ export const PIPELINE_STEPS: PipelineStep[] = [
 		isReview: true,
 	},
 	{
+		key: "montage",
+		phase: "montage_assembling",
+		label: "蒙太奇",
+		isReview: false,
+	},
+	{
 		key: "video_base",
 		phase: "video_rendering",
 		label: "底包拼接",
+		isReview: false,
+	},
+	{
+		key: "final_render",
+		phase: "final_rendering",
+		label: "终审·合成",
 		isReview: false,
 	},
 	{
