@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 from packages.domain_core.models import (
+    REVIEW_PHASES,
     ArtifactPointer,
     ExecutionFailure,
     JobRecord,
@@ -20,7 +21,6 @@ from packages.domain_core.phase_execution import (
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
     HANDLED_PHASES,
-    REVIEW_PHASES,
     JobTickService,
     PhaseExecutionError,
     TickAction,

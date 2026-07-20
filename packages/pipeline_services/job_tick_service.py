@@ -24,7 +24,7 @@ from packages.domain_core.phase_execution import (
     PhaseExecutionFailure,
     PhaseExecutionSuccess,
 )
-from packages.domain_core.models import PHASE_ORDER, next_phase
+from packages.domain_core.models import PHASE_ORDER, REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
@@ -43,10 +43,6 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-
-REVIEW_PHASES: frozenset[str] = frozenset(
-    {"script_review", "tts_review", "asset_review", "final_review"}
-)
 
 HANDLED_PHASES: frozenset[str] = frozenset(
     {

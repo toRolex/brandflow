@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from packages.domain_core.models import next_phase
+from packages.domain_core.models import REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
@@ -95,6 +95,18 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
 
+    # ── Phase validation ──
+    if record.phase not in REVIEW_PHASES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"job is not in a review phase (current: {record.phase})",
+        )
+    if payload.review_gate != record.phase:
+        raise HTTPException(
+            status_code=409,
+            detail=f"review gate mismatch: expected {record.phase}, got {payload.review_gate}",
+        )
+
     # ── Asset review specific checks ──
     if record.phase == "asset_review":
         root_dir = Path(request.app.state.root_dir)
@@ -133,6 +145,18 @@ def reject_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
+
+    # Phase validation
+    if record.phase not in REVIEW_PHASES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"job is not in a review phase (current: {record.phase})",
+        )
+    if payload.review_gate != record.phase:
+        raise HTTPException(
+            status_code=409,
+            detail=f"review gate mismatch: expected {record.phase}, got {payload.review_gate}",
+        )
 
     if record.phase == "tts_review":
         reject_target = "tts_generating"
