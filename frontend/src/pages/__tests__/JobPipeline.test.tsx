@@ -836,7 +836,10 @@ describe("JobPipeline review phase guard (#261)", () => {
 
 		fireEvent.click(approveBtn);
 		await waitFor(() => {
-			expect(api.approveReview).toHaveBeenCalledWith("job-tts-review", "tts");
+			expect(api.approveReview).toHaveBeenCalledWith(
+				"job-tts-review",
+				"tts_review",
+			);
 		});
 	});
 
@@ -855,7 +858,7 @@ describe("JobPipeline review phase guard (#261)", () => {
 		await waitFor(() => {
 			expect(api.approveReview).toHaveBeenCalledWith(
 				"job-final-review",
-				"final",
+				"final_review",
 			);
 		});
 	});

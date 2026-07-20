@@ -858,8 +858,8 @@ export default function JobPipeline() {
 						brand={job.brand}
 						mode={job.mode}
 						reviewEnabled={isCurrentReviewStep}
-						onApprove={() => handleApprove("script")}
-						onReject={() => handleReject("script")}
+						onApprove={() => handleApprove("script_review")}
+						onReject={() => handleReject("script_review")}
 						onRegenerate={handleRetry}
 						onEdit={handleEditScript}
 						onRegenerateWithPrompt={handleRegenerateWithPrompt}
@@ -1037,7 +1037,7 @@ export default function JobPipeline() {
 						<div className="flex gap-2 mt-4">
 							<button
 								className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-								onClick={() => handleApprove("tts")}
+								onClick={() => handleApprove("tts_review")}
 								disabled={!isCurrentReviewStep}
 								aria-disabled={!isCurrentReviewStep}
 							>
@@ -1045,7 +1045,7 @@ export default function JobPipeline() {
 							</button>
 							<button
 								className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-								onClick={() => handleReject("tts")}
+								onClick={() => handleReject("tts_review")}
 								disabled={!isCurrentReviewStep}
 								aria-disabled={!isCurrentReviewStep}
 							>
@@ -1245,14 +1245,14 @@ export default function JobPipeline() {
 					if (allBlank) {
 						setShowAllBlankConfirm(true);
 					} else {
-						handleApprove("asset");
+						handleApprove("asset_review");
 					}
 				};
 
 				const handleForceApprove = async () => {
 					setShowAllBlankConfirm(false);
 					try {
-						await api.approveReview(job.job_id, "asset", true);
+						await api.approveReview(job.job_id, "asset_review", true);
 						load();
 					} catch (e) {
 						console.error("force approve failed", e);
@@ -1326,7 +1326,7 @@ export default function JobPipeline() {
 									</button>
 									<button
 										className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-										onClick={() => handleReject("asset")}
+										onClick={() => handleReject("asset_review")}
 										disabled={!isCurrentReviewStep}
 										aria-disabled={!isCurrentReviewStep}
 									>
@@ -1408,7 +1408,7 @@ export default function JobPipeline() {
 						<div className="flex gap-2 mt-4">
 							<button
 								className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-								onClick={() => handleApprove("final")}
+								onClick={() => handleApprove("final_review")}
 								disabled={!isCurrentReviewStep}
 								aria-disabled={!isCurrentReviewStep}
 							>
@@ -1416,7 +1416,7 @@ export default function JobPipeline() {
 							</button>
 							<button
 								className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-								onClick={() => handleReject("final")}
+								onClick={() => handleReject("final_review")}
 								disabled={!isCurrentReviewStep}
 								aria-disabled={!isCurrentReviewStep}
 							>
