@@ -221,10 +221,17 @@ class TestStructuredImportMediaResults:
 
 
 class TestExecutePhasesParallel:
+    def _setup_tts_script(self, ctx: PhaseContext) -> None:
+        """Ensure a script file exists so tts_generating validation passes."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        (job_dir / "口播文案.txt").write_text("测试文案。", encoding="utf-8")
+
     def test_legacy_phase_crash_becomes_structured_failure(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
         """非结构化并行 phase 的异常不得转成空成功 sentinel。"""
+        self._setup_tts_script(ctx)
         orchestrator._handlers["tts_generating"] = MagicMock(
             side_effect=RuntimeError("tts provider crashed")
         )
@@ -233,13 +240,16 @@ class TestExecutePhasesParallel:
 
         result = results["tts_generating"]
         assert isinstance(result, PhaseExecutionFailure)
-        assert result.error.code == "MEDIA_PROCESSING_FAILED"
+        # tts_generating is now structured (#253) — RuntimeError is classified
+        # as TTS_SYNTHESIS_FAILED (retryable).
+        assert result.error.code == "TTS_SYNTHESIS_FAILED"
         assert result.error.retryable is True
 
     def test_legacy_phase_empty_success_becomes_internal_failure(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
         """无产物成功在并行边界同样是有界内部错误。"""
+        self._setup_tts_script(ctx)
         orchestrator._handlers["tts_generating"] = MagicMock(return_value=[])
 
         results = orchestrator.execute_phases_parallel(["tts_generating"], ctx)
@@ -252,6 +262,7 @@ class TestExecutePhasesParallel:
     def test_successful_phases_pass_through(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
+        self._setup_tts_script(ctx)
         artifact = ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")
         orchestrator._handlers["tts_generating"] = MagicMock(return_value=[artifact])
 
@@ -685,9 +696,10 @@ class TestRunTTSUploadedAudio:
 
 
 class TestRunTTSSynthesizeError:
-    """TTS errors should be caught and logged, not propagated."""
+    """TTS errors propagate to execute_phase for structured classification (#253)."""
 
-    def test_synthesize_error_does_not_raise(self, ctx: PhaseContext, capsys):
+    def test_synthesize_error_propagates_from_run_phase(self, ctx: PhaseContext):
+        """TTS synthesis errors now propagate — caught by execute_phase wrapper."""
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
         txt = job_dir / "口播文案.txt"
@@ -697,13 +709,29 @@ class TestRunTTSSynthesizeError:
         mock_tts.synthesize.side_effect = RuntimeError("TTS service down")
         orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
 
-        # Should NOT raise
-        artifacts = orch.run_phase("tts_generating", ctx)
-        assert artifacts == []
+        # run_phase will now propagate the error (no more silent catch)
+        with pytest.raises(RuntimeError, match="TTS service down"):
+            orch.run_phase("tts_generating", ctx)
 
-        # Error was logged
-        captured = capsys.readouterr()
-        assert "TTS service down" in captured.out
+    def test_synthesize_error_becomes_structured_failure_via_execute_phase(
+        self, ctx: PhaseContext
+    ):
+        """execute_phase wraps TTS errors in PhaseExecutionFailure."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("测试文案。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.side_effect = RuntimeError("TTS service down")
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        # execute_phase catches the error and classifies it
+        result = orch.execute_phase("tts_generating", ctx)
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_SYNTHESIS_FAILED"
+        assert result.error.retryable is True
+        assert "TTS service down" in result.error.message
 
 
 class TestRunTTSConfigBuilding:
@@ -964,3 +992,107 @@ class TestRunVideo:
 
         assert artifacts == []
         orchestrator._video_svc.build_base_video.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TTS error classification (#253)
+# ---------------------------------------------------------------------------
+
+
+class TestTTSFailureClassification:
+    """Provider-specific TTS errors map to vendor-agnostic execution failures."""
+
+    def test_tts_quota_exceeded_is_retryable(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """TTSQuotaExceededError → retryable TTS_QUOTA_EXCEEDED."""
+        from packages.pipeline_services.tts_provider import TTSQuotaExceededError
+
+        result = orchestrator._classify_tts_error(
+            "tts_generating", TTSQuotaExceededError("配额超限")
+        )
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_QUOTA_EXCEEDED"
+        assert result.error.retryable is True
+
+    def test_tts_blocked_error_is_non_retryable(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """TTSBlockedError → non-retryable TTS_PROVIDER_REJECTED."""
+        from packages.pipeline_services.tts_provider import TTSBlockedError
+
+        result = orchestrator._classify_tts_error(
+            "tts_generating", TTSBlockedError("鉴权失败")
+        )
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_PROVIDER_REJECTED"
+        assert result.error.retryable is False
+
+    def test_tts_retryable_error_is_retryable(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """TTSRetryableError → retryable TTS_SYNTHESIS_FAILED."""
+        from packages.pipeline_services.tts_provider import TTSRetryableError
+
+        result = orchestrator._classify_tts_error(
+            "tts_generating", TTSRetryableError("临时故障")
+        )
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_SYNTHESIS_FAILED"
+        assert result.error.retryable is True
+
+    def test_unknown_tts_error_is_retryable(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """Unknown/network errors → retryable TTS_SYNTHESIS_FAILED."""
+        result = orchestrator._classify_tts_error(
+            "tts_generating", ConnectionError("网络不可达")
+        )
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_SYNTHESIS_FAILED"
+        assert result.error.retryable is True
+
+
+class TestTTSValidation:
+    """validate_phase_input for tts_generating."""
+
+    def test_no_script_returns_validation_error(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """tts_generating without script → deterministic non-retryable error."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        # Ensure no script file exists
+        for p in job_dir.glob("*口播文案*"):
+            p.unlink()
+
+        error = orchestrator.validate_phase_input("tts_generating", ctx)
+        assert error is not None
+        assert error.code == "TTS_SCRIPT_MISSING"
+        assert error.retryable is False
+
+    def test_validate_uploaded_audio_not_found(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """tts_generating with missing uploaded audio → deterministic error."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        # Write script so that check passes
+        (job_dir / "口播文案.txt").write_text("测试文案", encoding="utf-8")
+        ctx.options["uploaded_audio_path"] = "missing/audio.mp3"
+
+        error = orchestrator.validate_phase_input("tts_generating", ctx)
+        assert error is not None
+        assert error.code == "UPLOAD_AUDIO_NOT_FOUND"
+        assert error.retryable is False
+
+    def test_script_exists_and_no_upload_audio_passes_validation(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """tts_generating with script and no upload → passes validation."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "口播文案.txt").write_text("测试文案", encoding="utf-8")
+
+        error = orchestrator.validate_phase_input("tts_generating", ctx)
+        assert error is None

@@ -48,6 +48,7 @@ from packages.provider_config.secret_store import SecretStore
 
 STRUCTURED_MEDIA_PHASES = frozenset(
     {
+        "tts_generating",
         "scene_assembling",
         "subtitle_generating",
         "montage_assembling",
@@ -223,7 +224,23 @@ class PhaseOrchestrator:
                     retryable=False,
                 )
             )
+        except ForceAlignError as exc:
+            # Uploaded audio alignment failure — non-retryable data-quality issue
+            detail = "\n".join(d.summary() for d in exc.result.diagnostics)
+            return PhaseExecutionFailure(
+                error=ExecutionFailure(
+                    code="UPLOAD_AUDIO_ALIGN_FAILED",
+                    message=(
+                        f"Uploaded audio force-alignment failed: {exc.result.message}"
+                        f"\n{detail}"
+                    ),
+                    retryable=False,
+                )
+            )
         except Exception as exc:
+            # Provider-specific TTS error classification (#253)
+            if phase == "tts_generating":
+                return self._classify_tts_error(phase, exc)
             return PhaseExecutionFailure(
                 error=ExecutionFailure(
                     code="MEDIA_PROCESSING_FAILED",
@@ -242,12 +259,75 @@ class PhaseOrchestrator:
             )
         return PhaseExecutionSuccess(artifacts=artifacts)
 
+    @staticmethod
+    def _classify_tts_error(phase: str, exc: Exception) -> PhaseExecutionFailure:
+        """Classify a TTS provider error into a structured failure (#253).
+
+        Provider-specific error types are mapped to vendor-agnostic error codes
+        so the frontend and retry policy never depend on provider internals.
+        """
+        from packages.pipeline_services.tts_provider import (
+            TTSBlockedError,
+            TTSQuotaExceededError,
+            TTSRetryableError,
+        )
+
+        if isinstance(exc, TTSQuotaExceededError):
+            return PhaseExecutionFailure(
+                error=ExecutionFailure(
+                    code="TTS_QUOTA_EXCEEDED",
+                    message=f"TTS 配额超限，请稍后重试或更换模型: {exc}",
+                    retryable=True,
+                )
+            )
+        if isinstance(exc, TTSBlockedError):
+            return PhaseExecutionFailure(
+                error=ExecutionFailure(
+                    code="TTS_PROVIDER_REJECTED",
+                    message=f"TTS 服务拒绝请求（鉴权失败或参数无效）: {exc}",
+                    retryable=False,
+                )
+            )
+        if isinstance(exc, TTSRetryableError):
+            return PhaseExecutionFailure(
+                error=ExecutionFailure(
+                    code="TTS_SYNTHESIS_FAILED",
+                    message=f"TTS 合成失败（可重试）: {exc}",
+                    retryable=True,
+                )
+            )
+        # Unknown / network errors are retryable
+        return PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="TTS_SYNTHESIS_FAILED",
+                message=f"TTS 合成失败: {exc}",
+                retryable=True,
+            )
+        )
+
     def validate_phase_input(
         self, phase: str, ctx: PhaseContext
     ) -> ExecutionFailure | None:
         """Validate a media phase using the same contract as execution/retry."""
 
         job_dir = self._job_dir(ctx)
+        if phase == "tts_generating":
+            if not self._discover_script(job_dir):
+                return ExecutionFailure(
+                    code="TTS_SCRIPT_MISSING",
+                    message="Script text is required before TTS audio can be synthesized.",
+                    retryable=False,
+                )
+            # Check for uploaded audio: validate source file exists
+            uploaded_audio_path: str = ctx.options.get("uploaded_audio_path", "")
+            if uploaded_audio_path:
+                src_audio = ctx.root_dir / uploaded_audio_path
+                if not src_audio.exists():
+                    return ExecutionFailure(
+                        code="UPLOAD_AUDIO_NOT_FOUND",
+                        message=f"Uploaded audio file not found: {uploaded_audio_path}",
+                        retryable=False,
+                    )
         if phase == "scene_assembling":
             # Snapshot exists → local copies available, skip source-folder check
             if (job_dir / ".scene_snapshot" / "manifest.json").exists():
@@ -714,48 +794,46 @@ class PhaseOrchestrator:
                 flush=True,
             )
             if existing_script:
-                try:
-                    tts_cfg = self._resolve_tts_config(ctx)
+                tts_cfg = self._resolve_tts_config(ctx)
 
-                    # Apply job-level TTS overrides (tts_model / tts_voice)
-                    # Priority: job override > provider defaults > global/product config
-                    job_tts_model: str = ctx.options.get("tts_model", "")
-                    job_tts_voice: str = ctx.options.get("tts_voice", "")
-                    if job_tts_model:
-                        tts_cfg["model"] = job_tts_model
-                    if job_tts_voice:
-                        tts_cfg["voice"] = job_tts_voice
+                # Apply job-level TTS overrides (tts_model / tts_voice)
+                # Priority: job override > provider defaults > global/product config
+                job_tts_model: str = ctx.options.get("tts_model", "")
+                job_tts_voice: str = ctx.options.get("tts_voice", "")
+                if job_tts_model:
+                    tts_cfg["model"] = job_tts_model
+                if job_tts_voice:
+                    tts_cfg["voice"] = job_tts_voice
 
-                    tts_provider = self._build_tts_provider(tts_cfg)
-                    service = self._create_sentence_tts_service(
-                        tts_provider, tts_cfg, ctx
-                    )
-                    timings = service.synthesize_script(existing_script, audio_path)
+                tts_provider = self._build_tts_provider(tts_cfg)
+                service = self._create_sentence_tts_service(
+                    tts_provider, tts_cfg, ctx
+                )
+                # Per-sentence retry is handled inside SentenceTTSService
+                # (ADR 0005).  When all sentence-level retries are exhausted
+                # the provider error propagates to execute_phase, which
+                # classifies it as a structured PhaseExecutionFailure (#253).
+                timings = service.synthesize_script(existing_script, audio_path)
 
-                    sentences_path = job_dir / "sentences.json"
-                    sentences_path.write_text(
-                        json.dumps(
-                            [t.model_dump() for t in timings],
-                            ensure_ascii=False,
-                            indent=2,
-                        ),
-                        encoding="utf-8",
+                sentences_path = job_dir / "sentences.json"
+                sentences_path.write_text(
+                    json.dumps(
+                        [t.model_dump() for t in timings],
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+                result.append(
+                    self._to_artifact(
+                        "sentence_timings", sentences_path, workspace_dir
                     )
-                    result.append(
-                        self._to_artifact(
-                            "sentence_timings", sentences_path, workspace_dir
-                        )
-                    )
-                    print(
-                        f"[TTS] Synthesized: {audio_path.exists()}, "
-                        f"size={audio_path.stat().st_size if audio_path.exists() else 0}",
-                        flush=True,
-                    )
-                except Exception as e:
-                    print(f"[TTS ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback
-
-                    traceback.print_exc()
+                )
+                print(
+                    f"[TTS] Synthesized: {audio_path.exists()}, "
+                    f"size={audio_path.stat().st_size if audio_path.exists() else 0}",
+                    flush=True,
+                )
             else:
                 print(f"[TTS WARN] No script text found in {job_dir}", flush=True)
 

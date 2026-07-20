@@ -390,21 +390,27 @@ def _transition_after_artifacts(
             message="subtitle_generating produced no artifacts, staying in phase",
         )
 
-    # 2c. asset_retrieving: auto-advance on no artifacts (transitional phase)
+    # 2c. tts_generating: stay in phase (critical — do not auto-advance, #253)
+    if effective_phase == "tts_generating":
+        return TickAction(
+            message="tts_generating produced no artifacts, staying in phase",
+        )
+
+    # 2d. asset_retrieving: auto-advance on no artifacts (transitional phase)
     if effective_phase == "asset_retrieving":
         return TickAction(
             new_phase=_safe_next(effective_phase),
             message="asset_retrieving produced no artifacts, auto-advancing",
         )
 
-    # 2d. Other handled phases: auto-advance (transitional or empty handler)
+    # 2e. Other handled phases: auto-advance (transitional or empty handler)
     if effective_phase in HANDLED_PHASES:
         return TickAction(
             new_phase=_safe_next(effective_phase),
             message=f"{effective_phase} produced no artifacts, auto-advancing (fallback)",
         )
 
-    # 2e. Fallback — auto-advance
+    # 2f. Fallback — auto-advance
     return TickAction(
         new_phase=_safe_next(effective_phase),
         message=f"auto-advance from {effective_phase} (fallback)",
