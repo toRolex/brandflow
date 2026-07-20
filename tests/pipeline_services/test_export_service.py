@@ -11,6 +11,10 @@ Covers:
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
+import wave
+from io import BytesIO
 import zipfile
 from pathlib import Path
 
@@ -117,7 +121,7 @@ def _populate_full_job(job_dir: Path, workspace_dir: Path) -> None:
         },
     ]
     (job_dir / "selected_clips.json").write_text(
-        json.dumps(selected, ensure_ascii=False)
+        json.dumps(selected, ensure_ascii=False), encoding="utf-8"
     )
 
     # Scene folders (via workspace /scene)
@@ -281,6 +285,77 @@ class TestBuildExportBundle:
 
         with zipfile.ZipFile(zip_path, "r") as zf:
             assert zf.read("export_job-001/audio/tts.wav") == b"wav data"
+
+    @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not available")
+    def test_mislabeled_mp3_is_exported_with_mp3_extension(
+        self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
+    ) -> None:
+        """The ZIP name follows probed encoding, not the source filename."""
+        subprocess.run(
+            [
+                shutil.which("ffmpeg") or "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=1000:duration=0.2",
+                "-f",
+                "mp3",
+                str(job_dir / "audio.wav"),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        _write_minimal_final_timeline(job_dir)
+
+        zip_path = build_export_bundle(
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
+            get_scene_config=lambda: _SCENE_CFG_FULL,
+        )
+
+        with zipfile.ZipFile(zip_path) as zf:
+            assert "export_job-001/audio/tts.mp3" in zf.namelist()
+            assert "export_job-001/audio/tts.wav" not in zf.namelist()
+
+    @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not available")
+    def test_non_mp3_audio_is_reencoded_as_pcm_wav(
+        self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
+    ) -> None:
+        """A .wav export is a real PCM WAV, never a renamed source stream."""
+        subprocess.run(
+            [
+                shutil.which("ffmpeg") or "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=1000:duration=0.2",
+                "-c:a",
+                "aac",
+                "-f",
+                "adts",
+                str(job_dir / "audio.wav"),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        _write_minimal_final_timeline(job_dir)
+
+        zip_path = build_export_bundle(
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
+            get_scene_config=lambda: _SCENE_CFG_FULL,
+        )
+
+        with zipfile.ZipFile(zip_path) as zf:
+            audio = zf.read("export_job-001/audio/tts.wav")
+        with wave.open(BytesIO(audio)) as wav:
+            assert wav.getnframes() > 0
 
     def test_bundle_creates_export_dir(
         self, job_dir: Path, workspace_dir: Path, project_dir: Path, tmp_path: Path

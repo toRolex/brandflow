@@ -8,6 +8,8 @@ gates on ready, and rerender/restart recovery flows.
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -32,10 +34,65 @@ def _setup_completed_job(client: TestClient, project_id: str, job_id: str) -> Pa
     repo.create_project(project_id, "test")
     job_dir = root / "workspace" / "projects" / project_id / "runtime" / "jobs" / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
-    (job_dir / "final.mp4").write_text("final video data")
-    (job_dir / "audio.mp3").write_text("audio data")
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        pytest.skip("ffmpeg not available")
+    subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=64x64:d=0.4",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=1000:duration=0.4",
+            "-shortest",
+            "-c:v",
+            "libx264",
+            "-c:a",
+            "aac",
+            "-pix_fmt",
+            "yuv420p",
+            str(job_dir / "final.mp4"),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=1000:duration=0.4",
+            "-c:a",
+            "libmp3lame",
+            str(job_dir / "audio.mp3"),
+        ],
+        check=True,
+        capture_output=True,
+    )
     (job_dir / "final_timeline.json").write_text(
-        json.dumps({"version": "1.0", "fingerprint": "fp-abc", "segments": []})
+        json.dumps(
+            {
+                "version": "1.0",
+                "duration_ms": 400,
+                "fingerprint": "fp-abc",
+                "segments": [
+                    {
+                        "kind": "montage",
+                        "start_ms": 0,
+                        "end_ms": 400,
+                        "sentence_index": 0,
+                        "text": "test",
+                    }
+                ],
+            }
+        )
     )
     record = (
         repo.load_job(project_id, job_id)
