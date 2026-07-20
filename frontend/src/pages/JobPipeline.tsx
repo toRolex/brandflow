@@ -100,6 +100,9 @@ export default function JobPipeline() {
 
 	const phaseToStepKey = (phase: Phase): string => {
 		const step = PIPELINE_STEPS.find((s) => s.phase === phase);
+		if (!step) {
+			console.warn(`phaseToStepKey: no step found for phase "$phase"`);
+		}
 		return step ? step.key : "";
 	};
 
@@ -718,6 +721,12 @@ export default function JobPipeline() {
 
 	const renderDetail = () => {
 		switch (activeStepKey) {
+			case "scene_assemble":
+				return (
+					<div className="text-[var(--text-tertiary)] text-sm py-4">
+						场景拼接中，等待系统调度...
+					</div>
+				);
 			case "migration_required":
 				return (
 					<div className="py-4">
@@ -1309,6 +1318,15 @@ export default function JobPipeline() {
 					</div>
 				);
 			}
+			case "montage":
+				return (
+					<div>
+						<h3 className="font-semibold text-sm mb-3">蒙太奇</h3>
+						<p className="text-[var(--text-tertiary)] text-sm">
+							蒙太奇组装进行中...
+						</p>
+					</div>
+				);
 			case "video_base": {
 				const video = findArtifact("video_base");
 				return (
@@ -1318,6 +1336,15 @@ export default function JobPipeline() {
 					</div>
 				);
 			}
+			case "final_render":
+				return (
+					<div>
+						<h3 className="font-semibold text-sm mb-3">终审合成</h3>
+						<p className="text-[var(--text-tertiary)] text-sm">
+							终审合成中，等待系统调度...
+						</p>
+					</div>
+				);
 			case "final_review": {
 				const finalVideo = findArtifact("final_video");
 				return (
