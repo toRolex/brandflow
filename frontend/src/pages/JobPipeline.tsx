@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import AssetGrid from "../components/AssetGrid";
@@ -249,6 +249,13 @@ export default function JobPipeline() {
 		};
 	}, [id]);
 
+	const isCurrentReviewStep = useMemo(() => {
+		if (!job) return false;
+		const step = PIPELINE_STEPS.find((s) => s.key === activeStepKey);
+		if (!step || !step.isReview) return false;
+		return job.phase === step.phase;
+	}, [activeStepKey, job, job?.phase]);
+
 	if (loading) {
 		return (
 			<div className="text-center py-12 text-[var(--text-tertiary)]">
@@ -265,12 +272,6 @@ export default function JobPipeline() {
 			</div>
 		);
 	}
-
-	const isCurrentReviewStep = (() => {
-		const step = PIPELINE_STEPS.find((s) => s.key === activeStepKey);
-		if (!step || !step.isReview) return false;
-		return job.phase === step.phase;
-	})();
 
 	const handleApprove = async (gate: string) => {
 		if (!isCurrentReviewStep) {

@@ -87,6 +87,20 @@ def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
     return None
 
 
+def _validate_review_gate(phase: str, review_gate: str) -> None:
+    """Raise HTTP 409 if *phase* is not a review gate or *review_gate* mismatches."""
+    if phase not in REVIEW_PHASES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"job is not in a review phase (current: {phase})",
+        )
+    if review_gate != phase:
+        raise HTTPException(
+            status_code=409,
+            detail=f"review gate mismatch: expected {phase}, got {review_gate}",
+        )
+
+
 @router.post("/{job_id}/approve")
 def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     repo = FileStoreRepository(request.app.state.root_dir)
@@ -96,16 +110,7 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
     record = repo.load_job(project_id, job_id)
 
     # ── Phase validation ──
-    if record.phase not in REVIEW_PHASES:
-        raise HTTPException(
-            status_code=409,
-            detail=f"job is not in a review phase (current: {record.phase})",
-        )
-    if payload.review_gate != record.phase:
-        raise HTTPException(
-            status_code=409,
-            detail=f"review gate mismatch: expected {record.phase}, got {payload.review_gate}",
-        )
+    _validate_review_gate(record.phase, payload.review_gate)
 
     # ── Asset review specific checks ──
     if record.phase == "asset_review":
@@ -146,17 +151,7 @@ def reject_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
 
-    # Phase validation
-    if record.phase not in REVIEW_PHASES:
-        raise HTTPException(
-            status_code=409,
-            detail=f"job is not in a review phase (current: {record.phase})",
-        )
-    if payload.review_gate != record.phase:
-        raise HTTPException(
-            status_code=409,
-            detail=f"review gate mismatch: expected {record.phase}, got {payload.review_gate}",
-        )
+    _validate_review_gate(record.phase, payload.review_gate)
 
     if record.phase == "tts_review":
         reject_target = "tts_generating"
