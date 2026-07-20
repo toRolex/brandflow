@@ -30,48 +30,29 @@ def _make_orchestrator(root_dir: Path, video_svc, schedule_store) -> PhaseOrches
     return orch
 
 
-def test_video_rendering_uses_media_bridge_with_selected_clips(
+def test_video_rendering_composes_prebuilt_montage_segment(
     monkeypatch, tmp_path: Path
 ) -> None:
+    """After #264, _run_video composes the pre-built montage_segment.mp4 into
+    base.mp4 instead of calling build_base_video directly."""
     root_dir = tmp_path
     workspace_dir = root_dir / "workspace"
     project_dir = workspace_dir / "projects" / "project-001"
     job_dir = project_dir / "runtime" / "jobs" / "job-001"
     job_dir.mkdir(parents=True, exist_ok=True)
 
-    clip_a = tmp_path / "clip_a.mp4"
-    clip_b = tmp_path / "clip_b.mp4"
-    clip_a.write_bytes(b"a")
-    clip_b.write_bytes(b"b")
-    (job_dir / "audio.mp3").write_bytes(b"audio")
-    (job_dir / "selected_clips.json").write_text(
+    (job_dir / "montage_segment.mp4").write_text("montage video")
+    (job_dir / "montage_segments.json").write_text(
         json.dumps(
-            [
-                {"file_path": str(clip_a)},
-                {"file_path": str(clip_b)},
-            ],
+            [{"sentence": "s", "visual_type": "blank", "duration": 1.0}],
             ensure_ascii=False,
         ),
         encoding="utf-8",
     )
 
-    captured: dict[str, Any] = {}
-
     class StubVideoService:
         def __init__(self, dry_run: bool = False) -> None:
             pass
-
-        def build_base_video(
-            self,
-            actual_project_dir: Path,
-            payload: dict,
-            output_path: Path,
-            **kwargs: Any,
-        ) -> None:
-            captured["project_dir"] = actual_project_dir
-            captured["payload"] = payload
-            captured["output_path"] = output_path
-            output_path.write_bytes(b"video")
 
     class StubScheduleStore:
         def __init__(self, _root_dir: Path) -> None:
@@ -94,16 +75,11 @@ def test_video_rendering_uses_media_bridge_with_selected_clips(
     )
     artifacts = orchestrator.run_phase("video_rendering", ctx)
 
-    assert captured["project_dir"] == project_dir
-    assert captured["output_path"] == job_dir / "_clip_base.mp4"
-    assert captured["payload"]["asset_bundle"]["audio_path"] == str(
-        job_dir / "audio.mp3"
-    )
-    assert captured["payload"]["asset_bundle"]["selected_clips"] == [
-        {"file_path": str(clip_a)},
-        {"file_path": str(clip_b)},
-    ]
+    assert len(artifacts) == 1
     assert artifacts[0].kind == "video_base"
+    base_path = job_dir / "base.mp4"
+    assert base_path.exists()
+    assert base_path.read_text() == "montage video"
 
 
 def test_final_rendering_allows_missing_srt_when_skip_subtitle_is_enabled(

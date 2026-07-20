@@ -850,6 +850,10 @@ class JobTickService:
 
 def _artifact_kind(path: str) -> str:
     """Map artifact file path to a known kind."""
+    if path.endswith("montage_segment.mp4"):
+        return "montage_segment"
+    if path.endswith("montage_segments.json"):
+        return "montage_segments"
     if path.endswith(".txt") or path.endswith(".json"):
         return "script"
     if path.endswith(".mp3"):

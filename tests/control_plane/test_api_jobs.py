@@ -283,7 +283,7 @@ def test_retry_restores_failed_phase_and_preserves_artifacts(tmp_path: Path) -> 
         / created["job_id"]
     )
     job_runtime.mkdir(parents=True)
-    (job_runtime / "assembled.mp4").write_bytes(b"fixed input")
+    (job_runtime / "montage_segment.mp4").write_bytes(b"fixed input")
 
     response = client.post(f"/api/jobs/{created['job_id']}/retry")
 
@@ -339,8 +339,11 @@ def test_retry_revalidates_with_media_handler_contract(tmp_path: Path) -> None:
 
     response = client.post(f"/api/jobs/{created['job_id']}/retry")
 
+    # Retry revalidates via the media handler contract: video_rendering now
+    # requires montage_segment.mp4 (#264), so the fresh validation error
+    # replaces the stale stored code.
     assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "VIDEO_SOURCE_MISSING"
+    assert response.json()["detail"]["code"] == "VIDEO_MONTAGE_SEGMENT_MISSING"
     saved = json.loads(job_path.read_text(encoding="utf-8"))
     assert saved["phase"] == "failed"
     assert saved["failed_phase"] == "video_rendering"

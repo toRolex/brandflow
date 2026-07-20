@@ -47,6 +47,7 @@ def make_record(
     mode: str = "generate",
     manual_script: str = "",
     execution: PhaseExecutionState | None = None,
+    artifacts: list[ArtifactPointer] | None = None,
 ) -> JobRecord:
     """Factory for concise test construction."""
     return JobRecord(
@@ -60,6 +61,7 @@ def make_record(
         auto_approve=auto_approve,
         manual_script=manual_script,
         execution=execution if execution is not None else PhaseExecutionState(),
+        artifacts=artifacts if artifacts is not None else [],
     )
 
 
@@ -1559,3 +1561,150 @@ class TestAutoApproveAssetReviewIntegrity:
         saved = repo.load_job("proj-001", job_id)
         assert saved.phase != "asset_review"
         assert saved.review_status == "approved"
+
+
+# ---------------------------------------------------------------------------
+# montage_assembling failure preserves upstream artifacts (#264)
+# ---------------------------------------------------------------------------
+
+
+class TestMontageAssemblingFailure:
+    """montage_assembling failure correctly records failed_phase and preserves
+    upstream artifacts (tts_audio, sentence_timings, selected_clips)."""
+
+    def test_non_retryable_failure_sets_failed_phase(self) -> None:
+        """Non-retryable montage failure → terminal failed, phase=montage_assembling."""
+        record = make_record(
+            phase="montage_assembling",
+            mode="generate",
+            artifacts=[
+                ArtifactPointer(
+                    kind="tts_audio", relative_path="audio.mp3", size_bytes=100
+                ),
+                ArtifactPointer(
+                    kind="sentence_timings",
+                    relative_path="sentences.json",
+                    size_bytes=80,
+                ),
+            ],
+        )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="MONTAGE_INPUT_INVALID",
+                message="Montage input is invalid: missing clip file",
+                retryable=False,
+            )
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "montage_assembling"
+        assert saved.execution.status == "failed"
+        assert saved.execution.error is not None
+        assert saved.execution.error.code == "MONTAGE_INPUT_INVALID"
+        # Upstream artifacts are preserved.
+        artifact_kinds = {a.kind for a in saved.artifacts}
+        assert "tts_audio" in artifact_kinds
+        assert "sentence_timings" in artifact_kinds
+
+    def test_retryable_failure_preserves_artifacts_and_stays_in_phase(self) -> None:
+        """Retryable montage failure → stays in phase, upstream artifacts preserved."""
+        record = make_record(
+            phase="montage_assembling",
+            mode="import",
+            artifacts=[
+                ArtifactPointer(
+                    kind="tts_audio", relative_path="audio.mp3", size_bytes=100
+                ),
+                ArtifactPointer(
+                    kind="selected_clips",
+                    relative_path="selected_clips.json",
+                    size_bytes=200,
+                ),
+            ],
+        )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="MEDIA_PROCESSING_TIMEOUT",
+                message="montage_assembling media processing timed out.",
+                retryable=True,
+            )
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        # Phase stays at montage_assembling (retrying).
+        assert saved.phase == "montage_assembling"
+        assert saved.failed_phase is None
+        assert saved.execution.status == "retrying"
+        assert saved.execution.current_attempt == 1
+        assert saved.execution.error is not None
+        assert saved.execution.error.retryable is True
+        # Upstream artifacts are preserved.
+        artifact_kinds = {a.kind for a in saved.artifacts}
+        assert "tts_audio" in artifact_kinds
+        assert "selected_clips" in artifact_kinds
+
+    def test_retryable_failure_exhausts_after_max_attempts(self) -> None:
+        """When max_attempts are exhausted, montage_assembling failure is terminal."""
+        record = make_record(
+            phase="montage_assembling",
+            mode="generate",
+            execution=PhaseExecutionState(
+                status="retrying",
+                current_attempt=2,
+                max_attempts=3,
+            ),
+            artifacts=[
+                ArtifactPointer(
+                    kind="tts_audio", relative_path="audio.mp3", size_bytes=100
+                ),
+            ],
+        )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="MEDIA_PROCESSING_FAILED",
+                message="montage_assembling media processing failed.",
+                retryable=True,
+            )
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "montage_assembling"
+        assert saved.execution.status == "failed"
+        # Upstream artifacts are preserved even on terminal failure.
+        artifact_kinds = {a.kind for a in saved.artifacts}
+        assert "tts_audio" in artifact_kinds

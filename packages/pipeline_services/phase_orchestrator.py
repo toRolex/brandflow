@@ -366,96 +366,16 @@ class PhaseOrchestrator:
                     retryable=False,
                 )
         elif phase == "montage_assembling":
-            # For generate mode, montage_assembling is a no-op pass-through
-            # (neither scene_segment.mp4 nor base.mp4 exist yet).
-            job_json = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
-            if job_json.exists():
-                try:
-                    if (
-                        json.loads(job_json.read_text(encoding="utf-8")).get("mode")
-                        == "generate"
-                    ):
-                        return None
-                except json.JSONDecodeError:
-                    pass
-            if (
-                not (job_dir / "scene_segment.mp4").exists()
-                and not (job_dir / "base.mp4").exists()
-            ):
+            _, _, error = self._load_montage_inputs(ctx)
+            return error
+        elif phase == "video_rendering":
+            if not (job_dir / "montage_segment.mp4").exists():
                 return ExecutionFailure(
-                    code="MONTAGE_SOURCE_MISSING",
-                    message="A scene segment or base video is required for montage assembly.",
+                    code="VIDEO_MONTAGE_SEGMENT_MISSING",
+                    message="The montage segment is required before video rendering.",
                     retryable=False,
                 )
-        elif phase == "video_rendering":
-            if (job_dir / "base.mp4").exists() or (job_dir / "assembled.mp4").exists():
-                return None
-            audio_path = job_dir / "audio.mp3"
-            reviewed_path = job_dir / "reviewed_assets.json"
-            clip_list_path = (
-                reviewed_path
-                if reviewed_path.exists()
-                else job_dir / "selected_clips.json"
-            )
-            if audio_path.exists() and clip_list_path.exists():
-                try:
-                    selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
-
-                    # Consistency check (#254): if reviewed snapshot exists but the
-                    # working file (selected_clips.json) has diverged, log a warning
-                    # and still use the snapshot. The snapshot is immutable — post-approval
-                    # edits to selected_clips.json must not affect render output.
-                    if reviewed_path.exists():
-                        working_path = job_dir / "selected_clips.json"
-                        if working_path.exists():
-                            try:
-                                working = json.loads(
-                                    working_path.read_text(encoding="utf-8")
-                                )
-                                # Compare by visual_type + asset_id (structural divergence)
-                                snap_ids = [
-                                    (c.get("visual_type"), c.get("asset_id"))
-                                    for c in selected
-                                ]
-                                work_ids = [
-                                    (c.get("visual_type"), c.get("asset_id"))
-                                    for c in working
-                                ]
-                                if snap_ids != work_ids:
-                                    print(
-                                        f"[VIDEO VALIDATE] reviewed snapshot differs from "
-                                        f"selected_clips — using snapshot for {ctx.job_id}",
-                                        flush=True,
-                                    )
-                            except (json.JSONDecodeError, KeyError, TypeError):
-                                pass  # working file parse error — snapshot wins
-
-                    has_real = any(
-                        Path(item["file_path"]).exists()
-                        for item in selected
-                        if item.get("file_path")
-                    )
-                    all_blank = all(
-                        item.get("visual_type") == "blank" for item in selected
-                    )
-                    if has_real or all_blank:
-                        return None
-                except (json.JSONDecodeError, KeyError, TypeError):
-                    source_name = (
-                        "reviewed_assets.json"
-                        if reviewed_path.exists()
-                        else "selected_clips.json"
-                    )
-                    return ExecutionFailure(
-                        code="MEDIA_INPUT_INVALID",
-                        message=f"{source_name} is not a valid media input.",
-                        retryable=False,
-                    )
-            return ExecutionFailure(
-                code="VIDEO_SOURCE_MISSING",
-                message="No usable assembled video or selected clips are available.",
-                retryable=False,
-            )
+            return None
         elif phase == "final_rendering":
             missing = [
                 name
@@ -1013,92 +933,39 @@ class PhaseOrchestrator:
     # -- video_rendering handler ---------------------------------------------
 
     def _run_video(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """video_rendering: compose base video for final rendering.
+        """video_rendering: compose the base video from the Montage Segment.
 
-        In import mode:
-          1. Build a clip-based montage video from ``audio.mp3`` and
-             ``reviewed_assets.json`` (or ``selected_clips.json`` as fallback).
-          2. Concatenate ``assembled.mp4`` (scene segment from
-             ``montage_assembling``) with the clip-based video → ``base.mp4``.
+        In import mode, the optional ``scene_segment.mp4`` is concatenated before
+        the ``montage_segment.mp4``.  In generate mode (no scene), the montage
+        segment is used directly as ``base.mp4``.
 
-        In generate mode, builds base video from clips directly (no
-        ``assembled.mp4`` expected to exist).
-
-        Falls back gracefully when one or both sources are missing.
-
-        Per #254: rendering consumes the immutable ``reviewed_assets.json``
-        snapshot when available, so post-approval edits to ``selected_clips.json``
-        do not affect render output.
+        The authoritative ``montage_segments.json`` produced by
+        ``montage_assembling`` drives the Final Timeline so the montage layout is
+        immutable and review-time decisions are preserved exactly.
         """
         job_dir = self._job_dir(ctx)
         workspace_dir = ctx.root_dir / "workspace"
-        audio_path = job_dir / "audio.mp3"
-        # Prefer the reviewed snapshot (#254) — after asset_review is approved,
-        # rendering must use the immutable snapshot, not the mutable working file.
-        reviewed_path = job_dir / "reviewed_assets.json"
-        clip_list_path = (
-            reviewed_path if reviewed_path.exists() else job_dir / "selected_clips.json"
-        )
         base_path = job_dir / "base.mp4"
-        assembled_path = job_dir / "assembled.mp4"
+        montage_path = job_dir / "montage_segment.mp4"
+        scene_path = job_dir / "scene_segment.mp4"
 
-        # -- Step 1: build clip-based montage video ---------------------------
-        clip_base_path = job_dir / "_clip_base.mp4"
-        clip_base_built = False
-        trim_params: list[dict] = []
+        if not montage_path.exists():
+            print(f"[VIDEO] No montage segment for {ctx.job_id}", flush=True)
+            return []
 
-        if audio_path.exists() and clip_list_path.exists():
-            selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
-            selected = [
-                item
-                for item in selected
-                if item.get("visual_type") == "blank"
-                or Path(item["file_path"]).exists()
-            ]
+        scene_exists = scene_path.exists()
 
-            if selected:
-                sentence_timings = self._discover_sentence_timings(job_dir)
-                timing_dicts = (
-                    [t.model_dump() for t in sentence_timings]
-                    if sentence_timings
-                    else None
-                )
-                returned = self._video_svc.build_base_video(
-                    ctx.project_dir,
-                    {
-                        "job_id": ctx.job_id,
-                        "asset_bundle": {
-                            "audio_path": str(audio_path),
-                            "selected_clips": selected,
-                        },
-                        "sequence": 1,
-                    },
-                    clip_base_path,
-                    sentence_timings=timing_dicts,
-                )
-                # Reuse the trim params computed inside build_base_video so the
-                # Final Timeline's montage segments match the render exactly.
-                if isinstance(returned, list):
-                    trim_params = returned
-                clip_base_built = clip_base_path.exists()
-
-        # -- Step 2: compose final base.mp4 ------------------------------------
-        assembled_exists = assembled_path.exists()
-
-        if assembled_exists and clip_base_built:
-            # Import mode: concat scene segment + montage clips
-            # ponytail: normalize both inputs before concat to ensure matching
-            # resolution/fps/pix_fmt (assembled.mp4 is 720x1280 from scene_assembling,
-            # _clip_base.mp4 is 1080x1920 from normalize_clip_to_vertical).
+        if scene_exists:
+            # Concat scene segment + montage segment, normalizing both inputs.
             ffmpeg = self._get_ffmpeg_path()
             subprocess.run(
                 [
                     ffmpeg,
                     "-y",
                     "-i",
-                    str(assembled_path),
+                    str(scene_path),
                     "-i",
-                    str(clip_base_path),
+                    str(montage_path),
                     "-filter_complex",
                     "[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
                     "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v0];"
@@ -1125,39 +992,22 @@ class PhaseOrchestrator:
                 text=True,
                 timeout=600,
             )
-            print(
-                f"[VIDEO] Concatenated assembled + clip base for {ctx.job_id}",
-                flush=True,
-            )
-        elif clip_base_built:
-            # Generate mode (or import mode without assembled.mp4 yet)
-            shutil.copy2(clip_base_path, base_path)
-            print(
-                f"[VIDEO] Using clip-based video as base for {ctx.job_id}",
-                flush=True,
-            )
-        elif assembled_exists:
-            # Import mode fallback: scene segment only, no clips available
-            shutil.copy2(assembled_path, base_path)
-            print(
-                f"[VIDEO] Using assembled video as base for {ctx.job_id} (no clips)",
-                flush=True,
-            )
+            print(f"[VIDEO] Concatenated scene + montage for {ctx.job_id}", flush=True)
         else:
-            print(
-                f"[VIDEO WARN] Neither assembled.mp4 nor clip base produced"
-                f" for {ctx.job_id}",
-                flush=True,
-            )
-
-        # Clean up temp clip base
-        if clip_base_path.exists():
-            clip_base_path.unlink()
+            shutil.copy2(montage_path, base_path)
+            print(f"[VIDEO] Using montage segment as base for {ctx.job_id}", flush=True)
 
         if base_path.exists():
-            # Inject AV alignment + authoritative Final Timeline (issue #179).
+            trim_params: list[dict] = []
+            segments_path = job_dir / "montage_segments.json"
+            if segments_path.exists():
+                try:
+                    trim_params = json.loads(segments_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    pass
             self._inject_av_alignment(ctx, job_dir, base_path, trim_params)
             return [self._to_artifact("video_base", base_path, workspace_dir)]
+
         print(f"[VIDEO WARN] base.mp4 not produced for {ctx.job_id}", flush=True)
         return []
 
@@ -1179,11 +1029,11 @@ class PhaseOrchestrator:
         """
         audio_path = job_dir / "audio.mp3"
         srt_path = job_dir / "subtitles.srt"
-        assembled_path = job_dir / "assembled.mp4"
+        scene_path = job_dir / "scene_segment.mp4"
         if not audio_path.exists() or not trim_params:
             return
 
-        scene_ms = compute_scene_offset_ms(assembled_path)
+        scene_ms = compute_scene_offset_ms(scene_path)
         base_ms = int(round(self._get_media_duration(base_path) * 1000))
 
         aligned = True
@@ -1587,91 +1437,181 @@ class PhaseOrchestrator:
             if path.is_file() and path.suffix.lower() in video_ext
         ]
 
-    # -- montage_assembling handler (import mode) ------------------------------
+    def _load_montage_inputs(
+        self, ctx: PhaseContext
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], ExecutionFailure | None]:
+        """Load and validate the immutable inputs for ``montage_assembling``.
+
+        Returns (selected_clips, sentence_timing_dicts, error).  The same
+        checks are used by ``validate_phase_input`` and ``_run_montage_assembly``
+        so the pre-execution contract and runtime contract cannot drift.
+        """
+        job_dir = self._job_dir(ctx)
+        audio_path = job_dir / "audio.mp3"
+        snapshot_path = job_dir / "reviewed_assets.json"
+        sentences_path = job_dir / "sentences.json"
+
+        if not snapshot_path.exists():
+            return (
+                [],
+                [],
+                ExecutionFailure(
+                    code="MONTAGE_SNAPSHOT_MISSING",
+                    message=(
+                        "The reviewed asset snapshot is missing; "
+                        "asset review must be approved first."
+                    ),
+                    retryable=False,
+                ),
+            )
+        if not audio_path.exists():
+            return (
+                [],
+                [],
+                ExecutionFailure(
+                    code="MONTAGE_AUDIO_MISSING",
+                    message="TTS audio is required before the montage can be assembled.",
+                    retryable=False,
+                ),
+            )
+        if not sentences_path.exists():
+            return (
+                [],
+                [],
+                ExecutionFailure(
+                    code="MONTAGE_TIMINGS_MISSING",
+                    message=(
+                        "Sentence timings are required before the montage can be assembled."
+                    ),
+                    retryable=False,
+                ),
+            )
+
+        try:
+            selected = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            sentence_timings = [
+                t.model_dump() for t in self._discover_sentence_timings(job_dir)
+            ]
+        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            return (
+                [],
+                [],
+                ExecutionFailure(
+                    code="MONTAGE_INPUT_INVALID",
+                    message=f"Montage input is invalid: {exc}",
+                    retryable=False,
+                ),
+            )
+
+        if not selected:
+            return (
+                [],
+                [],
+                ExecutionFailure(
+                    code="MONTAGE_DECISIONS_MISSING",
+                    message=(
+                        "At least one reviewed asset decision is required to build the montage."
+                    ),
+                    retryable=False,
+                ),
+            )
+
+        unresolved = [c for c in selected if c.get("visual_type") == "unresolved"]
+        if unresolved:
+            return (
+                [],
+                [],
+                ExecutionFailure(
+                    code="MONTAGE_UNRESOLVED_DECISIONS",
+                    message=(
+                        f"{len(unresolved)} reviewed asset decision(s) are still unresolved."
+                    ),
+                    retryable=False,
+                ),
+            )
+
+        missing = [
+            c
+            for c in selected
+            if c.get("visual_type") == "clip"
+            and c.get("file_path")
+            and not Path(c["file_path"]).exists()
+        ]
+        if missing:
+            return (
+                [],
+                [],
+                ExecutionFailure(
+                    code="MONTAGE_CLIP_FILE_MISSING",
+                    message=f"Reviewed clip file not found: {missing[0].get('file_path', '')}",
+                    retryable=False,
+                ),
+            )
+
+        return selected, sentence_timings, None
+
+    # -- montage_assembling handler (generate + import modes) ------------------
 
     def _run_montage_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """montage_assembling: merge scene segment + base video into assembled video.
+        """montage_assembling: build the independent Montage Segment.
 
-        Reads ``scene_segment.mp4`` from the scene_assembling phase and
-        ``base.mp4`` (if present, e.g. from a previous generate-mode run).
-        Concatenates them into ``assembled.mp4`` which ``_run_video`` then uses
-        as the base video in import mode.
+        Consumes the immutable ``reviewed_assets.json`` snapshot, the TTS audio,
+        and canonical sentence timings to produce ``montage_segment.mp4`` plus
+        the authoritative ``montage_segments.json`` trim-parameter manifest.
 
-        If only one of the two files exists it is used directly; if neither
-        exists the handler returns an empty list.
+        A missing snapshot/audio/timings, unresolved decisions, or missing clip
+        files are raised as structured failures by the shared input loader.
         """
         workspace_dir = ctx.root_dir / "workspace"
         job_dir = self._job_dir(ctx)
-        scene_path = job_dir / "scene_segment.mp4"
-        base_path = job_dir / "base.mp4"
-        assembled_path = job_dir / "assembled.mp4"
+        selected, sentence_timings, error = self._load_montage_inputs(ctx)
+        if error is not None:
+            # Validation should have caught this, but if it didn't, raise so
+            # execute_phase converts it into a structured MEDIA_INPUT_INVALID.
+            raise ValueError(error.message)
 
-        scene_exists = scene_path.exists()
-        base_exists = base_path.exists()
+        audio_path = job_dir / "audio.mp3"
+        montage_path = job_dir / "montage_segment.mp4"
+        segments_path = job_dir / "montage_segments.json"
 
-        if scene_exists and base_exists:
+        trim_params = self._video_svc.build_base_video(
+            ctx.project_dir,
+            {
+                "job_id": ctx.job_id,
+                "asset_bundle": {
+                    "audio_path": str(audio_path),
+                    "selected_clips": selected,
+                },
+                "sequence": 1,
+            },
+            montage_path,
+            sentence_timings=sentence_timings if sentence_timings else None,
+        )
+        if trim_params is None:
+            trim_params = []
+
+        if not montage_path.exists():
             print(
-                f"[MONTAGE] Concatenating scene_segment + base for {ctx.job_id}",
-                flush=True,
-            )
-            ffmpeg = self._get_ffmpeg_path()
-            subprocess.run(
-                [
-                    ffmpeg,
-                    "-y",
-                    "-i",
-                    str(scene_path),
-                    "-i",
-                    str(base_path),
-                    "-filter_complex",
-                    "[0:v]settb=AVTB[sv];[1:v]settb=AVTB[bv];"
-                    "[sv][bv]concat=n=2:v=1:a=0",
-                    "-map",
-                    "[v]",
-                    "-an",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "ultrafast",
-                    "-crf",
-                    "23",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    str(assembled_path),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-        elif scene_exists:
-            print(
-                f"[MONTAGE] Using scene_segment as assembled for {ctx.job_id}",
-                flush=True,
-            )
-            shutil.copy2(scene_path, assembled_path)
-        elif base_exists:
-            print(
-                f"[MONTAGE] Using base as assembled for {ctx.job_id}",
-                flush=True,
-            )
-            shutil.copy2(base_path, assembled_path)
-        else:
-            print(
-                f"[MONTAGE] Neither scene_segment nor base found for {ctx.job_id}",
+                f"[MONTAGE] build_base_video did not produce {montage_path}",
                 flush=True,
             )
             return []
 
-        if assembled_path.exists():
-            print(
-                f"[MONTAGE] assembled.mp4 produced ({assembled_path.stat().st_size} bytes)",
-                flush=True,
+        segments_path.write_text(
+            json.dumps(trim_params, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        result: list[ArtifactPointer] = []
+        if montage_path.exists():
+            result.append(
+                self._to_artifact("montage_segment", montage_path, workspace_dir)
             )
-            return [self._to_artifact("assembled_video", assembled_path, workspace_dir)]
-        return []
+        if segments_path.exists():
+            result.append(
+                self._to_artifact("montage_segments", segments_path, workspace_dir)
+            )
+        return result
 
     @staticmethod
     def _discover_script(job_dir: Path) -> str | None:

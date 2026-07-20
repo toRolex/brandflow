@@ -337,61 +337,55 @@ def orchestrator() -> PhaseOrchestrator:
     )
 
 
-def _selected_clips(job_dir: Path) -> list[dict]:
-    real = job_dir / "clip1.mp4"
-    real.write_bytes(b"fake clip")
-    return [
-        {
-            "sentence": "第一句。",
-            "file_path": str(real),
-            "asset_id": "a1",
-            "duration_seconds": 5.0,
-            "visual_type": "clip",
-        },
-        {
-            "sentence": "空白句。",
-            "file_path": "",
-            "asset_id": "",
-            "duration_seconds": 0.0,
-            "visual_type": "blank",
-        },
-    ]
-
-
 class TestRunVideoAlignmentInjection:
     """_run_video must emit audio_aligned.mp3, subtitles_offset.srt and
-    final_timeline.json alongside base.mp4 (issue #179)."""
+    final_timeline.json alongside base.mp4 (issue #179).
+
+    After #264 montage_assembling produces montage_segment.mp4 +
+    montage_segments.json; video_rendering consumes these instead of
+    calling build_base_video directly."""
 
     def _setup_job(self, ctx: PhaseContext, *, with_scene: bool) -> Path:
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True, exist_ok=True)
-        if with_scene:
-            (job_dir / "assembled.mp4").write_bytes(b"fake scene video")
-        (job_dir / "audio.mp3").write_bytes(b"fake audio")
-        (job_dir / "selected_clips.json").write_text(
-            json.dumps(_selected_clips(job_dir)), encoding="utf-8"
+        (job_dir / "montage_segment.mp4").write_bytes(b"pre-built montage segment")
+        (job_dir / "montage_segments.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "sentence": "第一句。",
+                        "file_path": str(job_dir / "clip1.mp4"),
+                        "asset_id": "a1",
+                        "duration_seconds": 5.0,
+                        "visual_type": "clip",
+                        "ss": 0.0,
+                        "duration": 1.5,
+                    },
+                    {
+                        "sentence": "空白句。",
+                        "file_path": "",
+                        "asset_id": "",
+                        "duration_seconds": 0.0,
+                        "visual_type": "blank",
+                        "ss": 0.0,
+                        "duration": 1.5,
+                    },
+                ]
+            ),
+            encoding="utf-8",
         )
+        if with_scene:
+            (job_dir / "scene_segment.mp4").write_bytes(b"fake scene video")
+        (job_dir / "audio.mp3").write_bytes(b"fake audio")
         (job_dir / "subtitles.srt").write_text(
             "1\n00:00:00,000 --> 00:00:02,000\n第一句。\n", encoding="utf-8"
         )
         return job_dir
 
-    def _stub_video_build(self, orchestrator: PhaseOrchestrator, job_dir: Path) -> None:
-        def _build(project_dir, job, output_path, **kwargs):
-            output_path.write_bytes(b"clip base video")
-            # Mirror build_base_video's real return: trim params per montage clip.
-            return [
-                {**c, "ss": 0.0, "duration": 1.5}
-                for c in job["asset_bundle"]["selected_clips"]
-            ]
-
-        orchestrator._video_svc.build_base_video.side_effect = _build
-
     def test_emits_aligned_audio_and_offset_srt_and_timeline_with_scene(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
         job_dir = self._setup_job(ctx, with_scene=True)
-        self._stub_video_build(orchestrator, job_dir)
 
         def _ffmpeg_effect(cmd, *a, **k):
             # concat produces base.mp4; align produces audio_aligned.mp3
@@ -431,7 +425,7 @@ class TestRunVideoAlignmentInjection:
         offset_srt = job_dir / "subtitles_offset.srt"
         assert offset_srt.exists()
         # offset srt shifted by scene_ms (3.0s): 00:00:00,000 -> 00:00:03,000
-        assert "00:00:03,000 --> 00:00:05,000" in offset_srt.read_text()
+        assert "00:00:03,000 --> 00:00:05,000" in offset_srt.read_text(encoding="utf-8")
         # final timeline persisted
         timeline_path = job_dir / "final_timeline.json"
         assert timeline_path.exists()
@@ -447,7 +441,6 @@ class TestRunVideoAlignmentInjection:
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
         job_dir = self._setup_job(ctx, with_scene=False)
-        self._stub_video_build(orchestrator, job_dir)
 
         with (
             patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"),
@@ -466,14 +459,13 @@ class TestRunVideoAlignmentInjection:
         assert all(s["kind"] != "scene" for s in timeline["segments"])
         assert timeline["segments"][0]["start_ms"] == 0
         # offset srt is identity (offset 0)
-        offset_srt = (job_dir / "subtitles_offset.srt").read_text()
+        offset_srt = (job_dir / "subtitles_offset.srt").read_text(encoding="utf-8")
         assert "00:00:00,000 --> 00:00:02,000" in offset_srt
 
     def test_align_failure_falls_back_and_marks_unaligned(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
         job_dir = self._setup_job(ctx, with_scene=True)
-        self._stub_video_build(orchestrator, job_dir)
 
         def _ffmpeg_effect(cmd, *a, **k):
             joined = " ".join(str(c) for c in cmd)

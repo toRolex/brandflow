@@ -592,85 +592,181 @@ class TestSceneAssembling:
 
 
 # ---------------------------------------------------------------------------
-# 4. montage_assembling handler — file concatenation logic
+# 4. montage_assembling handler — reviewed snapshot → Montage Segment (#264)
 # ---------------------------------------------------------------------------
 
 
 class TestMontageAssembling:
-    def test_returns_empty_when_no_input_files(
-        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
-    ) -> None:
-        """No scene_segment.mp4 and no base.mp4 → empty result."""
-        result = orchestrator.run_phase("montage_assembling", ctx)
-        assert result == []
+    """montage_assembling builds the independent Montage Segment from the
+    reviewed snapshot, TTS audio and canonical sentence timings in both
+    generate and import modes.  Import mode does NOT use scene_segment.mp4
+    in montage_assembling — scene composition is owned by video_rendering."""
 
-    def test_uses_scene_segment_when_alone(
+    def test_requires_reviewed_snapshot(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
-        """With only scene_segment.mp4 → copies it as assembled.mp4."""
+        """No reviewed_assets.json → MONTAGE_SNAPSHOT_MISSING."""
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
-        scene_path = job_dir / "scene_segment.mp4"
-        scene_path.write_text("scene video data")
 
-        with patch.object(subprocess, "run") as mock_run:
-            result = orchestrator.run_phase("montage_assembling", ctx)
+        error = orchestrator.validate_phase_input("montage_assembling", ctx)
+        assert error is not None
+        assert error.code == "MONTAGE_SNAPSHOT_MISSING"
 
-        mock_run.assert_not_called()
-        assembled_path = job_dir / "assembled.mp4"
-        assert assembled_path.exists()
-        assert assembled_path.read_text() == "scene video data"
-        assert len(result) == 1
-        assert result[0].kind == "assembled_video"
-
-    def test_uses_base_when_alone(
+    def test_requires_audio(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
-        """With only base.mp4 → copies it as assembled.mp4."""
+        """reviewed snapshot present but no audio → MONTAGE_AUDIO_MISSING."""
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
-        base_path = job_dir / "base.mp4"
-        base_path.write_text("base video data")
+        (job_dir / "reviewed_assets.json").write_text("[]", encoding="utf-8")
 
-        with patch.object(subprocess, "run") as mock_run:
-            result = orchestrator.run_phase("montage_assembling", ctx)
+        error = orchestrator.validate_phase_input("montage_assembling", ctx)
+        assert error is not None
+        assert error.code == "MONTAGE_AUDIO_MISSING"
 
-        mock_run.assert_not_called()
-        assembled_path = job_dir / "assembled.mp4"
-        assert assembled_path.exists()
-        assert assembled_path.read_text() == "base video data"
-        assert len(result) == 1
-
-    def test_concatenates_both_when_both_exist(
+    def test_requires_sentence_timings(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
-        """With both scene_segment.mp4 and base.mp4 → ffmpeg concat."""
+        """reviewed snapshot + audio but no sentences → MONTAGE_TIMINGS_MISSING."""
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
-        (job_dir / "scene_segment.mp4").write_text("scene")
-        (job_dir / "base.mp4").write_text("base")
+        (job_dir / "reviewed_assets.json").write_text("[]", encoding="utf-8")
+        (job_dir / "audio.mp3").write_bytes(b"fake audio")
 
-        with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
-            with patch.object(subprocess, "run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0)
+        error = orchestrator.validate_phase_input("montage_assembling", ctx)
+        assert error is not None
+        assert error.code == "MONTAGE_TIMINGS_MISSING"
 
-                def _make_assembled(*args, **kwargs):
-                    (job_dir / "assembled.mp4").write_text("concatenated")
-                    return MagicMock(returncode=0)
+    def test_builds_montage_from_snapshot(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """With reviewed snapshot, audio and sentence timings,
+        montage_assembling calls build_base_video and emits montage artifacts."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "reviewed_assets.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "sentence": "第一句。",
+                        "file_path": "",
+                        "asset_id": "",
+                        "visual_type": "blank",
+                        "duration": 1.5,
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        (job_dir / "audio.mp3").write_bytes(b"fake audio")
+        (job_dir / "sentences.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "index": 0,
+                        "text": "第一句。",
+                        "start_seconds": 0.0,
+                        "end_seconds": 1.5,
+                        "model": "",
+                        "voice": "",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
 
-                mock_run.side_effect = _make_assembled
+        expected_trim = [
+            {
+                "sentence": "第一句。",
+                "file_path": "",
+                "asset_id": "",
+                "visual_type": "blank",
+                "ss": 0.0,
+                "duration": 1.5,
+            }
+        ]
 
-                result = orchestrator.run_phase("montage_assembling", ctx)
+        def _build(project_dir, job, output_path, sentence_timings=None):
+            output_path.write_text("montage video")
+            return expected_trim
 
-        assert len(result) == 1
-        assert result[0].kind == "assembled_video"
-        assert (job_dir / "assembled.mp4").exists()
+        orchestrator._video_svc.build_base_video.side_effect = _build
 
-        # Verify ffmpeg was called with concat filter
-        call_args = mock_run.call_args[0][0]
-        assert "-filter_complex" in call_args
-        filter_idx = call_args.index("-filter_complex")
-        assert "concat=n=2" in call_args[filter_idx + 1]
+        artifacts = orchestrator.run_phase("montage_assembling", ctx)
+
+        kinds = {a.kind for a in artifacts}
+        assert kinds == {"montage_segment", "montage_segments"}
+        assert (job_dir / "montage_segment.mp4").exists()
+        assert (
+            json.loads((job_dir / "montage_segments.json").read_text(encoding="utf-8"))
+            == expected_trim
+        )
+        # build_base_video was called with output_path pointing to
+        # montage_segment.mp4 (positional arg 3).
+        call_args = orchestrator._video_svc.build_base_video.call_args
+        assert call_args[0][2] == job_dir / "montage_segment.mp4"
+
+    def test_ignores_scene_segment(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """Even when scene_segment.mp4 exists alongside, montage_assembling
+        does NOT consume or copy it — scene composition is video_rendering's job."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "scene_segment.mp4").write_text("scene from import mode")
+        (job_dir / "reviewed_assets.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "sentence": "第一句。",
+                        "file_path": "",
+                        "asset_id": "",
+                        "visual_type": "blank",
+                        "duration": 1.5,
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        (job_dir / "audio.mp3").write_bytes(b"fake audio")
+        (job_dir / "sentences.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "index": 0,
+                        "text": "第一句。",
+                        "start_seconds": 0.0,
+                        "end_seconds": 1.5,
+                        "model": "",
+                        "voice": "",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        def _build(project_dir, job, output_path, sentence_timings=None):
+            output_path.write_text("montage video")
+            return [{"sentence": "第一句。", "visual_type": "blank", "duration": 1.5}]
+
+        orchestrator._video_svc.build_base_video.side_effect = _build
+
+        artifacts = orchestrator.run_phase("montage_assembling", ctx)
+
+        # The scene_segment.mp4 is left untouched — it is NOT consumed by
+        # montage_assembling.
+        assert (job_dir / "scene_segment.mp4").read_text() == "scene from import mode"
+        # montage_assembling produces montage_segment.mp4, not assembled.mp4.
+        assert (job_dir / "montage_segment.mp4").exists()
+        assert not (job_dir / "assembled.mp4").exists()
+        kinds = {a.kind for a in artifacts}
+        assert "montage_segment" in kinds
+        assert "assembled_video" not in kinds
 
 
 # ---------------------------------------------------------------------------
@@ -807,19 +903,31 @@ class TestImportModeTickFlow:
     def test_import_mode_advances_past_montage_assembling(
         self,
     ) -> None:
-        """End-to-end: montage_assembling produces artifacts → advances via _safe_next."""
+        """End-to-end: montage_assembling produces montage segment → advances to video_rendering.
+
+        montage_assembling is a structured media phase so the tick service
+        calls execute_phase, not run_phase.
+        """
         record = make_record(phase="montage_assembling", mode="import")
         mock_repo = MagicMock()
         mock_repo.load_job.return_value = record
         mock_orch = MagicMock(spec=PhaseOrchestrator)
-        mock_orch.run_phase.return_value = [
-            ArtifactPointer(
-                kind="assembled_video",
-                relative_path="assembled.mp4",
-                url="/workspace/assembled.mp4",
-                size_bytes=2000,
-            )
-        ]
+        mock_orch.execute_phase.return_value = PhaseExecutionSuccess(
+            artifacts=[
+                ArtifactPointer(
+                    kind="montage_segment",
+                    relative_path="montage_segment.mp4",
+                    url="/workspace/montage_segment.mp4",
+                    size_bytes=2000,
+                ),
+                ArtifactPointer(
+                    kind="montage_segments",
+                    relative_path="montage_segments.json",
+                    url="/workspace/montage_segments.json",
+                    size_bytes=150,
+                ),
+            ]
+        )
 
         svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
         summary = svc.tick(
