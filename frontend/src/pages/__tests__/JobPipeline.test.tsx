@@ -19,6 +19,9 @@ vi.mock("../../api/client", () => ({
 		previewJobTTS: vi.fn(),
 		approveReview: vi.fn(),
 		rejectReview: vi.fn(),
+		createExport: vi.fn(),
+		getExportStatus: vi.fn(),
+		downloadExport: vi.fn(),
 	},
 }));
 
@@ -486,4 +489,128 @@ describe("JobPipeline asset phase states", () => {
 			screen.getByText(/不可重试/),
 		).toBeInTheDocument();
 	});
+
+	const completedJob = {
+		job_id: "job-200",
+		project_id: "project-1",
+		product: "product",
+		platforms: ["douyin"],
+		phase: "completed" as const,
+		failed_phase: null,
+		review_status: "approved" as const,
+		artifacts: [
+			{ kind: "final_video", url: "/workspace/projects/project-1/runtime/jobs/job-200/final.mp4" },
+		],
+		execution: {
+			status: "completed" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+		},
+	};
+
+	function renderCompletedPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-200"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	describe("JobPipeline async export UI (#255)", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+			vi.mocked(api.getJob).mockResolvedValue(completedJob as never);
+			vi.mocked(api.getExportStatus).mockResolvedValue(null);
+		});
+
+		it("shows export button in completed state", async () => {
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText("导出")).toBeInTheDocument();
+		});
+
+		it("shows creating state after clicking export", async () => {
+			// Start with no existing task so we see the export button
+			let statusCalls = 0;
+			vi.mocked(api.getExportStatus).mockImplementation(async () => {
+				statusCalls++;
+				if (statusCalls === 1) return null;
+				return { task_id: "task-1", status: "queued", progress: 0, error: null };
+			});
+			vi.mocked(api.createExport).mockResolvedValue({
+				task_id: "task-1",
+				status: "queued",
+			});
+
+			renderCompletedPage();
+
+			await screen.findByText("导出");
+			const btn = screen.getByText("导出");
+			fireEvent.click(btn);
+
+			expect(await screen.findByText("排队中...")).toBeInTheDocument();
+		});
+
+		it("shows running state with progress", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "running",
+				progress: 45,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText("处理中...")).toBeInTheDocument();
+		});
+
+		it("shows download button when ready", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "ready",
+				progress: 100,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText("下载导出包")).toBeInTheDocument();
+		});
+
+		it("shows error and re-create action when failed", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "failed",
+				progress: 0,
+				error: "segment count mismatch: 3 segments for 5 timeline entries",
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText(/segment count mismatch/)).toBeInTheDocument();
+			expect(screen.getByText("重新创建")).toBeInTheDocument();
+		});
+
+		it("shows stale message with re-create action", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "stale",
+				progress: 0,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText(/已过期/)).toBeInTheDocument();
+			expect(screen.getByText("重新创建")).toBeInTheDocument();
+		});
+	});
+
 });
