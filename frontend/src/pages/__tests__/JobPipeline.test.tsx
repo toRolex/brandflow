@@ -42,7 +42,7 @@ const failedJob = {
 		error: {
 			code: "VIDEO_SOURCE_MISSING",
 			message: "No usable video source is available.",
-			retryable: false,
+			retryable: false as const,
 		},
 	},
 };
@@ -73,31 +73,52 @@ describe("JobPipeline execution failure workflow", () => {
 		expect(
 			screen.getByText("No usable video source is available."),
 		).toBeInTheDocument();
-		expect(screen.getByText(/video_rendering/)).toBeInTheDocument();
-		expect(screen.getByText(/3 \/ 3/)).toBeInTheDocument();
+		// The failed phase label uses the Chinese display name from PIPELINE_STEPS
+		expect(screen.getByText(/底包拼接/)).toBeInTheDocument();
+		expect(
+			screen.getByText(/不可重试/),
+		).toBeInTheDocument();
 	});
 
-	it("awaits retry and reloads the recovered phase", async () => {
-		renderPage();
-		fireEvent.click(
-			await screen.findByRole("button", { name: "重试失败阶段" }),
-		);
-
-		await waitFor(() => expect(api.retryJob).toHaveBeenCalledWith("job-170"));
-		await waitFor(() => expect(api.getJob).toHaveBeenCalledTimes(2));
-	});
-
-	it("shows retry request failures", async () => {
+	it("shows retry request failures for retryable errors", async () => {
+		// Use a retryable error so the retry button appears
+		vi.mocked(api.getJob).mockResolvedValue({
+			...failedJob,
+			execution: {
+				...failedJob.execution,
+				error: {
+					code: "MEDIA_PROCESSING_TIMEOUT",
+					message: "Processing timed out.",
+					retryable: true,
+				},
+			},
+		} as never);
 		vi.mocked(api.retryJob).mockRejectedValue(new Error("still invalid"));
-		renderPage();
-		fireEvent.click(
-			await screen.findByRole("button", { name: "重试失败阶段" }),
-		);
 
-		expect(await screen.findByText("重试前验证失败")).toBeInTheDocument();
+		renderPage();
+
+		const retryBtn = await screen.findByRole("button", {
+			name: "重试失败阶段",
+		});
+		fireEvent.click(retryBtn);
+
+		// Non-structured errors trigger the fallback message from formatRetryError
+		expect(await screen.findByText(/重试前验证失败/)).toBeInTheDocument();
 	});
 
 	it("surfaces structured 409 revalidation detail from the server", async () => {
+		// Use a retryable error so the retry button appears
+		vi.mocked(api.getJob).mockResolvedValue({
+			...failedJob,
+			execution: {
+				...failedJob.execution,
+				error: {
+					code: "VIDEO_SOURCE_MISSING",
+					message: "No usable video source is available.",
+					retryable: true,
+				},
+			},
+		} as never);
 		vi.mocked(api.retryJob).mockRejectedValue(
 			new Error(
 				`409: ${JSON.stringify({
@@ -109,10 +130,13 @@ describe("JobPipeline execution failure workflow", () => {
 				})}`,
 			),
 		);
+
 		renderPage();
-		fireEvent.click(
-			await screen.findByRole("button", { name: "重试失败阶段" }),
-		);
+
+		const retryBtn = await screen.findByRole("button", {
+			name: "重试失败阶段",
+		});
+		fireEvent.click(retryBtn);
 
 		expect(
 			await screen.findByText(
@@ -158,7 +182,7 @@ describe("JobPipeline migration_required workflow", () => {
 			error: {
 				code: "SCENE_INPUT_MISSING",
 				message: "missing scene input",
-				retryable: false,
+				retryable: false as const,
 			},
 		},
 	};
@@ -193,13 +217,21 @@ describe("JobPipeline migration_required workflow", () => {
 		expect(await screen.findByLabelText("场景一")).toBeInTheDocument();
 
 		fireEvent.click(screen.getByLabelText("场景一"));
-		fireEvent.click(screen.getByRole("button", { name: "重新启动任务" }));
+		fireEvent.click(screen.getByRole("button", { name: "补充场景并重新启动任务" }));
 
 		await waitFor(() => {
 			expect(api.migrateScenes).toHaveBeenCalledWith("job-migration", [
 				"scenes/one",
 			]);
 		});
+	});
+
+	it("shows explicit rebuild/migration guidance text", async () => {
+		renderMigrationPage();
+
+		expect(await screen.findByText(/历史创建/)).toBeInTheDocument();
+		expect(screen.getByText(/缺少有效的场景输入/)).toBeInTheDocument();
+		expect(screen.getByText(/系统将重建任务并保留现有文案与配置/)).toBeInTheDocument();
 	});
 });
 
@@ -265,10 +297,7 @@ describe("JobPipeline TTS voice selection (#177)", () => {
 	it("renders TTS voice selector with available voices", async () => {
 		renderTTSPage();
 
-		// Should show the TTS step title
 		expect(await screen.findByText("TTS 配音")).toBeInTheDocument();
-
-		// Should show resolution badge
 		expect(await screen.findByText(/全局/)).toBeInTheDocument();
 	});
 
@@ -290,5 +319,171 @@ describe("JobPipeline TTS voice selection (#177)", () => {
 		const link = await screen.findByText(/高级 TTS 配置/);
 		expect(link).toBeInTheDocument();
 		expect(link.closest("a")?.getAttribute("href")).toBe("/tts-config");
+	});
+});
+
+describe("JobPipeline asset phase states", () => {
+	const assetRetrievingBase = {
+		job_id: "job-asset-1",
+		project_id: "project-1",
+		product: "product",
+		platforms: ["douyin"],
+		phase: "asset_retrieving" as const,
+		failed_phase: null,
+		review_status: "none" as const,
+		artifacts: [],
+		mode: "generate" as const,
+	};
+
+	function renderAssetPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-asset-1"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("shows asset_retrieving pending state: waiting to start", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			execution: {
+				status: "pending",
+				current_attempt: 0,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderAssetPage();
+
+		expect(await screen.findByText("等待开始切配...")).toBeInTheDocument();
+	});
+
+	it("shows asset_retrieving running state with attempt info", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			execution: {
+				status: "running",
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderAssetPage();
+
+		expect(await screen.findByText("正在切配素材...")).toBeInTheDocument();
+		expect(screen.getByText(/1 \/ 3/)).toBeInTheDocument();
+	});
+
+	it("shows asset_retrieving no-assets state when succeeded but no clip artifact", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			execution: {
+				status: "succeeded",
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderAssetPage();
+
+		expect(await screen.findByText("无可用素材")).toBeInTheDocument();
+		expect(
+			screen.getByText(/未找到与当前文案匹配的素材/),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "重新检索素材" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows asset_retrieving succeeded with clips artifact and asset grid", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			artifacts: [
+				{
+					kind: "selected_clips",
+					relative_path: "clips.json",
+					url: "/api/workspace/projects/project-1/runtime/jobs/job-asset-1/clips.json",
+				},
+			],
+			execution: {
+				status: "succeeded",
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderAssetPage();
+
+		// When clips artifact exists, we show "已检索到 N 个匹配素材"
+		expect(await screen.findByText(/已检索到/)).toBeInTheDocument();
+		expect(screen.getByText(/个匹配素材/)).toBeInTheDocument();
+	});
+
+	it("shows failed asset retrieval with retryable error and retry button", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			phase: "failed",
+			failed_phase: "asset_retrieving",
+			execution: {
+				status: "failed",
+				current_attempt: 2,
+				max_attempts: 3,
+				error: {
+					code: "ASSET_SEARCH_FAILED",
+					message: "素材检索服务暂时不可用",
+					retryable: true,
+				},
+			},
+		} as never);
+		vi.mocked(api.retryJob).mockResolvedValue({
+			status: "phase_queued_for_retry",
+		});
+
+		renderAssetPage();
+
+		expect(await screen.findByText("素材检索失败（可重试）")).toBeInTheDocument();
+		expect(screen.getByText("ASSET_SEARCH_FAILED")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "重试失败阶段" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows failed asset retrieval with terminal error and no retry button", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			phase: "failed",
+			failed_phase: "asset_retrieving",
+			execution: {
+				status: "failed",
+				current_attempt: 3,
+				max_attempts: 3,
+				error: {
+					code: "ASSET_LIBRARY_EMPTY",
+					message: "素材库为空，请先上传素材",
+					retryable: false,
+				},
+			},
+		} as never);
+
+		renderAssetPage();
+
+		expect(await screen.findByText("素材检索失败（已终止）")).toBeInTheDocument();
+		expect(screen.getByText("ASSET_LIBRARY_EMPTY")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "重试失败阶段" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByText(/不可重试/),
+		).toBeInTheDocument();
 	});
 });

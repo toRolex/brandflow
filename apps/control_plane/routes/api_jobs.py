@@ -282,19 +282,49 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
     )
     if not product.strip():
         raise HTTPException(status_code=400, detail="product is required")
-    repo = FileStoreRepository(request.app.state.root_dir)
-    existing_count = len(repo.list_jobs(project_id))
 
-    results: list[dict] = []
+    root_dir_path = Path(request.app.state.root_dir)
+
+    # Phase 1: Validate all items before persisting any.
+    validation_errors: list[dict[str, object]] = []
     for i, item in enumerate(payload.jobs):
         validation_error = _validate_import_scene_folders(
-            Path(request.app.state.root_dir),
+            root_dir_path,
             product,
             item.mode,
             item.scene_folder_ids,
         )
         if validation_error is not None:
-            raise HTTPException(status_code=400, detail=validation_error.model_dump())
+            validation_errors.append({
+                "index": i,
+                "item_name": item.name or f"#{i + 1}",
+                "error": validation_error.model_dump(),
+            })
+
+    if validation_errors:
+        first = validation_errors[0]
+        first_error = first["error"]
+        index = first["index"]
+        item_name = first["item_name"]
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "BATCH_VALIDATION_FAILED",
+                "message": (
+                    f"批量创建验证失败：第 {index + 1} 项「{item_name}」"
+                    f" — {first_error['message']}"
+                ),
+                "retryable": False,
+                "errors": validation_errors,
+            },
+        )
+
+    # Phase 2: All items passed validation — persist them.
+    repo = FileStoreRepository(request.app.state.root_dir)
+    existing_count = len(repo.list_jobs(project_id))
+
+    results: list[dict] = []
+    for i, item in enumerate(payload.jobs):
         job_id = f"job_{product}_{uuid4().hex[:8]}"
         cover_title = _cover_title_from_request(item.cover_title)
         record = JobRecord(

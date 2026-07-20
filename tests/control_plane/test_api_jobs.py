@@ -1433,3 +1433,146 @@ def test_list_scene_folders_returns_configured_folders(tmp_path: Path) -> None:
         {"name": "场景一", "path": "scenes/one"},
         {"name": "场景二", "path": "scenes/two"},
     ]
+
+
+# ── 批量创建预校验 ────────────────────────────────────────────────
+
+
+def test_batch_create_validates_all_before_persisting(tmp_path: Path) -> None:
+    """批量创建先校验所有条目再落盘，任一条目失败则 0 创建。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+
+    jobs_control_dir = (
+        tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs"
+    )
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {
+                    "name": "有效条目",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/one"],
+                },
+                {
+                    "name": "无效条目",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/missing"],
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 400
+
+    # 确认 0 个 Job 文件落盘
+    job_files = (
+        list(jobs_control_dir.glob("*.json")) if jobs_control_dir.exists() else []
+    )
+    assert len(job_files) == 0
+
+
+def test_batch_create_error_includes_item_index(tmp_path: Path) -> None:
+    """批量创建验证失败时返回具体条目索引和名称。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {
+                    "name": "条目A",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/one"],
+                },
+                {
+                    "name": "条目B",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/one"],
+                },
+                {
+                    "name": "条目C",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": [],
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    # 应包含条目索引信息
+    assert "errors" in detail
+    errors = detail["errors"]
+    assert len(errors) >= 1
+    # 第一个（也是唯一的）错误应指向第 3 个条目 (index 2)
+    assert errors[0]["index"] == 2
+    assert "条目C" in errors[0]["item_name"]
+    assert errors[0]["error"]["code"] == "SCENE_INPUT_MISSING"
+
+
+def test_batch_create_with_multiple_errors_reports_first(tmp_path: Path) -> None:
+    """批量创建多条目失败时报告第一个失败条目的具体信息。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {
+                    "name": "条目1",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": [],
+                },
+                {
+                    "name": "条目2",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/missing"],
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["code"] == "BATCH_VALIDATION_FAILED"
+    # message 应提及第一个失败的条目
+    assert "条目1" in detail["message"] or "第 1" in detail["message"]
+
+
+def test_create_import_job_rejects_not_configured_scene_folder(
+    tmp_path: Path,
+) -> None:
+    """单次 import 创建 Job 时未配置的场景文件夹路径返回 SCENE_FOLDER_NOT_CONFIGURED。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": ["scenes/not_configured"],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["code"] == "SCENE_FOLDER_NOT_CONFIGURED"
+    assert "scenes/not_configured" in detail["message"]
