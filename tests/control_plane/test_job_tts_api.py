@@ -374,3 +374,97 @@ class TestUpdateJobTTSVoice:
         assert data["voice"] == "Dean"
         # Model unchanged
         assert data["model"] == "mimo-v2.5-tts"
+
+    # ------------------------------------------------------------------
+    # Voice validation: model+voice atomicity (#252)
+    # ------------------------------------------------------------------
+
+    def test_save_invalid_voice_for_model_returns_422(self, client):
+        """Saving a Qwen model with a MiMo-only voice must return 422."""
+        proj_id = "proj-uv7"
+        _make_project_root(client, proj_id)
+        job = _create_job(
+            client, proj_id, manual_script="测试文案。", tts_model="", tts_voice=""
+        )
+        job_id = job["job_id"]
+
+        # "冰糖" is a MiMo-only voice, not in QWEN_VOICES
+        resp = client.put(
+            f"/api/jobs/{job_id}/tts/voice",
+            json={"model": "qwen3-tts-flash", "voice": "冰糖"},
+        )
+        assert resp.status_code == 422, resp.text
+        detail = resp.json().get("detail", "")
+        assert "冰糖" in str(detail)
+
+        # Verify NOT persisted
+        root = Path(client.app.state.root_dir)  # type: ignore[union-attr]
+        repo = FileStoreRepository(root)
+        record = repo.load_job(proj_id, job_id)
+        assert record.tts_model == ""
+        assert record.tts_voice == ""
+
+    def test_save_valid_voice_for_model_succeeds(self, client):
+        """Saving a MiMo model with a valid MiMo voice succeeds."""
+        proj_id = "proj-uv8"
+        _make_project_root(client, proj_id)
+        job = _create_job(
+            client, proj_id, manual_script="测试文案。", tts_model="", tts_voice=""
+        )
+        job_id = job["job_id"]
+
+        resp = client.put(
+            f"/api/jobs/{job_id}/tts/voice",
+            json={"model": "mimo-v2.5-tts", "voice": "Mia"},
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["model"] == "mimo-v2.5-tts"
+        assert data["voice"] == "Mia"
+
+        # Verify persisted
+        root = Path(client.app.state.root_dir)  # type: ignore[union-attr]
+        repo = FileStoreRepository(root)
+        record = repo.load_job(proj_id, job_id)
+        assert record.tts_model == "mimo-v2.5-tts"
+        assert record.tts_voice == "Mia"
+
+    def test_save_voicedesign_model_skips_voice_validation(self, client):
+        """VoiceDesign sub-model has no preset voice — validation is skipped."""
+        proj_id = "proj-uv9"
+        _make_project_root(client, proj_id)
+        job = _create_job(
+            client, proj_id, manual_script="测试文案。", tts_model="", tts_voice=""
+        )
+        job_id = job["job_id"]
+
+        resp = client.put(
+            f"/api/jobs/{job_id}/tts/voice",
+            json={
+                "model": "mimo-v2.5-tts-voicedesign",
+                "voice": "any-custom-voice",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["model"] == "mimo-v2.5-tts-voicedesign"
+
+    def test_save_both_model_and_voice_validates_resolved_pair(self, client):
+        """When only model is changed, validate against the existing voice."""
+        proj_id = "proj-uv10"
+        _make_project_root(client, proj_id)
+        job = _create_job(
+            client,
+            proj_id,
+            manual_script="测试文案。",
+            tts_model="mimo-v2.5-tts",
+            tts_voice="冰糖",  # MiMo-only voice
+        )
+        job_id = job["job_id"]
+
+        # Change only model to Qwen but keep old MiMo-only voice — should be rejected
+        resp = client.put(
+            f"/api/jobs/{job_id}/tts/voice",
+            json={"model": "qwen3-tts-flash"},
+        )
+        assert resp.status_code == 422, resp.text

@@ -904,6 +904,9 @@ def _resolve_tts_preview_config(
     if record.tts_voice:
         tts_cfg["voice"] = record.tts_voice
 
+    # Preview must resolve the same voice as formal synthesis — never randomize (#252)
+    tts_cfg["randomize_voice"] = False
+
     from packages.pipeline_services.tts_provider import (
         MiMoTTSProvider,
         QwenTTSProvider,
@@ -1061,6 +1064,34 @@ def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: R
         # Nothing changed; return current state
         config_reader: ConfigReader = request.app.state.config_reader
         return _resolve_tts_voice_info(record, config_reader)
+
+    # Validate model+voice atomicity (#252)
+    effective_model = updates.get("tts_model", record.tts_model)
+    effective_voice = updates.get("tts_voice", record.tts_voice)
+    # If model is still empty after update, resolve from config for validation
+    if not effective_model:
+        product_tts = (
+            config_reader.get_tts_config(product_id=record.product)
+            if record.product
+            else {}
+        )
+        global_tts = config_reader.get_tts_config()
+        effective_model = str(
+            product_tts.get("model", "") or global_tts.get("model", "")
+        )
+    if not effective_voice:
+        product_tts = (
+            config_reader.get_tts_config(product_id=record.product)
+            if record.product
+            else {}
+        )
+        global_tts = config_reader.get_tts_config()
+        effective_voice = str(
+            product_tts.get("voice", "") or global_tts.get("voice", "")
+        )
+    from apps.control_plane.routes.tts import validate_voice_for_model
+
+    validate_voice_for_model(str(effective_model), str(effective_voice))
 
     if audio_exists and payload.confirm:
         # Invalidate downstream artifacts (preserve script + asset selections)
