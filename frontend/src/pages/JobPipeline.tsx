@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import AssetGrid from "../components/AssetGrid";
@@ -248,23 +248,39 @@ export default function JobPipeline() {
 		);
 	}
 
+	const isCurrentReviewStep = (() => {
+		const step = PIPELINE_STEPS.find((s) => s.key === activeStepKey);
+		if (!step || !step.isReview) return false;
+		return job.phase === step.phase;
+	})();
+
 	const handleApprove = async (gate: string) => {
+		if (!isCurrentReviewStep) {
+			setError("当前不在该审核阶段，无法操作");
+			return;
+		}
 		try {
 			await api.approveReview(job.job_id, gate);
 			load();
 		} catch (e) {
 			console.error("approve failed", e);
-			setError("审核操作失败");
+			const detail = getApiErrorDetail(e);
+			setError(detail || "审核操作失败");
 		}
 	};
 
 	const handleReject = async (gate: string) => {
+		if (!isCurrentReviewStep) {
+			setError("当前不在该审核阶段，无法操作");
+			return;
+		}
 		try {
 			await api.rejectReview(job.job_id, gate);
 			load();
 		} catch (e) {
 			console.error("reject failed", e);
-			setError("审核操作失败");
+			const detail = getApiErrorDetail(e);
+			setError(detail || "审核操作失败");
 		}
 	};
 
@@ -820,6 +836,7 @@ export default function JobPipeline() {
 						checks={null}
 						brand={job.brand}
 						mode={job.mode}
+						reviewEnabled={isCurrentReviewStep}
 						onApprove={() => handleApprove("script")}
 						onReject={() => handleReject("script")}
 						onRegenerate={handleRetry}
@@ -988,16 +1005,25 @@ export default function JobPipeline() {
 						</p>
 						{renderTtsVoiceSelector()}
 						<MediaPlayer src={audio?.url || ttsPreviewUrl || ""} kind="audio" />
+						{!isCurrentReviewStep && (
+							<div className="text-xs mb-2" style={{ color: "var(--color-caution-amber)" }}>
+								当前不在该审核阶段，无法操作
+							</div>
+						)}
 						<div className="flex gap-2 mt-4">
 							<button
-								className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+								className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 								onClick={() => handleApprove("tts")}
+								disabled={!isCurrentReviewStep}
+								aria-disabled={!isCurrentReviewStep}
 							>
 								{"✓"} 通过
 							</button>
 							<button
-								className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+								className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 								onClick={() => handleReject("tts")}
+								disabled={!isCurrentReviewStep}
+								aria-disabled={!isCurrentReviewStep}
 							>
 								{"✗"} 打回重新生成
 							</button>
@@ -1257,16 +1283,25 @@ export default function JobPipeline() {
 										/>
 									))}
 								</div>
+								{!isCurrentReviewStep && (
+									<div className="text-xs mb-2" style={{ color: "var(--color-caution-amber)" }}>
+										当前不在该审核阶段，无法操作
+									</div>
+								)}
 								<div className="flex gap-2">
 									<button
-										className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+										className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 										onClick={handleAssetApprove}
+										disabled={!isCurrentReviewStep}
+										aria-disabled={!isCurrentReviewStep}
 									>
 										{"✓"} 全部通过
 									</button>
 									<button
-										className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+										className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 										onClick={() => handleReject("asset")}
+										disabled={!isCurrentReviewStep}
+										aria-disabled={!isCurrentReviewStep}
 									>
 										{"✗"} 全部打回重新检索
 									</button>
@@ -1324,16 +1359,25 @@ export default function JobPipeline() {
 					<div>
 						<h3 className="font-semibold text-sm mb-3">终审 · 烧录</h3>
 						<MediaPlayer src={finalVideo?.url || ""} kind="video" />
+						{!isCurrentReviewStep && (
+							<div className="text-xs mb-2" style={{ color: "var(--color-caution-amber)" }}>
+								当前不在该审核阶段，无法操作
+							</div>
+						)}
 						<div className="flex gap-2 mt-4">
 							<button
-								className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+								className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 								onClick={() => handleApprove("final")}
+								disabled={!isCurrentReviewStep}
+								aria-disabled={!isCurrentReviewStep}
 							>
 								{"✓"} 通过
 							</button>
 							<button
-								className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+								className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 								onClick={() => handleReject("final")}
+								disabled={!isCurrentReviewStep}
+								aria-disabled={!isCurrentReviewStep}
 							>
 								{"✗"} 打回
 							</button>

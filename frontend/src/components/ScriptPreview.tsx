@@ -7,6 +7,7 @@ interface Props {
 	brand?: string;
 	safetyWarningText?: string;
 	mode?: ProductionMode;
+	reviewEnabled?: boolean;
 	onApprove: () => void;
 	onReject: () => void;
 	onRegenerate: () => void;
@@ -20,6 +21,7 @@ export default function ScriptPreview({
 	brand,
 	safetyWarningText,
 	mode,
+	reviewEnabled = true,
 	onApprove,
 	onReject,
 	onRegenerate,
@@ -174,15 +176,24 @@ export default function ScriptPreview({
 				</div>
 			) : (
 				<div className="flex gap-1.5 flex-wrap">
+					{!reviewEnabled && (
+						<div className="w-full text-xs mb-1" style={{ color: "var(--color-caution-amber)" }}>
+							当前不在该审核阶段，无法操作
+						</div>
+					)}
 					<button
-						className="bg-[var(--btn-primary-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+						className="bg-[var(--btn-primary-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 						onClick={onApprove}
+						disabled={!reviewEnabled}
+						aria-disabled={!reviewEnabled}
 					>
 						{"✓"} 通过
 					</button>
 					<button
-						className="bg-[var(--btn-danger-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+						className="bg-[var(--btn-danger-bg)] text-white border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 						onClick={onReject}
+						disabled={!reviewEnabled}
+						aria-disabled={!reviewEnabled}
 					>
 						{"✗"} 打回
 					</button>
