@@ -1042,7 +1042,19 @@ def preview_job_tts(job_id: str, request: Request):
 
 
 _INVALIDATE_ARTIFACT_KINDS: frozenset[str] = frozenset(
-    {"tts_audio", "subtitle", "video_base", "final_video"}
+    {"tts_audio", "sentence_timings", "subtitle", "video_base", "final_video"}
+)
+
+
+# Runtime files to remove when TTS voice changes (cascading invalidation #253)
+_TTS_VOICE_CHANGE_CLEANUP_FILES: tuple[str, ...] = (
+    "sentences.json",
+    "subtitles.srt",
+    "subtitles_offset.srt",
+    "audio_aligned.mp3",
+    "base.mp4",
+    "final.mp4",
+    "final_timeline.json",
 )
 
 
@@ -1136,11 +1148,44 @@ def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: R
         updates["artifacts"] = preserved
         updates["phase"] = "tts_generating"
         updates["review_status"] = "none"
+        updates["failed_phase"] = None
 
         # Remove audio file so the next tick actually re-runs TTS
         try:
             audio_path.unlink()
         except OSError:
+            pass
+
+        # Cascading invalidation: remove all downstream runtime files (#253)
+        job_dir = (
+            root_dir
+            / "workspace"
+            / "projects"
+            / project_id
+            / "runtime"
+            / "jobs"
+            / job_id
+        )
+        for filename in _TTS_VOICE_CHANGE_CLEANUP_FILES:
+            file_path = job_dir / filename
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+            except OSError:
+                pass
+
+        # Invalidate export task so a stale ZIP is never downloadable (#253)
+        try:
+            from packages.pipeline_services.export_task import ExportTaskService
+
+            ExportTaskService(
+                job_id=job_id,
+                job_dir=job_dir,
+                workspace_dir=root_dir / "workspace",
+                project_dir=root_dir / "workspace" / "projects" / project_id,
+                export_dir=root_dir / "workspace" / "projects" / project_id / "runtime" / "exports",
+            ).mark_stale()
+        except Exception:  # noqa: BLE001 — never block voice change on export cleanup
             pass
 
     record = record.model_copy(update=updates)  # type: ignore[arg-type]

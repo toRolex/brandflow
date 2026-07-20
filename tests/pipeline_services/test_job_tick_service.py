@@ -738,6 +738,11 @@ class TestJobTickService:
         mock_orch.run_phase.return_value = [
             ArtifactPointer(kind="artifact", relative_path="out"),
         ]
+        # tts_generating is now a structured phase (#253) — it goes through
+        # execute_phase instead of run_phase.
+        mock_orch.execute_phase.return_value = PhaseExecutionSuccess(
+            artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")],
+        )
 
         # Persist state across ticks: save → load returns the latest saved record
         latest: list[JobRecord] = [record]
@@ -760,6 +765,10 @@ class TestJobTickService:
             mock_orch.run_phase.return_value = [
                 ArtifactPointer(kind="artifact", relative_path="out"),
             ]
+            mock_orch.execute_phase.reset_mock()
+            mock_orch.execute_phase.return_value = PhaseExecutionSuccess(
+                artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")],
+            )
 
             summary = svc.tick(
                 "proj-001",
@@ -771,6 +780,8 @@ class TestJobTickService:
 
             if mock_orch.run_phase.called:
                 handler_phases.append(mock_orch.run_phase.call_args[0][0])
+            if mock_orch.execute_phase.called:
+                handler_phases.append(mock_orch.execute_phase.call_args[0][0])
 
             if summary.action in ("completed", "failed"):
                 break
@@ -1138,3 +1149,178 @@ class TestImportSceneInput:
         action = _compute_transition(record, ())
         assert action.new_phase is None
         assert action.handler_phase == "script_generating"
+
+
+# ---------------------------------------------------------------------------
+# 13. TTS failure semantics (#253)
+# ---------------------------------------------------------------------------
+
+
+class TestTTSFailureSemantics:
+    """TTS synthesis failures keep job at tts_generating, never advance to tts_review."""
+
+    def test_tts_retryable_failure_stays_in_phase(self) -> None:
+        """retryable TTS failure → phase stays tts_generating, status retrying."""
+        record = make_record(phase="tts_generating", mode="generate")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="TTS_SYNTHESIS_FAILED",
+                message="TTS synthesis failed: network error",
+                retryable=True,
+            )
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == "tts_generating"
+        assert saved.execution.status == "retrying"
+        assert saved.execution.current_attempt == 1
+        assert saved.execution.error is not None
+        assert saved.execution.error.code == "TTS_SYNTHESIS_FAILED"
+        assert saved.execution.error.retryable is True
+        # Must not advance to tts_review
+        assert saved.phase != "tts_review"
+
+    def test_tts_non_retryable_failure_marks_failed_immediately(self) -> None:
+        """Non-retryable TTS failure → immediate terminal failed."""
+        record = make_record(phase="tts_generating", mode="generate")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="TTS_PROVIDER_REJECTED",
+                message="TTS 服务拒绝请求（鉴权失败或参数无效）",
+                retryable=False,
+            )
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "tts_generating"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 1
+        assert saved.execution.error is not None
+        assert saved.execution.error.code == "TTS_PROVIDER_REJECTED"
+        assert saved.execution.error.retryable is False
+
+    @pytest.mark.parametrize(
+        ("attempt", "expected_phase", "expected_status"),
+        [
+            (0, "tts_generating", "retrying"),
+            (1, "tts_generating", "retrying"),
+            (2, "failed", "failed"),
+        ],
+    )
+    def test_tts_retryable_failure_exhausts_after_three(
+        self, attempt: int, expected_phase: str, expected_status: str
+    ) -> None:
+        """3 retryable TTS failures → terminal failed."""
+        record = make_record(phase="tts_generating", mode="generate")
+        if attempt:
+            record.execution = record.execution.model_copy(
+                update={"status": "retrying", "current_attempt": attempt}
+            )
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="TTS_QUOTA_EXCEEDED",
+                message="TTS 配额超限",
+                retryable=True,
+            )
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == expected_phase
+        assert saved.execution.status == expected_status
+        assert saved.execution.current_attempt == attempt + 1
+        if expected_status == "failed":
+            assert saved.failed_phase == "tts_generating"
+
+    def test_tts_failure_preserves_upstream_script_artifact(self) -> None:
+        """TTS failure preserves script artifact — only tts_audio is absent."""
+        script_artifact = ArtifactPointer(kind="script", relative_path="script.txt")
+        record = make_record(phase="tts_generating", mode="generate")
+        record.artifacts = [script_artifact]
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="TTS_SYNTHESIS_FAILED",
+                message="TTS synthesis failed",
+                retryable=True,
+            )
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        assert len(saved.artifacts) == 1
+        assert saved.artifacts[0].kind == "script"
+
+    def test_tts_no_artifacts_stays_in_phase_not_auto_advance(self) -> None:
+        """tts_generating with no artifacts (defensive) must NOT auto-advance."""
+        action = _transition_after_artifacts(
+            make_record(phase="tts_generating"),
+            (),
+        )
+        assert action.new_phase is None
+        assert "staying" in action.message.lower()
+
+    def test_tts_success_advances_to_review(self) -> None:
+        """Successful TTS with artifacts → advance to tts_review."""
+        record = make_record(phase="tts_generating", mode="generate")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionSuccess(
+            artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")],
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == "tts_review"
+        assert saved.execution.status == "succeeded"
+        assert saved.review_status == "pending"
