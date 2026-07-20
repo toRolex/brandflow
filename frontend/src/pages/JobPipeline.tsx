@@ -12,6 +12,24 @@ import { PIPELINE_STEPS } from "../types";
 
 const EXPORT_POLL_INTERVAL_MS = 2000;
 
+function getApiErrorDetail(error: unknown): string | null {
+	if (!(error instanceof Error)) return null;
+	const match = error.message.match(/^\d+:\s*([\s\S]*)$/);
+	if (!match) return null;
+	try {
+		const detail = JSON.parse(match[1])?.detail;
+		if (typeof detail === "string") return detail;
+		if (typeof detail?.message === "string") {
+			return detail.code
+				? `${detail.message}（${detail.code}）`
+				: detail.message;
+		}
+	} catch {
+		return null;
+	}
+	return null;
+}
+
 function computeCompletedPhases(currentPhase: Phase): Phase[] {
 	const terminalPhases: Phase[] = [
 		"completed",
@@ -252,23 +270,8 @@ export default function JobPipeline() {
 
 	const formatRetryError = (e: unknown): string => {
 		const fallback = "重试前验证失败";
-		if (!(e instanceof Error)) return fallback;
-		// api client throws Error(`${status}: ${body}`) — surface the structured
-		// 409 detail (code/message) from the server-side revalidation.
-		const match = e.message.match(/^\d+:\s*([\s\S]*)$/);
-		if (!match) return fallback;
-		try {
-			const detail = JSON.parse(match[1])?.detail;
-			if (typeof detail === "string") return `${fallback}：${detail}`;
-			if (detail?.message) {
-				return detail.code
-					? `${fallback}：${detail.message}（${detail.code}）`
-					: `${fallback}：${detail.message}`;
-			}
-		} catch {
-			// non-JSON body — fall through to the generic message
-		}
-		return fallback;
+		const detail = getApiErrorDetail(e);
+		return detail ? `${fallback}：${detail}` : fallback;
 	};
 
 	const handleRetry = async () => {
@@ -337,7 +340,7 @@ export default function JobPipeline() {
 			}
 		} catch (e) {
 			console.error("create export failed", e);
-			setError("创建导出任务失败");
+			setError(getApiErrorDetail(e) || "创建导出任务失败");
 		} finally {
 			setExportCreating(false);
 		}

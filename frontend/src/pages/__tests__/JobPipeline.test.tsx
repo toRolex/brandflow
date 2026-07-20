@@ -608,6 +608,23 @@ describe("JobPipeline asset phase states", () => {
 			expect(await screen.findByText("排队中...")).toBeInTheDocument();
 		});
 
+		it("shows the actionable backend detail when task creation is rejected", async () => {
+			vi.mocked(api.createExport).mockRejectedValue(
+				new Error(
+					'409: {"detail":"no Final Timeline; rerender required before export"}',
+				),
+			);
+
+			renderCompletedPage();
+			fireEvent.click(await screen.findByText("导出"));
+
+			expect(
+				await screen.findByText(
+					"no Final Timeline; rerender required before export",
+				),
+			).toBeInTheDocument();
+		});
+
 		it("keeps the current task visible when a polling request fails", async () => {
 			vi.mocked(api.getExportStatus)
 				.mockResolvedValueOnce({
