@@ -8,16 +8,27 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any, Callable
 
+from packages.pipeline_services.media_probe import probe_media
+from packages.pipeline_services.media_utils import get_ffmpeg_path
 from packages.pipeline_services.segment_export import (
     build_timeline_2,
     segment_final_video,
 )
 
 ALLOWED_VIDEO_EXTENSIONS = frozenset({".mp4", ".mov", ".avi", ".webm"})
+FINAL_VIDEO_PROGRESS = 10
+AUDIO_PROGRESS = 20
+SUBTITLE_PROGRESS = 30
+SOURCE_CLIPS_PROGRESS = 40
+SEGMENTS_PROGRESS_RANGE = 50
+SEGMENTS_COMPLETE_PROGRESS = SOURCE_CLIPS_PROGRESS + SEGMENTS_PROGRESS_RANGE
+BUNDLE_COMPLETE_PROGRESS = 100
 
 
 class RerenderRequiredError(RuntimeError):
@@ -38,6 +49,7 @@ def build_export_bundle(
     export_dir: Path,
     *,
     get_scene_config: Callable[[], dict[str, Any]] | None = None,
+    progress_callback: Callable[[int], None] | None = None,
 ) -> Path:
     """Build export bundle ZIP for a completed job.
 
@@ -61,6 +73,7 @@ def build_export_bundle(
     """
     if get_scene_config is None:
         get_scene_config = _get_scene_config_default
+    report_progress = progress_callback or (lambda _percent: None)
     scene_cfg = get_scene_config()
 
     # Export requires the authoritative render-time Final Timeline (issue #179);
@@ -84,17 +97,21 @@ def build_export_bundle(
         # 1. Final rendered video
         if final_path.exists():
             zf.write(final_path, f"{zip_prefix}final/final.mp4")
+        report_progress(FINAL_VIDEO_PROGRESS)
 
         # 2. Audio track (prefer wav, fall back to mp3 renamed)
         _add_audio_to_zip(job_dir, zf, zip_prefix)
+        report_progress(AUDIO_PROGRESS)
 
         # 3. Subtitle file (skip if not present)
         srt_path = job_dir / "subtitles.srt"
         if srt_path.exists():
             zf.write(srt_path, f"{zip_prefix}subtitle/script.srt")
+        report_progress(SUBTITLE_PROGRESS)
 
         # 4. Source clips — scene (from config folders) + montage (from selected_clips.json)
         _add_source_clips_to_zip(job_dir, workspace_dir, zf, zip_prefix, scene_cfg)
+        report_progress(SOURCE_CLIPS_PROGRESS)
 
         # 5. Precise per-segment chunks (seg_NNN.mp4) split from final.mp4 on the
         #    Final Timeline boundaries (issue #181), plus the flat 2.0 timeline.
@@ -102,16 +119,24 @@ def build_export_bundle(
             seg_dir = export_dir / f".segs_{job_id}"
             try:
                 for seg_path in segment_final_video(
-                    final_path, final_timeline.get("segments", []), seg_dir
+                    final_path,
+                    final_timeline.get("segments", []),
+                    seg_dir,
+                    progress_callback=lambda percent: report_progress(
+                        SOURCE_CLIPS_PROGRESS
+                        + round(percent / 100 * SEGMENTS_PROGRESS_RANGE)
+                    ),
                 ):
                     zf.write(seg_path, f"{zip_prefix}final/{seg_path.name}")
             finally:
                 shutil.rmtree(seg_dir, ignore_errors=True)
+        report_progress(SEGMENTS_COMPLETE_PROGRESS)
 
         zf.writestr(
             f"{zip_prefix}timeline.json",
             json.dumps(timeline_2, ensure_ascii=False, indent=2),
         )
+        report_progress(BUNDLE_COMPLETE_PROGRESS)
 
     return zip_path
 
@@ -122,18 +147,47 @@ def build_export_bundle(
 
 
 def _add_audio_to_zip(job_dir: Path, zf: zipfile.ZipFile, zip_prefix: str) -> None:
-    """Add audio file to the ZIP, preserving the actual encoding extension.
-
-    WAV and MP3 files keep their true extensions so the ZIP content is
-    honest about the encoding.  WAV → ``tts.wav``, MP3 → ``tts.mp3``.
-    """
+    """Add audio with a filename that truthfully describes its encoding."""
     wav_path = job_dir / "audio.wav"
     mp3_path = job_dir / "audio.mp3"
+    source = wav_path if wav_path.exists() else mp3_path
+    if not source.exists():
+        return
 
-    if wav_path.exists():
-        zf.write(wav_path, f"{zip_prefix}audio/tts.wav")
-    elif mp3_path.exists():
-        zf.write(mp3_path, f"{zip_prefix}audio/tts.mp3")
+    codec = probe_media(source)["audio_codec"]
+    if codec == "mp3":
+        zf.write(source, f"{zip_prefix}audio/tts.mp3")
+        return
+    if codec and codec.startswith("pcm_"):
+        zf.write(source, f"{zip_prefix}audio/tts.wav")
+        return
+    if codec is None:
+        # Preserve legacy/unprobeable artifacts for diagnosis. The task-level
+        # validator rejects them before the ZIP can become downloadable.
+        zf.write(source, f"{zip_prefix}audio/tts{source.suffix.lower()}")
+        return
+
+    with tempfile.TemporaryDirectory(prefix="brandflow-export-audio-") as tmp:
+        converted = Path(tmp) / "tts.wav"
+        subprocess.run(
+            [
+                get_ffmpeg_path(),
+                "-y",
+                "-i",
+                str(source),
+                "-vn",
+                "-c:a",
+                "pcm_s16le",
+                str(converted),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=300,
+        )
+        zf.write(converted, f"{zip_prefix}audio/tts.wav")
 
 
 def _add_source_clips_to_zip(
@@ -166,7 +220,7 @@ def _add_source_clips_to_zip(
                     arc_name = f"{zip_prefix}source_clips/scene_{clip_counter:03d}{ext}"
                     zf.write(clip_path, arc_name)
                     clip_counter += 1
-        except Exception:
+        except (json.JSONDecodeError, OSError, TypeError, UnicodeDecodeError):
             pass
     else:
         # Fallback: enumerate scene config folders
@@ -206,5 +260,5 @@ def _add_source_clips_to_zip(
                 )
                 zf.write(src, arc_name)
                 clip_counter += 1
-        except Exception:
+        except (json.JSONDecodeError, OSError, TypeError, UnicodeDecodeError):
             pass

@@ -3,11 +3,32 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import AssetGrid from "../components/AssetGrid";
 import ClipReviewCard from "../components/ClipReviewCard";
+import ExportTaskControls from "../components/ExportTaskControls";
 import MediaPlayer from "../components/MediaPlayer";
 import PipelineSidebar from "../components/PipelineSidebar";
 import ScriptPreview from "../components/ScriptPreview";
 import type { ExportTaskState, JobDetail, Phase, SceneFolder } from "../types";
 import { PIPELINE_STEPS } from "../types";
+
+const EXPORT_POLL_INTERVAL_MS = 2000;
+
+function getApiErrorDetail(error: unknown): string | null {
+	if (!(error instanceof Error)) return null;
+	const match = error.message.match(/^\d+:\s*([\s\S]*)$/);
+	if (!match) return null;
+	try {
+		const detail = JSON.parse(match[1])?.detail;
+		if (typeof detail === "string") return detail;
+		if (typeof detail?.message === "string") {
+			return detail.code
+				? `${detail.message}（${detail.code}）`
+				: detail.message;
+		}
+	} catch {
+		return null;
+	}
+	return null;
+}
 
 function computeCompletedPhases(currentPhase: Phase): Phase[] {
 	const terminalPhases: Phase[] = [
@@ -105,7 +126,7 @@ export default function JobPipeline() {
 
 	useEffect(() => {
 		if (!id) return;
-		const t = setInterval(load, 10000);
+		const t = setInterval(load, 10_000);
 		return () => clearInterval(t);
 	}, [id, load]);
 
@@ -185,14 +206,15 @@ export default function JobPipeline() {
 	useEffect(() => {
 		if (!id) return;
 		let cancelled = false;
+		setExportTask(null);
 
 		const checkExport = async () => {
 			try {
 				const task = await api.getExportStatus(id);
 				if (cancelled) return;
 				setExportTask(task);
-			} catch {
-				if (!cancelled) setExportTask(null);
+			} catch (statusError) {
+				console.warn("export status poll failed", statusError);
 			}
 		};
 
@@ -201,7 +223,7 @@ export default function JobPipeline() {
 		const interval = setInterval(() => {
 			if (cancelled) return;
 			checkExport();
-		}, 2000);
+		}, EXPORT_POLL_INTERVAL_MS);
 
 		return () => {
 			cancelled = true;
@@ -248,23 +270,8 @@ export default function JobPipeline() {
 
 	const formatRetryError = (e: unknown): string => {
 		const fallback = "重试前验证失败";
-		if (!(e instanceof Error)) return fallback;
-		// api client throws Error(`${status}: ${body}`) — surface the structured
-		// 409 detail (code/message) from the server-side revalidation.
-		const match = e.message.match(/^\d+:\s*([\s\S]*)$/);
-		if (!match) return fallback;
-		try {
-			const detail = JSON.parse(match[1])?.detail;
-			if (typeof detail === "string") return `${fallback}：${detail}`;
-			if (detail?.message) {
-				return detail.code
-					? `${fallback}：${detail.message}（${detail.code}）`
-					: `${fallback}：${detail.message}`;
-			}
-		} catch {
-			// non-JSON body — fall through to the generic message
-		}
-		return fallback;
+		const detail = getApiErrorDetail(e);
+		return detail ? `${fallback}：${detail}` : fallback;
 	};
 
 	const handleRetry = async () => {
@@ -319,11 +326,21 @@ export default function JobPipeline() {
 		setExportDownloading(false);
 		try {
 			const resp = await api.createExport(job.job_id);
-			const task = await api.getExportStatus(job.job_id);
-			setExportTask(task || { task_id: resp.task_id, status: resp.status, progress: 0, error: null });
+			setExportTask({
+				task_id: resp.task_id,
+				status: resp.status,
+				progress: 0,
+				error: null,
+			});
+			try {
+				const task = await api.getExportStatus(job.job_id);
+				if (task) setExportTask(task);
+			} catch (statusError) {
+				console.warn("export task created; status refresh failed", statusError);
+			}
 		} catch (e) {
 			console.error("create export failed", e);
-			setError("创建导出任务失败");
+			setError(getApiErrorDetail(e) || "创建导出任务失败");
 		} finally {
 			setExportCreating(false);
 		}
@@ -451,11 +468,10 @@ export default function JobPipeline() {
 		setPendingVoiceChange(null);
 	};
 
-	const findArtifact = (kind: string) => {
-		return job.artifacts?.find((a) => a.kind === kind);
-	};
+	const findArtifact = (kind: string) =>
+		job.artifacts?.find((a) => a.kind === kind);
 
-	const renderTTSVoiceSelector = () => {
+	const renderTtsVoiceSelector = () => {
 		// Upload/library audio source: TTS controls not applicable (#252)
 		if (job.audio_source === "upload" || job.audio_source === "library") {
 			return (
@@ -473,14 +489,13 @@ export default function JobPipeline() {
 			);
 		}
 
-		const RESOLVED_LABELS: Record<string, string> = {
+		const ResolvedLabels: Record<string, string> = {
 			job: "Job",
 			product: "产品",
 			global: "全局",
 		};
 		const resolvedLabel = ttsVoiceInfo
-			? RESOLVED_LABELS[ttsVoiceInfo.resolved_from] ||
-				ttsVoiceInfo.resolved_from
+			? ResolvedLabels[ttsVoiceInfo.resolved_from] || ttsVoiceInfo.resolved_from
 			: "";
 		const resolvedBadgeColor =
 			ttsVoiceInfo?.resolved_from === "job"
@@ -820,7 +835,7 @@ export default function JobPipeline() {
 				return (
 					<div>
 						<h3 className="font-semibold text-sm mb-3">TTS 配音</h3>
-						{renderTTSVoiceSelector()}
+						{renderTtsVoiceSelector()}
 
 						{/* Execution: pending */}
 						{execStatus === "pending" && (
@@ -898,7 +913,10 @@ export default function JobPipeline() {
 						{(!execStatus ||
 							execStatus === "succeeded" ||
 							execStatus === "pending") && (
-							<MediaPlayer src={audio?.url || ttsPreviewUrl || ""} kind="audio" />
+							<MediaPlayer
+								src={audio?.url || ttsPreviewUrl || ""}
+								kind="audio"
+							/>
 						)}
 
 						{/* Execution: failed */}
@@ -911,23 +929,38 @@ export default function JobPipeline() {
 										background: "var(--alert-red-muted)",
 									}}
 								>
-									<p className="text-sm font-medium mb-1" style={{ color: "var(--alert-red)" }}>
+									<p
+										className="text-sm font-medium mb-1"
+										style={{ color: "var(--alert-red)" }}
+									>
 										TTS 合成失败
 									</p>
-									<p className="text-xs font-mono mt-1" style={{ color: "var(--alert-red)" }}>
+									<p
+										className="text-xs font-mono mt-1"
+										style={{ color: "var(--alert-red)" }}
+									>
 										{execError.code}
 									</p>
-									<p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+									<p
+										className="text-xs mt-1"
+										style={{ color: "var(--text-secondary)" }}
+									>
 										{execError.message}
 									</p>
 									{execError.retryable && (
-										<p className="text-xs mt-1" style={{ color: "var(--text-tertiary)" }}>
+										<p
+											className="text-xs mt-1"
+											style={{ color: "var(--text-tertiary)" }}
+										>
 											尝试次数：{job.execution.current_attempt} /{" "}
 											{job.execution.max_attempts}
 										</p>
 									)}
 									{!execError.retryable && (
-										<p className="text-xs mt-1" style={{ color: "var(--color-caution-amber)" }}>
+										<p
+											className="text-xs mt-1"
+											style={{ color: "var(--color-caution-amber)" }}
+										>
 											此错误不可重试，请检查 TTS 配置或更换模型/音色
 										</p>
 									)}
@@ -953,7 +986,7 @@ export default function JobPipeline() {
 						<p className="text-[var(--text-tertiary)] text-sm mb-4">
 							请试听TTS配音效果，确认无误后通过
 						</p>
-						{renderTTSVoiceSelector()}
+						{renderTtsVoiceSelector()}
 						<MediaPlayer src={audio?.url || ttsPreviewUrl || ""} kind="audio" />
 						<div className="flex gap-2 mt-4">
 							<button
@@ -1007,7 +1040,7 @@ export default function JobPipeline() {
 					return {
 						asset_id: String(clip.asset_id || `clip-${index}`),
 						file_path: String(clip.file_path || ""),
-						category: category,
+						category,
 						product: "",
 						confidence: 1,
 						duration_seconds: 0,
@@ -1105,7 +1138,9 @@ export default function JobPipeline() {
 						)}
 
 						{/* State 5: unexpected status (edge case coverage) */}
-						{!["pending", "running", "succeeded"].includes(execStatus || "") && (
+						{!["pending", "running", "succeeded"].includes(
+							execStatus || "",
+						) && (
 							<p className="text-[var(--text-tertiary)] text-sm">
 								等待素材检索...
 							</p>
@@ -1154,9 +1189,7 @@ export default function JobPipeline() {
 
 				const allBlank =
 					selectedClips.length > 0 &&
-					selectedClips.every(
-						(c) => String(c.visual_type || "") === "blank",
-					);
+					selectedClips.every((c) => String(c.visual_type || "") === "blank");
 
 				const handleAssetApprove = () => {
 					if (allBlank) {
@@ -1196,9 +1229,10 @@ export default function JobPipeline() {
 											key={`${clip.asset_id}-${index}`}
 											clip={{
 												sentence: String(clip.sentence || ""),
-												sentence_index: clip.sentence_index != null
-													? Number(clip.sentence_index)
-													: undefined,
+												sentence_index:
+													clip.sentence_index == null
+														? undefined
+														: Number(clip.sentence_index),
 												category: String(clip.category || ""),
 												requested_category: clip.requested_category
 													? String(clip.requested_category)
@@ -1209,10 +1243,11 @@ export default function JobPipeline() {
 													? Number(clip.duration_seconds)
 													: undefined,
 												method: String(clip.method || ""),
-												visual_type: (clip.visual_type as
-													| "clip"
-													| "blank"
-													| "unresolved") || "unresolved",
+												visual_type:
+													(clip.visual_type as
+														| "clip"
+														| "blank"
+														| "unresolved") || "unresolved",
 											}}
 											index={index}
 											onReject={handleRejectClip}
@@ -1245,14 +1280,13 @@ export default function JobPipeline() {
 												确认全留空审批
 											</h4>
 											<p className="text-sm text-[var(--text-secondary)] mb-4">
-												所有 {selectedClips.length} 个句子均已标记为"黑帧"（留空）。确认后每个句子位置将渲染黑帧（无画面），您仍可在正式渲染前恢复素材选择。
+												所有 {selectedClips.length}{" "}
+												个句子均已标记为"黑帧"（留空）。确认后每个句子位置将渲染黑帧（无画面），您仍可在正式渲染前恢复素材选择。
 											</p>
 											<div className="flex gap-2 justify-end">
 												<button
 													className="px-4 py-2 rounded-md text-xs border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-table-head)]"
-													onClick={() =>
-														setShowAllBlankConfirm(false)
-													}
+													onClick={() => setShowAllBlankConfirm(false)}
 												>
 													取消
 												</button>
@@ -1274,8 +1308,8 @@ export default function JobPipeline() {
 						)}
 					</div>
 				);
-				}
-				case "video_base": {
+			}
+			case "video_base": {
 				const video = findArtifact("video_base");
 				return (
 					<div>
@@ -1324,99 +1358,19 @@ export default function JobPipeline() {
 						<div className="flex flex-col items-center gap-3 mt-6">
 							{/* Export task UI (#255) */}
 							{exportCreating && (
-								<div className="text-sm text-[var(--text-tertiary)]">正在创建...</div>
+								<div className="text-sm text-[var(--text-tertiary)]">
+									正在创建...
+								</div>
 							)}
 
-							{exportTask && !exportCreating && (() => {
-								const task = exportTask;
-								switch (task.status) {
-									case "queued":
-										return (
-											<>
-												<div className="text-sm text-[var(--text-tertiary)]">排队中...</div>
-												<button
-													className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold opacity-50 cursor-not-allowed flex items-center gap-2"
-													disabled
-												>
-													<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-														<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-														<polyline points="7 10 12 15 17 10" />
-														<line x1="12" y1="15" x2="12" y2="3" />
-													</svg>
-													处理中...
-												</button>
-											</>
-										);
-									case "running":
-										return (
-											<>
-												<div className="flex items-center gap-2 w-full max-w-xs">
-													<div className="flex-1 bg-[var(--border-color)] rounded-full h-2 overflow-hidden">
-														<div
-															className="bg-[var(--color-signal-green)] h-full rounded-full transition-all duration-500"
-															style={{ width: `${Math.max(task.progress || 0, 10)}%` }}
-														/>
-													</div>
-													<span className="text-xs text-[var(--text-tertiary)] min-w-[3ch] text-right">{task.progress || 0}%</span>
-												</div>
-												<button
-													className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold opacity-50 cursor-not-allowed flex items-center gap-2"
-													disabled
-												>
-													<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-														<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-														<polyline points="7 10 12 15 17 10" />
-														<line x1="12" y1="15" x2="12" y2="3" />
-													</svg>
-													处理中...
-												</button>
-											</>
-										);
-									case "ready":
-										return (
-											<button
-												className="bg-[var(--color-signal-green)] text-white border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
-												onClick={handleDownloadExport}
-												disabled={exportDownloading}
-											>
-												<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-													<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-													<polyline points="7 10 12 15 17 10" />
-													<line x1="12" y1="15" x2="12" y2="3" />
-												</svg>
-												{exportDownloading ? "下载中..." : "下载导出包"}
-											</button>
-										);
-									case "failed":
-										return (
-											<>
-												<div className="text-sm text-[var(--alert-red)] bg-[var(--alert-red-bg)] px-3 py-1.5 rounded-md max-w-sm text-center">
-													{task.error || "导出失败"}
-												</div>
-												<button
-													className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
-													onClick={handleCreateExport}
-												>
-													重新创建
-												</button>
-											</>
-										);
-									case "stale":
-										return (
-											<>
-												<div className="text-sm text-[var(--text-tertiary)]">导出包已过期（视频已重新渲染）</div>
-												<button
-													className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
-													onClick={handleCreateExport}
-												>
-													重新创建
-												</button>
-											</>
-										);
-									default:
-										return null;
-								}
-							})()}
+							{exportTask && !exportCreating && (
+								<ExportTaskControls
+									task={exportTask}
+									downloading={exportDownloading}
+									onDownload={handleDownloadExport}
+									onRecreate={handleCreateExport}
+								/>
+							)}
 
 							{/* Initial state: no task, not creating */}
 							{!exportTask && !exportCreating && (
@@ -1424,7 +1378,17 @@ export default function JobPipeline() {
 									className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
 									onClick={handleCreateExport}
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										strokeWidth="2"
+										strokeLinecap="round"
+										strokeLinejoin="round"
+									>
 										<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
 										<polyline points="7 10 12 15 17 10" />
 										<line x1="12" y1="15" x2="12" y2="3" />
@@ -1439,13 +1403,10 @@ export default function JobPipeline() {
 			case "failed": {
 				const executionError = job.execution?.error;
 				const failedPhaseLabel = (() => {
-					const step = PIPELINE_STEPS.find(
-						(s) => s.phase === job.failed_phase,
-					);
+					const step = PIPELINE_STEPS.find((s) => s.phase === job.failed_phase);
 					return step?.label || job.failed_phase || "unknown";
 				})();
-				const isRetryable =
-					executionError?.retryable === true;
+				const isRetryable = executionError?.retryable === true;
 				const isAssetFailed =
 					job.failed_phase === "asset_retrieving" ||
 					job.failed_phase === "asset_review";
@@ -1542,74 +1503,74 @@ export default function JobPipeline() {
 		}
 	};
 
-		return (
-			<div>
-				<div className="flex items-center gap-2 mb-4">
+	return (
+		<div>
+			<div className="flex items-center gap-2 mb-4">
+				<button
+					className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
+					onClick={() => navigate(`/projects/${job.project_id}`)}
+				>
+					{"←"} 返回工作台
+				</button>
+				<span className="text-[var(--text-tertiary)]">|</span>
+				<h1 className="text-lg font-bold font-mono">
+					{job.name || job.job_id}
+				</h1>
+				{job.product && (
+					<span className="text-xs text-[var(--text-tertiary)] bg-[var(--bg-table-head)] px-2 py-0.5 rounded">
+						{job.product}
+					</span>
+				)}
+			</div>
+
+			{error && (
+				<div className="mb-4 bg-[var(--alert-red-muted)] border border-[var(--danger-border)] text-[var(--alert-red)] px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+					<span>{error}</span>
 					<button
-						className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
-						onClick={() => navigate(`/projects/${job.project_id}`)}
+						onClick={() => setError("")}
+						className="text-[var(--text-tertiary)] hover:text-[var(--alert-red)] text-lg leading-none"
 					>
-						{"←"} 返回工作台
+						&times;
 					</button>
-					<span className="text-[var(--text-tertiary)]">|</span>
-					<h1 className="text-lg font-bold font-mono">
-						{job.name || job.job_id}
-					</h1>
-					{job.product && (
-						<span className="text-xs text-[var(--text-tertiary)] bg-[var(--bg-table-head)] px-2 py-0.5 rounded">
-							{job.product}
-						</span>
-					)}
 				</div>
+			)}
 
-				{error && (
-					<div className="mb-4 bg-[var(--alert-red-muted)] border border-[var(--danger-border)] text-[var(--alert-red)] px-4 py-3 rounded-lg text-sm flex items-center justify-between">
-						<span>{error}</span>
-						<button
-							onClick={() => setError("")}
-							className="text-[var(--text-tertiary)] hover:text-[var(--alert-red)] text-lg leading-none"
-						>
-							&times;
-						</button>
-					</div>
-				)}
+			{job.execution?.status === "retrying" && (
+				<div className="mb-4 bg-[var(--bg-table-head)] px-4 py-3 rounded-lg text-sm">
+					正在重试，第 {job.execution.current_attempt} /{" "}
+					{job.execution.max_attempts} 次
+				</div>
+			)}
 
-				{job.execution?.status === "retrying" && (
-					<div className="mb-4 bg-[var(--bg-table-head)] px-4 py-3 rounded-lg text-sm">
-						正在重试，第 {job.execution.current_attempt} /{" "}
-						{job.execution.max_attempts} 次
-					</div>
-				)}
-
-				<div className="flex flex-col md:flex-row border rounded-xl min-h-[500px]">
-					<PipelineSidebar
-						currentPhase={job.phase}
-						completedPhases={computeCompletedPhases(job.phase)}
-						onStepClick={(key) => setActiveStepKey(key)}
-						activeStepKey={activeStepKey}
-						jobInfo={
-							job.name
-								? `${job.name} (${job.product})`
-								: job.product
-									? `${job.job_id} ${job.product}`
-									: job.job_id
+			<div className="flex flex-col md:flex-row border rounded-xl min-h-[500px]">
+				<PipelineSidebar
+					currentPhase={job.phase}
+					completedPhases={computeCompletedPhases(job.phase)}
+					onStepClick={(key) => setActiveStepKey(key)}
+					activeStepKey={activeStepKey}
+					jobInfo={
+						job.name
+							? `${job.name} (${job.product})`
+							: job.product
+								? `${job.job_id} ${job.product}`
+								: job.job_id
+					}
+					mode={job.mode}
+					onPause={() => api.pauseJob(job.job_id)}
+					onRetry={handleRetry}
+					onViewLogs={async () => {
+						try {
+							const r = await api.getJobLogs(job.job_id);
+							alert(r.logs || "无日志");
+						} catch {
+							alert("无法加载日志");
 						}
-						mode={job.mode}
-						onPause={() => api.pauseJob(job.job_id)}
-						onRetry={handleRetry}
-						onViewLogs={async () => {
-							try {
-								const r = await api.getJobLogs(job.job_id);
-								alert(r.logs || "无日志");
-							} catch {
-								alert("无法加载日志");
-							}
-						}}
-					/>
-					<div className="flex-1 min-w-0 p-5 bg-[var(--bg-page)] overflow-x-auto">
-						{renderDetail()}
-					</div>
+					}}
+				/>
+				<div className="flex-1 min-w-0 p-5 bg-[var(--bg-page)] overflow-x-auto">
+					{renderDetail()}
 				</div>
 			</div>
-		);
-	}
+		</div>
+	);
+}

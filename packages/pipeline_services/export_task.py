@@ -16,8 +16,13 @@ from pathlib import Path
 from typing import Any, Callable
 
 from packages.pipeline_services.export_service import build_export_bundle
+from packages.pipeline_services.export_validation import validate_export_zip
 
 TERMINAL_STATES = frozenset({"ready", "failed", "stale"})
+BUILD_PROGRESS_START = 10
+BUILD_PROGRESS_END = 85
+BUILD_PROGRESS_RANGE = BUILD_PROGRESS_END - BUILD_PROGRESS_START
+VALIDATED_PROGRESS = 90
 
 
 class ExportTaskService:
@@ -32,6 +37,7 @@ class ExportTaskService:
         export_dir: Path,
         *,
         get_scene_config: Callable[[], dict[str, Any]] | None = None,
+        validate_bundle: Callable[[Path], list[str]] | None = None,
     ) -> None:
         self.job_id = job_id
         self.job_dir = job_dir
@@ -39,6 +45,9 @@ class ExportTaskService:
         self.project_dir = project_dir
         self.export_dir = export_dir
         self.get_scene_config = get_scene_config
+        self.validate_bundle = validate_bundle or (
+            lambda path: validate_export_zip(path, job_id=self.job_id)
+        )
         self._task_path = export_dir / f"{job_id}.export_task.json"
 
     # -- public API ---------------------------------------------------------
@@ -106,7 +115,7 @@ class ExportTaskService:
             build_fn = build_export_bundle
 
         task["status"] = "running"
-        task["progress"] = 10
+        task["progress"] = BUILD_PROGRESS_START
         self._save(task)
 
         final_zip = Path(task["zip_path"])
@@ -114,12 +123,24 @@ class ExportTaskService:
         staging_dir = self.export_dir / f".staging_{self.job_id}"
         try:
             staging_dir.mkdir(parents=True, exist_ok=True)
+
+            def report_build_progress(percent: int) -> None:
+                mapped = BUILD_PROGRESS_START + round(
+                    percent / 100 * BUILD_PROGRESS_RANGE
+                )
+                task["progress"] = min(
+                    BUILD_PROGRESS_END,
+                    max(BUILD_PROGRESS_START, mapped),
+                )
+                self._save(task)
+
             build_fn(
                 job_dir=self.job_dir,
                 workspace_dir=self.workspace_dir,
                 project_dir=self.project_dir,
                 export_dir=staging_dir,
                 get_scene_config=self.get_scene_config,
+                progress_callback=report_build_progress,
             )
             staged = staging_dir / final_zip.name
             if not staged.exists():
@@ -127,20 +148,14 @@ class ExportTaskService:
             if not self._zip_valid(staged):
                 raise RuntimeError("export bundle failed structural ZIP validation")
 
-            # Content-level validation (#255) — check internal structure
-            # before atomically publishing. Specific error messages help
-            # operators diagnose broken exports.
-            from packages.pipeline_services.export_validation import (
-                validate_export_zip,
-            )
-
-            content_errors = validate_export_zip(staged, job_id=self.job_id)
+            # Content-level validation (#255) runs before atomic publication.
+            content_errors = self.validate_bundle(staged)
             if content_errors:
                 raise RuntimeError(
                     "export bundle failed content validation: "
                     + "; ".join(content_errors)
                 )
-            task["progress"] = 90
+            task["progress"] = VALIDATED_PROGRESS
             self._save(task)
             self.export_dir.mkdir(parents=True, exist_ok=True)
             staged.replace(final_zip)  # atomic publish — no partial ZIP visible

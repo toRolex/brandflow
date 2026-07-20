@@ -78,9 +78,7 @@ describe("JobPipeline execution failure workflow", () => {
 		).toBeInTheDocument();
 		// The failed phase label uses the Chinese display name from PIPELINE_STEPS
 		expect(screen.getByText(/底包拼接/)).toBeInTheDocument();
-		expect(
-			screen.getByText(/不可重试/),
-		).toBeInTheDocument();
+		expect(screen.getByText(/不可重试/)).toBeInTheDocument();
 	});
 
 	it("shows retry request failures for retryable errors", async () => {
@@ -220,7 +218,9 @@ describe("JobPipeline migration_required workflow", () => {
 		expect(await screen.findByLabelText("场景一")).toBeInTheDocument();
 
 		fireEvent.click(screen.getByLabelText("场景一"));
-		fireEvent.click(screen.getByRole("button", { name: "补充场景并重新启动任务" }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "补充场景并重新启动任务" }),
+		);
 
 		await waitFor(() => {
 			expect(api.migrateScenes).toHaveBeenCalledWith("job-migration", [
@@ -234,7 +234,9 @@ describe("JobPipeline migration_required workflow", () => {
 
 		expect(await screen.findByText(/历史创建/)).toBeInTheDocument();
 		expect(screen.getByText(/缺少有效的场景输入/)).toBeInTheDocument();
-		expect(screen.getByText(/系统将重建任务并保留现有文案与配置/)).toBeInTheDocument();
+		expect(
+			screen.getByText(/系统将重建任务并保留现有文案与配置/),
+		).toBeInTheDocument();
 	});
 });
 
@@ -259,7 +261,7 @@ describe("JobPipeline TTS voice selection (#177)", () => {
 		mode: "generate" as const,
 	};
 
-	function renderTTSPage() {
+	function renderTtsPage() {
 		return render(
 			<MemoryRouter initialEntries={["/jobs/job-tts-1"]}>
 				<Routes>
@@ -298,14 +300,14 @@ describe("JobPipeline TTS voice selection (#177)", () => {
 	});
 
 	it("renders TTS voice selector with available voices", async () => {
-		renderTTSPage();
+		renderTtsPage();
 
 		expect(await screen.findByText("TTS 配音")).toBeInTheDocument();
 		expect(await screen.findByText(/全局/)).toBeInTheDocument();
 	});
 
 	it("renders preview button and calls preview API", async () => {
-		renderTTSPage();
+		renderTtsPage();
 
 		const previewBtn = await screen.findByRole("button", { name: /试听/ });
 		expect(previewBtn).toBeInTheDocument();
@@ -317,7 +319,7 @@ describe("JobPipeline TTS voice selection (#177)", () => {
 	});
 
 	it("shows link to global TTS config page", async () => {
-		renderTTSPage();
+		renderTtsPage();
 
 		const link = await screen.findByText(/高级 TTS 配置/);
 		expect(link).toBeInTheDocument();
@@ -399,9 +401,7 @@ describe("JobPipeline asset phase states", () => {
 		renderAssetPage();
 
 		expect(await screen.findByText("无可用素材")).toBeInTheDocument();
-		expect(
-			screen.getByText(/未找到与当前文案匹配的素材/),
-		).toBeInTheDocument();
+		expect(screen.getByText(/未找到与当前文案匹配的素材/)).toBeInTheDocument();
 		expect(
 			screen.getByRole("button", { name: "重新检索素材" }),
 		).toBeInTheDocument();
@@ -454,7 +454,9 @@ describe("JobPipeline asset phase states", () => {
 
 		renderAssetPage();
 
-		expect(await screen.findByText("素材检索失败（可重试）")).toBeInTheDocument();
+		expect(
+			await screen.findByText("素材检索失败（可重试）"),
+		).toBeInTheDocument();
 		expect(screen.getByText("ASSET_SEARCH_FAILED")).toBeInTheDocument();
 		expect(
 			screen.getByRole("button", { name: "重试失败阶段" }),
@@ -480,14 +482,14 @@ describe("JobPipeline asset phase states", () => {
 
 		renderAssetPage();
 
-		expect(await screen.findByText("素材检索失败（已终止）")).toBeInTheDocument();
+		expect(
+			await screen.findByText("素材检索失败（已终止）"),
+		).toBeInTheDocument();
 		expect(screen.getByText("ASSET_LIBRARY_EMPTY")).toBeInTheDocument();
 		expect(
 			screen.queryByRole("button", { name: "重试失败阶段" }),
 		).not.toBeInTheDocument();
-		expect(
-			screen.getByText(/不可重试/),
-		).toBeInTheDocument();
+		expect(screen.getByText(/不可重试/)).toBeInTheDocument();
 	});
 
 	const completedJob = {
@@ -499,7 +501,10 @@ describe("JobPipeline asset phase states", () => {
 		failed_phase: null,
 		review_status: "approved" as const,
 		artifacts: [
-			{ kind: "final_video", url: "/workspace/projects/project-1/runtime/jobs/job-200/final.mp4" },
+			{
+				kind: "final_video",
+				url: "/workspace/projects/project-1/runtime/jobs/job-200/final.mp4",
+			},
 		],
 		execution: {
 			status: "completed" as const,
@@ -538,7 +543,12 @@ describe("JobPipeline asset phase states", () => {
 			vi.mocked(api.getExportStatus).mockImplementation(async () => {
 				statusCalls++;
 				if (statusCalls === 1) return null;
-				return { task_id: "task-1", status: "queued", progress: 0, error: null };
+				return {
+					task_id: "task-1",
+					status: "queued",
+					progress: 0,
+					error: null,
+				};
 			});
 			vi.mocked(api.createExport).mockResolvedValue({
 				task_id: "task-1",
@@ -566,6 +576,72 @@ describe("JobPipeline asset phase states", () => {
 
 			expect(await screen.findByText("生产完成")).toBeInTheDocument();
 			expect(screen.getByText("处理中...")).toBeInTheDocument();
+		});
+
+		it("renders the actual zero progress without a visual floor", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "running",
+				progress: 0,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			const progressbar = await screen.findByRole("progressbar");
+			expect(progressbar).toHaveStyle({ width: "0%" });
+			expect(progressbar).toHaveAttribute("aria-valuenow", "0");
+		});
+
+		it("keeps the created task when the immediate status refresh fails", async () => {
+			vi.mocked(api.getExportStatus)
+				.mockResolvedValueOnce(null)
+				.mockRejectedValueOnce(new Error("status unavailable"));
+			vi.mocked(api.createExport).mockResolvedValue({
+				task_id: "task-1",
+				status: "queued",
+			});
+
+			renderCompletedPage();
+			fireEvent.click(await screen.findByText("导出"));
+
+			expect(await screen.findByText("排队中...")).toBeInTheDocument();
+		});
+
+		it("shows the actionable backend detail when task creation is rejected", async () => {
+			vi.mocked(api.createExport).mockRejectedValue(
+				new Error(
+					'409: {"detail":"no Final Timeline; rerender required before export"}',
+				),
+			);
+
+			renderCompletedPage();
+			fireEvent.click(await screen.findByText("导出"));
+
+			expect(
+				await screen.findByText(
+					"no Final Timeline; rerender required before export",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("keeps the current task visible when a polling request fails", async () => {
+			vi.mocked(api.getExportStatus)
+				.mockResolvedValueOnce({
+					task_id: "task-1",
+					status: "running",
+					progress: 45,
+					error: null,
+				})
+				.mockRejectedValue(new Error("temporary status failure"));
+
+			renderCompletedPage();
+			expect(await screen.findByText("45%")).toBeInTheDocument();
+
+			await new Promise((resolve) => setTimeout(resolve, 2100));
+
+			expect(screen.getByText("45%")).toBeInTheDocument();
+			expect(screen.queryByText("导出")).not.toBeInTheDocument();
 		});
 
 		it("shows download button when ready", async () => {
@@ -612,5 +688,4 @@ describe("JobPipeline asset phase states", () => {
 			expect(screen.getByText("重新创建")).toBeInTheDocument();
 		});
 	});
-
 });
