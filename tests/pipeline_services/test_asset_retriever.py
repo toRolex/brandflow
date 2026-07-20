@@ -84,16 +84,25 @@ class TestScriptSentenceUnification:
         "text,expected",
         [
             # Basic sentence-ending punctuation
-            ("第一句话。第二句话！第三句话？", ["第一句话。", "第二句话！", "第三句话？"]),
+            (
+                "第一句话。第二句话！第三句话？",
+                ["第一句话。", "第二句话！", "第三句话？"],
+            ),
             # Line breaks
             ("第一行\n第二行", ["第一行", "第二行"]),
             # Mixed: line break after punctuation does not duplicate
             ("第一句。\n第二句。", ["第一句。", "第二句。"]),
             # Semicolons (both Chinese and English) are clause punctuation, NOT boundaries
-            ("切菜；这是第一步。翻炒；这是第二步！", ["切菜；这是第一步。", "翻炒；这是第二步！"]),
+            (
+                "切菜；这是第一步。翻炒；这是第二步！",
+                ["切菜；这是第一步。", "翻炒；这是第二步！"],
+            ),
             # English semicolons and periods: . is not in sentence-end regex;
             # only ! ? are sentence-ending in English in the canonical parser
-            ("切菜; 这是第一步. 翻炒; 这是第二步!", ["切菜; 这是第一步. 翻炒; 这是第二步!"]),
+            (
+                "切菜; 这是第一步. 翻炒; 这是第二步!",
+                ["切菜; 这是第一步. 翻炒; 这是第二步!"],
+            ),
             # Short sentences preserved (no minimum length filter)
             ("好。坏。去吧。", ["好。", "坏。", "去吧。"]),
             ("去。来。走。", ["去。", "来。", "走。"]),

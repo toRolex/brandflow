@@ -295,17 +295,21 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             item.scene_folder_ids,
         )
         if validation_error is not None:
-            validation_errors.append({
-                "index": i,
-                "item_name": item.name or f"#{i + 1}",
-                "error": validation_error.model_dump(),
-            })
+            validation_errors.append(
+                {
+                    "index": i,
+                    "item_name": item.name or f"#{i + 1}",
+                    "error": validation_error.model_dump(),
+                }
+            )
 
     if validation_errors:
-        first = validation_errors[0]
-        first_error = first["error"]
-        index = first["index"]
-        item_name = first["item_name"]
+        from typing import Any
+
+        first: dict[str, Any] = validation_errors[0]
+        first_error: dict[str, Any] = first["error"]
+        index: int = int(first["index"])
+        item_name: str = str(first["item_name"])
         raise HTTPException(
             status_code=400,
             detail={
@@ -943,7 +947,7 @@ def _resolve_tts_preview_config(
         TTSConfigShim,
     )
 
-    tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
+    tts_model: str = str(tts_cfg.get("model", "mimo-v2.5-tts") or "")
     if tts_model.startswith("qwen"):
         provider = QwenTTSProvider(
             api_key=secret_store.get_api_key("qwen"),
@@ -1090,9 +1094,10 @@ def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: R
     if payload.voice is not None:
         updates["tts_voice"] = payload.voice
 
+    config_reader: ConfigReader = request.app.state.config_reader
+
     if not updates:
         # Nothing changed; return current state
-        config_reader: ConfigReader = request.app.state.config_reader
         return _resolve_tts_voice_info(record, config_reader)
 
     # Validate model+voice atomicity (#252)
@@ -1100,12 +1105,12 @@ def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: R
     effective_voice = updates.get("tts_voice", record.tts_voice)
     # If model is still empty after update, resolve from config for validation
     if not effective_model:
-        product_tts = (
+        product_tts: dict[str, object] = (
             config_reader.get_tts_config(product_id=record.product)
             if record.product
             else {}
         )
-        global_tts = config_reader.get_tts_config()
+        global_tts: dict[str, object] = config_reader.get_tts_config()
         effective_model = str(
             product_tts.get("model", "") or global_tts.get("model", "")
         )

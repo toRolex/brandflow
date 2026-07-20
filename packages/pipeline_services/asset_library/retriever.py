@@ -115,9 +115,7 @@ class AssetRetriever:
         return None
 
 
-def _find_timing_by_index(
-    timings: list[dict], sentence_index: int
-) -> dict | None:
+def _find_timing_by_index(timings: list[dict], sentence_index: int) -> dict | None:
     """Return the SentenceTiming dict whose ``index`` matches *sentence_index*."""
     for t in timings:
         if t.get("index") == sentence_index:
