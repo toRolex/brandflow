@@ -6,7 +6,7 @@ import ClipReviewCard from "../components/ClipReviewCard";
 import MediaPlayer from "../components/MediaPlayer";
 import PipelineSidebar from "../components/PipelineSidebar";
 import ScriptPreview from "../components/ScriptPreview";
-import type { JobDetail, Phase, SceneFolder } from "../types";
+import type { ExportTaskState, JobDetail, Phase, SceneFolder } from "../types";
 import { PIPELINE_STEPS } from "../types";
 
 function computeCompletedPhases(currentPhase: Phase): Phase[] {
@@ -71,6 +71,11 @@ export default function JobPipeline() {
 		voice?: string;
 	} | null>(null);
 	const [ttsVoiceError, setTtsVoiceError] = useState("");
+
+	// Export task state (#255)
+	const [exportTask, setExportTask] = useState<ExportTaskState | null>(null);
+	const [exportCreating, setExportCreating] = useState(false);
+	const [exportDownloading, setExportDownloading] = useState(false);
 
 	const phaseToStepKey = (phase: Phase): string => {
 		const step = PIPELINE_STEPS.find((s) => s.phase === phase);
@@ -176,6 +181,34 @@ export default function JobPipeline() {
 			.catch(() => setTtsVoices([]));
 	}, [ttsSelectedModel]);
 
+	// Export task: restore on mount (page refresh) and poll while queued/running (#255)
+	useEffect(() => {
+		if (!id) return;
+		let cancelled = false;
+
+		const checkExport = async () => {
+			try {
+				const task = await api.getExportStatus(id);
+				if (cancelled) return;
+				setExportTask(task);
+			} catch {
+				if (!cancelled) setExportTask(null);
+			}
+		};
+
+		checkExport();
+
+		const interval = setInterval(() => {
+			if (cancelled) return;
+			checkExport();
+		}, 2000);
+
+		return () => {
+			cancelled = true;
+			clearInterval(interval);
+		};
+	}, [id]);
+
 	if (loading) {
 		return (
 			<div className="text-center py-12 text-[var(--text-tertiary)]">
@@ -280,7 +313,25 @@ export default function JobPipeline() {
 		}
 	};
 
+	const handleCreateExport = async () => {
+		if (!job) return;
+		setExportCreating(true);
+		setExportDownloading(false);
+		try {
+			const resp = await api.createExport(job.job_id);
+			const task = await api.getExportStatus(job.job_id);
+			setExportTask(task || { task_id: resp.task_id, status: resp.status, progress: 0, error: null });
+		} catch (e) {
+			console.error("create export failed", e);
+			setError("创建导出任务失败");
+		} finally {
+			setExportCreating(false);
+		}
+	};
+
 	const handleDownloadExport = async () => {
+		if (!job) return;
+		setExportDownloading(true);
 		try {
 			const blob = await api.downloadExport(job.job_id);
 			const url = URL.createObjectURL(blob);
@@ -294,6 +345,8 @@ export default function JobPipeline() {
 		} catch (e) {
 			console.error("download export failed", e);
 			setError("下载导出包失败");
+		} finally {
+			setExportDownloading(false);
 		}
 	};
 
@@ -1220,7 +1273,9 @@ export default function JobPipeline() {
 							</p>
 						)}
 					</div>
-				);case "video_base": {
+				);
+				}
+				case "video_base": {
 				const video = findArtifact("video_base");
 				return (
 					<div>
@@ -1266,28 +1321,117 @@ export default function JobPipeline() {
 							视频已生成并排期发布
 						</p>
 						<MediaPlayer src={finalVideo?.url || ""} kind="video" />
-						<div className="flex justify-center gap-3 mt-6">
-							<button
-								className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
-								onClick={handleDownloadExport}
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									width="16"
-									height="16"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth="2"
-									strokeLinecap="round"
-									strokeLinejoin="round"
+						<div className="flex flex-col items-center gap-3 mt-6">
+							{/* Export task UI (#255) */}
+							{exportCreating && (
+								<div className="text-sm text-[var(--text-tertiary)]">正在创建...</div>
+							)}
+
+							{exportTask && !exportCreating && (() => {
+								const task = exportTask;
+								switch (task.status) {
+									case "queued":
+										return (
+											<>
+												<div className="text-sm text-[var(--text-tertiary)]">排队中...</div>
+												<button
+													className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold opacity-50 cursor-not-allowed flex items-center gap-2"
+													disabled
+												>
+													<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+														<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+														<polyline points="7 10 12 15 17 10" />
+														<line x1="12" y1="15" x2="12" y2="3" />
+													</svg>
+													处理中...
+												</button>
+											</>
+										);
+									case "running":
+										return (
+											<>
+												<div className="flex items-center gap-2 w-full max-w-xs">
+													<div className="flex-1 bg-[var(--border-color)] rounded-full h-2 overflow-hidden">
+														<div
+															className="bg-[var(--color-signal-green)] h-full rounded-full transition-all duration-500"
+															style={{ width: `${Math.max(task.progress || 0, 10)}%` }}
+														/>
+													</div>
+													<span className="text-xs text-[var(--text-tertiary)] min-w-[3ch] text-right">{task.progress || 0}%</span>
+												</div>
+												<button
+													className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold opacity-50 cursor-not-allowed flex items-center gap-2"
+													disabled
+												>
+													<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+														<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+														<polyline points="7 10 12 15 17 10" />
+														<line x1="12" y1="15" x2="12" y2="3" />
+													</svg>
+													处理中...
+												</button>
+											</>
+										);
+									case "ready":
+										return (
+											<button
+												className="bg-[var(--color-signal-green)] text-white border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
+												onClick={handleDownloadExport}
+												disabled={exportDownloading}
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+													<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+													<polyline points="7 10 12 15 17 10" />
+													<line x1="12" y1="15" x2="12" y2="3" />
+												</svg>
+												{exportDownloading ? "下载中..." : "下载导出包"}
+											</button>
+										);
+									case "failed":
+										return (
+											<>
+												<div className="text-sm text-[var(--alert-red)] bg-[var(--alert-red-bg)] px-3 py-1.5 rounded-md max-w-sm text-center">
+													{task.error || "导出失败"}
+												</div>
+												<button
+													className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
+													onClick={handleCreateExport}
+												>
+													重新创建
+												</button>
+											</>
+										);
+									case "stale":
+										return (
+											<>
+												<div className="text-sm text-[var(--text-tertiary)]">导出包已过期（视频已重新渲染）</div>
+												<button
+													className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
+													onClick={handleCreateExport}
+												>
+													重新创建
+												</button>
+											</>
+										);
+									default:
+										return null;
+								}
+							})()}
+
+							{/* Initial state: no task, not creating */}
+							{!exportTask && !exportCreating && (
+								<button
+									className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
+									onClick={handleCreateExport}
 								>
-									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-									<polyline points="7 10 12 15 17 10" />
-									<line x1="12" y1="15" x2="12" y2="3" />
-								</svg>
-								下载导出包
-							</button>
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+										<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+										<polyline points="7 10 12 15 17 10" />
+										<line x1="12" y1="15" x2="12" y2="3" />
+									</svg>
+									导出
+								</button>
+							)}
 						</div>
 					</div>
 				);

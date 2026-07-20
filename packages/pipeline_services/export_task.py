@@ -122,8 +122,24 @@ class ExportTaskService:
                 get_scene_config=self.get_scene_config,
             )
             staged = staging_dir / final_zip.name
-            if not staged.exists() or not self._zip_valid(staged):
-                raise RuntimeError("export bundle failed validation")
+            if not staged.exists():
+                raise RuntimeError("export bundle was not produced")
+            if not self._zip_valid(staged):
+                raise RuntimeError("export bundle failed structural ZIP validation")
+
+            # Content-level validation (#255) — check internal structure
+            # before atomically publishing. Specific error messages help
+            # operators diagnose broken exports.
+            from packages.pipeline_services.export_validation import (
+                validate_export_zip,
+            )
+
+            content_errors = validate_export_zip(staged, job_id=self.job_id)
+            if content_errors:
+                raise RuntimeError(
+                    "export bundle failed content validation: "
+                    + "; ".join(content_errors)
+                )
             task["progress"] = 90
             self._save(task)
             self.export_dir.mkdir(parents=True, exist_ok=True)

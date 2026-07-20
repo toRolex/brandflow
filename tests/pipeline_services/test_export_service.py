@@ -165,7 +165,7 @@ class TestBuildExportBundle:
         prefix = "export_job-001/"
         # Check expected entries exist
         assert f"{prefix}final/final.mp4" in names
-        assert f"{prefix}audio/tts.wav" in names
+        assert f"{prefix}audio/tts.mp3" in names
         assert f"{prefix}subtitle/script.srt" in names
         assert f"{prefix}timeline.json" in names
         # Scene clips
@@ -242,10 +242,10 @@ class TestBuildExportBundle:
         assert f"{prefix}audio/tts.wav" not in names
         assert f"{prefix}timeline.json" in names
 
-    def test_audio_mp3_renamed_to_wav(
+    def test_audio_mp3_keeps_mp3_extension(
         self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
     ) -> None:
-        """MP3 audio is stored as tts.wav in the ZIP."""
+        """MP3 audio keeps its .mp3 extension inside the ZIP."""
         (job_dir / "audio.mp3").write_text("mp3 data")
         _write_minimal_final_timeline(job_dir)
 
@@ -260,8 +260,8 @@ class TestBuildExportBundle:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
             prefix = "export_job-001/"
-            assert f"{prefix}audio/tts.wav" in names
-            assert zf.read(f"{prefix}audio/tts.wav") == b"mp3 data"
+            assert f"{prefix}audio/tts.mp3" in names
+            assert zf.read(f"{prefix}audio/tts.mp3") == b"mp3 data"
 
     def test_audio_wav_preferred(
         self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
@@ -380,15 +380,15 @@ class TestAddAudioToZip:
         with zipfile.ZipFile(zip_path, "r") as zf:
             assert zf.read("audio/tts.wav") == b"wav"
 
-    def test_adds_mp3_as_wav(self, job_dir: Path, tmp_path: Path) -> None:
-        """MP3 is stored as tts.wav when no WAV file exists."""
+    def test_adds_mp3_keeps_mp3_extension(self, job_dir: Path, tmp_path: Path) -> None:
+        """MP3 audio keeps its .mp3 extension inside the ZIP."""
         (job_dir / "audio.mp3").write_text("mp3")
         zip_path = tmp_path / "test.zip"
         with zipfile.ZipFile(zip_path, "w") as zf:
             _add_audio_to_zip(job_dir, zf, "")
 
         with zipfile.ZipFile(zip_path, "r") as zf:
-            assert zf.read("audio/tts.wav") == b"mp3"
+            assert zf.read("audio/tts.mp3") == b"mp3"
 
     def test_skips_when_no_audio(self, job_dir: Path, tmp_path: Path) -> None:
         """No audio files -> nothing added."""

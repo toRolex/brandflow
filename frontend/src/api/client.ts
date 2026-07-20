@@ -697,9 +697,30 @@ export const api = {
 			body: JSON.stringify({}),
 		}),
 
-	// Export download (returns blob)
+	// Export download (async — create task then poll)
+	createExport: async (jobId: string) => {
+		const res = await fetch(`/api/jobs/${jobId}/export`, {
+			method: "POST",
+		});
+		if (!res.ok) {
+			const text = await res.text();
+			throw new Error(`${res.status}: ${text}`);
+		}
+		return res.json() as Promise<import("../types").CreateExportResponse>;
+	},
+
+	getExportStatus: async (jobId: string) => {
+		const res = await fetch(`/api/jobs/${jobId}/export/status`);
+		if (res.status === 404) return null;
+		if (!res.ok) {
+			const text = await res.text();
+			throw new Error(`${res.status}: ${text}`);
+		}
+		return res.json() as Promise<import("../types").ExportTaskState>;
+	},
+
 	downloadExport: async (jobId: string) => {
-		const res = await fetch(`/api/jobs/${jobId}/export`);
+		const res = await fetch(`/api/jobs/${jobId}/export/download`);
 		if (!res.ok) {
 			const text = await res.text();
 			throw new Error(`${res.status}: ${text}`);

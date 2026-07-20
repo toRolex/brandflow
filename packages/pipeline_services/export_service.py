@@ -122,10 +122,10 @@ def build_export_bundle(
 
 
 def _add_audio_to_zip(job_dir: Path, zf: zipfile.ZipFile, zip_prefix: str) -> None:
-    """Add audio file to the ZIP.
+    """Add audio file to the ZIP, preserving the actual encoding extension.
 
-    Prefers ``audio.wav``; if only ``audio.mp3`` exists it is copied but
-    named ``tts.wav`` inside the ZIP (standard format per the PRD).
+    WAV and MP3 files keep their true extensions so the ZIP content is
+    honest about the encoding.  WAV → ``tts.wav``, MP3 → ``tts.mp3``.
     """
     wav_path = job_dir / "audio.wav"
     mp3_path = job_dir / "audio.mp3"
@@ -133,7 +133,7 @@ def _add_audio_to_zip(job_dir: Path, zf: zipfile.ZipFile, zip_prefix: str) -> No
     if wav_path.exists():
         zf.write(wav_path, f"{zip_prefix}audio/tts.wav")
     elif mp3_path.exists():
-        zf.write(mp3_path, f"{zip_prefix}audio/tts.wav")
+        zf.write(mp3_path, f"{zip_prefix}audio/tts.mp3")
 
 
 def _add_source_clips_to_zip(
