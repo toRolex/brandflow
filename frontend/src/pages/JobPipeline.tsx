@@ -69,6 +69,7 @@ export default function JobPipeline() {
 		model?: string;
 		voice?: string;
 	} | null>(null);
+	const [ttsVoiceError, setTtsVoiceError] = useState("");
 
 	const phaseToStepKey = (phase: Phase): string => {
 		const step = PIPELINE_STEPS.find((s) => s.phase === phase);
@@ -327,6 +328,7 @@ export default function JobPipeline() {
 
 	const applyVoiceChange = async (model?: string, voice?: string) => {
 		if (!job) return;
+		setTtsVoiceError("");
 		try {
 			const info = await api.updateJobTTSVoice(job.job_id, {
 				model: model || undefined,
@@ -346,6 +348,18 @@ export default function JobPipeline() {
 				// Need confirmation
 				setPendingVoiceChange({ model, voice });
 				setShowVoiceConfirm(true);
+				return;
+			}
+			if (e instanceof Error && e.message.includes("422")) {
+				// Inline validation error — extract detail message (#252)
+				try {
+					const body = JSON.parse(e.message.replace(/^\d+:\s*/, ""));
+					setTtsVoiceError(
+						typeof body.detail === "string" ? body.detail : "音色与模型不匹配",
+					);
+				} catch {
+					setTtsVoiceError("音色与模型不匹配");
+				}
 				return;
 			}
 			console.error("voice change failed", e);
@@ -388,6 +402,23 @@ export default function JobPipeline() {
 	};
 
 	const renderTTSVoiceSelector = () => {
+		// Upload/library audio source: TTS controls not applicable (#252)
+		if (job.audio_source === "upload" || job.audio_source === "library") {
+			return (
+				<div
+					className="mb-4 p-3 rounded-lg border"
+					style={{
+						borderColor: "var(--border-default)",
+						background: "var(--bg-table-head)",
+					}}
+				>
+					<span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+						此 Job 使用已有音频，TTS 设置不生效
+					</span>
+				</div>
+			);
+		}
+
 		const RESOLVED_LABELS: Record<string, string> = {
 			job: "Job",
 			product: "产品",
@@ -449,7 +480,24 @@ export default function JobPipeline() {
 						onChange={(e) => {
 							const newModel = e.target.value;
 							setTtsSelectedModel(newModel);
-							// When model changes, reset to first voice from that model
+							setTtsSelectedVoice(""); // clear old model's voice (#252)
+							setTtsVoiceError("");
+							// Auto-select first valid voice for the new model
+							api
+								.getTTSVoices(undefined, newModel)
+								.then((data) => {
+									setTtsVoices(data.preset_voices);
+									if (data.preset_voices.length > 0) {
+										const isPresetModel =
+											newModel === "mimo-v2.5-tts" ||
+											newModel === "qwen3-tts-flash" ||
+											newModel === "qwen3-tts-instruct-flash";
+										if (isPresetModel) {
+											setTtsSelectedVoice(data.preset_voices[0].id);
+										}
+									}
+								})
+								.catch(() => setTtsVoices([]));
 						}}
 					>
 						{ttsVoiceInfo && (
@@ -505,6 +553,20 @@ export default function JobPipeline() {
 						应用
 					</button>
 				</div>
+
+				{/* Inline validation error (#252) */}
+				{ttsVoiceError && (
+					<div
+						className="mt-2 text-xs px-3 py-2 rounded"
+						style={{
+							background: "var(--alert-red-muted)",
+							color: "var(--alert-red)",
+							border: "1px solid var(--danger-border)",
+						}}
+					>
+						{ttsVoiceError}
+					</div>
+				)}
 
 				{/* Preview button */}
 				<div className="flex items-center gap-2">

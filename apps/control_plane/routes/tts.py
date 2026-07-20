@@ -491,6 +491,9 @@ async def preview_tts(request: TTSPreviewRequest):
 
         validate_voice_for_model(config.model, config.voice)
 
+        # Preview must resolve the same voice as formal synthesis — never randomize (#252)
+        config.randomize_voice = False
+
         model = config.model or ""
         if model.startswith("qwen"):
             api_key = app_config.get_api_key("qwen")
