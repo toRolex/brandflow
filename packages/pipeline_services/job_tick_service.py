@@ -26,6 +26,11 @@ from packages.domain_core.phase_execution import (
 )
 from packages.domain_core.models import PHASE_ORDER, next_phase
 from packages.file_store.repository import FileStoreRepository
+from packages.pipeline_services.asset_snapshot import (
+    AssetValidationError,
+    validate_assets,
+    write_reviewed_snapshot,
+)
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
@@ -674,6 +679,43 @@ class JobTickService:
                             "failed_phase": None,
                         }
                     )
+
+        # 4b. Auto-approve asset_review: run integrity checks + write snapshot (#254)
+        # This is the same logic as the human-approval API endpoint, ensuring
+        # both paths perform identical validation and produce the same snapshot.
+        if (
+            action.new_phase is not None
+            and action.new_review_status == "approved"
+            and record.phase == "asset_review"
+            and record.auto_approve
+        ):
+            job_dir = project_dir / "runtime" / "jobs" / job_id
+            try:
+                # Use force=True for auto-approve (implicit consent for all-blank)
+                clips = validate_assets(job_dir, force=True)
+                write_reviewed_snapshot(job_dir, clips)
+            except AssetValidationError:
+                # Unresolved clips — block the auto-approval, stay in phase
+                import logging
+                _log = logging.getLogger(__name__)
+                _log.warning(
+                    f"[Tick] auto-approve blocked for {job_id}: "
+                    f"unresolved clips present, staying in asset_review"
+                )
+                action.new_phase = None
+                action.new_review_status = None
+                action.message = (
+                    "auto-approve blocked: unresolved clips in asset_review"
+                )
+                # Set review_status to pending so the job requires human
+                # attention and won't re-trigger auto-approve on the next tick.
+                record = record.model_copy(
+                    update={"review_status": "pending"}
+                )
+                self._repo.save_job(project_id, record)
+                return _build_tick_summary(initial_phase, action)
+            except FileNotFoundError:
+                pass  # no clips to validate — proceed normally
 
         # 5. Apply phase / review_status changes
         update: dict[str, Any] = {}

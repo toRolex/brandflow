@@ -1324,3 +1324,232 @@ class TestTTSFailureSemantics:
         assert saved.phase == "tts_review"
         assert saved.execution.status == "succeeded"
         assert saved.review_status == "pending"
+
+
+# 13. Auto-approve asset_review integrity checks + snapshot (#254)
+# ---------------------------------------------------------------------------
+
+
+class TestAutoApproveAssetReviewIntegrity:
+    """Auto-approval of asset_review must perform the same checks as manual approval."""
+
+    def test_auto_approve_with_unresolved_does_not_advance(
+        self, tmp_path: Path
+    ) -> None:
+        """Auto-approve should NOT advance if selected_clips.json has unresolved entries."""
+        import json as _json
+
+        job_id = "test-job-auto"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write selected_clips with an unresolved entry
+        clips = [
+            {
+                "sentence": "已匹配句。",
+                "sentence_index": 0,
+                "category": "intro",
+                "file_path": "/data/clip1.mp4",
+                "asset_id": "a1",
+                "duration_seconds": 5.0,
+                "method": "llm_match",
+                "visual_type": "clip",
+            },
+            {
+                "sentence": "未解决句。",
+                "sentence_index": 1,
+                "category": "",
+                "file_path": "",
+                "asset_id": "",
+                "duration_seconds": 0.0,
+                "method": "",
+                "visual_type": "unresolved",
+            },
+        ]
+        (job_dir / "selected_clips.json").write_text(
+            _json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        # Create job record with auto_approve=True, phase=asset_review, review_status="none"
+        record = make_record(
+            phase="asset_review", auto_approve=True, review_status="none"
+        )
+        record.job_id = job_id
+
+        # Use real FileStoreRepository so the tick service can read from disk
+        from packages.file_store.repository import FileStoreRepository
+
+        repo = FileStoreRepository(root_dir)
+        repo.save_job("proj-001", record)
+
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        svc = JobTickService(mock_orch, repo)
+
+        svc.tick("proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir)
+
+        # Should NOT have advanced — unresolved clips block auto-approval
+        saved = repo.load_job("proj-001", job_id)
+        assert saved.phase == "asset_review", (
+            f"Expected asset_review, got {saved.phase}"
+        )
+
+    def test_auto_approve_all_blank_proceeds(
+        self, tmp_path: Path
+    ) -> None:
+        """Auto-approve should proceed for all-blank clips (force=true is implicit)."""
+        import json as _json
+
+        job_id = "test-job-blank"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        clips = [
+            {
+                "sentence": "全空白一。",
+                "sentence_index": 0,
+                "visual_type": "blank",
+                "file_path": "",
+                "asset_id": "",
+            },
+            {
+                "sentence": "全空白二。",
+                "sentence_index": 1,
+                "visual_type": "blank",
+                "file_path": "",
+                "asset_id": "",
+            },
+        ]
+        (job_dir / "selected_clips.json").write_text(
+            _json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        record = make_record(
+            phase="asset_review", auto_approve=True, review_status="none"
+        )
+        record.job_id = job_id
+
+        from packages.file_store.repository import FileStoreRepository
+
+        repo = FileStoreRepository(root_dir)
+        repo.save_job("proj-001", record)
+
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        svc = JobTickService(mock_orch, repo)
+
+        svc.tick("proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir)
+
+        saved = repo.load_job("proj-001", job_id)
+        # Should have advanced past asset_review (auto_approve proceeds for all-blank)
+        assert saved.phase != "asset_review", (
+            f"Expected advance past asset_review, got {saved.phase}"
+        )
+        assert saved.review_status == "approved"
+
+    def test_auto_approve_writes_reviewed_snapshot(
+        self, tmp_path: Path
+    ) -> None:
+        """Auto-approval writes reviewed_assets.json snapshot."""
+        import json as _json
+
+        job_id = "test-job-snapshot"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        clips = [
+            {
+                "sentence": "第一句。",
+                "sentence_index": 0,
+                "category": "intro",
+                "file_path": "/data/clip1.mp4",
+                "asset_id": "a1",
+                "duration_seconds": 5.0,
+                "method": "llm_match",
+                "visual_type": "clip",
+            },
+        ]
+        (job_dir / "selected_clips.json").write_text(
+            _json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        record = make_record(
+            phase="asset_review", auto_approve=True, review_status="none"
+        )
+        record.job_id = job_id
+
+        from packages.file_store.repository import FileStoreRepository
+
+        repo = FileStoreRepository(root_dir)
+        repo.save_job("proj-001", record)
+
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        svc = JobTickService(mock_orch, repo)
+
+        svc.tick("proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir)
+
+        # Snapshot must exist
+        snapshot_path = job_dir / "reviewed_assets.json"
+        assert snapshot_path.exists(), "reviewed_assets.json should be written on auto-approve"
+        snapshot = _json.loads(snapshot_path.read_text(encoding="utf-8"))
+        assert len(snapshot) == 1
+        assert snapshot[0]["visual_type"] == "clip"
+        assert snapshot[0]["asset_id"] == "a1"
+        assert snapshot[0]["sentence_index"] == 0
+
+    def test_auto_approve_clean_clips_proceeds(
+        self, tmp_path: Path
+    ) -> None:
+        """Auto-approve with all-clip entries should advance normally."""
+        import json as _json
+
+        job_id = "test-job-clean"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        clips = [
+            {
+                "sentence": "第一句。",
+                "sentence_index": 0,
+                "category": "intro",
+                "file_path": "/data/clip1.mp4",
+                "asset_id": "a1",
+                "visual_type": "clip",
+            },
+            {
+                "sentence": "第二句。",
+                "sentence_index": 1,
+                "category": "detail",
+                "file_path": "/data/clip2.mp4",
+                "asset_id": "a2",
+                "visual_type": "clip",
+            },
+        ]
+        (job_dir / "selected_clips.json").write_text(
+            _json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        record = make_record(
+            phase="asset_review", auto_approve=True, review_status="none"
+        )
+        record.job_id = job_id
+
+        from packages.file_store.repository import FileStoreRepository
+
+        repo = FileStoreRepository(root_dir)
+        repo.save_job("proj-001", record)
+
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        svc = JobTickService(mock_orch, repo)
+
+        svc.tick("proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir)
+
+        saved = repo.load_job("proj-001", job_id)
+        assert saved.phase != "asset_review"
+        assert saved.review_status == "approved"
