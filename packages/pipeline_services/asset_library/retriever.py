@@ -5,6 +5,7 @@ import random
 from collections.abc import Callable
 
 from packages.pipeline_services.asset_library.models import AssetRecord
+from packages.pipeline_services.script_sentence import parse_script_sentences
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class AssetRetriever:
         logger.info(
             f"[Retriever] 开始检索素材: product={product}, 文案长度={len(script_text)}字"
         )
-        sentences = self._split_sentences(script_text)
+        sentences = parse_script_sentences(script_text)
         logger.info(f"[Retriever] 文案拆分为 {len(sentences)} 个句子")
         selected: list[dict] = []
 
@@ -39,6 +40,7 @@ class AssetRetriever:
                     selected.append(
                         {
                             "sentence": sentence,
+                            "sentence_index": i,
                             "category": requested_category_name,
                             "requested_category": requested_category_name,
                             "file_path": chosen.file_path,
@@ -60,6 +62,7 @@ class AssetRetriever:
                 selected.append(
                     {
                         "sentence": sentence,
+                        "sentence_index": i,
                         "category": fallback.category_name(),
                         "requested_category": requested_cat,
                         "file_path": fallback.file_path,
@@ -80,6 +83,7 @@ class AssetRetriever:
                 selected.append(
                     {
                         "sentence": sentence,
+                        "sentence_index": i,
                         "category": requested_category_name or "",
                         "requested_category": requested_category_name or "",
                         "file_path": "",
@@ -110,12 +114,15 @@ class AssetRetriever:
             return random.choice(all_assets)
         return None
 
-    @staticmethod
-    def _split_sentences(text: str) -> list[str]:
-        import re
 
-        raw = re.split(r"[。！？\n;；]", text)
-        return [s.strip() for s in raw if len(s.strip()) >= 4]
+def _find_timing_by_index(
+    timings: list[dict], sentence_index: int
+) -> dict | None:
+    """Return the SentenceTiming dict whose ``index`` matches *sentence_index*."""
+    for t in timings:
+        if t.get("index") == sentence_index:
+            return t
+    return None
 
 
 def _compute_trim_params(
@@ -141,7 +148,8 @@ def _compute_trim_params(
     for idx, clip in enumerate(clips):
         # Blank clip with sentence timings → use per-sentence duration
         if sentence_timings and clip.get("visual_type") == "blank":
-            st = sentence_timings[idx] if idx < len(sentence_timings) else None
+            si = clip.get("sentence_index", idx)
+            st = _find_timing_by_index(sentence_timings, si)
             if st:
                 duration = st.get("end_seconds", 0) - st.get("start_seconds", 0)
                 duration = max(duration, 0.1)

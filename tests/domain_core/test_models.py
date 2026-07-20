@@ -67,3 +67,16 @@ class TestAssetPosition:
     def test_sentence_is_required(self) -> None:
         with pytest.raises(ValidationError):
             AssetPosition()
+
+    def test_sentence_index_defaults_to_zero(self) -> None:
+        pos = AssetPosition(sentence="默认句子。")
+        assert pos.sentence_index == 0
+
+    def test_sentence_index_explicit(self) -> None:
+        pos = AssetPosition(sentence="第3句。", sentence_index=3)
+        assert pos.sentence_index == 3
+
+    def test_sentence_index_is_serialized(self) -> None:
+        pos = AssetPosition(sentence="第5句。", sentence_index=5)
+        d = pos.model_dump()
+        assert d["sentence_index"] == 5
