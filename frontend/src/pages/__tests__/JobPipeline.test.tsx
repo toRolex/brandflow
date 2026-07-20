@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../api/client";
 import { PIPELINE_STEPS } from "../../types";
-import JobPipeline from "../JobPipeline";
+import JobPipeline, { phaseToStepKey } from "../JobPipeline";
 
 vi.mock("../../api/client", () => ({
 	api: {
@@ -80,6 +80,18 @@ describe("JobPipeline execution failure workflow", () => {
 		// The failed phase label uses the Chinese display name from PIPELINE_STEPS
 		expect(screen.getByText(/底包拼接/)).toBeInTheDocument();
 		expect(screen.getByText(/不可重试/)).toBeInTheDocument();
+	});
+
+	it("does not expose an unknown failed phase identifier", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...failedJob,
+			failed_phase: "legacy_phase",
+		} as never);
+
+		renderPage();
+
+		expect(await screen.findByText("未知阶段")).toBeInTheDocument();
+		expect(screen.queryByText("legacy_phase")).not.toBeInTheDocument();
 	});
 
 	it("shows retry request failures for retryable errors", async () => {
@@ -691,31 +703,280 @@ describe("JobPipeline asset phase states", () => {
 	});
 });
 
+describe("JobPipeline review phase guard (#261)", () => {
+	const ttsReviewJob = {
+		job_id: "job-tts-review",
+		project_id: "project-1",
+		product: "product",
+		brand: "TestBrand",
+		platforms: ["douyin"],
+		phase: "tts_review" as const,
+		failed_phase: null,
+		review_status: "pending" as const,
+		artifacts: [
+			{
+				kind: "tts_audio",
+				relative_path: "tts.mp3",
+				url: "/api/workspace/projects/project-1/runtime/jobs/job-tts-review/tts.mp3",
+			},
+		],
+		execution: {
+			status: "succeeded" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+			error: null,
+		},
+		tts_model: "mimo-v2.5-tts",
+		tts_voice: "Mia",
+		mode: "generate" as const,
+	};
+
+	const finalReviewJob = {
+		job_id: "job-final-review",
+		project_id: "project-1",
+		product: "product",
+		brand: "TestBrand",
+		platforms: ["douyin"],
+		phase: "final_review" as const,
+		failed_phase: null,
+		review_status: "pending" as const,
+		artifacts: [
+			{
+				kind: "final_video",
+				relative_path: "final.mp4",
+				url: "/api/workspace/projects/project-1/runtime/jobs/job-final-review/final.mp4",
+			},
+		],
+		execution: {
+			status: "succeeded" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+			error: null,
+		},
+		mode: "generate" as const,
+	};
+
+	const scriptGenJob = {
+		job_id: "job-script-gen",
+		project_id: "project-1",
+		product: "product",
+		brand: "TestBrand",
+		platforms: ["douyin"],
+		phase: "script_generating" as const,
+		failed_phase: null,
+		review_status: "none" as const,
+		artifacts: [],
+		execution: {
+			status: "running" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+			error: null,
+		},
+		mode: "generate" as const,
+	};
+
+	function renderTtsReviewPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-tts-review"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	function renderFinalReviewPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-final-review"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	function renderScriptGenPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-script-gen"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(api.getTTSVoices).mockResolvedValue({
+			preset_voices: [],
+		});
+		vi.mocked(api.getJobTTSVoice).mockResolvedValue({
+			model: "mimo-v2.5-tts",
+			voice: "Mia",
+			resolved_from: "job",
+		});
+	});
+
+	it("shows enabled approve/reject buttons when on the current tts_review phase", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(ttsReviewJob as never);
+		vi.mocked(api.approveReview).mockResolvedValue({ status: "ok" });
+		vi.mocked(api.rejectReview).mockResolvedValue({ status: "ok" });
+
+		renderTtsReviewPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		expect(approveBtn).not.toBeDisabled();
+
+		const rejectBtn = screen.getByRole("button", {
+			name: "✗ 打回重新生成",
+		});
+		expect(rejectBtn).not.toBeDisabled();
+
+		fireEvent.click(approveBtn);
+		await waitFor(() => {
+			expect(api.approveReview).toHaveBeenCalledWith("job-tts-review", "tts");
+		});
+	});
+
+	it("shows enabled approve/reject buttons when on the current final_review phase", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(finalReviewJob as never);
+		vi.mocked(api.approveReview).mockResolvedValue({ status: "ok" });
+
+		renderFinalReviewPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		expect(approveBtn).not.toBeDisabled();
+
+		fireEvent.click(approveBtn);
+		await waitFor(() => {
+			expect(api.approveReview).toHaveBeenCalledWith(
+				"job-final-review",
+				"final",
+			);
+		});
+	});
+
+	it("shows disabled approve/reject buttons and hint when viewing a non-review step (script_generating)", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(scriptGenJob as never);
+
+		renderScriptGenPage();
+
+		// The ScriptPreview should show the view-only hint
+		expect(
+			await screen.findByText("当前不在该审核阶段，无法操作"),
+		).toBeInTheDocument();
+
+		// Buttons should be disabled
+		const approveBtn = screen.getByRole("button", { name: "✓ 通过" });
+		expect(approveBtn).toBeDisabled();
+
+		const rejectBtn = screen.getByRole("button", { name: "✗ 打回" });
+		expect(rejectBtn).toBeDisabled();
+	});
+
+	it("does not call approve API when phase guard blocks (script_generating)", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(scriptGenJob as never);
+
+		renderScriptGenPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		fireEvent.click(approveBtn);
+
+		expect(api.approveReview).not.toHaveBeenCalled();
+		expect(
+			await screen.findByText("当前不在该审核阶段，无法操作"),
+		).toBeInTheDocument();
+	});
+
+	it("shows server error detail when approve fails with structured error", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(ttsReviewJob as never);
+		vi.mocked(api.approveReview).mockRejectedValue(
+			new Error(
+				'409: {"detail":"TTS audio not yet generated; cannot approve"}',
+			),
+		);
+
+		renderTtsReviewPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		fireEvent.click(approveBtn);
+
+		expect(
+			await screen.findByText("TTS audio not yet generated; cannot approve"),
+		).toBeInTheDocument();
+	});
+
+	it("shows server error detail when reject fails with structured error", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(ttsReviewJob as never);
+		vi.mocked(api.rejectReview).mockRejectedValue(
+			new Error('409: {"detail":"Review already processed; cannot reject"}'),
+		);
+
+		renderTtsReviewPage();
+
+		const rejectBtn = await screen.findByRole("button", {
+			name: "✗ 打回重新生成",
+		});
+		fireEvent.click(rejectBtn);
+
+		expect(
+			await screen.findByText("Review already processed; cannot reject"),
+		).toBeInTheDocument();
+	});
+
+	it("shows generic error when approve fails without structured detail", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(ttsReviewJob as never);
+		vi.mocked(api.approveReview).mockRejectedValue(new Error("Network error"));
+
+		renderTtsReviewPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		fireEvent.click(approveBtn);
+
+		expect(await screen.findByText("审核操作失败")).toBeInTheDocument();
+	});
+});
+
 describe("PIPELINE_STEPS coverage for backend phases (#262)", () => {
-	it("finds montage_assembling via find-by-phase and returns non-empty key", () => {
-		const step = PIPELINE_STEPS.find((s) => s.phase === "montage_assembling");
-		expect(step).toBeDefined();
-		expect(step!.key).toBe("montage");
-		expect(step!.key).not.toBe("");
-	});
-
-	it("finds final_rendering via find-by-phase and returns non-empty key", () => {
-		const step = PIPELINE_STEPS.find((s) => s.phase === "final_rendering");
-		expect(step).toBeDefined();
-		expect(step!.key).toBe("final_render");
-		expect(step!.key).not.toBe("");
-	});
-
-	it("finds scene_assembling via find-by-phase and returns non-empty key", () => {
-		const step = PIPELINE_STEPS.find((s) => s.phase === "scene_assembling");
-		expect(step).toBeDefined();
-		expect(step!.key).toBe("scene_assemble");
-		expect(step!.key).not.toBe("");
+	it("maps every known pipeline phase to a non-empty step key", () => {
+		for (const step of PIPELINE_STEPS) {
+			expect(phaseToStepKey(step.phase), step.phase).not.toBe("");
+		}
 	});
 });
 
 describe("JobPipeline new phase rendering (#262)", () => {
-	function renderPhaseJob(_phase: string) {
+	const makeMockJob = (
+		phase: "montage_assembling" | "final_rendering" | "scene_assembling",
+	) => ({
+		job_id: "job-phase",
+		project_id: "project-1",
+		product: "product",
+		platforms: ["douyin"],
+		phase,
+		failed_phase: null,
+		review_status: "none" as const,
+		artifacts: [],
+		execution: {
+			status: "succeeded" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+			error: null,
+		},
+	});
+
+	function renderPhaseJob(phase: Parameters<typeof makeMockJob>[0]) {
+		vi.mocked(api.getJob).mockResolvedValue(makeMockJob(phase) as never);
 		return render(
 			<MemoryRouter initialEntries={["/jobs/job-phase"]}>
 				<Routes>
@@ -730,23 +991,6 @@ describe("JobPipeline new phase rendering (#262)", () => {
 	});
 
 	it("renders montage_assembling job without 'unknown step' fallback", async () => {
-		vi.mocked(api.getJob).mockResolvedValue({
-			job_id: "job-phase",
-			project_id: "project-1",
-			product: "product",
-			platforms: ["douyin"],
-			phase: "montage_assembling" as const,
-			failed_phase: null,
-			review_status: "none" as const,
-			artifacts: [],
-			execution: {
-				status: "succeeded" as const,
-				current_attempt: 1,
-				max_attempts: 3,
-				error: null,
-			},
-		} as never);
-
 		renderPhaseJob("montage_assembling");
 
 		await waitFor(() => {
@@ -755,23 +999,6 @@ describe("JobPipeline new phase rendering (#262)", () => {
 	});
 
 	it("renders final_rendering job without 'unknown step' fallback", async () => {
-		vi.mocked(api.getJob).mockResolvedValue({
-			job_id: "job-phase",
-			project_id: "project-1",
-			product: "product",
-			platforms: ["douyin"],
-			phase: "final_rendering" as const,
-			failed_phase: null,
-			review_status: "none" as const,
-			artifacts: [],
-			execution: {
-				status: "succeeded" as const,
-				current_attempt: 1,
-				max_attempts: 3,
-				error: null,
-			},
-		} as never);
-
 		renderPhaseJob("final_rendering");
 
 		await waitFor(() => {
@@ -780,23 +1007,6 @@ describe("JobPipeline new phase rendering (#262)", () => {
 	});
 
 	it("renders scene_assembling job without 'unknown step' fallback", async () => {
-		vi.mocked(api.getJob).mockResolvedValue({
-			job_id: "job-phase",
-			project_id: "project-1",
-			product: "product",
-			platforms: ["douyin"],
-			phase: "scene_assembling" as const,
-			failed_phase: null,
-			review_status: "none" as const,
-			artifacts: [],
-			execution: {
-				status: "succeeded" as const,
-				current_attempt: 1,
-				max_attempts: 3,
-				error: null,
-			},
-		} as never);
-
 		renderPhaseJob("scene_assembling");
 
 		await waitFor(() => {

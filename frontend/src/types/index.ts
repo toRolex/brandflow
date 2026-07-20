@@ -1,4 +1,4 @@
-﻿export type ProductionMode = "import" | "generate";
+export type ProductionMode = "import" | "generate";
 
 export type Phase =
 	| "queued"

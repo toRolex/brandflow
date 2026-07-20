@@ -1,4 +1,4 @@
-import type { Phase } from "../types";
+import { type Phase, PIPELINE_STEPS } from "../types";
 
 type BadgeVariant = "default" | "success" | "warning" | "danger" | "neutral";
 
@@ -29,26 +29,20 @@ const VARIANT_MAP: Record<string, BadgeVariant> = {
 	paused: "neutral",
 };
 
-const LABEL_MAP: Record<string, string> = {
-	queued: "排队中",
-	script_generating: "生成脚本",
+const PIPELINE_LABELS = Object.fromEntries(
+	PIPELINE_STEPS.map((step) => [step.phase, step.label]),
+) as Partial<Record<Phase, string>>;
+
+const LABEL_OVERRIDES: Partial<Record<Phase, string>> = {
 	script_review: "待审核",
 	tts_generating: "配音中",
 	tts_review: "配音审核",
 	subtitle_generating: "字幕中",
 	asset_retrieving: "取素材",
-	asset_review: "素材审核",
 	video_rendering: "视频合成",
 	final_review: "最终审核",
 	schedule_writing: "写排期",
-	scene_assembling: "场景拼接",
-	montage_assembling: "蒙太奇",
-	final_rendering: "终审·合成",
-	migration_required: "需补充场景",
-	completed: "已完成",
 	failed: "失败",
-	cancelled: "已取消",
-	paused: "已暂停",
 };
 
 const BASE_STYLE: React.CSSProperties = {
@@ -90,7 +84,7 @@ export default function StatusBadge({ phase }: { phase: Phase }) {
 
 	return (
 		<span style={{ ...BASE_STYLE, ...VARIANT_STYLES[variant] }}>
-			{LABEL_MAP[phase] || phase}
+			{LABEL_OVERRIDES[phase] || PIPELINE_LABELS[phase] || phase}
 		</span>
 	);
 }
