@@ -13,7 +13,7 @@ import re
 from pydantic import BaseModel, ConfigDict
 
 
-_SENTENCE_END_RE = re.compile(r"[。！？!?]")
+_SENTENCE_END_RE = re.compile(r"[。！？!?]+")
 
 
 class ScriptSentence(BaseModel):

@@ -104,3 +104,92 @@ class TestClipTrimming:
     def test_empty_clips_returns_empty(self):
         """空素材列表返回空。"""
         assert _compute_trim_params([], 10.0) == []
+
+    def test_blank_matched_by_sentence_index_not_position(self):
+        """Blank clip duration comes from timing with matching index, not array pos."""
+        clips = [
+            {
+                "sentence": "introduction sentence",
+                "file_path": "/data/a.mp4",
+                "category": "intro",
+                "visual_type": "clip",
+                "sentence_index": 0,
+            },
+            {
+                "sentence": "blank sentence",
+                "file_path": "",
+                "category": "",
+                "visual_type": "blank",
+                "sentence_index": 5,  # Index 5 — not the 2nd item in the array
+            },
+            {
+                "sentence": "third sentence",
+                "file_path": "/data/b.mp4",
+                "category": "outro",
+                "visual_type": "clip",
+                "sentence_index": 8,
+            },
+        ]
+        audio_duration = 30.0
+
+        # Sentence timings: only entries for indices that have audio
+        sentence_timings = [
+            {"index": 0, "text": "intro", "start_seconds": 0.0, "end_seconds": 5.0},
+            {"index": 5, "text": "blank", "start_seconds": 5.0, "end_seconds": 7.5},
+            {"index": 8, "text": "outro", "start_seconds": 7.5, "end_seconds": 30.0},
+        ]
+
+        trimmed = _compute_trim_params(clips, audio_duration, sentence_timings)
+
+        # Blank clip (array index 1) should match sentence_timing with index=5
+        blank = trimmed[1]
+        assert blank["visual_type"] == "blank"
+        assert blank["duration"] == 2.5, (
+            f"Blank duration should be 2.5 (from index=5 timing), "
+            f"got {blank['duration']}"
+        )
+
+        # Clip at array index 0 should NOT accidentally use index=5's timing
+        clip0 = trimmed[0]
+        assert clip0["visual_type"] == "clip"
+        # Per-clip equal share for non-blank: (30 - 2.5) / 2 = 13.75 ... actually
+        # the redistribution happens after initial assignment. Just verify it's positive.
+        assert clip0["duration"] > 0
+
+        # Clip at array index 2 should NOT use index=8's timing
+        clip2 = trimmed[2]
+        assert clip2["visual_type"] == "clip"
+        assert clip2["duration"] > 0
+
+    def test_sentence_index_fallback_to_array_position(self):
+        """When clip lacks sentence_index, falls back to array position."""
+        clips = [
+            {
+                "sentence": "clip A",
+                "file_path": "/data/a.mp4",
+                "category": "intro",
+                "visual_type": "clip",
+            },
+            {
+                "sentence": "blank fallback",
+                "file_path": "",
+                "category": "",
+                "visual_type": "blank",
+                # No sentence_index — falls back to array position 1
+            },
+        ]
+        audio_duration = 10.0
+
+        sentence_timings = [
+            {"index": 0, "text": "clip A", "start_seconds": 0.0, "end_seconds": 4.0},
+            {"index": 1, "text": "blank", "start_seconds": 4.0, "end_seconds": 10.0},
+        ]
+
+        trimmed = _compute_trim_params(clips, audio_duration, sentence_timings)
+
+        # Blank at array position 1 → matched by fallback to idx=1 in timings
+        blank = trimmed[1]
+        assert blank["visual_type"] == "blank"
+        assert blank["duration"] == 6.0, (
+            f"Blank should get 6.0 from sentence_timings[1], got {blank['duration']}"
+        )

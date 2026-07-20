@@ -71,6 +71,7 @@ class AssetPosition(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sentence: str
+    sentence_index: int = 0
     category: str = ""
     requested_category: str = ""
     file_path: str = ""
