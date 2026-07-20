@@ -23,6 +23,10 @@ PHASE_ORDER = [
     "scene_assembling",
 ]
 
+REVIEW_PHASES: frozenset[str] = frozenset(
+    {"script_review", "tts_review", "asset_review", "final_review"}
+)
+
 
 def next_phase(current: str) -> str:
     index = PHASE_ORDER.index(current)
