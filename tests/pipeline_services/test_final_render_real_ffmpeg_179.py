@@ -124,9 +124,15 @@ def _orchestrator() -> PhaseOrchestrator:
 
 
 def _write_montage_inputs(job_dir: Path, tts_path: Path, clip_path: Path) -> None:
-    """Write audio.mp3, selected_clips.json and subtitles.srt for the montage."""
+    """Write audio.mp3, montage_segment.mp4, montage_segments.json and subtitles.srt.
+
+    After #264, video_rendering consumes the pre-built montage_segment.mp4 +
+    montage_segments.json produced by montage_assembling, instead of calling
+    build_base_video directly.  The montage segment is a real ~3s video so the
+    real-ffmpeg scene concat / probe in video_rendering succeeds.
+    """
     shutil.copy2(tts_path, job_dir / "audio.mp3")
-    (job_dir / "selected_clips.json").write_text(
+    (job_dir / "montage_segments.json").write_text(
         json.dumps(
             [
                 {
@@ -135,11 +141,15 @@ def _write_montage_inputs(job_dir: Path, tts_path: Path, clip_path: Path) -> Non
                     "asset_id": "a1",
                     "duration_seconds": 5.0,
                     "visual_type": "clip",
+                    "ss": 0.0,
+                    "duration": 3.0,
                 }
             ]
         ),
         encoding="utf-8",
     )
+    # Real 3s montage segment (matches the trimmed clip duration used above).
+    _make_video(job_dir / "montage_segment.mp4", 3.0, "blue")
     (job_dir / "subtitles.srt").write_text(
         "1\n00:00:00,000 --> 00:00:03,000\n第一句介绍产品。\n", encoding="utf-8"
     )
@@ -164,8 +174,8 @@ class TestRealRenderWithScene:
         scene_src = _make_video(job_dir / "_scene_src.mp4", 2.0, "red")
         clip_src = _make_video(job_dir / "_clip_src.mp4", 5.0, "blue")
         tts = _make_audio(job_dir / "_tts.wav", 3.0)
-        # assembled.mp4 is the scene segment used by video_rendering
-        shutil.copy2(scene_src, job_dir / "assembled.mp4")
+        # scene_segment.mp4 is the scene segment used by video_rendering
+        shutil.copy2(scene_src, job_dir / "scene_segment.mp4")
         _write_montage_inputs(job_dir, tts, clip_src)
 
         orch = _orchestrator()
@@ -221,7 +231,7 @@ class TestRealRenderNoScene:
         clip_src = _make_video(job_dir / "_clip_src.mp4", 5.0, "blue")
         tts = _make_audio(job_dir / "_tts.wav", 3.0)
         _write_montage_inputs(job_dir, tts, clip_src)
-        # no assembled.mp4 → scene_ms = 0
+        # no scene_segment.mp4 → scene_ms = 0
 
         orch = _orchestrator()
         orch.run_phase("video_rendering", ctx)
