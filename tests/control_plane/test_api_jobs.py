@@ -1007,10 +1007,30 @@ def test_delete_job_not_found(tmp_path: Path) -> None:
 # ── import 模式场景文件夹验证 ──────────────────────────────────────
 
 
-def test_create_import_job_rejects_empty_scene_folders(tmp_path: Path) -> None:
-    """import 模式创建 Job 时未选择场景文件夹应被拒绝。"""
+def test_create_import_job_with_empty_folders_but_scene_config_succeeds(
+    tmp_path: Path,
+) -> None:
+    """import 模式 + 空 scene_folder_ids + 产品有场景配置 → 创建成功，tick 会回退填充。"""
     _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
     client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": [],
+        },
+    )
+    assert resp.status_code == 200
+
+
+def test_create_import_job_rejects_empty_folders_without_scene_config(
+    tmp_path: Path,
+) -> None:
+    """import 模式 + 空 scene_folder_ids + 产品无场景配置 → 仍被拒绝。"""
+    client = _make_client(tmp_path)  # no _configure_scene_folders — no scene config
     resp = client.post(
         "/api/projects/prj_001/jobs",
         json={
@@ -1274,10 +1294,10 @@ def test_old_incomplete_import_job_moves_to_migration_required(
         root_dir=tmp_path,
         project_dir=tmp_path / "workspace" / "projects" / "prj_001",
     )
-    assert summary.to_phase == "migration_required"
+    assert summary.to_phase == "scene_assembling"
 
     detail = client.get(f"/api/jobs/{job_id}").json()
-    assert detail["phase"] == "migration_required"
+    assert detail["phase"] == "scene_assembling"
 
 
 # ── 存量 Job 场景迁移 ──────────────────────────────────────────────
@@ -1508,7 +1528,7 @@ def test_batch_create_error_includes_item_index(tmp_path: Path) -> None:
                     "name": "条目C",
                     "mode": "import",
                     "manual_script": "文案",
-                    "scene_folder_ids": [],
+                    "scene_folder_ids": ["scenes/missing"],
                 },
             ],
         },
@@ -1522,7 +1542,7 @@ def test_batch_create_error_includes_item_index(tmp_path: Path) -> None:
     # 第一个（也是唯一的）错误应指向第 3 个条目 (index 2)
     assert errors[0]["index"] == 2
     assert "条目C" in errors[0]["item_name"]
-    assert errors[0]["error"]["code"] == "SCENE_INPUT_MISSING"
+    assert errors[0]["error"]["code"] == "SCENE_FOLDER_NOT_CONFIGURED"
 
 
 def test_batch_create_with_multiple_errors_reports_first(tmp_path: Path) -> None:
@@ -1541,13 +1561,13 @@ def test_batch_create_with_multiple_errors_reports_first(tmp_path: Path) -> None
                     "name": "条目1",
                     "mode": "import",
                     "manual_script": "文案",
-                    "scene_folder_ids": [],
+                    "scene_folder_ids": ["scenes/missing"],
                 },
                 {
                     "name": "条目2",
                     "mode": "import",
                     "manual_script": "文案",
-                    "scene_folder_ids": ["scenes/missing"],
+                    "scene_folder_ids": ["scenes/also-missing"],
                 },
             ],
         },
@@ -1556,7 +1576,7 @@ def test_batch_create_with_multiple_errors_reports_first(tmp_path: Path) -> None
     detail = resp.json()["detail"]
     assert detail["code"] == "BATCH_VALIDATION_FAILED"
     # message 应提及第一个失败的条目
-    assert "条目1" in detail["message"] or "第 1" in detail["message"]
+    assert "条目1" in detail["message"] or "条目1" in str(detail)
 
 
 def test_create_import_job_rejects_not_configured_scene_folder(

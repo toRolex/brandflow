@@ -62,15 +62,23 @@ def _validate_import_scene_folders(
     """
     if mode != "import":
         return None
+
+    config_reader = ConfigReader(config_dir=str(root_dir / "config"))
+    scene_config = config_reader.get_scene_config(product_id=product)
+
     if not scene_folder_ids:
+        has_configured_folders = any(
+            entry.get("path", "")
+            for entry in scene_config.get("folders", [])
+        )
+        if has_configured_folders:
+            return None  # tick() will populate from scene config (#276)
         return ExecutionFailure(
             code="SCENE_INPUT_MISSING",
             message="请选择至少一个场景文件夹",
             retryable=False,
         )
 
-    config_reader = ConfigReader(config_dir=str(root_dir / "config"))
-    scene_config = config_reader.get_scene_config(product_id=product)
     configured: dict[str, str] = {
         entry.get("path", ""): entry.get("name", entry.get("path", ""))
         for entry in scene_config.get("folders", [])
