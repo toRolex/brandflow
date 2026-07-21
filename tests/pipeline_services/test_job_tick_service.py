@@ -1708,3 +1708,298 @@ class TestMontageAssemblingFailure:
         # Upstream artifacts are preserved even on terminal failure.
         artifact_kinds = {a.kind for a in saved.artifacts}
         assert "tts_audio" in artifact_kinds
+
+
+# ---------------------------------------------------------------------------
+# 14. Chain advancement (Issue #266)
+# ---------------------------------------------------------------------------
+
+
+class TestChainAdvancement:
+    """Chain-advancement: a single tick() pass advances through multiple phases."""
+
+    def _make_persistent_repo(self, initial: JobRecord):
+        """Return a mock repo whose load_job/save_job track in-memory state."""
+        repo = Mock(spec=FileStoreRepository)
+        latest: list[JobRecord] = [initial]
+
+        def _load(project_id: str, job_id: str) -> JobRecord:
+            return latest[0].model_copy()
+
+        def _save(project_id: str, rec: JobRecord) -> None:
+            latest[0] = rec
+
+        repo.load_job.side_effect = _load
+        repo.save_job.side_effect = _save
+        return repo
+
+    def _make_success_orch(self) -> Mock:
+        """Mock orchestrator that always succeeds both run_phase and execute_phase."""
+        orch = Mock(spec=PhaseOrchestrator)
+        orch.run_phase.return_value = [
+            ArtifactPointer(kind="artifact", relative_path="out")
+        ]
+        orch.execute_phase.return_value = PhaseExecutionSuccess(
+            artifacts=[ArtifactPointer(kind="artifact", relative_path="out")]
+        )
+        return orch
+
+    def test_tick_chains_multiple_phases_until_review_gate(self) -> None:
+        """Generate-mode queued job advances through script_generating and
+        stops at script_review (first review gate without auto_approve)."""
+        record = make_record(phase="queued", mode="generate", auto_approve=False)
+        repo = self._make_persistent_repo(record)
+        orch = self._make_success_orch()
+
+        svc = JobTickService(orchestrator=orch, repo=repo)
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # Chain advanced queued → script_generating → script_review, then stopped.
+        assert summary.to_phase == "script_review"
+        assert summary.action == "advanced"
+        # script_generating handler should have been called exactly once.
+        run_phase_calls = [
+            c
+            for c in orch.run_phase.call_args_list
+            if c[0][0] == "script_generating"
+        ]
+        assert len(run_phase_calls) == 1
+
+    def test_tick_chains_past_auto_approve_review_gate(self) -> None:
+        """auto_approve=True chains through review gates instead of stopping."""
+        record = make_record(phase="queued", mode="generate", auto_approve=True)
+        repo = self._make_persistent_repo(record)
+        orch = self._make_success_orch()
+
+        svc = JobTickService(orchestrator=orch, repo=repo)
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # With auto_approve + all-success orchestrator, the chain should run
+        # through the entire pipeline and reach completed (a terminal phase).
+        handler_phases: set[str] = set()
+        for call in orch.run_phase.call_args_list:
+            handler_phases.add(call[0][0])
+        for call in orch.execute_phase.call_args_list:
+            handler_phases.add(call[0][0])
+
+        # Must have run multiple handlers (script_generating, tts_generating,
+        # subtitle_generating, asset_retrieving, montage_assembling,
+        # video_rendering, final_rendering — at least 5).
+        assert len(handler_phases) >= 5, (
+            f"Expected >= 5 handler phases, got {len(handler_phases)}: {handler_phases}"
+        )
+        # Should have reached a terminal phase (completed).
+        assert summary.to_phase == "completed"
+        assert summary.action == "completed"
+
+    @pytest.mark.parametrize(
+        "terminal_phase", ["completed", "failed", "cancelled", "paused"]
+    )
+    def test_tick_stops_at_terminal_phase(self, terminal_phase: str) -> None:
+        """Chain stops immediately when the job is already in a terminal phase."""
+        record = make_record(phase=terminal_phase, mode="generate")
+        repo = self._make_persistent_repo(record)
+        orch = Mock(spec=PhaseOrchestrator)
+
+        svc = JobTickService(orchestrator=orch, repo=repo)
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.action == "skipped"
+        orch.run_phase.assert_not_called()
+        orch.execute_phase.assert_not_called()
+
+    def test_tick_reloads_record_each_step(self) -> None:
+        """External edit (cancel) written to disk between chain steps is observed
+        on reload and stops the chain."""
+        record_queued = make_record(phase="queued", mode="generate", auto_approve=True)
+        record_cancelled = make_record(phase="cancelled", mode="generate")
+
+        repo = Mock(spec=FileStoreRepository)
+        repo.load_job.side_effect = [record_queued, record_cancelled]
+        repo.save_job.return_value = None
+
+        orch = self._make_success_orch()
+
+        svc = JobTickService(orchestrator=orch, repo=repo)
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # First iteration: queued → handler runs, advances past script_review
+        # (auto_approve lets it through). Second iteration: reloads →
+        # cancelled → terminal → stops, returning last_summary from step 1.
+        assert repo.load_job.call_count >= 2, (
+            f"Expected >= 2 load_job calls, got {repo.load_job.call_count}"
+        )
+        # The chain stopped because of the reloaded cancelled state.
+        assert summary.to_phase != "completed"
+
+
+# ---------------------------------------------------------------------------
+# 15. Inline retry with backoff (Issue #266)
+# ---------------------------------------------------------------------------
+
+
+class TestInlineRetry:
+    """Inline retry: transient failures retried with exponential backoff."""
+
+    def test_tick_retries_transient_failure_with_backoff(self) -> None:
+        """First attempt fails retryably, second succeeds inside the retry loop
+        — sleep_fn called with correct backoff time."""
+        record = make_record(phase="video_rendering", mode="import")
+        # Use persistent repo so chain reloads see the updated record.
+        latest: list[JobRecord] = [record]
+        repo = Mock(spec=FileStoreRepository)
+        repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
+
+        orch = Mock(spec=PhaseOrchestrator)
+        orch.run_phase.return_value = [
+            ArtifactPointer(kind="artifact", relative_path="out")
+        ]
+
+        execute_call_count = [0]
+
+        def _execute_side_effect(phase, ctx):
+            execute_call_count[0] += 1
+            if execute_call_count[0] == 1:
+                return PhaseExecutionFailure(
+                    error=ExecutionFailure(
+                        code="MEDIA_PROCESSING_TIMEOUT",
+                        message="Media processing timed out.",
+                        retryable=True,
+                    )
+                )
+            return PhaseExecutionSuccess(
+                artifacts=[
+                    ArtifactPointer(kind="video_base", relative_path="base.mp4")
+                ]
+            )
+
+        orch.execute_phase.side_effect = _execute_side_effect
+
+        slept: list[float] = []
+        svc = JobTickService(
+            orchestrator=orch, repo=repo, sleep_fn=lambda s: slept.append(s)
+        )
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # One sleep call with first backoff value (2s).
+        assert slept == [2], f"Expected [2], got {slept}"
+        # The first call failed, later calls (retry + chain phases) succeeded.
+        assert execute_call_count[0] >= 2, (
+            f"Expected >= 2 execute_phase calls, got {execute_call_count[0]}"
+        )
+        # Job should NOT have failed.
+        assert summary.action != "failed"
+
+    def test_tick_fails_after_max_attempts_exhausted(self) -> None:
+        """Three retryable failures exhaust max_attempts → terminal failed."""
+        record = make_record(phase="video_rendering", mode="import")
+        repo = Mock(spec=FileStoreRepository)
+        repo.load_job.return_value = record
+
+        orch = Mock(spec=PhaseOrchestrator)
+        orch.run_phase.return_value = [
+            ArtifactPointer(kind="artifact", relative_path="out")
+        ]
+        orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="MEDIA_PROCESSING_TIMEOUT",
+                message="Media processing timed out.",
+                retryable=True,
+            )
+        )
+
+        slept: list[float] = []
+        svc = JobTickService(
+            orchestrator=orch, repo=repo, sleep_fn=lambda s: slept.append(s)
+        )
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # Attempt 1: sleep(2), Attempt 2: sleep(4), Attempt 3: terminal (no sleep).
+        assert slept == [2, 4], f"Expected [2, 4], got {slept}"
+        assert summary.action == "failed"
+        assert summary.to_phase == "failed"
+
+        # Verify execution state on the last save.
+        saved = repo.save_job.call_args_list[-1][0][1]
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "video_rendering"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 3
+        assert saved.execution.max_attempts == 3
+
+    def test_tick_non_retryable_error_fails_immediately(self) -> None:
+        """Non-retryable error → terminal failed immediately, no backoff."""
+        record = make_record(phase="video_rendering", mode="import")
+        repo = Mock(spec=FileStoreRepository)
+        repo.load_job.return_value = record
+
+        orch = Mock(spec=PhaseOrchestrator)
+        orch.run_phase.return_value = [
+            ArtifactPointer(kind="artifact", relative_path="out")
+        ]
+        orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="VIDEO_SOURCE_MISSING",
+                message="No usable video source is available.",
+                retryable=False,
+            )
+        )
+
+        slept: list[float] = []
+        svc = JobTickService(
+            orchestrator=orch, repo=repo, sleep_fn=lambda s: slept.append(s)
+        )
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # No backoff — went terminal immediately.
+        assert slept == [], f"Expected no sleep calls, got {slept}"
+        assert summary.action == "failed"
+        assert summary.to_phase == "failed"
+
+        saved = repo.save_job.call_args[0][1]
+        assert saved.phase == "failed"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 1
