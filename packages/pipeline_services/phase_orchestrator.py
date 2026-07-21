@@ -392,7 +392,9 @@ class PhaseOrchestrator:
         """Return (and ensure) the job's runtime output directory."""
         return _job_dir_fn(ctx)
 
-    def _to_artifact(self, kind: str, path: Path, workspace_dir: Path) -> ArtifactPointer:
+    def _to_artifact(
+        self, kind: str, path: Path, workspace_dir: Path
+    ) -> ArtifactPointer:
         """Build an ``ArtifactPointer`` from an absolute file path."""
         return _to_artifact_fn(kind, path, workspace_dir)
 

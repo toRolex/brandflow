@@ -37,9 +37,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                     model = llm_cfg.get("model", "deepseek-v4-pro")
 
                 gen = ScriptGenerator(_LLMConfig())
-                manual_script = gen.to_cantonese(
-                    manual_script, ctx.product, ctx.brand
-                )
+                manual_script = gen.to_cantonese(manual_script, ctx.product, ctx.brand)
                 print("[SCRIPT] Converted manual script to Cantonese", flush=True)
             except Exception as e:
                 print(

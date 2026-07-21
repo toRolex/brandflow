@@ -61,9 +61,7 @@ def _discover_sentence_timings(job_dir: Path) -> list[SentenceTiming]:
         data = json.loads(path.read_text(encoding="utf-8"))
         return [SentenceTiming.model_validate(item) for item in data]
     except Exception as exc:  # noqa: BLE001
-        print(
-            f"[TTS TIMING WARN] Failed to load sentence timings: {exc}", flush=True
-        )
+        print(f"[TTS TIMING WARN] Failed to load sentence timings: {exc}", flush=True)
         return []
 
 
