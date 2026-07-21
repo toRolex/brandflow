@@ -218,48 +218,104 @@ describe("ProjectList", () => {
     });
   });
 
-  describe("delete feedback", () => {
-    it("shows success banner after deletion", async () => {
+  describe("bulk selection", () => {
+    it("shows checkboxes and selects a single row", async () => {
+      vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByText("项目A")).toBeInTheDocument();
+      });
+
+      const rowCheckboxes = screen.getAllByRole("checkbox", {
+        name: /选择项目/,
+      });
+      expect(rowCheckboxes.length).toBe(2);
+
+      fireEvent.click(rowCheckboxes[0]);
+      expect(screen.getByText("已选 1 项")).toBeInTheDocument();
+    });
+
+    it("selects all rows via header checkbox", async () => {
+      vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByText("项目A")).toBeInTheDocument();
+      });
+
+      const headerCheckbox = screen.getByRole("checkbox", { name: "全选" });
+      fireEvent.click(headerCheckbox);
+      expect(screen.getByText("已选 2 项")).toBeInTheDocument();
+
+      fireEvent.click(headerCheckbox);
+      expect(screen.queryByText("已选 2 项")).not.toBeInTheDocument();
+    });
+
+    it("shows bulk action bar only when items are selected", async () => {
+      vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByText("项目A")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByText("已选 1 项")).not.toBeInTheDocument();
+      const rowCheckboxes = screen.getAllByRole("checkbox", {
+        name: /选择项目/,
+      });
+      fireEvent.click(rowCheckboxes[0]);
+      expect(screen.getByText("已选 1 项")).toBeInTheDocument();
+    });
+  });
+
+  describe("bulk delete", () => {
+    it("deletes selected projects and refreshes the list", async () => {
       vi.mocked(api.listProjects).mockResolvedValueOnce(MOCK_PROJECTS);
-      vi.mocked(api.deleteProject).mockResolvedValueOnce({ ok: true });
+      vi.mocked(api.deleteProject).mockResolvedValue({ ok: true });
       vi.mocked(api.listProjects).mockResolvedValueOnce([MOCK_PROJECTS[1]]);
 
       renderPage();
       await waitFor(() => {
         expect(screen.getByText("项目A")).toBeInTheDocument();
       });
-      // Click delete button for project A
-      const deleteButtons = screen.getAllByText("删除");
-      fireEvent.click(deleteButtons[0]);
-      // Confirm deletion
+
+      const rowCheckboxes = screen.getAllByRole("checkbox", {
+        name: /选择项目/,
+      });
+      fireEvent.click(rowCheckboxes[0]);
+
+      fireEvent.click(screen.getByRole("button", { name: "批量删除" }));
       fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
 
       await waitFor(() => {
-        expect(
-          screen.getByText('项目「项目A」已删除'),
-        ).toBeInTheDocument();
+        expect(screen.getByText("已删除 1 个项目")).toBeInTheDocument();
       });
+      expect(screen.queryByText("项目A")).not.toBeInTheDocument();
+      expect(screen.getByText("项目B")).toBeInTheDocument();
     });
 
-    it("shows error banner when delete fails", async () => {
+    it("shows partial failure summary and refreshes the list", async () => {
       vi.mocked(api.listProjects).mockResolvedValueOnce(MOCK_PROJECTS);
-      vi.mocked(api.deleteProject).mockRejectedValueOnce(
-        new Error("删除失败：权限不足"),
-      );
+      vi.mocked(api.deleteProject).mockImplementation((id: string) => {
+        if (id === "p1") return Promise.resolve({ ok: true });
+        return Promise.reject(new Error("删除失败：权限不足"));
+      });
+      vi.mocked(api.listProjects).mockResolvedValueOnce([MOCK_PROJECTS[1]]);
 
       renderPage();
       await waitFor(() => {
         expect(screen.getByText("项目A")).toBeInTheDocument();
       });
-      const deleteButtons = screen.getAllByText("删除");
-      fireEvent.click(deleteButtons[0]);
+
+      const headerCheckbox = screen.getByRole("checkbox", { name: "全选" });
+      fireEvent.click(headerCheckbox);
+
+      fireEvent.click(screen.getByRole("button", { name: "批量删除" }));
       fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
 
       await waitFor(() => {
-        expect(
-          screen.getByText("删除失败：权限不足"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("1 成功，1 失败")).toBeInTheDocument();
       });
+      expect(screen.queryByText("项目A")).not.toBeInTheDocument();
+      expect(screen.getByText("项目B")).toBeInTheDocument();
     });
   });
 });
