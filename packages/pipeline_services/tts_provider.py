@@ -24,6 +24,18 @@ class TTSQuotaExceededError(TTSBlockedError):
     pass
 
 
+class TTSRetriesExhaustedError(TTSError):
+    """Raised when per-sentence retries are exhausted.
+
+    This sentinel tells the orchestrator not to escalate the failure into a
+    phase-level retry, preventing a 3×3 retry storm (#266).
+    """
+
+    def __init__(self, cause: Exception) -> None:
+        self.cause = cause
+        super().__init__(f"TTS retries exhausted: {cause}")
+
+
 class QwenTTSProvider:
     """百炼 Qwen-TTS 非实时语音合成 provider。
 

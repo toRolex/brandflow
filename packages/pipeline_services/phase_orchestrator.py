@@ -269,9 +269,18 @@ class PhaseOrchestrator:
         from packages.pipeline_services.tts_provider import (
             TTSBlockedError,
             TTSQuotaExceededError,
+            TTSRetriesExhaustedError,
             TTSRetryableError,
         )
 
+        if isinstance(exc, TTSRetriesExhaustedError):
+            return PhaseExecutionFailure(
+                error=ExecutionFailure(
+                    code="TTS_RETRIES_EXHAUSTED",
+                    message=f"TTS 单句重试已耗尽: {exc.cause}",
+                    retryable=False,
+                )
+            )
         if isinstance(exc, TTSQuotaExceededError):
             return PhaseExecutionFailure(
                 error=ExecutionFailure(

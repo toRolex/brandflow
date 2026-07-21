@@ -25,7 +25,10 @@ from packages.pipeline_services.script_sentence import (
     ScriptSentence,
     parse_script_sentences,
 )
-from packages.pipeline_services.tts_provider import TTSConfigShim
+from packages.pipeline_services.tts_provider import (
+    TTSConfigShim,
+    TTSRetriesExhaustedError,
+)
 
 
 # Keys that affect the produced audio and therefore must be part of the cache
@@ -275,6 +278,9 @@ class SentenceTTSService:
         Only transient / unknown errors are retried.  Permanent errors
         (``TTSBlockedError`` including ``TTSQuotaExceededError``) are raised
         immediately to avoid wasting time on unrecoverable failures (#249).
+        When the retry budget is exhausted, a ``TTSRetriesExhaustedError`` is
+        raised so the orchestrator does not add an additional phase-level
+        retry (#266).
         """
         from packages.pipeline_services.tts_provider import TTSBlockedError
 
@@ -292,7 +298,7 @@ class SentenceTTSService:
                     flush=True,
                 )
         assert last_error is not None
-        raise last_error
+        raise TTSRetriesExhaustedError(last_error)
 
     def _build_timings(
         self,

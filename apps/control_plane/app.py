@@ -49,7 +49,9 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
     orchestrator = create_orchestrator(root_dir, config_reader=config_reader)
     repo = FileStoreRepository(root_dir)
     tick_svc = JobTickService(
-        orchestrator=orchestrator, repo=repo, config_reader=config_reader,
+        orchestrator=orchestrator,
+        repo=repo,
+        config_reader=config_reader,
         sleep_fn=time.sleep,
     )
     _in_flight: set[str] = set()
@@ -77,7 +79,10 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
                             continue
 
                         # Single-in-flight guard: skip jobs already being
-                        # processed in an active executor call.
+                        # processed.  Currently defensive — each tick is awaited
+                        # before the next job iteration, so the set never holds
+                        # more than one entry.  It is kept as a safety net for
+                        # future concurrency changes (e.g. fan-out scheduling).
                         if job_id in _in_flight:
                             continue
 

@@ -778,7 +778,7 @@ export default function JobPipeline() {
 								{job.execution.current_attempt > 0 && (
 									<p className="text-[var(--text-tertiary)] text-xs">
 										第 {job.execution.current_attempt} /{" "}
-										{job.execution.max_attempts} 次尝试
+										{job.execution.max_attempts} 次重试
 									</p>
 								)}
 							</div>
@@ -971,7 +971,7 @@ export default function JobPipeline() {
 								</div>
 								<p className="text-[var(--text-tertiary)] text-xs">
 									第 {job.execution.current_attempt} /{" "}
-									{job.execution.max_attempts} 次尝试
+									{job.execution.max_attempts} 次重试
 								</p>
 							</div>
 						)}
@@ -1203,7 +1203,7 @@ export default function JobPipeline() {
 								</div>
 								<p className="text-[var(--text-tertiary)] text-xs">
 									第 {job.execution.current_attempt} /{" "}
-									{job.execution.max_attempts} 次尝试
+									{job.execution.max_attempts} 次重试
 								</p>
 							</div>
 						)}
