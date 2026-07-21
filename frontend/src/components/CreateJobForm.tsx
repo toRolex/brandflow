@@ -200,7 +200,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 			{/* shared fields: product + brand + name + platforms */}
 			<div className="flex gap-4 flex-wrap items-end">
 				<label
-					className="grid gap-1.5 text-xs min-w-[200px]"
+					className="grid w-full gap-1.5 text-xs sm:w-auto sm:min-w-[200px]"
 					style={{ color: "var(--text-secondary)" }}
 				>
 					产品名称
@@ -218,7 +218,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 					/>
 				</label>
 				<label
-					className="grid gap-1.5 text-xs min-w-[160px]"
+					className="grid w-full gap-1.5 text-xs sm:w-auto sm:min-w-[160px]"
 					style={{ color: "var(--text-secondary)" }}
 				>
 					品牌（可选）
@@ -236,7 +236,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 					/>
 				</label>
 				<label
-					className="grid gap-1.5 text-xs min-w-[200px]"
+					className="grid w-full gap-1.5 text-xs sm:w-auto sm:min-w-[200px]"
 					style={{ color: "var(--text-secondary)" }}
 				>
 					任务名称（可选）
@@ -282,7 +282,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 				className="mt-4 pt-4 border-t"
 				style={{ borderColor: "var(--border-default)" }}
 			>
-				<div className="flex items-center gap-4 mb-3">
+				<div className="mb-3 flex flex-wrap items-center gap-4">
 					<span
 						className="text-xs font-medium"
 						style={{ color: "var(--text-secondary)" }}
@@ -331,7 +331,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 						</button>
 					</div>
 					<label
-						className="flex items-center gap-1.5 text-sm cursor-pointer ml-4"
+						className="flex items-center gap-1.5 text-sm cursor-pointer sm:ml-4"
 						style={{ color: "var(--text-primary)" }}
 					>
 						<input
@@ -344,7 +344,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 						粤语版
 					</label>
 					<label
-						className="flex items-center gap-1.5 text-sm cursor-pointer ml-4"
+						className="flex items-center gap-1.5 text-sm cursor-pointer sm:ml-4"
 						style={{ color: "var(--text-primary)" }}
 					>
 						<input
@@ -635,7 +635,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 					className="mt-4 pt-4 border-t"
 					style={{ borderColor: "var(--border-default)" }}
 				>
-					<div className="flex items-center gap-4 mb-3">
+					<div className="mb-3 flex flex-wrap items-center gap-4">
 						<span
 							className="text-xs font-medium"
 							style={{ color: "var(--text-secondary)" }}
@@ -668,7 +668,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 						</label>
 					</div>
 					{audioMode === "upload" && (
-						<div className="flex items-center gap-3">
+						<div className="flex flex-wrap items-center gap-3">
 							<label
 								className="border-2 border-dashed rounded-lg px-6 py-4 text-sm cursor-pointer"
 								style={{
@@ -698,7 +698,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 					className="mt-4 pt-4 border-t"
 					style={{ borderColor: "var(--border-default)" }}
 				>
-					<div className="flex items-center gap-4 mb-3">
+					<div className="mb-3 flex flex-wrap items-center gap-4">
 						<span
 							className="text-xs font-medium"
 							style={{ color: "var(--text-secondary)" }}
@@ -728,7 +728,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 					<div className="flex items-center gap-3 flex-wrap">
 						<input
 							type="text"
-							className="border rounded-lg px-3 py-2 text-sm min-w-[260px] flex-1 max-w-md"
+							className="w-full border rounded-lg px-3 py-2 text-sm sm:w-auto sm:min-w-[260px] sm:flex-1 sm:max-w-md"
 							style={{
 								borderColor: "var(--border-default)",
 								background: "var(--bg-input)",
@@ -740,7 +740,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 						/>
 						<input
 							type="text"
-							className="border rounded-lg px-3 py-2 text-sm min-w-[200px]"
+							className="w-full border rounded-lg px-3 py-2 text-sm sm:w-auto sm:min-w-[200px]"
 							style={{
 								borderColor: "var(--border-default)",
 								background: "var(--bg-input)",
@@ -758,7 +758,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 					className="mt-4 pt-4 border-t"
 					style={{ borderColor: "var(--border-default)" }}
 				>
-					<div className="flex items-center gap-4 mb-3">
+					<div className="mb-3 flex flex-wrap items-center gap-4">
 						<span
 							className="text-xs font-medium"
 							style={{ color: "var(--text-secondary)" }}
@@ -768,7 +768,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 					</div>
 					<div className="flex items-center gap-3 flex-wrap">
 						<select
-							className="border rounded-lg px-3 py-1.5 text-sm min-w-[200px]"
+							className="w-full border rounded-lg px-3 py-1.5 text-sm sm:w-auto sm:min-w-[200px]"
 							style={{
 								borderColor: "var(--border-default)",
 								background: "var(--bg-input)",
@@ -812,7 +812,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 							</span>
 						)}
 						<label
-							className="flex items-center gap-2 text-xs ml-4"
+							className="flex items-center gap-2 text-xs sm:ml-4"
 							style={{ color: "var(--text-secondary)" }}
 						>
 							音量

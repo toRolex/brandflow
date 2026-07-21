@@ -13,6 +13,20 @@ describe("Modal", () => {
     expect(screen.getByText("测试弹窗")).toBeInTheDocument();
   });
 
+  it("uses a responsive, scrollable wide layout when requested", () => {
+    const { container } = render(
+      <Modal isOpen={true} title="宽版弹窗" onClose={vi.fn()} size="wide">
+        <p>很长的内容</p>
+      </Modal>,
+    );
+
+    const panel = container.querySelector(".max-w-5xl");
+    const content = container.querySelector(".overflow-y-auto.overscroll-contain");
+
+    expect(panel).toHaveClass("w-full", "max-h-full");
+    expect(content).toBeInTheDocument();
+  });
+
   it("does not render when isOpen is false", () => {
     render(
       <Modal isOpen={false} title="测试弹窗" onClose={vi.fn()}>

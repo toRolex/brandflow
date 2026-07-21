@@ -368,6 +368,7 @@ export default function ProjectWorkbench() {
 				isOpen={isOpen}
 				title="创建新 Job"
 				onClose={() => setIsOpen(false)}
+				size="wide"
 			>
 				{/* 创建模式切换 */}
 				<div
