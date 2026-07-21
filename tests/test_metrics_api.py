@@ -6,7 +6,7 @@ import csv
 import io
 import json
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -32,9 +32,11 @@ def _seed_store(
     *,
     count: int = 3,
     platform: str = "weixin",
-    base_date: str = "2026-06-20",
+    base_date: str | None = None,
 ) -> None:
     """Insert test rows directly into the DB."""
+    if base_date is None:
+        base_date = (datetime.now(UTC) - timedelta(days=count)).strftime("%Y-%m-%d")
     conn = store._conn()
     try:
         now = datetime.now(UTC).isoformat(timespec="seconds")
@@ -117,14 +119,17 @@ class TestGetOverview:
         result = store.get_overview(days=30)
         daily = result["daily"]
         assert len(daily) == 3
-        assert daily[0]["publish_date"] == "2026-06-20"
+        base = (datetime.now(UTC) - timedelta(days=3)).strftime("%Y-%m-%d")
+        assert daily[0]["publish_date"] == base
         assert daily[0]["plays"] == 100
-        assert daily[-1]["publish_date"] == "2026-06-22"
+        assert daily[-1]["publish_date"] == (
+            datetime.now(UTC) - timedelta(days=1)
+        ).strftime("%Y-%m-%d")
         assert daily[-1]["plays"] == 300
 
     def test_platform_filter(self, store):
         _seed_store(store, count=2, platform="weixin")
-        _seed_store(store, count=1, platform="xiaohongshu", base_date="2026-06-21")
+        _seed_store(store, count=1, platform="xiaohongshu")
         result = store.get_overview(days=30, platform="weixin")
         assert result["video_count"] == 2
         assert result["total_plays"] == 300  # 100 + 200

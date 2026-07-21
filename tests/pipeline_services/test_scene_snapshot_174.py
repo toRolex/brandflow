@@ -115,12 +115,21 @@ class TestSceneSnapshotPartialInvalidation:
         orig_manifest = list(manifest)
         entry0_source = Path(orig_manifest[0]["source"])
 
-        # Change entry 0's source file (touch it)
+        # Change entry 0's source file so fingerprint differs, then re-randomize.
+        # Patch random.choice so scene_folder_0 skips the original source (avoid flake).
         entry0_source.write_bytes(entry0_source.read_bytes() + b"extra")
         entry0_source.touch()
 
+        import random as _random
+
+        _orig_choice = _random.choice
+
+        def _choice_skip_original(seq):
+            candidates = [c for c in seq if str(c) != str(entry0_source)]
+            return _orig_choice(candidates) if candidates else _orig_choice(seq)
+
         # Second run: should re-randomize only entry 0
-        with patches[0]:
+        with patch("random.choice", _choice_skip_original), patches[0]:
             orch._run_scene_assembly(ctx)
 
         manifest2 = json.loads(manifest_path.read_text(encoding="utf-8"))
