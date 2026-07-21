@@ -392,3 +392,37 @@ class TestTTSConfigNewFieldsRoundTrip:
                 "optimize_text_preview",
             ):
                 assert field in data, f"missing field: {field}"
+
+
+class TestTTSConfigCacheInvalidation:
+    """274: save_tts_config → ConfigReader.reload() 集成测试。"""
+
+    def test_put_config_triggers_config_reader_reload(self, client):
+        """PUT 修改 language_type → ConfigReader.get_tts_config() 读到新值。"""
+        put_resp = client.put(
+            "/api/tts/config",
+            json={"language_type": "Cantonese"},
+        )
+        assert put_resp.status_code == 200
+
+        reader = client.app.state.config_reader
+        pid = reader.active_product_id or None
+        cfg = reader.get_tts_config(product_id=pid)
+        assert cfg.get("language_type") == "Cantonese"
+
+    def test_multiple_puts_refresh_cache_each_time(self, client):
+        """多次 PUT 每次都能读到最新值（不重启应用）。"""
+        reader = client.app.state.config_reader
+        pid = reader.active_product_id or None
+
+        client.put(
+            "/api/tts/config", json={"language_type": "Cantonese"}
+        ).raise_for_status()
+        cfg1 = reader.get_tts_config(product_id=pid)
+        assert cfg1.get("language_type") == "Cantonese"
+
+        client.put(
+            "/api/tts/config", json={"language_type": "English"}
+        ).raise_for_status()
+        cfg2 = reader.get_tts_config(product_id=pid)
+        assert cfg2.get("language_type") == "English"

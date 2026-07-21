@@ -366,7 +366,11 @@ async def get_tts_config(project_id: str | None = None):
 
 
 @router.put("/config")
-async def save_tts_config(request: TTSConfigRequest, project_id: str | None = None):
+async def save_tts_config(
+    req: Request,
+    request: TTSConfigRequest,
+    project_id: str | None = None,
+):
     current = config_manager.get_config(project_id)
     update_data = request.model_dump(exclude_none=True)
 
@@ -376,6 +380,14 @@ async def save_tts_config(request: TTSConfigRequest, project_id: str | None = No
     validate_voice_for_model(current.model, current.voice)
 
     config_manager.save_config(current, project_id)
+
+    # Invalidate ConfigReader cache so pipeline phases see the newly
+    # saved values (e.g. language_type, instructions, model/voice).
+    # Per-project configs (stored under config/projects/) don't affect
+    # ConfigReader, so skip the reload when project_id is set.
+    if project_id is None:
+        req.app.state.config_reader.reload()
+
     return {"success": True}
 
 
