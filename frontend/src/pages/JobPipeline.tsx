@@ -548,38 +548,38 @@ export default function JobPipeline() {
 					background: "var(--bg-table-head)",
 				}}
 			>
-				{/* Resolution badge */}
 				{ttsVoiceInfo && (
-					<div className="flex items-center gap-2 mb-3">
-						<span
-							className="text-xs"
-							style={{ color: "var(--text-secondary)" }}
-						>
-							当前音色:
-						</span>
-						<span
-							className="text-xs font-mono"
-							style={{ color: "var(--text-primary)" }}
-						>
-							{ttsVoiceInfo.model} / {ttsVoiceInfo.voice}
-						</span>
-						<span
-							className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-							style={{ background: resolvedBadgeColor, color: "#fff" }}
-						>
-							{resolvedLabel}
-						</span>
-					</div>
-				)}
+					<>
+						{/* Resolution badge */}
+						<div className="flex items-center gap-2 mb-3">
+							<span
+								className="text-xs"
+								style={{ color: "var(--text-secondary)" }}
+							>
+								当前音色:
+							</span>
+							<span
+								className="text-xs font-mono"
+								style={{ color: "var(--text-primary)" }}
+							>
+								{ttsVoiceInfo.model} / {ttsVoiceInfo.voice}
+							</span>
+							<span
+								className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+								style={{ background: resolvedBadgeColor, color: "#fff" }}
+							>
+								{resolvedLabel}
+							</span>
+						</div>
 
-					{ttsVoiceInfo && (
 						<div
 							className="text-xs mb-2"
 							style={{ color: "var(--text-secondary)" }}
 						>
 							所属产品：{ttsVoiceInfo.product}
 						</div>
-					)}
+					</>
+				)}
 
 				{/* Voice selector */}
 				<div className="flex flex-wrap items-center gap-2 mb-2">
