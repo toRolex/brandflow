@@ -153,3 +153,59 @@ describe("TTS inline validation error (#252)", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Scope #269: TTS effective config visibility
+// ---------------------------------------------------------------------------
+
+describe("TTS effective config visibility (#269)", () => {
+  it("shows the effective TTS config with product and job override", async () => {
+    vi.clearAllMocks();
+    const jobWithOverride = {
+      ...baseTTSJob,
+      product: "product" as const,
+      tts_model: "qwen3-tts-flash" as const,
+      tts_voice: "Cherry" as const,
+    };
+    vi.mocked(api.getJob).mockResolvedValue(jobWithOverride);
+    vi.mocked(api.getTTSVoices).mockResolvedValue({ preset_voices: [] });
+    vi.mocked(api.getJobTTSVoice).mockResolvedValue({
+      model: "qwen3-tts-flash",
+      voice: "Cherry",
+      resolved_from: "job",
+      product: "product",
+    });
+
+    renderWithJob(jobWithOverride);
+
+    await screen.findByRole("heading", { name: /TTS/ });
+    expect(await screen.findByText("所属产品：product")).toBeInTheDocument();
+    expect(screen.getByText("Job 覆盖")).toBeInTheDocument();
+    expect(screen.getByText("qwen3-tts-flash / Cherry")).toBeInTheDocument();
+  });
+
+  it("shows product-level attribution when no job override is set", async () => {
+    vi.clearAllMocks();
+    const jobWithProduct = {
+      ...baseTTSJob,
+      product: "product" as const,
+      tts_model: "" as const,
+      tts_voice: "" as const,
+    };
+    vi.mocked(api.getJob).mockResolvedValue(jobWithProduct);
+    vi.mocked(api.getTTSVoices).mockResolvedValue({ preset_voices: [] });
+    vi.mocked(api.getJobTTSVoice).mockResolvedValue({
+      model: "mimo-v2.5-tts",
+      voice: "Mia",
+      resolved_from: "product",
+      product: "product",
+    });
+
+    renderWithJob(jobWithProduct);
+
+    await screen.findByRole("heading", { name: /TTS/ });
+    expect(await screen.findByText("所属产品：product")).toBeInTheDocument();
+    expect(screen.getByText("产品")).toBeInTheDocument();
+    expect(screen.getByText("mimo-v2.5-tts / Mia")).toBeInTheDocument();
+  });
+});

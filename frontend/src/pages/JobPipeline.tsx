@@ -104,6 +104,7 @@ export default function JobPipeline() {
 		model: string;
 		voice: string;
 		resolved_from: string;
+		product: string;
 	} | null>(null);
 	const [ttsSelectedModel, setTtsSelectedModel] = useState("");
 	const [ttsSelectedVoice, setTtsSelectedVoice] = useState("");
@@ -525,7 +526,7 @@ export default function JobPipeline() {
 		}
 
 		const ResolvedLabels: Record<string, string> = {
-			job: "Job",
+			job: "Job 覆盖",
 			product: "产品",
 			global: "全局",
 		};
@@ -570,6 +571,15 @@ export default function JobPipeline() {
 						</span>
 					</div>
 				)}
+
+					{ttsVoiceInfo && (
+						<div
+							className="text-xs mb-2"
+							style={{ color: "var(--text-secondary)" }}
+						>
+							所属产品：{ttsVoiceInfo.product}
+						</div>
+					)}
 
 				{/* Voice selector */}
 				<div className="flex flex-wrap items-center gap-2 mb-2">
