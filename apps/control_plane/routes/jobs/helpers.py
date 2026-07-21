@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 
 from packages.domain_core.models import ExecutionFailure, JobRecord, ProductionMode
 from packages.file_store.repository import FileStoreRepository
@@ -52,8 +52,7 @@ def _validate_import_scene_folders(
 
     if not scene_folder_ids:
         has_configured_folders = any(
-            entry.get("path", "")
-            for entry in scene_config.get("folders", [])
+            entry.get("path", "") for entry in scene_config.get("folders", [])
         )
         if has_configured_folders:
             return None  # tick() will populate from scene config (#276)
@@ -237,6 +236,54 @@ def _resolve_tts_voice_info(record: JobRecord, config_reader: ConfigReader) -> d
         "resolved_from": resolved_from,
         "product": record.product,
     }
+
+
+def _validate_tts_model_voice(
+    tts_model: str,
+    tts_voice: str,
+    product: str,
+    config_reader: ConfigReader,
+) -> ExecutionFailure | None:
+    """Validate a TTS model/voice combination at job creation time.
+
+    Resolves effective model/voice using the same priority as runtime
+    (job-level > product-level > global-level) and reuses the validator
+    from the TTS config/preview routes. Returns ``ExecutionFailure`` when the
+    combination is invalid, or ``None`` when validation is skipped (no override
+    provided, or defaults unavailable).
+    """
+    if not tts_model and not tts_voice:
+        return None
+
+    resolved = _resolve_tts_voice_info(
+        JobRecord(
+            job_id="",
+            project_id="",
+            product=product,
+            phase="queued",
+            review_status="none",
+            tts_model=tts_model,
+            tts_voice=tts_voice,
+        ),
+        config_reader,
+    )
+    effective_model = resolved.get("model", "")
+    effective_voice = resolved.get("voice", "")
+    if not effective_model or not effective_voice:
+        return None
+
+    from apps.control_plane.routes.tts import validate_voice_for_model
+
+    try:
+        validate_voice_for_model(effective_model, effective_voice)
+    except HTTPException as exc:
+        message = str(exc.detail) if exc.detail else "TTS 模型/音色组合无效"
+        return ExecutionFailure(
+            code="TTS_VOICE_MODEL_MISMATCH",
+            message=message,
+            retryable=False,
+        )
+    return None
 
 
 def _first_sentence(text: str) -> str:
