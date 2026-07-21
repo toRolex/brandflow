@@ -121,7 +121,9 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                 tts_cfg["voice"] = job_tts_voice
 
             tts_provider = orchestrator._build_tts_provider(tts_cfg)
-            service = orchestrator._create_sentence_tts_service(tts_provider, tts_cfg, ctx)
+            service = orchestrator._create_sentence_tts_service(
+                tts_provider, tts_cfg, ctx
+            )
             # Per-sentence retry is handled inside SentenceTTSService
             # (ADR 0005).  When all sentence-level retries are exhausted
             # the provider error propagates to execute_phase, which
@@ -137,7 +139,9 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                 ),
                 encoding="utf-8",
             )
-            result.append(_to_artifact("sentence_timings", sentences_path, workspace_dir))
+            result.append(
+                _to_artifact("sentence_timings", sentences_path, workspace_dir)
+            )
             print(
                 f"[TTS] Synthesized: {audio_path.exists()}, "
                 f"size={audio_path.stat().st_size if audio_path.exists() else 0}",

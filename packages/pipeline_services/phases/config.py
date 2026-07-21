@@ -35,7 +35,9 @@ class _TTSConfigShim:
         self.language_type: str = cfg.get("language_type", defaults["language_type"])
         self.optimize_instructions: bool = cfg.get("optimize_instructions", False)
         self.fallback_voice: str = cfg.get("fallback_voice", defaults["fallback_voice"])
-        self.randomize_voice: bool = cfg.get("randomize_voice", defaults["randomize_voice"])
+        self.randomize_voice: bool = cfg.get(
+            "randomize_voice", defaults["randomize_voice"]
+        )
         self.random_voices: list[str] = cfg.get(
             "random_voices", defaults["random_voices"]
         )
@@ -57,9 +59,7 @@ class _TTSConfigShim:
         self.director_character: str = cfg.get(
             "director_character", director.get("character", "")
         )
-        self.director_scene: str = cfg.get(
-            "director_scene", director.get("scene", "")
-        )
+        self.director_scene: str = cfg.get("director_scene", director.get("scene", ""))
         self.director_guidance: str = cfg.get(
             "director_guidance", director.get("guidance", "")
         )

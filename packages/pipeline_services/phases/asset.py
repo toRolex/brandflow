@@ -12,7 +12,12 @@ from packages.pipeline_services.asset_library import (
 )
 from packages.pipeline_services.asset_library.classify import create_classify_fn
 
-from .shared import _discover_script, _fallback_category_suggestion_model, _job_dir, _to_artifact
+from .shared import (
+    _discover_script,
+    _fallback_category_suggestion_model,
+    _job_dir,
+    _to_artifact,
+)
 
 if TYPE_CHECKING:
     from packages.pipeline_services.phase_orchestrator import (
@@ -73,7 +78,5 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         encoding="utf-8",
     )
 
-    print(
-        f"[ASSET] Retrieved {len(selected)} clips -> {clip_list_path}", flush=True
-    )
+    print(f"[ASSET] Retrieved {len(selected)} clips -> {clip_list_path}", flush=True)
     return [_to_artifact("selected_clips", clip_list_path, workspace_dir)]

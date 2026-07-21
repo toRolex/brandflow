@@ -45,7 +45,9 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                         sentence_timings=sentence_timings,
                     )
                 else:
-                    orchestrator._subtitle_svc.build_srt(audio_path, srt_path, script_text)
+                    orchestrator._subtitle_svc.build_srt(
+                        audio_path, srt_path, script_text
+                    )
                 print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
             except Exception as e:
                 print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
