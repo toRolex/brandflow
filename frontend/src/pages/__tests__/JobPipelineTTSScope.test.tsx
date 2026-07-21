@@ -74,6 +74,7 @@ describe("TTS model switch clears voice (#252)", () => {
       model: "mimo-v2.5-tts",
       voice: "Mia",
       resolved_from: "global",
+      product: "test-product",
     });
   });
 
@@ -109,6 +110,7 @@ describe("TTS controls hidden for upload audio (#252)", () => {
       model: "mimo-v2.5-tts",
       voice: "Mia",
       resolved_from: "global",
+      product: "test-product",
     });
   });
 
@@ -134,6 +136,7 @@ describe("TTS inline validation error (#252)", () => {
       model: "mimo-v2.5-tts",
       voice: "Mia",
       resolved_from: "global",
+      product: "test-product",
     });
   });
 

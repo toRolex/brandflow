@@ -303,11 +303,13 @@ describe("JobPipeline TTS voice selection (#177)", () => {
 			model: "mimo-v2.5-tts",
 			voice: "Mia",
 			resolved_from: "global",
+			product: "test-product",
 		});
 		vi.mocked(api.updateJobTTSVoice).mockResolvedValue({
 			model: "mimo-v2.5-tts",
 			voice: "Dean",
 			resolved_from: "job",
+			product: "test-product",
 		});
 		vi.mocked(api.previewJobTTS).mockResolvedValue("blob:preview-audio");
 	});
@@ -814,6 +816,7 @@ describe("JobPipeline review phase guard (#261)", () => {
 			model: "mimo-v2.5-tts",
 			voice: "Mia",
 			resolved_from: "job",
+			product: "test-product",
 		});
 	});
 

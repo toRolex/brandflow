@@ -56,6 +56,12 @@ function renderWithProduct(
 	vi.mocked(api.getProductConfig).mockResolvedValue({
 		id: activeProduct.id,
 		default_name: activeProduct.name,
+		default_brand: "测试品牌",
+		script: {
+			scene: "",
+			material: "",
+			system_prompt: "",
+		},
 	});
 	render(
 		<ProductProvider>
