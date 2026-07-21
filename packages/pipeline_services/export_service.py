@@ -239,8 +239,13 @@ def _add_source_clips_to_zip(
                     zf.write(f, arc_name)
                     clip_counter += 1
 
-    # Montage clips from selected_clips.json
-    clip_list_path = job_dir / "selected_clips.json"
+    # Montage clips — prefer the immutable reviewed snapshot (#249)
+    # Fall back to selected_clips.json for jobs approved before the
+    # reviewed snapshot was introduced.
+    snapshot_path = job_dir / "reviewed_assets.json"
+    clip_list_path = (
+        snapshot_path if snapshot_path.exists() else job_dir / "selected_clips.json"
+    )
     if clip_list_path.exists():
         try:
             selected: list[dict[str, Any]] = json.loads(

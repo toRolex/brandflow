@@ -242,6 +242,36 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     )
     if validation_error is not None:
         raise HTTPException(status_code=400, detail=validation_error.model_dump())
+
+    # Validate TTS model + voice atomicity at creation time (#249)
+    if payload.tts_model or payload.tts_voice:
+        try:
+            from apps.control_plane.routes.tts import validate_voice_for_model
+
+            config_reader: ConfigReader = request.app.state.config_reader
+            # Resolve effective model/voice considering config defaults
+            effective_model = payload.tts_model
+            effective_voice = payload.tts_voice
+            if not effective_model or not effective_voice:
+                product_tts = (
+                    config_reader.get_tts_config(product_id=product) if product else {}
+                )
+                global_tts = config_reader.get_tts_config()
+                if not effective_model:
+                    effective_model = str(
+                        product_tts.get("model", "") or global_tts.get("model", "")
+                    )
+                if not effective_voice:
+                    effective_voice = str(
+                        product_tts.get("voice", "") or global_tts.get("voice", "")
+                    )
+            if effective_model and effective_voice:
+                validate_voice_for_model(str(effective_model), str(effective_voice))
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # Validation unavailable; defer to runtime
+
     job_id = f"job_{product}_{uuid4().hex[:8]}"
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
