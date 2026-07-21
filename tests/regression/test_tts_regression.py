@@ -46,5 +46,5 @@ class TestTTSConfigRegression:
         config = TTSConfig(model="custom")
         with_defaults = config.with_defaults()
         assert with_defaults.model == "custom"
-        assert with_defaults.voice == "Mia"
-        assert with_defaults.fallback_voice == "Dean"
+        assert with_defaults.voice == "Cherry"
+        assert with_defaults.fallback_voice == "Stella"

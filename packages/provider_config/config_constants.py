@@ -17,7 +17,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "tts": {
         "provider": "qwen",
-        "model": "qwen-tts",
+        "model": "qwen3-tts-flash",
         "voice": "Cherry",
         "fallback_voice": "Stella",
         "randomize_voice": True,
