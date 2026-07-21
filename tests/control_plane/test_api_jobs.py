@@ -771,16 +771,16 @@ def test_batch_create_jobs_tts_model_and_voice(tmp_path: Path) -> None:
             "platforms": ["douyin"],
             "jobs": [
                 {"name": "默认音色"},
-                {"name": "指定音色", "tts_voice": "冰糖"},
+                {"name": "指定音色", "tts_voice": "Cherry"},
             ],
         },
     )
     assert resp.status_code == 200
     results = resp.json()["results"]
     assert results[0]["tts_voice"] == ""
-    assert results[1]["tts_voice"] == "冰糖"
+    assert results[1]["tts_voice"] == "Cherry"
 
-    for r, expected_voice in zip(results, ["", "冰糖"]):
+    for r, expected_voice in zip(results, ["", "Cherry"]):
         job_path = (
             tmp_path
             / "workspace"
@@ -792,6 +792,175 @@ def test_batch_create_jobs_tts_model_and_voice(tmp_path: Path) -> None:
         )
         raw = json.loads(job_path.read_text(encoding="utf-8"))
         assert raw["tts_voice"] == expected_voice
+
+
+# ── TTS model/voice 原子校验回归测试 ───────────────────────────────
+
+
+def test_create_job_rejects_invalid_tts_model_voice_combo(tmp_path: Path) -> None:
+    """单次 create_job 拒绝跨供应商的 model/voice 组合。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "tts_model": "mimo-v2.5-tts",
+            "tts_voice": "Cherry",
+        },
+    )
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert "Cherry" in detail["message"]
+    assert "mimo" in detail["message"].lower()
+
+
+def test_create_job_accepts_valid_qwen_tts_combo(tmp_path: Path) -> None:
+    """单次 create_job 接受匹配的 Qwen model/voice 组合。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "tts_model": "qwen3-tts-flash",
+            "tts_voice": "Cherry",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tts_model"] == "qwen3-tts-flash"
+    assert data["tts_voice"] == "Cherry"
+
+
+def test_create_job_accepts_valid_mimo_tts_combo(tmp_path: Path) -> None:
+    """单次 create_job 接受匹配的 MiMo model/voice 组合。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "tts_model": "mimo-v2.5-tts",
+            "tts_voice": "茉莉",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tts_model"] == "mimo-v2.5-tts"
+    assert data["tts_voice"] == "茉莉"
+
+
+def test_create_job_resolves_default_model_for_voice_validation(
+    tmp_path: Path,
+) -> None:
+    """只传 voice 时按默认 model 解析，跨供应商组合应被拒绝。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "tts_voice": "茉莉",
+        },
+    )
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert "茉莉" in detail["message"]
+
+
+def test_create_job_skips_tts_validation_without_override(tmp_path: Path) -> None:
+    """未传 tts_model/tts_voice 时跳过校验，字段保留为空。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"]},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tts_model"] == ""
+    assert data["tts_voice"] == ""
+
+
+def test_batch_create_jobs_rejects_invalid_tts_combo(tmp_path: Path) -> None:
+    """批量创建时单条 TTS 非法组合导致整批拒绝且无落盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "jobs": [
+                {"name": "合法", "tts_model": "qwen3-tts-flash", "tts_voice": "Cherry"},
+                {"name": "非法", "tts_model": "mimo-v2.5-tts", "tts_voice": "Cherry"},
+            ],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["code"] == "BATCH_VALIDATION_FAILED"
+    errors = detail["errors"]
+    assert len(errors) == 1
+    assert errors[0]["index"] == 1
+    assert errors[0]["item_name"] == "非法"
+    assert errors[0]["error"]["code"] == "TTS_VOICE_MODEL_MISMATCH"
+
+    jobs_control_dir = (
+        tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs"
+    )
+    job_files = (
+        list(jobs_control_dir.glob("*.json")) if jobs_control_dir.exists() else []
+    )
+    assert len(job_files) == 0
+
+
+def test_batch_create_jobs_accepts_valid_tts_combos(tmp_path: Path) -> None:
+    """批量创建时所有 TTS 组合合法则正常落盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "jobs": [
+                {"name": "Qwen", "tts_model": "qwen3-tts-flash", "tts_voice": "Cherry"},
+                {"name": "MiMo", "tts_model": "mimo-v2.5-tts", "tts_voice": "茉莉"},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert len(results) == 2
+    assert results[0]["tts_voice"] == "Cherry"
+    assert results[1]["tts_voice"] == "茉莉"
+
+
+# ── 批量创建空场景目录回退 (#276) ─────────────────────────────────
+
+
+def test_batch_create_import_jobs_empty_folders_with_scene_config_succeeds(
+    tmp_path: Path,
+) -> None:
+    """批量 import 创建 + 空 scene_folder_ids + 产品已配置目录 → 成功，tick 会回填。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {"name": "第一条", "manual_script": "文案1"},
+                {"name": "第二条", "manual_script": "文案2"},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert len(results) == 2
+    for r in results:
+        assert r["scene_folder_ids"] == []
 
 
 def test_batch_create_jobs_empty_list(tmp_path: Path) -> None:
@@ -1360,7 +1529,7 @@ def test_migrate_scenes_endpoint_preserves_config_and_resets_to_queued(
             "platforms": ["douyin"],
             "mode": "import",
             "manual_script": "保留文案",
-            "tts_voice": "冰糖",
+            "tts_voice": "Cherry",
             "language": "cantonese",
             "scene_folder_ids": ["scenes/one"],
         },
@@ -1411,7 +1580,7 @@ def test_migrate_scenes_endpoint_preserves_config_and_resets_to_queued(
     assert saved["phase"] == "queued"
     assert saved["scene_folder_ids"] == ["scenes/two"]
     assert saved["manual_script"] == "保留文案"
-    assert saved["tts_voice"] == "冰糖"
+    assert saved["tts_voice"] == "Cherry"
     assert saved["language"] == "cantonese"
     assert saved["artifacts"] == []
     assert saved["execution"]["status"] == "pending"
