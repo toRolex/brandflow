@@ -1,51 +1,174 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import BatchActionBar from "../components/BatchActionBar";
+import ConfirmDialog from "../components/ConfirmDialog";
+import InlineBanner from "../components/InlineBanner";
 import type { Project } from "../types";
+
+const BULK_DELETE_CONCURRENCY = 5;
+
+async function runWithConcurrency<T, R>(
+	items: T[],
+	limit: number,
+	fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+	const results: PromiseSettledResult<R>[] = new Array(items.length);
+	const iterator = items.entries();
+
+	async function worker(): Promise<void> {
+		for (const [index, item] of iterator) {
+			try {
+				const value = await fn(item);
+				results[index] = { status: "fulfilled", value };
+			} catch (reason: unknown) {
+				results[index] = { status: "rejected", reason };
+			}
+		}
+	}
+
+	await Promise.all(Array.from({ length: limit }, () => worker()));
+	return results;
+}
 
 export default function ProjectList() {
 	const [projects, setProjects] = useState<Project[]>([]);
+	const [loading, setLoading] = useState(true);
 	const [newName, setNewName] = useState("");
 	const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+	const [bulkDeleteTargetIds, setBulkDeleteTargetIds] = useState<string[] | null>(
+		null,
+	);
+	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+	const [banner, setBanner] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
+	const [highlightId, setHighlightId] = useState<string | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
+	const headerCheckboxRef = useRef<HTMLInputElement>(null);
 	const navigate = useNavigate();
 
-	const load = () => {
+	const load = useCallback(() => {
+		setLoading(true);
 		api
 			.listProjects()
 			.then(setProjects)
-			.catch(() => setProjects([]));
-	};
+			.catch(() => {
+				setProjects([]);
+				setBanner({ type: "error", message: "加载项目列表失败" });
+			})
+			.finally(() => setLoading(false));
+	}, []);
 
 	useEffect(() => {
 		load();
-	}, []);
+	}, [load]);
 
 	const create = async () => {
-		if (!newName.trim()) return;
-		try {
-			const p = await api.createProject(newName.trim());
-			setNewName("");
-			navigate(`/projects/${p.id}`);
-		} catch {
-			// silently fail
+		const name = newName.trim();
+		if (!name) {
+			setBanner({ type: "error", message: "项目名称不能为空" });
+			return;
 		}
-	};
-
-	const confirmDelete = async () => {
-		if (!deleteTarget) return;
+		if (projects.some((p) => p.name === name)) {
+			setBanner({ type: "error", message: "项目名称已存在，请使用其他名称" });
+			return;
+		}
 		try {
-			await api.deleteProject(deleteTarget.id);
-			setDeleteTarget(null);
-			load();
-		} catch {
-			// silently fail
+			const p = await api.createProject(name);
+			setNewName("");
+			setHighlightId(p.id);
+			setBanner({ type: "success", message: `项目「${p.name}」创建成功` });
+			setTimeout(() => setHighlightId(null), 3000);
+			await load();
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : "创建失败，请重试";
+			setBanner({ type: "error", message: msg });
 		}
 	};
 
 	const focusInput = () => {
 		inputRef.current?.focus();
 	};
+
+	const handleDelete = async (ids: string[]) => {
+		const results = await runWithConcurrency(ids, BULK_DELETE_CONCURRENCY, (id) => {
+			return api.deleteProject(id);
+		});
+		let successCount = 0;
+		let failureCount = 0;
+		for (const result of results) {
+			if (result.status === "fulfilled") {
+				successCount++;
+			} else {
+				failureCount++;
+			}
+		}
+
+		setSelectedIds((prev) => {
+			const next = new Set(prev);
+			for (const id of ids) {
+				next.delete(id);
+			}
+			return next;
+		});
+		setDeleteTarget(null);
+		setBulkDeleteTargetIds(null);
+		await load();
+
+		if (failureCount === 0) {
+			const text = successCount > 1 ? `已删除 ${successCount} 个项目` : "项目已删除";
+			setBanner({ type: "success", message: text });
+		} else {
+			setBanner({
+				type: "error",
+				message: `${successCount} 成功，${failureCount} 失败`,
+			});
+		}
+	};
+
+	const confirmSingleDelete = () => {
+		if (!deleteTarget) return;
+		void handleDelete([deleteTarget.id]);
+	};
+
+	const confirmBulkDelete = () => {
+		if (!bulkDeleteTargetIds?.length) return;
+		void handleDelete(bulkDeleteTargetIds);
+	};
+
+	const allSelected = projects.length > 0 && selectedIds.size === projects.length;
+	const someSelected = selectedIds.size > 0 && !allSelected;
+
+	useEffect(() => {
+		const el = headerCheckboxRef.current;
+		if (el) {
+			el.indeterminate = someSelected;
+		}
+	}, [someSelected]);
+
+	const toggleSelect = (id: string) => {
+		setSelectedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) {
+				next.delete(id);
+			} else {
+				next.add(id);
+			}
+			return next;
+		});
+	};
+
+	const toggleSelectAll = () => {
+		if (allSelected) {
+			setSelectedIds(new Set());
+		} else {
+			setSelectedIds(new Set(projects.map((p) => p.id)));
+		}
+	};
+
+	const clearSelection = () => setSelectedIds(new Set());
 
 	return (
 		<div>
@@ -89,7 +212,30 @@ export default function ProjectList() {
 				</div>
 			</div>
 
-			{projects.length === 0 ? (
+			{banner && (
+				<InlineBanner
+					type={banner.type}
+					message={banner.message}
+					onClose={() => setBanner(null)}
+				/>
+			)}
+
+			{selectedIds.size > 0 && (
+				<BatchActionBar
+					count={selectedIds.size}
+					label={(count) => `已选 ${count} 项`}
+					onDelete={() => setBulkDeleteTargetIds([...selectedIds])}
+					onClear={clearSelection}
+				/>
+			)}
+
+			{loading ? (
+				<div className="text-center py-16">
+					<p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
+						加载中...
+					</p>
+				</div>
+			) : projects.length === 0 ? (
 				<div className="text-center py-16">
 					<p
 						className="text-lg font-semibold mb-2"
@@ -97,7 +243,10 @@ export default function ProjectList() {
 					>
 						开始你的第一个项目
 					</p>
-					<p className="text-sm mb-6" style={{ color: "var(--text-tertiary)" }}>
+					<p
+						className="text-sm mb-6"
+						style={{ color: "var(--text-tertiary)" }}
+					>
 						创建项目后，即可批量生产短视频内容
 					</p>
 					<button
@@ -132,6 +281,15 @@ export default function ProjectList() {
 									color: "var(--text-secondary)",
 								}}
 							>
+								<th className="py-3 px-4 font-medium w-12">
+									<input
+										ref={headerCheckboxRef}
+										type="checkbox"
+										aria-label="全选"
+										checked={allSelected}
+										onChange={toggleSelectAll}
+									/>
+								</th>
 								<th className="py-3 px-4 font-medium">项目名称</th>
 								<th className="py-3 px-4 font-medium">状态</th>
 								<th className="py-3 px-4 font-medium">Jobs</th>
@@ -143,14 +301,31 @@ export default function ProjectList() {
 								<tr
 									key={p.id}
 									className="border-b transition-colors"
-									style={{ borderColor: "var(--border-default)" }}
+									style={{
+										borderColor: "var(--border-default)",
+										background:
+											p.id === highlightId
+												? "var(--success-bg)"
+												: undefined,
+									}}
 									onMouseEnter={(e) => {
 										e.currentTarget.style.background = "var(--bg-nav-active)";
 									}}
 									onMouseLeave={(e) => {
-										e.currentTarget.style.background = "";
+										e.currentTarget.style.background =
+											p.id === highlightId
+												? "var(--success-bg)"
+												: "";
 									}}
 								>
+									<td className="py-3 px-4">
+										<input
+											type="checkbox"
+											aria-label={`选择项目 ${p.name || p.id}`}
+											checked={selectedIds.has(p.id)}
+											onChange={() => toggleSelect(p.id)}
+										/>
+									</td>
 									<td
 										className="py-3 px-4 font-medium"
 										style={{ color: "var(--text-primary)" }}
@@ -206,74 +381,25 @@ export default function ProjectList() {
 				</div>
 			)}
 
-			{deleteTarget && (
-				<div
-					className="fixed inset-0 flex items-center justify-center"
-					style={{
-						background: "rgba(0, 0, 0, 0.5)",
-						zIndex: "var(--z-modal-backdrop)",
-					}}
-				>
-					<div
-						className="max-w-sm w-full mx-4 p-6 border"
-						style={{
-							background: "var(--bg-card)",
-							borderColor: "var(--border-default)",
-							borderRadius: "var(--radius-lg)",
-							boxShadow: "var(--shadow-modal)",
-						}}
-					>
-						<h3
-							className="text-lg font-bold mb-2"
-							style={{ color: "var(--text-primary)" }}
-						>
-							确认删除
-						</h3>
-						<p
-							className="mb-6 text-sm"
-							style={{ color: "var(--text-secondary)" }}
-						>
-							确定要删除项目「{deleteTarget.name || deleteTarget.id}
-							」吗？此操作不可撤销。
-						</p>
-						<div className="flex justify-end gap-3">
-							<button
-								className="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
-								style={{
-									background: "var(--btn-ghost-bg)",
-									color: "var(--btn-ghost-text)",
-								}}
-								onClick={() => setDeleteTarget(null)}
-								onMouseEnter={(e) => {
-									e.currentTarget.style.background =
-										"var(--btn-ghost-hover-bg)";
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.background = "var(--btn-ghost-bg)";
-								}}
-							>
-								取消
-							</button>
-							<button
-								className="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
-								style={{
-									background: "var(--btn-danger-bg)",
-									color: "var(--btn-danger-text)",
-								}}
-								onClick={confirmDelete}
-								onMouseEnter={(e) => {
-									e.currentTarget.style.background = "var(--btn-danger-hover)";
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.background = "var(--btn-danger-bg)";
-								}}
-							>
-								确认删除
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
+			<ConfirmDialog
+				isOpen={!!deleteTarget}
+				title="确认删除"
+				message={`确定要删除项目「${deleteTarget?.name || deleteTarget?.id || ""}」吗？此操作不可撤销。`}
+				confirmLabel="确认删除"
+				danger
+				onConfirm={confirmSingleDelete}
+				onCancel={() => setDeleteTarget(null)}
+			/>
+
+			<ConfirmDialog
+				isOpen={!!bulkDeleteTargetIds}
+				title="确认批量删除"
+				message={`确定要删除已选中的 ${bulkDeleteTargetIds?.length ?? 0} 个项目吗？此操作不可撤销。`}
+				confirmLabel="确认删除"
+				danger
+				onConfirm={confirmBulkDelete}
+				onCancel={() => setBulkDeleteTargetIds(null)}
+			/>
 		</div>
 	);
 }

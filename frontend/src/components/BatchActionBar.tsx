@@ -2,8 +2,9 @@ import { useState } from "react";
 
 interface Props {
 	count: number;
-	onEnable: () => void;
-	onDisable: () => void;
+	label?: string | ((count: number) => string);
+	onEnable?: () => void;
+	onDisable?: () => void;
 	onDelete: () => void;
 	onClear: () => void;
 	onBatchEdit?: (fields: { product?: string; category?: string }) => void;
@@ -14,6 +15,7 @@ interface Props {
 
 export default function BatchActionBar({
 	count,
+	label,
 	onEnable,
 	onDisable,
 	onDelete,
@@ -23,6 +25,10 @@ export default function BatchActionBar({
 	categories = [],
 	hasUnmappedReclassifyTargets = false,
 }: Props) {
+	const labelText =
+		typeof label === "function"
+			? label(count)
+			: label ?? `已选择 ${count} 张卡片`;
 	const [showEdit, setShowEdit] = useState(false);
 	const [editProduct, setEditProduct] = useState("");
 	const [editCategory, setEditCategory] = useState("");
@@ -54,7 +60,7 @@ export default function BatchActionBar({
 		<div className="bg-blue-50 border border-blue-500 rounded-lg px-4 py-2 mb-3">
 			<div className="flex items-center justify-between">
 				<span className="text-sm font-semibold text-blue-700">
-					已选择 {count} 张卡片
+					{labelText}
 				</span>
 				<div className="flex gap-2">
 					{onReclassify && hasUnmappedReclassifyTargets && (
@@ -73,18 +79,22 @@ export default function BatchActionBar({
 							批量编辑
 						</button>
 					)}
-					<button
-						className="px-3 py-1 text-xs rounded-md bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] hover:bg-[var(--btn-danger-hover)]"
-						onClick={onDisable}
-					>
-						批量禁用
-					</button>
-					<button
-						className="px-3 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700"
-						onClick={onEnable}
-					>
-						批量启用
-					</button>
+					{onDisable && (
+						<button
+							className="px-3 py-1 text-xs rounded-md bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] hover:bg-[var(--btn-danger-hover)]"
+							onClick={onDisable}
+						>
+							批量禁用
+						</button>
+					)}
+					{onEnable && (
+						<button
+							className="px-3 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700"
+							onClick={onEnable}
+						>
+							批量启用
+						</button>
+					)}
 					<button
 						className="px-3 py-1 text-xs rounded-md bg-red-800 text-white hover:bg-red-900"
 						onClick={onDelete}
