@@ -16,6 +16,8 @@ export default function ProjectList() {
     message: string;
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -89,6 +91,60 @@ export default function ProjectList() {
     }
   };
 
+  const allSelected = projects.length > 0 && selectedIds.size === projects.length;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(projects.map((p) => p.id)));
+    }
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const confirmBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(
+      ids.map((id) => api.deleteProject(id)),
+    );
+    let successCount = 0;
+    let failureCount = 0;
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        successCount++;
+      } else {
+        failureCount++;
+      }
+    }
+    setShowBulkDeleteModal(false);
+    setSelectedIds(new Set());
+    load();
+    if (failureCount === 0) {
+      setBanner({
+        type: "success",
+        message: `已删除 ${successCount} 个项目`,
+      });
+    } else {
+      setBanner({
+        type: "error",
+        message: `${successCount} 成功，${failureCount} 失败`,
+      });
+    }
+  };
+
   const openCreateModal = () => {
     setCreateName("");
     setCreateError(null);
@@ -130,6 +186,49 @@ export default function ProjectList() {
           message={banner.message}
           onClose={() => setBanner(null)}
         />
+      )}
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div
+          className="flex items-center justify-between rounded-lg px-4 py-3 mb-4 border"
+          style={{
+            background: "var(--accent-bg, #eff6ff)",
+            borderColor: "var(--border-default)",
+          }}
+        >
+          <span
+            className="text-sm font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            已选 {selectedIds.size} 项
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="px-3 py-1.5 text-xs rounded-md font-medium transition-colors"
+              style={{
+                background: "var(--btn-danger-bg)",
+                color: "var(--btn-danger-text)",
+              }}
+              onClick={() => setShowBulkDeleteModal(true)}
+            >
+              批量删除
+            </button>
+            <button
+              type="button"
+              className="px-3 py-1.5 text-xs rounded-md font-medium transition-colors"
+              style={{
+                background: "var(--btn-ghost-bg)",
+                color: "var(--btn-ghost-text)",
+                border: "1px solid var(--border-default)",
+              }}
+              onClick={clearSelection}
+            >
+              取消选择
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Loading state: show loading indicator, NOT empty state */}
@@ -184,6 +283,14 @@ export default function ProjectList() {
                   color: "var(--text-secondary)",
                 }}
               >
+                <th className="py-3 px-4 font-medium w-12">
+                  <input
+                    type="checkbox"
+                    aria-label="全选"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th className="py-3 px-4 font-medium">项目名称</th>
                 <th className="py-3 px-4 font-medium">状态</th>
                 <th className="py-3 px-4 font-medium">Jobs</th>
@@ -213,6 +320,14 @@ export default function ProjectList() {
                     }
                   }}
                 >
+                  <td className="py-3 px-4">
+                    <input
+                      type="checkbox"
+                      aria-label={`选择项目 ${p.name || p.id}`}
+                      checked={selectedIds.has(p.id)}
+                      onChange={() => toggleSelect(p.id)}
+                    />
+                  </td>
                   <td
                     className="py-3 px-4 font-medium"
                     style={{ color: "var(--text-primary)" }}
@@ -366,6 +481,46 @@ export default function ProjectList() {
                 color: "var(--btn-danger-text)",
               }}
               onClick={confirmDelete}
+            >
+              确认删除
+            </button>
+          </div>
+        </Modal>
+      )}
+      {/* Bulk delete confirmation modal */}
+      {showBulkDeleteModal && (
+        <Modal
+          isOpen={true}
+          title="确认批量删除"
+          onClose={() => setShowBulkDeleteModal(false)}
+        >
+          <p
+            className="mb-6 text-sm"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            确定要删除选中的 {selectedIds.size} 个项目吗？此操作不可撤销。
+          </p>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              className="px-4 py-2 text-sm rounded-lg transition-colors"
+              style={{
+                background: "var(--btn-ghost-bg)",
+                color: "var(--btn-ghost-text)",
+                border: "1px solid var(--border-default)",
+              }}
+              onClick={() => setShowBulkDeleteModal(false)}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+              style={{
+                background: "var(--btn-danger-bg)",
+                color: "var(--btn-danger-text)",
+              }}
+              onClick={confirmBulkDelete}
             >
               确认删除
             </button>
