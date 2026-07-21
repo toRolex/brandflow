@@ -247,8 +247,8 @@ class TestSentenceTTSService:
 class TestConfigShim:
     def test_config_shim_supplies_defaults(self, base_config) -> None:
         shim = _config_shim({})
-        assert shim.model == "mimo-v2.5-tts"
-        assert shim.voice == "Mia"
+        assert shim.model == "qwen3-tts-flash"
+        assert shim.voice == "Cherry"
 
     def test_config_shim_respects_provided_values(self, base_config) -> None:
         shim = _config_shim(base_config)

@@ -34,6 +34,8 @@ DEFAULTS: dict[str, Any] = {
             "enabled": False,
             "tags": "",
         },
+        "instructions": "",
+        "language_type": "Chinese",
         "audio_format": "wav",
     },
     "vision": {

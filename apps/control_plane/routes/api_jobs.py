@@ -23,6 +23,7 @@ from packages.domain_core.models import (
 )
 from packages.file_store.repository import FileStoreRepository
 from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.secret_store import SecretStore
 from apps.control_plane.services.music_library import MusicLibrary
 
@@ -976,7 +977,7 @@ def _resolve_tts_preview_config(
         TTSConfigShim,
     )
 
-    tts_model: str = str(tts_cfg.get("model", "mimo-v2.5-tts") or "")
+    tts_model: str = str(tts_cfg.get("model", DEFAULTS["tts"]["model"]) or "")
     if tts_model.startswith("qwen"):
         provider = QwenTTSProvider(
             api_key=secret_store.get_api_key("qwen"),
