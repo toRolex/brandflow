@@ -11,6 +11,7 @@ import hashlib
 import json
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
 
@@ -178,6 +179,11 @@ class SentenceTTSService:
     ) -> list[SentenceTiming]:
         """Synthesize *script_text* and write the combined audio to *output_path*.
 
+        Sentences are synthesized with a fixed 4-worker thread pool.
+        Results are back-filled by original sentence index so that
+        ``concat_fn`` and ``_build_timings`` always receive the correct
+        order regardless of which sentence finishes first.
+
         Returns the measured ``SentenceTiming`` list for each sentence.
         """
         sentences = parse_script_sentences(script_text)
@@ -189,15 +195,36 @@ class SentenceTTSService:
         script_sentences = [
             ScriptSentence(index=i, text=s) for i, s in enumerate(sentences)
         ]
+        n = len(script_sentences)
 
         with tempfile.TemporaryDirectory(dir=Path(output_path).parent) as tmp:
             tmp_dir = Path(tmp)
+
+            # Parallel synthesis with fixed 4-worker pool.
+            # Each worker calls _synthesize_sentence which handles its own
+            # per-sentence cache + retry.  Results are collected by future
+            # and back-filled into raw_paths by original sentence index.
+            raw_paths: list[Path] = [Path()] * n  # type: ignore[assignment]
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                future_to_index = {}
+                for i, sentence in enumerate(script_sentences):
+                    future = executor.submit(
+                        self._synthesize_sentence,
+                        sentence.text,
+                        locked_config,
+                        tmp_dir,
+                    )
+                    future_to_index[future] = i
+
+                for future in future_to_index:
+                    i = future_to_index[future]
+                    raw_paths[i] = future.result()
+
+            # Normalize in original sentence order (concat + timings depend on it).
             normalized_paths: list[Path] = []
-            for i, sentence in enumerate(script_sentences):
-                raw_path = self._synthesize_sentence(
-                    sentence.text, locked_config, tmp_dir
-                )
-                is_last = i == len(script_sentences) - 1
+            for i in range(n):
+                raw_path = raw_paths[i]
+                is_last = i == n - 1
                 norm_path = tmp_dir / f"{i:03d}_norm.wav"
                 self.normalize_fn(
                     raw_path,

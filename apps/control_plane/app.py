@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -38,13 +39,20 @@ AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 
 
 async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
-    """Dev-mode background loop: scans disk and delegates to JobTickService."""
-    # Construct orchestrator and tick service once; deps are stateless
+    """Dev-mode background loop: offloads tick to executor, respects single-in-flight.
+
+    Each ``tick()`` call is dispatched through ``run_in_executor`` so the
+    event loop stays free for API requests during blocking work (FFmpeg,
+    TTS/LLM network calls).  A set of in-flight job ids prevents the
+    outer scan from re-picking a job that is still executing.
+    """
     orchestrator = create_orchestrator(root_dir, config_reader=config_reader)
     repo = FileStoreRepository(root_dir)
     tick_svc = JobTickService(
-        orchestrator=orchestrator, repo=repo, config_reader=config_reader
+        orchestrator=orchestrator, repo=repo, config_reader=config_reader,
+        sleep_fn=time.sleep,
     )
+    _in_flight: set[str] = set()
 
     while True:
         await asyncio.sleep(AUTO_TICK_INTERVAL)
@@ -68,6 +76,11 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
                         if not job_id:
                             continue
 
+                        # Single-in-flight guard: skip jobs already being
+                        # processed in an active executor call.
+                        if job_id in _in_flight:
+                            continue
+
                         product = data.get("product", os.environ.get("PRODUCT", ""))
                         options = {
                             "manual_script": data.get("manual_script", ""),
@@ -76,14 +89,24 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
                             "mode": data.get("mode", "generate"),
                         }
 
-                        summary = tick_svc.tick(
-                            project_id,
-                            job_id,
-                            product,
-                            root_dir=root_dir,
-                            project_dir=project_dir,
-                            options=options,
-                        )
+                        _in_flight.add(job_id)
+                        try:
+                            loop = asyncio.get_running_loop()
+
+                            def _tick_job():
+                                return tick_svc.tick(
+                                    project_id,
+                                    job_id,
+                                    product,
+                                    root_dir=root_dir,
+                                    project_dir=project_dir,
+                                    options=options,
+                                )
+
+                            summary = await loop.run_in_executor(None, _tick_job)
+                        finally:
+                            _in_flight.discard(job_id)
+
                         if summary.action != "skipped":
                             print(
                                 f"[AUTO-TICK] {job_id}: {summary.from_phase} -> {summary.to_phase} ({summary.action})",
