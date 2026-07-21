@@ -1155,6 +1155,120 @@ class TestImportSceneInput:
         assert action.handler_phase == "script_generating"
 
 
+class TestImportSceneFolderFallback:
+    """#275: tick() fallback scene_folder_ids from scene config for import mode."""
+
+    def test_tick_import_empty_folders_with_scene_config_routes_to_scene_assembling(
+        self,
+    ) -> None:
+        """import + empty scene_folder_ids + product scene config → scene_assembling."""
+        record = make_record(phase="queued", mode="import")
+        record.scene_folder_ids = []
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_config = Mock()
+        mock_config.get_scene_config.return_value = {
+            "folders": [
+                {"path": "scenes/snack", "label": "零食"},
+                {"path": "scenes/drink", "label": "饮品"},
+            ],
+            "transition_duration_ms": 500,
+        }
+
+        svc = JobTickService(
+            orchestrator=mock_orch, repo=mock_repo, config_reader=mock_config
+        )
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.action == "advanced"
+        assert summary.to_phase == "scene_assembling"
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.scene_folder_ids == ["scenes/snack", "scenes/drink"]
+
+    def test_tick_import_empty_folders_no_scene_config_goes_to_migration_required(
+        self,
+    ) -> None:
+        """import + empty scene_folder_ids + no product scene config → migration_required."""
+        record = make_record(phase="queued", mode="import")
+        record.scene_folder_ids = []
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_config = Mock()
+        mock_config.get_scene_config.return_value = {"folders": []}
+
+        svc = JobTickService(
+            orchestrator=Mock(spec=PhaseOrchestrator),
+            repo=mock_repo,
+            config_reader=mock_config,
+        )
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.action == "advanced"
+        assert summary.to_phase == "migration_required"
+
+    def test_tick_import_with_existing_folders_unaffected(self) -> None:
+        """import + existing scene_folder_ids → behavior unchanged, no config fallback."""
+        record = make_record(phase="queued", mode="import")
+        record.scene_folder_ids = ["scenes/existing"]
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_config = Mock()
+
+        svc = JobTickService(
+            orchestrator=Mock(spec=PhaseOrchestrator),
+            repo=mock_repo,
+            config_reader=mock_config,
+        )
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.action == "advanced"
+        assert summary.to_phase == "scene_assembling"
+        # config_reader should NOT have been called since folders already exist
+        mock_config.get_scene_config.assert_not_called()
+
+    def test_tick_generate_job_unaffected_by_scene_config(self) -> None:
+        """generate mode → unaffected by scene config fallback."""
+        record = make_record(phase="queued", mode="generate")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.run_phase.return_value = [
+            ArtifactPointer(kind="script", relative_path="script.txt")
+        ]
+
+        svc = JobTickService(
+            orchestrator=mock_orch, repo=mock_repo, config_reader=Mock()
+        )
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        assert summary.action in ("advanced", "completed")
+
+
 # ---------------------------------------------------------------------------
 # 13. TTS failure semantics (#253)
 # ---------------------------------------------------------------------------
