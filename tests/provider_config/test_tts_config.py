@@ -379,15 +379,25 @@ def test_defaults_consistent_between_reader_and_manager() -> None:
         assert manager_config.model == reader_config["model"]
         assert manager_config.voice == reader_config["voice"]
 
-    # Scenario 3: root-level override
+    # Scenario 4: active product scope override
     with tempfile.TemporaryDirectory() as tmpdir:
         config_path = Path(tmpdir) / "app_config.json"
-        save_config(config_path, {"tts": {"voice": "RootVoice"}})
-
+        save_config(
+            config_path,
+            {
+                "active_product_id": "prod-1",
+                "products": [
+                    {
+                        "id": "prod-1",
+                        "tts": {"voice": "ProductVoice"},
+                    }
+                ],
+            },
+        )
         reader = ConfigReader(config_dir=tmpdir)
         manager = TTSConfigManager(config_dir=tmpdir)
 
-        reader_config = reader.get_tts_config()
+        reader_config = reader.get_tts_config(product_id="prod-1")
         manager_config = manager.get_config()
 
         assert manager_config.model == reader_config["model"]

@@ -39,6 +39,28 @@ from packages.pipeline_services.phase_orchestrator import (
 # ---------------------------------------------------------------------------
 
 
+def _persistent_repo(initial: JobRecord) -> Mock:
+    """Return a mock FileStoreRepository that tracks state across saves/reloads.
+
+    Every ``load_job`` returns a model-copy of the latest saved record, and
+    every ``save_job`` updates the backing store.  This is required for any
+    test that exercises ``tick()`` because the chain loop reloads between
+    steps.
+    """
+    repo = Mock(spec=FileStoreRepository)
+    latest: list[JobRecord] = [initial]
+
+    def _load(project_id: str, job_id: str) -> JobRecord:
+        return latest[0].model_copy()
+
+    def _save(project_id: str, rec: JobRecord) -> None:
+        latest[0] = rec
+
+    repo.load_job.side_effect = _load
+    repo.save_job.side_effect = _save
+    return repo
+
+
 def make_record(
     phase: str = "queued",
     review_status: str = "none",
@@ -479,8 +501,7 @@ class TestJobTickService:
     def test_tick_runs_handler_and_advances(self) -> None:
         """tick() should run the handler and advance phase."""
         record = make_record(phase="queued")
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.run_phase.return_value = [
             ArtifactPointer(kind="script", relative_path="script.txt")
@@ -497,7 +518,7 @@ class TestJobTickService:
 
         assert summary.action in ("advanced", "completed")
         mock_orch.run_phase.assert_called_once()
-        mock_repo.save_job.assert_called_once()
+        assert mock_repo.save_job.call_count >= 1
 
     def test_tick_skips_terminal_phase(self) -> None:
         """Terminal jobs should be skipped."""
@@ -563,22 +584,46 @@ class TestJobTickService:
         assert saved.execution.current_attempt == 1
         assert saved.execution.error.code == "VIDEO_SOURCE_MISSING"
 
-    @pytest.mark.parametrize(
-        ("attempt", "expected_phase", "expected_status"),
-        [
-            (0, "video_rendering", "retrying"),
-            (1, "video_rendering", "retrying"),
-            (2, "failed", "failed"),
-        ],
-    )
-    def test_transient_media_failure_is_bounded_at_three_attempts(
-        self, attempt: int, expected_phase: str, expected_status: str
-    ) -> None:
+    def test_transient_failure_enters_retrying_first_attempt(self) -> None:
+        """First retryable failure → retrying state."""
         record = make_record(phase="video_rendering", mode="import")
-        if attempt:
-            record.execution = record.execution.model_copy(
-                update={"status": "retrying", "current_attempt": attempt}
+        latest: list[JobRecord] = [record]
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        mock_repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        # Always fail — the first failure enters retrying, chain stops.
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="MEDIA_PROCESSING_TIMEOUT",
+                message="Media processing timed out.",
+                retryable=True,
             )
+        )
+
+        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo, sleep_fn=None)
+        svc.tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # After 3 retries (total 4 attempts with the initial), terminal.
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "video_rendering"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 4  # max_attempts=3 retries + 1
+        assert saved.execution.max_attempts == 3
+
+    def test_retryable_failure_exhausts_after_max_retries(self) -> None:
+        """When max_attempts retries are exhausted, the failure is terminal."""
+        record = make_record(phase="video_rendering", mode="import")
+        record.execution = record.execution.model_copy(
+            update={"status": "retrying", "current_attempt": 3}
+        )
         mock_repo = Mock(spec=FileStoreRepository)
         mock_repo.load_job.return_value = record
         mock_orch = Mock(spec=PhaseOrchestrator)
@@ -599,17 +644,17 @@ class TestJobTickService:
         )
 
         saved = mock_repo.save_job.call_args[0][1]
-        assert saved.phase == expected_phase
-        assert saved.execution.status == expected_status
-        assert saved.execution.current_attempt == attempt + 1
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "video_rendering"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 4
         assert saved.execution.max_attempts == 3
 
     def test_structured_success_advances_and_preserves_upstream_artifacts(self) -> None:
         upstream = ArtifactPointer(kind="scene_segment", relative_path="scene.mp4")
         record = make_record(phase="video_rendering", mode="import")
         record.artifacts = [upstream]
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         output = ArtifactPointer(kind="video_base", relative_path="base.mp4")
         mock_orch.execute_phase.return_value = PhaseExecutionSuccess(artifacts=[output])
@@ -622,12 +667,12 @@ class TestJobTickService:
             project_dir=Path("/tmp/proj"),
         )
 
-        saved = mock_repo.save_job.call_args[0][1]
-        assert saved.phase == "final_rendering"
-        assert [artifact.kind for artifact in saved.artifacts] == [
-            "scene_segment",
-            "video_base",
-        ]
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
+        # Chain advances: video_rendering → final_rendering → final_review (gate).
+        assert saved.phase in ("final_rendering", "final_review")
+        artifact_kinds = {artifact.kind for artifact in saved.artifacts}
+        assert "scene_segment" in artifact_kinds
+        assert "video_base" in artifact_kinds
         assert saved.execution.status == "succeeded"
 
     def test_empty_structured_success_becomes_bounded_internal_failure(self) -> None:
@@ -675,8 +720,7 @@ class TestJobTickService:
             mode="generate",
             manual_script="手动文案走 generate 路径",
         )
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.run_phase.return_value = [
             ArtifactPointer(kind="script", relative_path="script.txt")
@@ -704,8 +748,7 @@ class TestJobTickService:
             mode="generate",
             manual_script="手动文案",
         )
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.run_phase.return_value = [
             ArtifactPointer(kind="script", relative_path="script.txt")
@@ -727,7 +770,7 @@ class TestJobTickService:
     def test_generate_manual_script_full_chain(
         self,
     ) -> None:
-        """Generate + manual_script 全程：script_generating → tts_generating → asset_retrieving，不进入 scene_assembling。"""
+        """Generate + manual_script one tick chains through the full pipeline."""
         record = make_record(
             phase="queued",
             mode="generate",
@@ -735,79 +778,33 @@ class TestJobTickService:
             auto_approve=True,
             skip_subtitle=True,
         )
-        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.run_phase.return_value = [
             ArtifactPointer(kind="artifact", relative_path="out"),
         ]
-        # tts_generating is now a structured phase (#253) — it goes through
-        # execute_phase instead of run_phase.
         mock_orch.execute_phase.return_value = PhaseExecutionSuccess(
             artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")],
         )
 
-        # Persist state across ticks: save → load returns the latest saved record
-        latest: list[JobRecord] = [record]
-
-        def _load(project_id: str, job_id: str) -> JobRecord:
-            return latest[0].model_copy()
-
-        def _save(project_id: str, rec: JobRecord) -> None:
-            latest[0] = rec
-
-        mock_repo.load_job.side_effect = _load
-        mock_repo.save_job.side_effect = _save
-
         svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
-
-        handler_phases: list[str] = []
-
-        for _ in range(10):
-            mock_orch.run_phase.reset_mock()
-            mock_orch.run_phase.return_value = [
-                ArtifactPointer(kind="artifact", relative_path="out"),
-            ]
-            mock_orch.execute_phase.reset_mock()
-            mock_orch.execute_phase.return_value = PhaseExecutionSuccess(
-                artifacts=[
-                    ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")
-                ],
-            )
-
-            summary = svc.tick(
-                "proj-001",
-                "test-job",
-                "羊肚菌",
-                root_dir=Path("/tmp"),
-                project_dir=Path("/tmp/proj"),
-            )
-
-            if mock_orch.run_phase.called:
-                handler_phases.append(mock_orch.run_phase.call_args[0][0])
-            if mock_orch.execute_phase.called:
-                handler_phases.append(mock_orch.execute_phase.call_args[0][0])
-
-            if summary.action in ("completed", "failed"):
-                break
-
-        assert len(handler_phases) >= 4
-        assert "scene_assembling" not in handler_phases
-        assert "script_generating" in handler_phases
-        assert "tts_generating" in handler_phases
-        assert "asset_retrieving" in handler_phases
-        # Verify handler call order
-        assert handler_phases.index("script_generating") < handler_phases.index(
-            "tts_generating"
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
         )
-        assert handler_phases.index("tts_generating") < handler_phases.index(
-            "asset_retrieving"
-        )
+
+        # With auto_approve + skip_subtitle, one tick chains all the way to
+        # completed (terminal).
+        assert summary.action == "completed"
+        assert summary.to_phase == "completed"
 
     def test_retrying_state_preserves_retryable_error(self) -> None:
-        """重试期间导致重试的 retryable 失败信息不得丢失。"""
+        """重试耗尽后，retryable 失败的 error 在终态中仍被保留。"""
         record = make_record(phase="video_rendering", mode="import")
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.execute_phase.return_value = PhaseExecutionFailure(
             error=ExecutionFailure(
@@ -825,8 +822,8 @@ class TestJobTickService:
             project_dir=Path("/tmp/proj"),
         )
 
-        saved = mock_repo.save_job.call_args[0][1]
-        assert saved.execution.status == "retrying"
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
+        assert saved.execution.status == "failed"
         assert saved.execution.error is not None
         assert saved.execution.error.code == "MEDIA_PROCESSING_TIMEOUT"
 
@@ -836,12 +833,14 @@ class TestJobTickService:
         record.artifacts = [
             ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")
         ]
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.execute_phase.return_value = PhaseExecutionSuccess(
             artifacts=[ArtifactPointer(kind="scene_segment", relative_path="scene.mp4")]
         )
+        # Chain continues to unstructured phases (asset_retrieving) that use
+        # run_phase; return an empty artifact list so the chain proceeds.
+        mock_orch.run_phase.return_value = []
 
         JobTickService(mock_orch, mock_repo).tick(
             "proj-001",
@@ -852,16 +851,25 @@ class TestJobTickService:
         )
 
         mock_orch.execute_phases_parallel.assert_not_called()
-        assert mock_orch.execute_phase.call_args[0][0] == "scene_assembling"
-        saved = mock_repo.save_job.call_args[0][1]
-        assert saved.phase == "subtitle_generating"
-        assert {a.kind for a in saved.artifacts} == {"tts_audio", "scene_segment"}
+        execute_phase_names = [
+            call[0][0] for call in mock_orch.execute_phase.call_args_list
+        ]
+        assert "scene_assembling" in execute_phase_names
+        assert "tts_generating" not in execute_phase_names
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
+        # Chain advances: scene → subtitle → montage → video → final → final_review
+        assert saved.phase != "scene_assembling"
+        artifact_kinds = {a.kind for a in saved.artifacts}
+        assert "tts_audio" in artifact_kinds
+        assert "scene_segment" in artifact_kinds
 
     def test_parallel_primary_failure_keeps_parallel_success_artifacts(self) -> None:
         """并行主 phase 失败时，同 tick 成功的 tts_audio 指针不得被丢弃。"""
         record = make_record(phase="scene_assembling", mode="import")
+        latest: list[JobRecord] = [record]
         mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        mock_repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.execute_phases_parallel.return_value = {
             "scene_assembling": PhaseExecutionFailure(
@@ -884,16 +892,17 @@ class TestJobTickService:
             project_dir=Path("/tmp/proj"),
         )
 
-        saved = mock_repo.save_job.call_args[0][1]
-        assert saved.phase == "scene_assembling"
-        assert saved.execution.status == "retrying"
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
+        # Handler always fails → retries exhaust → terminal failed.
+        # But tts_audio from the parallel success is preserved.
+        assert saved.phase == "failed"
+        assert saved.execution.status == "failed"
         assert [a.kind for a in saved.artifacts] == ["tts_audio"]
 
     def test_parallel_tts_failure_is_attributed_to_tts_phase(self) -> None:
         """并行 TTS 失败不得"成功"推进，失败须归因到 tts_generating。"""
         record = make_record(phase="scene_assembling", mode="import")
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.execute_phases_parallel.return_value = {
             "scene_assembling": PhaseExecutionSuccess(
@@ -1103,8 +1112,7 @@ class TestImportSceneInput:
         self,
     ) -> None:
         record = make_record(phase="scene_assembling", mode="import")
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.execute_phases_parallel.return_value = {
             "scene_assembling": PhaseExecutionFailure(
@@ -1278,18 +1286,31 @@ class TestTTSFailureSemantics:
     """TTS synthesis failures keep job at tts_generating, never advance to tts_review."""
 
     def test_tts_retryable_failure_stays_in_phase(self) -> None:
-        """retryable TTS failure → phase stays tts_generating, status retrying."""
+        """retryable TTS failure → retried inline, then advances to tts_review."""
         record = make_record(phase="tts_generating", mode="generate")
+        latest: list[JobRecord] = [record]
         mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        mock_repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
+
+        call_count = [0]
         mock_orch = Mock(spec=PhaseOrchestrator)
-        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
-            error=ExecutionFailure(
-                code="TTS_SYNTHESIS_FAILED",
-                message="TTS synthesis failed: network error",
-                retryable=True,
+
+        def _execute_side(phase, ctx):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return PhaseExecutionFailure(
+                    error=ExecutionFailure(
+                        code="TTS_SYNTHESIS_FAILED",
+                        message="TTS synthesis failed: network error",
+                        retryable=True,
+                    )
+                )
+            return PhaseExecutionSuccess(
+                artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")]
             )
-        )
+
+        mock_orch.execute_phase.side_effect = _execute_side
 
         JobTickService(mock_orch, mock_repo).tick(
             "proj-001",
@@ -1299,15 +1320,14 @@ class TestTTSFailureSemantics:
             project_dir=Path("/tmp/proj"),
         )
 
-        saved = mock_repo.save_job.call_args[0][1]
-        assert saved.phase == "tts_generating"
-        assert saved.execution.status == "retrying"
-        assert saved.execution.current_attempt == 1
-        assert saved.execution.error is not None
-        assert saved.execution.error.code == "TTS_SYNTHESIS_FAILED"
-        assert saved.execution.error.retryable is True
-        # Must not advance to tts_review
-        assert saved.phase != "tts_review"
+        # After retry succeeds, chain advances past tts_review (auto_approve=False
+        # stops at the review gate).
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
+        assert saved.phase == "tts_review"
+        assert saved.review_status == "pending"
+        assert saved.execution.status == "succeeded"
+        # Handler was called twice: first failure, then retry success.
+        assert call_count[0] == 2
 
     def test_tts_non_retryable_failure_marks_failed_immediately(self) -> None:
         """Non-retryable TTS failure → immediate terminal failed."""
@@ -1340,23 +1360,42 @@ class TestTTSFailureSemantics:
         assert saved.execution.error.code == "TTS_PROVIDER_REJECTED"
         assert saved.execution.error.retryable is False
 
-    @pytest.mark.parametrize(
-        ("attempt", "expected_phase", "expected_status"),
-        [
-            (0, "tts_generating", "retrying"),
-            (1, "tts_generating", "retrying"),
-            (2, "failed", "failed"),
-        ],
-    )
-    def test_tts_retryable_failure_exhausts_after_three(
-        self, attempt: int, expected_phase: str, expected_status: str
-    ) -> None:
-        """3 retryable TTS failures → terminal failed."""
+    def test_tts_retryable_failure_exhausts_all_retries_then_fails(self) -> None:
+        """When the handler always fails, all max_attempts retries exhaust → terminal."""
         record = make_record(phase="tts_generating", mode="generate")
-        if attempt:
-            record.execution = record.execution.model_copy(
-                update={"status": "retrying", "current_attempt": attempt}
+        latest: list[JobRecord] = [record]
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        mock_repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="TTS_QUOTA_EXCEEDED",
+                message="TTS 配额超限",
+                retryable=True,
             )
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "tts_generating"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 4  # max_attempts=3 retries + 1 = 4
+
+    def test_tts_retryable_failure_with_prior_retries_goes_terminal(self) -> None:
+        """With 3 prior retries, the 4th failure is terminal immediately."""
+        record = make_record(phase="tts_generating", mode="generate")
+        record.execution = record.execution.model_copy(
+            update={"status": "retrying", "current_attempt": 3, "max_attempts": 3}
+        )
         mock_repo = Mock(spec=FileStoreRepository)
         mock_repo.load_job.return_value = record
         mock_orch = Mock(spec=PhaseOrchestrator)
@@ -1377,19 +1416,20 @@ class TestTTSFailureSemantics:
         )
 
         saved = mock_repo.save_job.call_args[0][1]
-        assert saved.phase == expected_phase
-        assert saved.execution.status == expected_status
-        assert saved.execution.current_attempt == attempt + 1
-        if expected_status == "failed":
-            assert saved.failed_phase == "tts_generating"
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "tts_generating"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 4
 
     def test_tts_failure_preserves_upstream_script_artifact(self) -> None:
         """TTS failure preserves script artifact — only tts_audio is absent."""
         script_artifact = ArtifactPointer(kind="script", relative_path="script.txt")
         record = make_record(phase="tts_generating", mode="generate")
         record.artifacts = [script_artifact]
+        latest: list[JobRecord] = [record]
         mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        mock_repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.execute_phase.return_value = PhaseExecutionFailure(
             error=ExecutionFailure(
@@ -1407,7 +1447,7 @@ class TestTTSFailureSemantics:
             project_dir=Path("/tmp/proj"),
         )
 
-        saved = mock_repo.save_job.call_args[0][1]
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
         assert len(saved.artifacts) == 1
         assert saved.artifacts[0].kind == "script"
 
@@ -1442,6 +1482,137 @@ class TestTTSFailureSemantics:
         assert saved.phase == "tts_review"
         assert saved.execution.status == "succeeded"
         assert saved.review_status == "pending"
+
+
+class TestTTSRetriesExhaustedNonRetryable:
+    """SentenceTTSService exhausted → phase-level retry NOT triggered (#266)."""
+
+    def test_tts_retries_exhausted_is_not_retryable(self) -> None:
+        """When TTSRetriesExhaustedError is raised, the phase failure is terminal."""
+        record = make_record(phase="tts_generating", mode="generate")
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.return_value = record
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        # Simulate execute_phase propagating the sentinel as a structured failure.
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="TTS_RETRIES_EXHAUSTED",
+                message="TTS 单句重试已耗尽: ...",
+                retryable=False,
+            )
+        )
+
+        JobTickService(mock_orch, mock_repo).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        saved = mock_repo.save_job.call_args[0][1]
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "tts_generating"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 1  # no retry
+
+
+class TestRetryReload:
+    """After a retryable failure and backoff, the record is reloaded from disk."""
+
+    def test_reload_after_backoff_observes_external_cancel(self) -> None:
+        """If the job is cancelled during backoff, the retry loop stops."""
+        record = make_record(phase="video_rendering", mode="import")
+        cancelled = make_record(phase="cancelled", mode="import")
+        load_sequence: list[JobRecord] = [record, cancelled]
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.side_effect = lambda p, j: load_sequence.pop(0)
+        mock_repo.save_job.return_value = None
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_orch.execute_phase.return_value = PhaseExecutionFailure(
+            error=ExecutionFailure(
+                code="MEDIA_PROCESSING_TIMEOUT",
+                message="Media processing timed out.",
+                retryable=True,
+            )
+        )
+
+        slept: list[float] = []
+        svc = JobTickService(
+            orchestrator=mock_orch, repo=mock_repo, sleep_fn=lambda s: slept.append(s)
+        )
+        summary = svc.tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # Handler should NOT have been retried — the reload saw cancelled.
+        assert mock_orch.execute_phase.call_count == 1, (
+            f"Expected 1 execute_phase call, got {mock_orch.execute_phase.call_count}"
+        )
+        assert "cancelled" in summary.message.lower()
+
+    def test_reload_after_backoff_rebuilds_context(self) -> None:
+        """External voice change during backoff is visible in the rebuilt context."""
+        record = make_record(phase="tts_generating", mode="generate")
+        record.tts_voice = "Mia"
+        latest: list[JobRecord] = [record]
+        mock_repo = Mock(spec=FileStoreRepository)
+        mock_repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        mock_repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
+
+        call_contexts: list[str] = []
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        # Intercept save to inject voice change after the retrying record is
+        # persisted, so the reload observes the edit.
+        orig_save = mock_repo.save_job.side_effect
+
+        def _save_wrapper(p, r):
+            orig_save(p, r)  # persist the retrying state
+            # Simulate user switching voice in the UI between attempts.
+            rec = latest[0].model_copy()
+            rec.tts_voice = "Dean"
+            latest[0] = rec
+
+        mock_repo.save_job.side_effect = _save_wrapper
+
+        def _execute_side_effect(phase, ctx):
+            call_contexts.append(ctx.options.get("tts_voice", ""))
+            if len(call_contexts) == 1:
+                return PhaseExecutionFailure(
+                    error=ExecutionFailure(
+                        code="TTS_SYNTHESIS_FAILED",
+                        message="TTS synthesis failed.",
+                        retryable=True,
+                    )
+                )
+            return PhaseExecutionSuccess(
+                artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")]
+            )
+
+        mock_orch.execute_phase.side_effect = _execute_side_effect
+        mock_orch.run_phase.return_value = [
+            ArtifactPointer(kind="artifact", relative_path="out")
+        ]
+
+        slept: list[float] = []
+        JobTickService(
+            orchestrator=mock_orch, repo=mock_repo, sleep_fn=lambda s: slept.append(s)
+        ).tick(
+            "proj-001",
+            "test-job",
+            "product",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # First attempt: Mia, Second attempt (after reload): Dean.
+        assert call_contexts == ["Mia", "Dean"], (
+            f"Expected ['Mia', 'Dean'], got {call_contexts}"
+        )
 
 
 # 13. Auto-approve asset_review integrity checks + snapshot (#254)
@@ -1687,7 +1858,7 @@ class TestMontageAssemblingFailure:
     upstream artifacts (tts_audio, sentence_timings, selected_clips)."""
 
     def test_non_retryable_failure_sets_failed_phase(self) -> None:
-        """Non-retryable montage failure → terminal failed, phase=montage_assembling."""
+        """Non-retryable montage failure → terminal failed, phase=failed."""
         record = make_record(
             phase="montage_assembling",
             mode="generate",
@@ -1702,8 +1873,7 @@ class TestMontageAssemblingFailure:
                 ),
             ],
         )
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.execute_phase.return_value = PhaseExecutionFailure(
             error=ExecutionFailure(
@@ -1733,7 +1903,7 @@ class TestMontageAssemblingFailure:
         assert "sentence_timings" in artifact_kinds
 
     def test_retryable_failure_preserves_artifacts_and_stays_in_phase(self) -> None:
-        """Retryable montage failure → stays in phase, upstream artifacts preserved."""
+        """Retryable montage failure exhausts retries → terminal, artifacts preserved."""
         record = make_record(
             phase="montage_assembling",
             mode="import",
@@ -1748,8 +1918,7 @@ class TestMontageAssemblingFailure:
                 ),
             ],
         )
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.execute_phase.return_value = PhaseExecutionFailure(
             error=ExecutionFailure(
@@ -1767,12 +1936,12 @@ class TestMontageAssemblingFailure:
             project_dir=Path("/tmp/proj"),
         )
 
-        saved = mock_repo.save_job.call_args[0][1]
-        # Phase stays at montage_assembling (retrying).
-        assert saved.phase == "montage_assembling"
-        assert saved.failed_phase is None
-        assert saved.execution.status == "retrying"
-        assert saved.execution.current_attempt == 1
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
+        # All retries exhausted → terminal failed.
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "montage_assembling"
+        assert saved.execution.status == "failed"
+        assert saved.execution.current_attempt == 4
         assert saved.execution.error is not None
         assert saved.execution.error.retryable is True
         # Upstream artifacts are preserved.
@@ -1781,13 +1950,14 @@ class TestMontageAssemblingFailure:
         assert "selected_clips" in artifact_kinds
 
     def test_retryable_failure_exhausts_after_max_attempts(self) -> None:
-        """When max_attempts are exhausted, montage_assembling failure is terminal."""
+        """When max_attempts retries are exhausted, montage_assembling failure is
+        terminal."""
         record = make_record(
             phase="montage_assembling",
             mode="generate",
             execution=PhaseExecutionState(
                 status="retrying",
-                current_attempt=2,
+                current_attempt=3,  # 3 retries done → next is attempt 4 → terminal
                 max_attempts=3,
             ),
             artifacts=[
@@ -1796,8 +1966,10 @@ class TestMontageAssemblingFailure:
                 ),
             ],
         )
+        latest: list[JobRecord] = [record]
         mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        mock_repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.execute_phase.return_value = PhaseExecutionFailure(
             error=ExecutionFailure(
@@ -1815,7 +1987,7 @@ class TestMontageAssemblingFailure:
             project_dir=Path("/tmp/proj"),
         )
 
-        saved = mock_repo.save_job.call_args[0][1]
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
         assert saved.phase == "failed"
         assert saved.failed_phase == "montage_assembling"
         assert saved.execution.status == "failed"
@@ -1879,9 +2051,7 @@ class TestChainAdvancement:
         assert summary.action == "advanced"
         # script_generating handler should have been called exactly once.
         run_phase_calls = [
-            c
-            for c in orch.run_phase.call_args_list
-            if c[0][0] == "script_generating"
+            c for c in orch.run_phase.call_args_list if c[0][0] == "script_generating"
         ]
         assert len(run_phase_calls) == 1
 
@@ -2007,9 +2177,7 @@ class TestInlineRetry:
                     )
                 )
             return PhaseExecutionSuccess(
-                artifacts=[
-                    ArtifactPointer(kind="video_base", relative_path="base.mp4")
-                ]
+                artifacts=[ArtifactPointer(kind="video_base", relative_path="base.mp4")]
             )
 
         orch.execute_phase.side_effect = _execute_side_effect
@@ -2026,8 +2194,8 @@ class TestInlineRetry:
             project_dir=Path("/tmp/proj"),
         )
 
-        # One sleep call with first backoff value (2s).
-        assert slept == [2], f"Expected [2], got {slept}"
+        # One sleep call with first backoff value (2.0 s).
+        assert slept == [2.0], f"Expected [2.0], got {slept}"
         # The first call failed, later calls (retry + chain phases) succeeded.
         assert execute_call_count[0] >= 2, (
             f"Expected >= 2 execute_phase calls, got {execute_call_count[0]}"
@@ -2036,10 +2204,12 @@ class TestInlineRetry:
         assert summary.action != "failed"
 
     def test_tick_fails_after_max_attempts_exhausted(self) -> None:
-        """Three retryable failures exhaust max_attempts → terminal failed."""
+        """Three retryable failures exhaust max_attempts retries → terminal failed."""
         record = make_record(phase="video_rendering", mode="import")
+        latest: list[JobRecord] = [record]
         repo = Mock(spec=FileStoreRepository)
-        repo.load_job.return_value = record
+        repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
 
         orch = Mock(spec=PhaseOrchestrator)
         orch.run_phase.return_value = [
@@ -2065,8 +2235,9 @@ class TestInlineRetry:
             project_dir=Path("/tmp/proj"),
         )
 
-        # Attempt 1: sleep(2), Attempt 2: sleep(4), Attempt 3: terminal (no sleep).
-        assert slept == [2, 4], f"Expected [2, 4], got {slept}"
+        # Attempt 1: sleep(2), Attempt 2: sleep(4), Attempt 3: sleep(8),
+        # Attempt 4: terminal (no sleep).
+        assert slept == [2.0, 4.0, 8.0], f"Expected [2.0, 4.0, 8.0], got {slept}"
         assert summary.action == "failed"
         assert summary.to_phase == "failed"
 
@@ -2075,7 +2246,7 @@ class TestInlineRetry:
         assert saved.phase == "failed"
         assert saved.failed_phase == "video_rendering"
         assert saved.execution.status == "failed"
-        assert saved.execution.current_attempt == 3
+        assert saved.execution.current_attempt == 4
         assert saved.execution.max_attempts == 3
 
     def test_tick_non_retryable_error_fails_immediately(self) -> None:

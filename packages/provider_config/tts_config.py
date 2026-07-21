@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from packages.provider_config.config_constants import DEFAULTS
+
 
 @dataclass
 class TTSConfig:
@@ -92,8 +94,6 @@ class TTSConfig:
         )
 
     def with_defaults(self) -> TTSConfig:
-        from packages.provider_config.config_constants import DEFAULTS
-
         defaults = DEFAULTS["tts"]
         director = defaults.get("director", {})
         audio_tags = defaults.get("audio_tags", {})
@@ -139,11 +139,11 @@ class TTSConfig:
             optimize_text_preview=self.optimize_text_preview,
             instructions=self.instructions
             if self.instructions is not None
-            else defaults.get("instructions", ""),
+            else defaults["instructions"],
             optimize_instructions=self.optimize_instructions,
             language_type=self.language_type
             if self.language_type is not None
-            else defaults.get("language_type", "Chinese"),
+            else defaults["language_type"],
             audio_format=self.audio_format
             if self.audio_format is not None
             else defaults.get("audio_format", "wav"),

@@ -10,10 +10,9 @@ contained in a single referentially transparent function.
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
 
 from packages.domain_core.models import (
     ArtifactPointer,
@@ -61,6 +60,20 @@ HANDLED_PHASES: frozenset[str] = frozenset(
 _TERMINAL_PHASES: frozenset[str] = frozenset(
     {"completed", "failed", "cancelled", "paused", "migration_required"}
 )
+
+_BACKOFF_DELAYS: tuple[float, ...] = (2.0, 4.0, 8.0)
+
+
+def _retry_delay(current_attempt: int) -> float:
+    """Return the backoff delay before retry attempt *current_attempt*.
+
+    ``current_attempt`` is 1-indexed for the first retry.  The sequence is
+    2/4/8 s; longer budgets reuse the last value.
+    """
+    index = max(0, current_attempt - 1)
+    if index >= len(_BACKOFF_DELAYS):
+        return _BACKOFF_DELAYS[-1]
+    return _BACKOFF_DELAYS[index]
 
 
 # ---------------------------------------------------------------------------
@@ -439,11 +452,14 @@ def _compute_failure_transition(
     No I/O, no side effects.  Returns the next execution state and the
     TickAction describing the transition, mirroring _compute_transition's
     contract so all transition logic stays unit-testable without mocks.
-    The retryable error is preserved on the retrying state so the tick loop
-    never has to parse strings to apply the retry policy.
+
+    ``max_attempts`` is interpreted as the number of retries *after* the
+    first attempt, so a failure is terminal once ``current_attempt`` exceeds
+    ``max_attempts``.  The retryable error is preserved on the retrying state
+    so the tick loop never has to parse strings to apply the retry policy.
     """
     current_attempt = _attempts_so_far(execution) + 1
-    terminal = not error.retryable or current_attempt >= execution.max_attempts
+    terminal = not error.retryable or current_attempt > execution.max_attempts
     next_execution = PhaseExecutionState(
         status="failed" if terminal else "retrying",
         current_attempt=current_attempt,
@@ -457,7 +473,7 @@ def _compute_failure_transition(
             if terminal
             else (
                 f"{handler_phase} retrying after attempt "
-                f"{current_attempt}/{execution.max_attempts}"
+                f"{current_attempt}/{execution.max_attempts + 1}"
             )
         ),
     )
@@ -515,7 +531,8 @@ class JobTickService:
         phase, whichever comes first.
 
         Transient phase failures are retried inline with exponential
-        backoff (2/4/8 s) until ``max_attempts`` (default 3) is exhausted.
+        backoff (2/4/8 s) until ``max_attempts`` retries (default 3) are
+        exhausted, for a maximum of ``max_attempts + 1`` total attempts.
         Non-retryable failures go terminal immediately without backoff.
 
         Parameters
@@ -584,8 +601,13 @@ class JobTickService:
                 return last_summary
 
             record, summary = self._tick_step(
-                record, project_id, job_id, product,
-                root_dir=root_dir, project_dir=project_dir, options=options,
+                record,
+                project_id,
+                job_id,
+                product,
+                root_dir=root_dir,
+                project_dir=project_dir,
+                options=options,
             )
             last_summary = summary
 
@@ -606,6 +628,69 @@ class JobTickService:
 
         return last_summary or _build_tick_summary(initial_phase, TickAction())
 
+    def _build_phase_context(
+        self,
+        record: JobRecord,
+        project_id: str,
+        job_id: str,
+        product: str,
+        *,
+        root_dir: Path,
+        project_dir: Path,
+        options: dict[str, str] | None = None,
+    ) -> PhaseContext:
+        """Build a fresh PhaseContext from the current JobRecord.
+
+        Rebuilt before every handler attempt (including retries) so external
+        edits to the record (cancel, voice switch, etc.) are observed.
+        """
+        scene_folder_paths: list[str] = []
+        transition_duration_ms = 500
+        scene_config: dict[str, Any] = {}
+        if record.mode == "import":
+            if self._config is not None:
+                scene_cfg = self._config.get_scene_config(product_id=product)
+            else:
+                from packages.provider_config.config_reader import ConfigReader
+
+                scene_cfg = ConfigReader().get_scene_config(product_id=product)
+            scene_config = scene_cfg
+            scene_folder_paths = list(record.scene_folder_ids) or [
+                entry.get("path", "")
+                for entry in scene_cfg.get("folders", [])
+                if entry.get("path")
+            ]
+            transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
+
+            if record.manual_script:
+                job_dir = project_dir / "runtime" / "jobs" / job_id
+                job_dir.mkdir(parents=True, exist_ok=True)
+                script_path = job_dir / f"{record.product}口播文案.txt"
+                script_path.write_text(record.manual_script, encoding="utf-8")
+
+        merged_options: dict[str, Any] = dict(options or {})
+        if record.manual_script:
+            merged_options["manual_script"] = record.manual_script
+        if record.tts_model:
+            merged_options["tts_model"] = record.tts_model
+        if record.tts_voice:
+            merged_options["tts_voice"] = record.tts_voice
+        # Forward audio_source so the TTS handler can skip synthesis for
+        # upload / library audio jobs (#249).
+        merged_options["audio_source"] = record.audio_source
+
+        return PhaseContext(
+            job_id=job_id,
+            project_dir=project_dir,
+            root_dir=root_dir,
+            product=product,
+            brand=record.brand,
+            options=merged_options,
+            scene_folder_paths=scene_folder_paths,
+            transition_duration_ms=transition_duration_ms,
+            scene_config=scene_config,
+        )
+
     def _tick_step(
         self,
         record: JobRecord,
@@ -620,86 +705,43 @@ class JobTickService:
         """Single phase advancement with inline retry for transient failures.
 
         On retryable failure the handler is re-executed after exponential
-        backoff (2/4/8 s).  Non-retryable failures go terminal immediately
-        without backoff.
+        backoff (2/4/8 s).  ``max_attempts`` is the number of retries after
+        the first attempt; when the total attempt count reaches
+        ``max_attempts + 1`` the failure becomes terminal.  The record is
+        reloaded from disk before each retry so external edits (cancel, voice
+        switch, etc.) made during the backoff are respected.
         """
         initial_phase = record.phase
 
         # 1. First transition decision (pre-handler)
         action = _compute_transition(record, ())
 
-        # 2. Pre-compute handler context (immutable across retries)
+        # 2. Handler execution with inline retry for transient failures
+        artifacts: list[ArtifactPointer] = []
+        handler_ran = action.run_handler
         handler_phase: str | None = None
-        ctx: PhaseContext | None = None
-        scene_config: dict[str, Any] = {}
-        merged_options: dict[str, Any] = dict(options or {})
+        primary_result: Any = None
 
         if action.run_handler:
             handler_phase = action.handler_phase or record.phase
 
-            # --- scene config setup (import mode) ---
-            scene_folder_paths: list[str] = []
-            transition_duration_ms: int = 500
-            if record.mode == "import":
-                if self._config is not None:
-                    scene_cfg = self._config.get_scene_config(product_id=product)
-                else:
-                    from packages.provider_config.config_reader import ConfigReader
-
-                    scene_cfg = ConfigReader().get_scene_config(product_id=product)
-                scene_config = scene_cfg
-                scene_folder_paths = list(record.scene_folder_ids) or [
-                    entry.get("path", "")
-                    for entry in scene_cfg.get("folders", [])
-                    if entry.get("path")
-                ]
-                transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
-
-                if record.manual_script:
-                    job_dir = project_dir / "runtime" / "jobs" / job_id
-                    job_dir.mkdir(parents=True, exist_ok=True)
-                    script_path = job_dir / f"{record.product}口播文案.txt"
-                    script_path.write_text(record.manual_script, encoding="utf-8")
-
-            # --- merged options ---
-            if record.manual_script:
-                merged_options["manual_script"] = record.manual_script
-            if record.tts_model:
-                merged_options["tts_model"] = record.tts_model
-            if record.tts_voice:
-                merged_options["tts_voice"] = record.tts_voice
-            # Forward audio_source so the TTS handler can skip synthesis for
-            # upload / library audio jobs (#249).
-            merged_options["audio_source"] = record.audio_source
-
-            ctx = PhaseContext(
-                job_id=job_id,
-                project_dir=project_dir,
-                root_dir=root_dir,
-                product=product,
-                brand=record.brand,
-                options=merged_options,
-                scene_folder_paths=scene_folder_paths,
-                transition_duration_ms=transition_duration_ms,
-                scene_config=scene_config,
-            )
-
-        # 3. Handler execution with inline retry for transient failures
-        artifacts: list[ArtifactPointer] = []
-        handler_ran = action.run_handler
-        primary_result: Any = None
-
-        if action.run_handler:
-            assert handler_phase is not None
-            assert ctx is not None
-
             while True:
+                ctx = self._build_phase_context(
+                    record,
+                    project_id,
+                    job_id,
+                    product,
+                    root_dir=root_dir,
+                    project_dir=project_dir,
+                    options=options,
+                )
                 try:
                     if action.parallel_phases:
                         all_phases = [handler_phase] + action.parallel_phases
                         phase_results = self._orchestrator.execute_phases_parallel(
                             all_phases, ctx
                         )
+                        artifacts = []
                         for phase_result in phase_results.values():
                             if isinstance(phase_result, PhaseExecutionSuccess):
                                 artifacts.extend(phase_result.artifacts)
@@ -766,15 +808,22 @@ class JobTickService:
                     self._repo.save_job(project_id, record)
                     return record, _build_tick_summary(initial_phase, fail_action)
 
-                # Retryable — save retrying state, backoff, then retry.
-                # Execution state is kept in memory across retries;
-                # the reload is deferred to the outer chain loop
-                # between phases where external edits matter.
+                # Retryable — save retrying state, backoff, then reload and retry.
                 self._repo.save_job(project_id, record)
-                backoff_seq = [2, 4, 8]
-                attempt_idx = min(execution.current_attempt - 1, len(backoff_seq) - 1)
-                self._sleep_fn(backoff_seq[attempt_idx])
+                self._sleep_fn(_retry_delay(execution.current_attempt))
+                reloaded = self._repo.load_job(project_id, job_id)
+                if reloaded.phase in _TERMINAL_PHASES or reloaded.phase != record.phase:
+                    return reloaded, _build_tick_summary(
+                        initial_phase,
+                        TickAction(
+                            message=(
+                                f"{handler_phase} retry cancelled by external edit"
+                            )
+                        ),
+                    )
+                record = reloaded
                 artifacts = []
+                primary_result = None
 
             # 4. Second transition decision after handler succeeded
             if action.new_phase is None:
@@ -789,7 +838,9 @@ class JobTickService:
                     }
                 )
 
-        # 4b. Auto-approve asset_review: run integrity checks + write snapshot (#254)
+        # 4b. Auto-approve asset_review: run integrity checks + write snapshot (#254).
+        # Note: auto_approve intentionally does NOT bypass unresolved clips;
+        # correctness is preserved over fully automatic chaining (#266 review).
         if (
             action.new_phase is not None
             and action.new_review_status == "approved"

@@ -6,6 +6,7 @@ from typing import Any
 import requests
 
 from packages.provider_config.secret_store import SecretStore
+from packages.provider_config.config_constants import DEFAULTS
 
 
 class TTSError(Exception):
@@ -22,6 +23,18 @@ class TTSBlockedError(TTSError):
 
 class TTSQuotaExceededError(TTSBlockedError):
     pass
+
+
+class TTSRetriesExhaustedError(TTSError):
+    """Raised when per-sentence retries are exhausted.
+
+    This sentinel tells the orchestrator not to escalate the failure into a
+    phase-level retry, preventing a 3×3 retry storm (#266).
+    """
+
+    def __init__(self, cause: Exception) -> None:
+        self.cause = cause
+        super().__init__(f"TTS retries exhausted: {cause}")
 
 
 class QwenTTSProvider:
@@ -372,26 +385,30 @@ class TTSConfigShim:
     """
 
     def __init__(self, cfg: dict[str, Any]) -> None:
-        self.model: str = cfg.get("model", "mimo-v2.5-tts")
-        self.voice: str = cfg.get("voice", "Mia")
-        self.instructions: str = cfg.get("instructions", "")
-        self.language_type: str = cfg.get("language_type", "")
+        defaults = DEFAULTS["tts"]
+        director = defaults.get("director", {})
+        audio_tags = defaults.get("audio_tags", {})
+
+        self.model: str = cfg.get("model", defaults["model"])
+        self.voice: str = cfg.get("voice", defaults["voice"])
+        self.instructions: str = cfg.get("instructions", defaults["instructions"])
+        self.language_type: str = cfg.get("language_type", defaults["language_type"])
         self.optimize_instructions: bool = cfg.get("optimize_instructions", False)
-        self.fallback_voice: str = cfg.get("fallback_voice", "Dean")
-        self.randomize_voice: bool = cfg.get("randomize_voice", False)
-        self.random_voices: list[str] = cfg.get("random_voices", ["Mia", "Dean"])
-        self.style_control_mode: str = cfg.get("style_control_mode", "simple")
-        self.style_prompt: str = cfg.get("style_prompt", "自然 清晰")
-        self.voice_design_prompt: str = cfg.get("voice_design_prompt", "")
-        self.audio_format: str = cfg.get("audio_format", "wav")
-        self.audio_tags_enabled: bool = cfg.get("audio_tags_enabled", False)
-        self.audio_tags: str = cfg.get("audio_tags", "")
+        self.fallback_voice: str = cfg.get("fallback_voice", defaults["fallback_voice"])
+        self.randomize_voice: bool = cfg.get("randomize_voice", defaults["randomize_voice"])
+        self.random_voices: list[str] = cfg.get("random_voices", defaults["random_voices"])
+        self.style_control_mode: str = cfg.get("style_control_mode", defaults["style_control_mode"])
+        self.style_prompt: str = cfg.get("style_prompt", defaults["style_prompt"])
+        self.voice_design_prompt: str = cfg.get("voice_design_prompt", defaults.get("voice_design_prompt", ""))
+        self.audio_format: str = cfg.get("audio_format", defaults["audio_format"])
+        self.audio_tags_enabled: bool = cfg.get("audio_tags_enabled", audio_tags.get("enabled", False))
+        self.audio_tags: str = cfg.get("audio_tags", audio_tags.get("tags", ""))
         self.voice_clone_sample_path: str = cfg.get("voice_clone_sample_path", "")
         self.voice_clone_mime_type: str = cfg.get("voice_clone_mime_type", "")
         self.optimize_text_preview: bool = cfg.get("optimize_text_preview", False)
-        self.director_character: str = cfg.get("director_character", "")
-        self.director_scene: str = cfg.get("director_scene", "")
-        self.director_guidance: str = cfg.get("director_guidance", "")
+        self.director_character: str = cfg.get("director_character", director.get("character", ""))
+        self.director_scene: str = cfg.get("director_scene", director.get("scene", ""))
+        self.director_guidance: str = cfg.get("director_guidance", director.get("guidance", ""))
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +425,7 @@ def create_tts_provider(
     ``MiMoTTSProvider``. API keys and base URLs are resolved via ``SecretStore``
     so configuration changes take effect without restarting the worker.
     """
-    tts_model = config.get("model", "mimo-v2.5-tts") or ""
+    tts_model = config.get("model", DEFAULTS["tts"]["model"]) or ""
 
     if tts_model.startswith("qwen"):
         base_url = secrets.get_api_base_url("qwen")

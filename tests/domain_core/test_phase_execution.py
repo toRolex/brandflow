@@ -135,9 +135,9 @@ def test_execution_state_accepts_every_lifecycle_status(
     "payload",
     [
         {"status": "unknown", "current_attempt": 0, "max_attempts": 3},
-        {"status": "pending", "current_attempt": 4, "max_attempts": 3},
+        {"status": "pending", "current_attempt": 5, "max_attempts": 3},
         {"status": "running", "current_attempt": 0, "max_attempts": 3},
-        {"status": "retrying", "current_attempt": 3, "max_attempts": 3},
+        {"status": "retrying", "current_attempt": 4, "max_attempts": 3},
         {
             "status": "retrying",
             "current_attempt": 1,

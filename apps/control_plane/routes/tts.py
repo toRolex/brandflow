@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from packages.provider_config.secret_store import SecretStore
+from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.tts_config import TTSConfigManager
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
@@ -84,7 +85,7 @@ class TTSConfigResponse(BaseModel):
 
 class TTSPreviewRequest(BaseModel):
     text: str
-    model: str = "mimo-v2.5-tts"
+    model: str = DEFAULTS["tts"]["model"]
     voice: str | None = None
     style_prompt: str | None = None
     voice_design_prompt: str | None = None

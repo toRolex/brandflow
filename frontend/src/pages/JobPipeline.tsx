@@ -104,6 +104,7 @@ export default function JobPipeline() {
 		model: string;
 		voice: string;
 		resolved_from: string;
+		product: string;
 	} | null>(null);
 	const [ttsSelectedModel, setTtsSelectedModel] = useState("");
 	const [ttsSelectedVoice, setTtsSelectedVoice] = useState("");
@@ -525,7 +526,7 @@ export default function JobPipeline() {
 		}
 
 		const ResolvedLabels: Record<string, string> = {
-			job: "Job",
+			job: "Job 覆盖",
 			product: "产品",
 			global: "全局",
 		};
@@ -547,28 +548,37 @@ export default function JobPipeline() {
 					background: "var(--bg-table-head)",
 				}}
 			>
-				{/* Resolution badge */}
 				{ttsVoiceInfo && (
-					<div className="flex items-center gap-2 mb-3">
-						<span
-							className="text-xs"
+					<>
+						{/* Resolution badge */}
+						<div className="flex items-center gap-2 mb-3">
+							<span
+								className="text-xs"
+								style={{ color: "var(--text-secondary)" }}
+							>
+								当前音色:
+							</span>
+							<span
+								className="text-xs font-mono"
+								style={{ color: "var(--text-primary)" }}
+							>
+								{ttsVoiceInfo.model} / {ttsVoiceInfo.voice}
+							</span>
+							<span
+								className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+								style={{ background: resolvedBadgeColor, color: "#fff" }}
+							>
+								{resolvedLabel}
+							</span>
+						</div>
+
+						<div
+							className="text-xs mb-2"
 							style={{ color: "var(--text-secondary)" }}
 						>
-							当前音色:
-						</span>
-						<span
-							className="text-xs font-mono"
-							style={{ color: "var(--text-primary)" }}
-						>
-							{ttsVoiceInfo.model} / {ttsVoiceInfo.voice}
-						</span>
-						<span
-							className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-							style={{ background: resolvedBadgeColor, color: "#fff" }}
-						>
-							{resolvedLabel}
-						</span>
-					</div>
+							所属产品：{ttsVoiceInfo.product}
+						</div>
+					</>
 				)}
 
 				{/* Voice selector */}
@@ -778,7 +788,7 @@ export default function JobPipeline() {
 								{job.execution.current_attempt > 0 && (
 									<p className="text-[var(--text-tertiary)] text-xs">
 										第 {job.execution.current_attempt} /{" "}
-										{job.execution.max_attempts} 次尝试
+										{job.execution.max_attempts} 次重试
 									</p>
 								)}
 							</div>
@@ -971,7 +981,7 @@ export default function JobPipeline() {
 								</div>
 								<p className="text-[var(--text-tertiary)] text-xs">
 									第 {job.execution.current_attempt} /{" "}
-									{job.execution.max_attempts} 次尝试
+									{job.execution.max_attempts} 次重试
 								</p>
 							</div>
 						)}
@@ -1203,7 +1213,7 @@ export default function JobPipeline() {
 								</div>
 								<p className="text-[var(--text-tertiary)] text-xs">
 									第 {job.execution.current_attempt} /{" "}
-									{job.execution.max_attempts} 次尝试
+									{job.execution.max_attempts} 次重试
 								</p>
 							</div>
 						)}
