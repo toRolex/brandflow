@@ -16,7 +16,7 @@ export default function MediaPlayer({ src, kind }: Props) {
 		return (
 			<div className="border border-dashed border-[var(--border-default)] rounded-lg p-8 text-center">
 				<div className="text-3xl mb-2">🎬</div>
-				<p className="text-gray-400 text-sm">视频生成中 (暂为占位文件)</p>
+				<p className="text-gray-400 text-sm">视频文件加载失败</p>
 			</div>
 		);
 	}
