@@ -20,7 +20,6 @@ from pathlib import Path
 # Allow running as a script from the repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from packages.domain_core.models import JobRecord
 from packages.file_store.repository import FileStoreRepository
 from packages.provider_config.config_reader import ConfigReader
 

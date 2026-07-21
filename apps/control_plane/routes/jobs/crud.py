@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
@@ -10,6 +11,7 @@ from apps.control_plane.routes.jobs.helpers import (
     _make_job_response,
     _resolve_product_defaults,
     _validate_import_scene_folders,
+    _validate_tts_model_voice,
 )
 from apps.control_plane.routes.jobs.models import (
     BatchCreateRequest,
@@ -38,6 +40,15 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     )
     if validation_error is not None:
         raise HTTPException(status_code=400, detail=validation_error.model_dump())
+
+    tts_validation_error = _validate_tts_model_voice(
+        payload.tts_model,
+        payload.tts_voice,
+        product,
+        request.app.state.config_reader,
+    )
+    if tts_validation_error is not None:
+        raise HTTPException(status_code=422, detail=tts_validation_error.model_dump())
 
     job_id = f"job_{product}_{uuid4().hex[:8]}"
     repo = FileStoreRepository(request.app.state.root_dir)
@@ -90,6 +101,13 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             item.mode,
             item.scene_folder_ids,
         )
+        if validation_error is None:
+            validation_error = _validate_tts_model_voice(
+                item.tts_model,
+                item.tts_voice,
+                product,
+                request.app.state.config_reader,
+            )
         if validation_error is not None:
             validation_errors.append(
                 {
