@@ -314,7 +314,7 @@ class TestRunScriptManual:
 
 
 class TestRunScriptLLM:
-    @patch("packages.pipeline_services.phase_orchestrator.generate_script")
+    @patch("packages.pipeline_services.phases.script.generate_script")
     def test_llm_generation_calls_script_generator_and_returns_artifacts(
         self,
         mock_generate_script: MagicMock,
@@ -350,7 +350,7 @@ class TestRunScriptCoverTitle:
     @patch.object(PhaseOrchestrator, "_resolve_llm_config")
     @patch.object(PhaseOrchestrator, "_resolve_api_key")
     @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phases.script.ScriptGenerator")
     def test_auto_generates_cover_title_when_missing(
         self,
         mock_sg_cls: MagicMock,
@@ -395,7 +395,7 @@ class TestRunScriptCoverTitle:
     @patch.object(PhaseOrchestrator, "_resolve_llm_config")
     @patch.object(PhaseOrchestrator, "_resolve_api_key")
     @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phases.script.ScriptGenerator")
     def test_skips_cover_title_when_already_set(
         self,
         mock_sg_cls: MagicMock,
@@ -429,7 +429,7 @@ class TestRunScriptCoverTitle:
     @patch.object(PhaseOrchestrator, "_resolve_llm_config")
     @patch.object(PhaseOrchestrator, "_resolve_api_key")
     @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phases.script.ScriptGenerator")
     def test_cover_title_error_does_not_propagate(
         self,
         mock_sg_cls: MagicMock,
