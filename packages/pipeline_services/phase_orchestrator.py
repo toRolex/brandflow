@@ -694,6 +694,15 @@ class PhaseOrchestrator:
         result: list[ArtifactPointer] = []
         uploaded_audio_path: str = ctx.options.get("uploaded_audio_path", "")
 
+        # upload / library audio jobs do not need TTS synthesis (#249)
+        audio_source: str = ctx.options.get("audio_source", "tts")
+        if audio_source in ("upload", "library") and not uploaded_audio_path:
+            print(
+                f"[TTS] 跳过合成: audio_source={audio_source}, 无上传音频路径",
+                flush=True,
+            )
+            return result
+
         if uploaded_audio_path:
             src_audio = ctx.root_dir / uploaded_audio_path
             if src_audio.exists():

@@ -579,6 +579,9 @@ class JobTickService:
                 merged_options["tts_model"] = record.tts_model
             if record.tts_voice:
                 merged_options["tts_voice"] = record.tts_voice
+            # Forward audio_source so the TTS handler can skip synthesis for
+            # upload / library audio jobs (#249).
+            merged_options["audio_source"] = record.audio_source
 
             ctx = PhaseContext(
                 job_id=job_id,
