@@ -181,9 +181,7 @@ class TestExecutorOffloading:
     """Verify that _auto_tick dispatches ticks via run_in_executor and the
     single-in-flight guard works correctly."""
 
-    async def _run_one_tick_with_executor_patch(
-        self, root_dir: Path, wrap_fn
-    ) -> None:
+    async def _run_one_tick_with_executor_patch(self, root_dir: Path, wrap_fn) -> None:
         """Like _run_one_tick, but with a wrapper around run_in_executor on the
         concrete event loop instance obtained via get_running_loop()."""
         first_sleep = True
@@ -271,9 +269,7 @@ class TestExecutorOffloading:
 
         def _tick(*args, **kwargs):
             ticked.append(args[1])  # args[1] is job_id
-            return TickSummary(
-                action="skipped", from_phase="queued", to_phase="queued"
-            )
+            return TickSummary(action="skipped", from_phase="queued", to_phase="queued")
 
         mock_svc.tick.side_effect = _tick
         mock_svc_cls.return_value = mock_svc
@@ -312,9 +308,7 @@ class TestExecutorOffloading:
                 raise PhaseExecutionError(
                     args[1], "unknown", "simulated crash", ValueError("boom")
                 )
-            return TickSummary(
-                action="skipped", from_phase="queued", to_phase="queued"
-            )
+            return TickSummary(action="skipped", from_phase="queued", to_phase="queued")
 
         mock_svc.tick.side_effect = _tick
         mock_svc_cls.return_value = mock_svc

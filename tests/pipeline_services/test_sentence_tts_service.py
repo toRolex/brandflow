@@ -167,7 +167,9 @@ class TestSentenceTTSService:
             provider, base_config, tmp_path, helpers, max_retries=3
         )
 
-        with pytest.raises(RuntimeError, match="TTS down"):
+        from packages.pipeline_services.tts_provider import TTSRetriesExhaustedError
+
+        with pytest.raises(TTSRetriesExhaustedError):
             service.synthesize_script("第一句。", tmp_path / "out.mp3")
 
         assert provider.synthesize.call_count == 3
@@ -298,11 +300,16 @@ class TestParallelTTS:
         assert len(timings) == 6
         # Every timing must have its index matching its position.
         for pos, t in enumerate(timings):
-            assert t.index == pos, (
-                f"timings[{pos}].index == {t.index}, expected {pos}"
-            )
+            assert t.index == pos, f"timings[{pos}].index == {t.index}, expected {pos}"
         # Also verify the text matches.
-        expected = ["第一句。", "第二句。", "第三句。", "第四句。", "第五句。", "第六句。"]
+        expected = [
+            "第一句。",
+            "第二句。",
+            "第三句。",
+            "第四句。",
+            "第五句。",
+            "第六句。",
+        ]
         for i, exp in enumerate(expected):
             assert timings[i].text == exp, (
                 f"timings[{i}].text == {timings[i].text!r}, expected {exp!r}"
@@ -342,9 +349,7 @@ class TestParallelTTS:
             f"Expected >= 2 distinct threads, got {distinct_threads}"
         )
 
-    def test_parallel_synthesis_respects_cache(
-        self, base_config, tmp_path
-    ) -> None:
+    def test_parallel_synthesis_respects_cache(self, base_config, tmp_path) -> None:
         """Pre-populated cache entries skip provider calls during parallel synthesis."""
         provider = MagicMock()
         provider.synthesize.return_value = b"audio"
