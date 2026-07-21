@@ -914,6 +914,7 @@ def _resolve_tts_voice_info(record: JobRecord, config_reader: ConfigReader) -> d
         "model": effective_model,
         "voice": effective_voice,
         "resolved_from": resolved_from,
+        "product": record.product,
     }
 
 

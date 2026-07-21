@@ -546,7 +546,7 @@ export const api = {
 
 	// Job-level TTS (#177)
 	getJobTTSVoice: (jobId: string) =>
-		request<{ model: string; voice: string; resolved_from: string }>(
+		request<{ model: string; voice: string; resolved_from: string; product: string }>(
 			`/api/jobs/${jobId}/tts/voice`,
 		),
 
@@ -554,7 +554,7 @@ export const api = {
 		jobId: string,
 		body: { model?: string; voice?: string; confirm?: boolean },
 	) =>
-		request<{ model: string; voice: string; resolved_from: string }>(
+		request<{ model: string; voice: string; resolved_from: string; product: string }>(
 			`/api/jobs/${jobId}/tts/voice`,
 			{ method: "PUT", body: JSON.stringify(body) },
 		),
