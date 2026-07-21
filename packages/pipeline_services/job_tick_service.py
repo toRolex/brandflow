@@ -166,13 +166,25 @@ def _merge_artifacts(
     existing: list[ArtifactPointer],
     new_artifacts: list[ArtifactPointer],
 ) -> list[ArtifactPointer]:
-    """Merge *new_artifacts* into *existing*, deduplicating by kind."""
-    existing_kinds = {a.kind for a in existing}
-    result = list(existing)
+    """Merge new artifacts into existing, replacing same-kind entries so
+    re-rendered outputs (url, size_bytes, relative_path) stay current."""
+    by_kind: dict[str, ArtifactPointer] = {}
+    for a in existing:
+        by_kind[a.kind] = a
     for a in new_artifacts:
-        if a.kind not in existing_kinds:
+        by_kind[a.kind] = a
+    # Preserve original order for kinds that existed before; append new kinds at the end.
+    result: list[ArtifactPointer] = []
+    seen: set[str] = set()
+    for a in existing:
+        replacement = by_kind.get(a.kind)
+        if replacement is not None and a.kind not in seen:
+            result.append(replacement)
+            seen.add(a.kind)
+    for a in new_artifacts:
+        if a.kind not in seen:
             result.append(a)
-            existing_kinds.add(a.kind)
+            seen.add(a.kind)
     return result
 
 
@@ -418,7 +430,18 @@ def _transition_after_artifacts(
             message="asset_retrieving produced no artifacts, auto-advancing",
         )
 
-    # 2e. Other handled phases: auto-advance (transitional or empty handler)
+    # 2e. final_rendering: a missing final.mp4 is a real failure, not a skip
+    if effective_phase == "final_rendering":
+        if record.execution.error is not None:
+            return TickAction(
+                new_phase="failed",
+                message="final_rendering failed after retry",
+            )
+        return TickAction(
+            message="final_rendering produced no artifacts, will retry next tick",
+        )
+
+    # 2f. Other handled phases: auto-advance (transitional or empty handler)
     if effective_phase in HANDLED_PHASES:
         return TickAction(
             new_phase=_safe_next(effective_phase),

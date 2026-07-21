@@ -187,6 +187,100 @@ class TestCreateExport:
         assert resp.status_code == 409
         assert "rerender" in resp.json()["detail"].lower()
 
+    def test_create_export_rejects_missing_final_mp4(self, client: TestClient) -> None:
+        """Completed job with timeline but no final.mp4 cannot export."""
+        root = Path(client.app.state.root_dir)  # type: ignore[union-attr]
+        repo = FileStoreRepository(root)
+        repo.create_project("proj-mp4-missing", "t")
+        job_dir = (
+            root / "workspace" / "projects" / "proj-mp4-missing" / "runtime" / "jobs" / "job-mp4-missing"
+        )
+        job_dir.mkdir(parents=True, exist_ok=True)
+        (job_dir / "final_timeline.json").write_text(
+            json.dumps({"version": "1.0", "fingerprint": "fp-no-video", "segments": []})
+        )
+        from packages.domain_core.models import JobRecord, ArtifactPointer
+
+        repo.save_job(
+            "proj-mp4-missing",
+            JobRecord(
+                job_id="job-mp4-missing",
+                project_id="proj-mp4-missing",
+                product="p",
+                brand="b",
+                platforms=["douyin"],
+                mode="generate",
+                phase="completed",
+                review_status="approved",
+                artifacts=[
+                    ArtifactPointer(kind="final_video", relative_path="final.mp4", size_bytes=0)
+                ],
+            ),
+        )
+        resp = client.post("/api/jobs/job-mp4-missing/export")
+        assert resp.status_code == 409
+        assert "final video not produced" in resp.json()["detail"].lower()
+
+    def test_create_export_rejects_missing_final_video_artifact(
+        self, client: TestClient
+    ) -> None:
+        """Completed job with final.mp4 on disk but no artifact record cannot export."""
+        root = Path(client.app.state.root_dir)  # type: ignore[union-attr]
+        repo = FileStoreRepository(root)
+        repo.create_project("proj-artifact-missing", "t")
+        job_dir = (
+            root / "workspace" / "projects" / "proj-artifact-missing" / "runtime" / "jobs" / "job-artifact-missing"
+        )
+        job_dir.mkdir(parents=True, exist_ok=True)
+        (job_dir / "final_timeline.json").write_text(
+            json.dumps({"version": "1.0", "fingerprint": "fp-no-artifact", "segments": []})
+        )
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is None:
+            pytest.skip("ffmpeg not available")
+        subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=64x64:d=0.4",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=1000:duration=0.4",
+                "-shortest",
+                "-c:v",
+                "libx264",
+                "-c:a",
+                "aac",
+                "-pix_fmt",
+                "yuv420p",
+                str(job_dir / "final.mp4"),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        from packages.domain_core.models import JobRecord
+
+        repo.save_job(
+            "proj-artifact-missing",
+            JobRecord(
+                job_id="job-artifact-missing",
+                project_id="proj-artifact-missing",
+                product="p",
+                brand="b",
+                platforms=["douyin"],
+                mode="generate",
+                phase="completed",
+                review_status="approved",
+            ),
+        )
+        resp = client.post("/api/jobs/job-artifact-missing/export")
+        assert resp.status_code == 409
+        assert "final video artifact missing" in resp.json()["detail"].lower()
+
 
 class TestStatusAndDownload:
     def test_status_reports_state_and_progress(self, client: TestClient) -> None:

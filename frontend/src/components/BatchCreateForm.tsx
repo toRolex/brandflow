@@ -54,14 +54,21 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 	const [sceneFolderIds, setSceneFolderIds] = useState<string[]>([]);
 	const [sceneFoldersLoading, setSceneFoldersLoading] = useState(false);
 
+	const hasImportJob = batchConfigs.some((c) => c.productionMode === "import");
+
 	useEffect(() => {
+		if (!hasImportJob || !product) {
+			setSceneFoldersLoading(false);
+			setSceneFolders([]);
+			return;
+		}
 		setSceneFoldersLoading(true);
 		api
 			.getSceneFolders(product)
 			.then((data) => setSceneFolders(data.folders))
 			.catch(() => onError("加载场景文件夹失败"))
 			.finally(() => setSceneFoldersLoading(false));
-	}, [product, onError]);
+	}, [product, hasImportJob, onError]);
 
 	useEffect(() => {
 		setBatchConfigs((prev) => prev.map((c) => ({ ...c, sceneFolderIds })));

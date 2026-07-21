@@ -164,4 +164,41 @@ describe("BatchCreateForm", () => {
 		expect(payload.jobs[0].sceneFolderIds).toEqual(["scenes/one"]);
 		expect(payload.jobs[1].sceneFolderIds).toEqual(["scenes/one"]);
 	});
+
+	it("generate 模式下不加载场景文件夹且不显示错误", async () => {
+		vi.mocked(api.getSceneFolders).mockRejectedValue(new Error("should not be called"));
+		const onError = vi.fn();
+		render(
+			<BatchCreateForm
+				{...defaultProps({ onError, product: "测试产品" })}
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText("未配置场景文件夹")).toBeInTheDocument();
+		});
+		expect(api.getSceneFolders).not.toHaveBeenCalled();
+		expect(onError).not.toHaveBeenCalled();
+	});
+
+	it("存在 import 任务时才加载场景文件夹", async () => {
+		vi.mocked(api.getSceneFolders).mockResolvedValue({
+			folders: [{ name: "场景一", path: "scenes/one" }],
+		});
+		render(<BatchCreateForm {...defaultProps({ product: "测试产品" })} />);
+
+		// 默认全部为 generate，不应调用
+		await waitFor(() => {
+			expect(screen.getByText("未配置场景文件夹")).toBeInTheDocument();
+		});
+		expect(api.getSceneFolders).not.toHaveBeenCalled();
+
+		// 切换第一个任务为 import
+		fireEvent.click(screen.getAllByText("手动导入")[0]);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("场景一")).toBeInTheDocument();
+		});
+		expect(api.getSceneFolders).toHaveBeenCalledWith("测试产品");
+	});
 });

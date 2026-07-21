@@ -391,6 +391,77 @@ class TestVideoRenderingNoArtifacts:
         assert action.run_handler is False
 
 
+class TestFinalRenderingNoArtifacts:
+    def test_no_artifacts_stays_in_phase(self) -> None:
+        """final_rendering with no artifacts must NOT auto-advance."""
+        action = _transition_after_artifacts(
+            make_record(phase="final_rendering"),
+            (),
+        )
+        assert action.new_phase is None
+        assert action.run_handler is False
+        assert "retry" in action.message.lower()
+
+    def test_no_artifacts_after_error_fails(self) -> None:
+        """final_rendering exhausted retry with no artifacts → failed."""
+        action = _transition_after_artifacts(
+            make_record(
+                phase="final_rendering",
+                execution=PhaseExecutionState(
+                    status="retrying",
+                    current_attempt=1,
+                    max_attempts=3,
+                    error=ExecutionFailure(
+                        code="FINAL_RENDERING_FAILED",
+                        message="final_rendering produced no artifacts.",
+                        retryable=True,
+                    ),
+                ),
+            ),
+            (),
+        )
+        assert action.new_phase == "failed"
+        assert action.run_handler is False
+        assert "failed" in action.message.lower()
+
+
+class TestMergeArtifacts:
+    def test_updates_existing_kind(self) -> None:
+        """Merging a newer artifact of an existing kind replaces the old one."""
+        from packages.pipeline_services.job_tick_service import _merge_artifacts
+
+        existing = [
+            ArtifactPointer(
+                kind="final_video",
+                relative_path="final.mp4",
+                size_bytes=100,
+            ),
+        ]
+        new = [
+            ArtifactPointer(
+                kind="final_video",
+                relative_path="final.mp4",
+                size_bytes=200,
+            ),
+        ]
+        merged = _merge_artifacts(existing, new)
+        assert len(merged) == 1
+        assert merged[0].size_bytes == 200
+
+    def test_appends_new_kind(self) -> None:
+        """New artifact kinds are appended while preserving existing order."""
+        from packages.pipeline_services.job_tick_service import _merge_artifacts
+
+        existing = [
+            ArtifactPointer(kind="script", relative_path="script.txt"),
+        ]
+        new = [
+            ArtifactPointer(kind="final_video", relative_path="final.mp4"),
+        ]
+        merged = _merge_artifacts(existing, new)
+        assert [a.kind for a in merged] == ["script", "final_video"]
+
+
 # ---------------------------------------------------------------------------
 # 7. Post-handler: no artifacts for subtitle_generating
 # ---------------------------------------------------------------------------

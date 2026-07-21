@@ -725,6 +725,26 @@ def create_export(request: Request, job_id: str):
     if record.phase != "completed":
         raise HTTPException(status_code=400, detail="job not yet completed")
 
+    job_dir = (
+        request.app.state.root_dir
+        / "workspace"
+        / "projects"
+        / project_id
+        / "runtime"
+        / "jobs"
+        / job_id
+    )
+    if not (job_dir / "final.mp4").exists():
+        raise HTTPException(
+            status_code=409,
+            detail="final video not produced; rerender required before export",
+        )
+    if not any(a.kind == "final_video" for a in record.artifacts):
+        raise HTTPException(
+            status_code=409,
+            detail="final video artifact missing; rerender required before export",
+        )
+
     fingerprint = _read_final_timeline_fingerprint(request, project_id, job_id)
     if not fingerprint:
         raise HTTPException(
