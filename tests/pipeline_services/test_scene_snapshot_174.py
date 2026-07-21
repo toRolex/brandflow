@@ -121,6 +121,7 @@ class TestSceneSnapshotPartialInvalidation:
         entry0_source.touch()
 
         import random as _random
+
         _orig_choice = _random.choice
 
         def _choice_skip_original(seq):
