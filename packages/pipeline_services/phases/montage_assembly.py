@@ -69,13 +69,9 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
 
     result: list = []
     if montage_path.exists():
-        result.append(
-            _to_artifact("montage_segment", montage_path, workspace_dir)
-        )
+        result.append(_to_artifact("montage_segment", montage_path, workspace_dir))
     if segments_path.exists():
-        result.append(
-            _to_artifact("montage_segments", segments_path, workspace_dir)
-        )
+        result.append(_to_artifact("montage_segments", segments_path, workspace_dir))
     return result
 
 
@@ -131,9 +127,7 @@ def load_montage_inputs(
 
     try:
         selected = json.loads(snapshot_path.read_text(encoding="utf-8"))
-        sentence_timings = [
-            t.model_dump() for t in _discover_sentence_timings(job_dir)
-        ]
+        sentence_timings = [t.model_dump() for t in _discover_sentence_timings(job_dir)]
     except (json.JSONDecodeError, KeyError, ValueError) as exc:
         return (
             [],

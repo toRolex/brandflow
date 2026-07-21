@@ -360,7 +360,7 @@ class TestUpdateJobTTSVoice:
             client,
             proj_id,
             manual_script="测试文案。",
-            tts_voice="",
+            tts_voice="Mia",
             tts_model="mimo-v2.5-tts",
         )
         job_id = job["job_id"]

@@ -204,9 +204,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                 f"offset={offset:.3f}[{out_label}]"
             )
             if i < len(clips) - 1:
-                filter_parts.append(
-                    f"[{out_label}]setpts=PTS-STARTPTS,fps=30[r{i}]"
-                )
+                filter_parts.append(f"[{out_label}]setpts=PTS-STARTPTS,fps=30[r{i}]")
 
             accumulated += durations[i] - transition_duration
 
