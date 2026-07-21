@@ -5,6 +5,8 @@ import BatchCreateForm from "../components/BatchCreateForm";
 import ConfirmDialog from "../components/ConfirmDialog";
 import type { SingleJobFormData } from "../components/CreateJobForm";
 import CreateJobForm from "../components/CreateJobForm";
+import InlineBanner from "../components/InlineBanner";
+import Modal from "../components/Modal";
 import ProjectTabs from "../components/ProjectTabs";
 import WorkbenchShell from "../components/WorkbenchShell";
 import type {
@@ -88,6 +90,13 @@ export default function ProjectWorkbench() {
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [confirmMessage, setConfirmMessage] = useState("");
 	const [confirmTarget, setConfirmTarget] = useState<string>("");
+
+	/* ── modal / banner ── */
+	const [isOpen, setIsOpen] = useState(false);
+	const [banner, setBanner] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
 
 	/* ── 数据加载 ── */
 	const load = useCallback(async () => {
@@ -218,7 +227,12 @@ export default function ProjectWorkbench() {
 					setError("音频上传失败");
 				}
 			}
-			navigate(`/jobs/${job.job_id}`);
+			setIsOpen(false);
+			load();
+			setBanner({
+				type: "success",
+				message: `Job ${job.name || job.job_id} 创建成功`,
+			});
 		} catch (e) {
 			console.error("create job failed", e);
 			setError(parseApiError(e));
@@ -314,21 +328,47 @@ export default function ProjectWorkbench() {
 			onDismissError={() => setError("")}
 			onBack={() => navigate("/")}
 		>
-			{/* ── 创建 Job ── */}
-			<section
-				className="border rounded-xl p-5 mb-6"
-				style={{
-					background: "var(--bg-card)",
-					borderColor: "var(--border-default)",
-				}}
-			>
-				<h2
-					className="text-[15px] font-semibold mb-3.5"
+			{/* ── Banner ── */}
+			{banner && (
+				<InlineBanner
+					type={banner.type}
+					message={banner.message}
+					onClose={() => setBanner(null)}
+				/>
+			)}
+
+			{/* ── Header ── */}
+			<div className="flex items-center justify-between mb-6">
+				<h1
+					className="text-xl font-bold"
 					style={{ color: "var(--text-primary)" }}
 				>
-					创建新 Job
-				</h2>
+					Jobs
+				</h1>
+				<button
+					className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+					style={{
+						background: "var(--btn-primary-bg)",
+						color: "var(--btn-primary-text)",
+					}}
+					onMouseEnter={(e) => {
+						e.currentTarget.style.background = "var(--btn-primary-hover)";
+					}}
+					onMouseLeave={(e) => {
+						e.currentTarget.style.background = "var(--btn-primary-bg)";
+					}}
+					onClick={() => setIsOpen(true)}
+				>
+					＋ 新建 Job
+				</button>
+			</div>
 
+			{/* ── 创建 Job Modal ── */}
+			<Modal
+				isOpen={isOpen}
+				title="创建新 Job"
+				onClose={() => setIsOpen(false)}
+			>
 				{/* 创建模式切换 */}
 				<div
 					className="flex items-center gap-4 mb-4 pb-4 border-b"
@@ -423,7 +463,7 @@ export default function ProjectWorkbench() {
 						onError={setError}
 					/>
 				)}
-			</section>
+			</Modal>
 
 			{/* ── Tabs ── */}
 			<ProjectTabs
