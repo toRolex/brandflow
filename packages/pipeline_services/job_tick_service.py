@@ -532,6 +532,26 @@ class JobTickService:
         """
         # 1. Load current state
         record = self._repo.load_job(project_id, job_id)
+
+        # 1b. Fallback: populate scene_folder_ids from scene config for import
+        # mode when the record has no explicit folders.  This lets upgraded
+        # jobs (pre-selection) and newly-created import jobs without manual
+        # folder selection proceed past the queued → migration_required gate.
+        if record.mode == "import" and not record.scene_folder_ids:
+            if self._config is not None:
+                scene_cfg = self._config.get_scene_config(product_id=product)
+            else:
+                from packages.provider_config.config_reader import ConfigReader
+
+                scene_cfg = ConfigReader().get_scene_config(product_id=product)
+            folders = [
+                entry.get("path", "")
+                for entry in scene_cfg.get("folders", [])
+                if entry.get("path")
+            ]
+            if folders:
+                record = record.model_copy(update={"scene_folder_ids": folders})
+
         initial_phase = record.phase
 
         # 2. First transition decision (pre-handler)
