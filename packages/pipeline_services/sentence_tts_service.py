@@ -243,12 +243,21 @@ class SentenceTTSService:
     def _synthesize_with_retry(
         self, sentence: str, locked_config: dict[str, Any]
     ) -> bytes:
-        """Call the provider for a single sentence, retrying up to ``max_retries``."""
+        """Call the provider for a single sentence, retrying up to ``max_retries``.
+
+        Only transient / unknown errors are retried.  Permanent errors
+        (``TTSBlockedError`` including ``TTSQuotaExceededError``) are raised
+        immediately to avoid wasting time on unrecoverable failures (#249).
+        """
+        from packages.pipeline_services.tts_provider import TTSBlockedError
+
         shim = _config_shim(locked_config)
         last_error: Exception | None = None
         for attempt in range(1, self.max_retries + 1):
             try:
                 return self.provider.synthesize(sentence, shim)
+            except TTSBlockedError:
+                raise  # permanent failure — do not retry
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
                 print(
