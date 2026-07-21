@@ -1,17 +1,9 @@
 @echo off
 chcp 65001 >nul
-setlocal enabledelayedexpansion
-title Brandflow — 停止服务
-
-:: 自动查找 nssm
-set NSSM=nssm.exe
-where nssm >nul 2>&1 || (
-    if exist "%~dp0..\..\tools\nssm-2.24\win64\nssm.exe" set "NSSM=%~dp0..\..\tools\nssm-2.24\win64\nssm.exe"
-    if exist "C:\Program Files\NSSM\nssm.exe" set "NSSM=C:\Program Files\NSSM\nssm.exe"
-)
+title Brandflow — 停止后台
 
 echo 正在停止 Brandflow 后台服务...
-%NSSM% stop brandflow-control-plane
+powershell -ExecutionPolicy Bypass -Command "Stop-ScheduledTask -TaskName brandflow-control-plane" >nul 2>&1
 if %errorlevel% equ 0 (
     echo 服务已成功停止。
 ) else (
