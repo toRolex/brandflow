@@ -33,7 +33,7 @@ class TestConfigResolverTTS:
             resolver = ConfigResolver(reader=reader)
             cfg = resolver.tts()
             assert cfg["provider"] == "qwen"
-            assert cfg["model"] == "qwen-tts"
+            assert cfg["model"] == "qwen3-tts-flash"
 
     def test_tts_applies_product_override(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
