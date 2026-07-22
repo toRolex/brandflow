@@ -183,7 +183,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 		() => sessionStorage.getItem("bf-update-dismissed") === "1",
 	);
 
-	useEffect(() => {
+	const fetchVersion = () => {
 		checkVersion()
 			.then((v) =>
 				setVersionInfo({
@@ -195,6 +195,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 			.catch(() => {
 				// silent — network failure is not an error to show
 			});
+	};
+	useEffect(() => {
+		fetchVersion();
 	}, []);
 
 	const showBanner = versionInfo?.updateAvailable && !bannerDismissed;
@@ -281,10 +284,42 @@ export default function Layout({ children }: { children: ReactNode }) {
 						</span>
 						{versionInfo && (
 							<span
-								className="text-xs"
+								className="text-xs inline-flex items-center gap-1"
 								style={{ color: "var(--text-tertiary)" }}
 							>
 								· v{versionInfo.current}
+								{versionInfo.updateAvailable ? (
+									<span
+										data-testid="version-update-dot"
+										className="inline-block w-2 h-2 rounded-full"
+										style={{ backgroundColor: "orange" }}
+									/>
+								) : (
+									<>
+										<span style={{ color: "green" }}>✓</span>
+										<span>最新</span>
+									</>
+								)}
+								<button
+									onClick={fetchVersion}
+									aria-label="检查更新"
+									type="button"
+									className="ml-0.5 hover:opacity-70"
+								>
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 12 12"
+										fill="none"
+										stroke="currentColor"
+										strokeWidth="1.5"
+										strokeLinecap="round"
+										strokeLinejoin="round"
+									>
+										<path d="M1.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0" />
+										<path d="M1.5 3.5V6h2.5" />
+									</svg>
+								</button>
 							</span>
 						)}
 						{inSystemConfig && (

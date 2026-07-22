@@ -118,7 +118,67 @@ describe("Layout — version display", () => {
 		expect(screen.queryByText(/新版本可用/)).not.toBeInTheDocument();
 	});
 
-	it("silently handles check-version failure", async () => {
+	it("shows green checkmark and 最新 when up-to-date", async () => {
+			mockCheckVersion.mockResolvedValue({
+				current: "0.7.13",
+				latest: "0.7.13",
+				update_available: false,
+			});
+			renderWithRouter("/");
+
+			await waitFor(() => {
+				expect(screen.getByText("最新")).toBeInTheDocument();
+			});
+			expect(screen.getByText("✓")).toBeInTheDocument();
+		});
+
+		it("shows orange dot when update available", async () => {
+			mockCheckVersion.mockResolvedValue({
+				current: "0.7.13",
+				latest: "0.8.0",
+				update_available: true,
+			});
+			renderWithRouter("/");
+
+			await waitFor(() => {
+				expect(
+					screen.getByTestId("version-update-dot"),
+				).toBeInTheDocument();
+			});
+		});
+
+		it("re-checks version on refresh button click", async () => {
+			mockCheckVersion.mockResolvedValue({
+				current: "0.7.13",
+				latest: "0.7.13",
+				update_available: false,
+			});
+			renderWithRouter("/");
+
+			await waitFor(() => {
+				expect(screen.getByText("最新")).toBeInTheDocument();
+			});
+
+			// Change mock response to simulate new version found
+			mockCheckVersion.mockResolvedValue({
+				current: "0.7.13",
+				latest: "0.8.0",
+				update_available: true,
+			});
+
+			const refreshBtn = screen.getByRole("button", {
+				name: /检查更新/,
+			});
+			refreshBtn.click();
+
+			await waitFor(() => {
+				expect(
+					screen.getByTestId("version-update-dot"),
+				).toBeInTheDocument();
+			});
+		});
+
+		it("silently handles check-version failure", async () => {
 		mockCheckVersion.mockRejectedValue(new Error("network error"));
 		renderWithRouter("/");
 
