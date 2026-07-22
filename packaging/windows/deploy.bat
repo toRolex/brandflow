@@ -144,7 +144,7 @@ echo [6/7] 注册并重启服务 ...
 nssm status brandflow-control-plane >nul 2>&1
 if errorlevel 2 (
     echo   - 注册控制面服务 ...
-    nssm install brandflow-control-plane "uv" "run python -m apps.control_plane"
+    nssm install brandflow-control-plane "uv" "run --project . python -m apps.control_plane"
     nssm set brandflow-control-plane AppDirectory "%PROJECT_DIR%"
     nssm set brandflow-control-plane AppStdout "%PROJECT_DIR%\logs\control-plane.log"
     nssm set brandflow-control-plane AppStderr "%PROJECT_DIR%\logs\control-plane.log"
@@ -156,7 +156,7 @@ if errorlevel 2 (
 nssm status brandflow-worker >nul 2>&1
 if errorlevel 2 (
     echo   - 注册 Worker 服务 ...
-    nssm install brandflow-worker "uv" "run python -m apps.runtime_worker"
+    nssm install brandflow-worker "uv" "run --project . python -m apps.runtime_worker"
     nssm set brandflow-worker AppDirectory "%PROJECT_DIR%"
     nssm set brandflow-worker AppStdout "%PROJECT_DIR%\logs\worker.log"
     nssm set brandflow-worker AppStderr "%PROJECT_DIR%\logs\worker.log"
@@ -165,6 +165,10 @@ if errorlevel 2 (
     nssm set brandflow-worker AppExit Default Exit
     nssm set brandflow-worker Start SERVICE_AUTO_START
 )
+
+:: 确保服务参数是最新的（覆盖旧版部署）
+nssm set brandflow-control-plane AppParameters "run --project . python -m apps.control_plane" >nul 2>&1
+nssm set brandflow-worker AppParameters "run --project . python -m apps.runtime_worker" >nul 2>&1
 
 nssm restart brandflow-control-plane
 if errorlevel 1 nssm start brandflow-control-plane
