@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -9,8 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from apps.control_plane.routes.jobs.helpers import (
     _find_job_project,
     _make_job_response,
-    _resolve_product_defaults,
-    _validate_import_scene_folders,
+    _resolve_product_from_config,
     _validate_tts_model_voice,
 )
 from apps.control_plane.routes.jobs.models import (
@@ -27,19 +25,9 @@ router = APIRouter(tags=["api-jobs"])
 
 @router.post("/projects/{project_id}/jobs")
 def create_job(request: Request, project_id: str, payload: CreateJobRequest):
-    product, brand = _resolve_product_defaults(
-        payload.product, payload.brand, request.app.state.root_dir
-    )
+    product, brand = _resolve_product_from_config(request.app.state.root_dir)
     if not product.strip():
-        raise HTTPException(status_code=400, detail="product is required")
-    validation_error = _validate_import_scene_folders(
-        Path(request.app.state.root_dir),
-        product,
-        payload.mode,
-        payload.scene_folder_ids,
-    )
-    if validation_error is not None:
-        raise HTTPException(status_code=400, detail=validation_error.model_dump())
+        raise HTTPException(status_code=400, detail="product is required — set default_name in product config")
 
     tts_validation_error = _validate_tts_model_voice(
         payload.tts_model,
@@ -72,7 +60,6 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         music_volume=payload.music_volume,
         tts_model=payload.tts_model,
         tts_voice=payload.tts_voice,
-        scene_folder_ids=payload.scene_folder_ids,
     )
     repo.save_job(project_id, record)
 
@@ -85,29 +72,19 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
 
 @router.post("/projects/{project_id}/jobs/batch")
 def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateRequest):
-    product, brand = _resolve_product_defaults(
-        payload.product, payload.brand, request.app.state.root_dir
-    )
+    product, brand = _resolve_product_from_config(request.app.state.root_dir)
     if not product.strip():
-        raise HTTPException(status_code=400, detail="product is required")
-    root_dir_path = Path(request.app.state.root_dir)
+        raise HTTPException(status_code=400, detail="product is required — set default_name in product config")
 
     # Phase 1: Validate all items before persisting any.
     validation_errors: list[dict[str, object]] = []
     for i, item in enumerate(payload.jobs):
-        validation_error = _validate_import_scene_folders(
-            root_dir_path,
+        validation_error = _validate_tts_model_voice(
+            item.tts_model,
+            item.tts_voice,
             product,
-            item.mode,
-            item.scene_folder_ids,
+            request.app.state.config_reader,
         )
-        if validation_error is None:
-            validation_error = _validate_tts_model_voice(
-                item.tts_model,
-                item.tts_voice,
-                product,
-                request.app.state.config_reader,
-            )
         if validation_error is not None:
             validation_errors.append(
                 {
@@ -148,7 +125,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             project_id=project_id,
             product=product,
             brand=brand,
-            name=item.name or product,
+            name=item.name or f"{product} #{i + 1:03d}",
             mode=item.mode,
             phase="queued",
             review_status="none",
@@ -163,7 +140,6 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             music_volume=item.music_volume,
             tts_model=item.tts_model,
             tts_voice=item.tts_voice,
-            scene_folder_ids=item.scene_folder_ids,
         )
         repo.save_job(project_id, record)
         display_index = f"{existing_count + i + 1:03d}"

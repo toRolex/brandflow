@@ -10,8 +10,6 @@ import { request, uploadFile } from "./core";
 export const createJob = (
 	projectId: string,
 	body: {
-		product: string;
-		brand?: string;
 		platforms: string[];
 		name?: string;
 		mode?: ProductionMode;
@@ -23,7 +21,6 @@ export const createJob = (
 		music_volume?: number;
 		language?: string;
 		cover_title?: { text: string; highlight_words?: string[] } | null;
-		scene_folder_ids?: string[];
 	},
 ) =>
 	request<JobDetail>("/api/projects/" + projectId + "/jobs", {

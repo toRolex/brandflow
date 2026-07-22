@@ -80,25 +80,13 @@ class TestJobDefaultsFromProductConfig:
         # 先创建项目
         client.post("/api/projects", json={"name": "test"})
         resp = client.post(
-            "/api/projects/prj_001/jobs", json={"product": "", "platforms": ["douyin"]}
+            "/api/projects/prj_001/jobs", json={"platforms": ["douyin"]}
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["product"] == "默认产品"
         assert data["brand"] == "默认品牌"
 
-    def test_job_explicit_overrides_default(self, tmp_path: Path) -> None:
-        client = _client(tmp_path)
-        client.put("/api/config/product", json={"default_name": "默认产品"})
-        client.post("/api/projects", json={"name": "test"})
-        resp = client.post(
-            "/api/projects/prj_001/jobs",
-            json={"product": "特供产品", "brand": "特供品牌", "platforms": ["douyin"]},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["product"] == "特供产品"
-        assert data["brand"] == "特供品牌"
 
     def test_batch_job_uses_default_product(self, tmp_path: Path) -> None:
         client = _client(tmp_path)
@@ -107,7 +95,6 @@ class TestJobDefaultsFromProductConfig:
         resp = client.post(
             "/api/projects/prj_001/jobs/batch",
             json={
-                "product": "",
                 "platforms": ["douyin"],
                 "jobs": [{"name": "job1"}, {"name": "job2"}],
             },
@@ -118,32 +105,6 @@ class TestJobDefaultsFromProductConfig:
         for r in data["results"]:
             assert r["product"] == "批处理产品"
 
-    def test_batch_job_explicit_overrides_default(self, tmp_path: Path) -> None:
-        client = _client(tmp_path)
-        client.put("/api/config/product", json={"default_name": "默认"})
-        client.post("/api/projects", json={"name": "test"})
-        resp = client.post(
-            "/api/projects/prj_001/jobs/batch",
-            json={
-                "product": "特供",
-                "brand": "特供品牌",
-                "platforms": ["douyin"],
-                "jobs": [{"name": "job1"}],
-            },
-        )
-        data = resp.json()
-        assert data["product"] == "特供"
-        assert data["results"][0]["brand"] == "特供品牌"
-
-    def test_job_without_default_still_requires_product(self, tmp_path: Path) -> None:
-        """default_name 为空时，仍要求显式传入 product"""
-        client = _client(tmp_path)
-        client.post("/api/projects", json={"name": "test"})
-        resp = client.post(
-            "/api/projects/prj_001/jobs",
-            json={"product": "", "platforms": ["douyin"]},
-        )
-        assert resp.status_code == 400
 
 
 # ── S3/S4: product-level category CRUD via /api/products/{product_id}/config ──
