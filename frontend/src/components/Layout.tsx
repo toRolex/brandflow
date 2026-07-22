@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import ProductSelector from "./ProductSelector";
+import { checkVersion } from "../api/version";
 
 /* ------------------------------------------------------------------ */
 /*  SVG Icons — 18x18, currentColor, stroke-width 1.5, round caps     */
@@ -173,6 +174,36 @@ export default function Layout({ children }: { children: ReactNode }) {
 		active === "/config" ||
 		active === "/tts-config";
 
+	const [versionInfo, setVersionInfo] = useState<{
+		current: string;
+		latest: string;
+		updateAvailable: boolean;
+	} | null>(null);
+	const [bannerDismissed, setBannerDismissed] = useState(() =>
+		sessionStorage.getItem("bf-update-dismissed") === "1",
+	);
+
+	useEffect(() => {
+		checkVersion()
+			.then((v) =>
+				setVersionInfo({
+					current: v.current,
+					latest: v.latest,
+					updateAvailable: v.update_available,
+				}),
+			)
+			.catch(() => {
+				// silent — network failure is not an error to show
+			});
+	}, []);
+
+	const showBanner = versionInfo?.updateAvailable && !bannerDismissed;
+
+	const dismissBanner = () => {
+		setBannerDismissed(true);
+		sessionStorage.setItem("bf-update-dismissed", "1");
+	};
+
 	return (
 		<div
 			className="flex h-screen"
@@ -248,6 +279,14 @@ export default function Layout({ children }: { children: ReactNode }) {
 						>
 							Brandflow
 						</span>
+						{versionInfo && (
+							<span
+								className="text-xs"
+								style={{ color: "var(--text-tertiary)" }}
+							>
+								· v{versionInfo.current}
+							</span>
+						)}
 						{inSystemConfig && (
 							<span
 								className="text-xs"
@@ -261,6 +300,34 @@ export default function Layout({ children }: { children: ReactNode }) {
 						<ProductSelector />
 					</div>
 				</header>
+
+				{showBanner && (
+					<div
+						className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+						style={{
+							background: 'var(--color-caution-amber-muted, oklch(65% .14 75 / .12))',
+							borderColor: 'var(--border-default)',
+							color: 'var(--text-primary)',
+						}}
+					>
+						<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+							<circle cx="8" cy="8" r="6.5"/>
+							<path d="M8 4.5v4M8 11v.5"/>
+						</svg>
+						<span className="flex-1">
+							<strong>新版本可用</strong>{' '}
+							v{versionInfo?.latest} 已发布
+						</span>
+						<button
+							className="text-sm font-medium hover:opacity-70 flex-shrink-0"
+							onClick={dismissBanner}
+							aria-label="关闭"
+							type="button"
+						>
+							✕
+						</button>
+					</div>
+				)}
 
 				{/* Content area with optional sub-nav */}
 				<div className="flex-1 flex overflow-hidden">
