@@ -191,7 +191,8 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   │   │   ├── templates.py
 │   │   │   ├── tts.py
 │   │   │   ├── metrics.py
-│   │   │   └── category_suggestion.py
+│   │   │   ├── category_suggestion.py
+│   │   │   └── version_check.py
 │   │   ├── services/         # 调度器、排期存储
 │   │   └── templates/        # 旧 Jinja2 模板（逐步淘汰中）
 │   └── runtime_worker/      # 拉模式 worker（poll → execute → report）
@@ -238,7 +239,8 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 uv run python -m packages.deploy_health            # CLI 输出 JSON 体检结果
 
 # 健康接口
-# GET /api/health?deploy_check=true
+# GET /api/health?deploy_check=true  — 健康检查，返回 version（pyproject.toml 实时读取）
+# GET /api/check-version            — 检查更新，返回 {current, latest, update_available}
 
 # 测试
 uv run pytest tests/ -q                # 全量测试

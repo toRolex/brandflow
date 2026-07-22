@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import time
+
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+from apps.control_plane._version import get_version as _get_version
 
 from apps.control_plane.routes.api_assets import router as api_assets_router
 from apps.control_plane.routes.api_jobs import router as api_jobs_router
@@ -24,6 +27,7 @@ from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.routes.knowledge import router as knowledge_router
 from apps.control_plane.routes.templates import router as templates_router
 from apps.control_plane.routes.products import router as products_router
+from apps.control_plane.routes.version_check import router as version_check_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
@@ -205,12 +209,13 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(knowledge_router)
     app.include_router(templates_router)
     app.include_router(products_router)
+    app.include_router(version_check_router)
 
     @app.get("/api/health")
     async def health(deploy_check: bool = False):
         from packages.deploy_health.checker import DeployHealthChecker
 
-        result: dict = {"status": "ok", "version": "0.7.0"}
+        result: dict = {"status": "ok", "version": _get_version()}
         if deploy_check:
             checker = DeployHealthChecker(root_dir=app.state.root_dir)
             health_result = checker.check_all()

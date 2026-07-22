@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prototype — 版本显示 + 更新提示</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+/* ========== Brandflow Design Tokens (subset) ========== */
+:root {
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-title: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --shadow-elevated: 0 4px 16px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.06);
+  --transition: 150ms ease;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+}
+
+[data-theme="light"], :root {
+  --color-electric-blue: oklch(62% .19 252);
+  --color-electric-blue-muted: oklch(62% .19 252 / .12);
+  --color-chalk: oklch(97% .003 258);
+  --color-frost: oklch(100% 0 0);
+  --color-mist: oklch(88% .004 258);
+  --color-graphite: oklch(18% .004 258);
+  --color-slate: oklch(40% .006 258);
+  --color-fog: oklch(55% .006 258);
+  --color-signal-green: oklch(58% .17 145);
+  --color-signal-green-muted: oklch(58% .17 145 / .12);
+  --color-caution-amber: oklch(65% .14 75);
+  --color-caution-amber-muted: oklch(65% .14 75 / .12);
+  --bg-page: var(--color-chalk);
+  --bg-card: var(--color-frost);
+  --bg-nav: var(--color-frost);
+  --bg-header: var(--color-frost);
+  --text-primary: var(--color-graphite);
+  --text-secondary: var(--color-slate);
+  --text-tertiary: var(--color-fog);
+  --border-default: var(--color-mist);
+}
+
+[data-theme="dark"] {
+  --color-electric-blue: oklch(62% .19 252);
+  --color-electric-blue-muted: oklch(62% .19 252 / .15);
+  --color-chalk: oklch(97% .003 258);
+  --color-frost: oklch(100% 0 0);
+  --color-mist: oklch(88% .004 258);
+  --color-graphite: oklch(18% .004 258);
+  --color-slate: oklch(40% .006 258);
+  --color-fog: oklch(55% .006 258);
+  --color-void: oklch(14% .006 258);
+  --color-obsidian: oklch(18% .006 258);
+  --color-steel: oklch(28% .006 258);
+  --color-white-smoke: oklch(92% 0 0);
+  --color-signal-green: oklch(68% .17 145);
+  --color-signal-green-muted: oklch(68% .17 145 / .15);
+  --color-caution-amber: oklch(72% .14 75);
+  --color-caution-amber-muted: oklch(72% .14 75 / .15);
+  --bg-page: var(--color-void);
+  --bg-card: var(--color-obsidian);
+  --bg-nav: var(--color-obsidian);
+  --bg-header: var(--color-obsidian);
+  --text-primary: var(--color-white-smoke);
+  --text-secondary: var(--color-fog);
+  --text-tertiary: var(--color-slate);
+  --border-default: var(--color-steel);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ========== Prototype container ========== */
+.prototype-frame {
+  width: 960px;
+  height: 640px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-elevated);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-page);
+}
+
+/* ========== Layout (mirrors Layout.tsx) ========== */
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 48px;
+  background: var(--bg-nav);
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.nav-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: default;
+  transition: background var(--transition);
+}
+.nav-icon:hover { background: var(--color-steel); }
+.nav-icon.active {
+  background: var(--color-electric-blue-muted);
+  color: var(--color-electric-blue);
+}
+
+.sidebar-spacer { flex: 1; }
+
+/* Right content */
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px var(--space-lg);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-header);
+  flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brandflow {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-title);
+}
+
+.version-badge {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: .01em;
+}
+
+/* ========== Update Banner ========== */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px var(--space-lg);
+  background: var(--color-caution-amber-muted);
+  border-bottom: 1px solid oklch(65% .14 75 / .25);
+  font-size: 13px;
+  color: var(--text-primary);
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+.update-banner.dismissed {
+  opacity: 0;
+  pointer-events: none;
+  max-height: 0;
+  padding: 0 var(--space-lg);
+  overflow: hidden;
+}
+
+.update-banner-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--color-caution-amber);
+}
+
+.update-banner-text {
+  flex: 1;
+}
+.update-banner-text strong {
+  font-weight: 600;
+}
+
+.update-banner-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  transition: background var(--transition);
+}
+.update-banner-close:hover {
+  background: rgba(0,0,0,.08);
+}
+[data-theme="dark"] .update-banner-close:hover {
+  background: rgba(255,255,255,.1);
+}
+
+/* Scene switcher buttons */
+.scene-selector {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.scene-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: var(--font-body);
+}
+.scene-btn:hover {
+  border-color: var(--color-electric-blue);
+  color: var(--color-electric-blue);
+}
+.scene-btn.active {
+  background: var(--color-electric-blue-muted);
+  border-color: var(--color-electric-blue);
+  color: var(--color-electric-blue);
+}
+
+/* Main content mock */
+.mock-content {
+  flex: 1;
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.mock-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  height: 80px;
+}
+
+/* ========== Bottom controls (prototype extras) ========== */
+.prototype-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px var(--space-lg);
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-nav);
+  gap: var(--space-md);
+  flex-shrink: 0;
+}
+.prototype-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.prototype-controls select {
+  font-size: 12.5px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+.prototype-badge {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 3px 8px;
+  background: var(--color-electric-blue-muted);
+  border-radius: 4px;
+}
+</style>
+</head>
+<body>
+<div class="prototype-frame" id="app">
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="nav-icon active">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1.5" y="1.5" width="6" height="6" rx="1"/><rect x="10.5" y="1.5" width="6" height="6" rx="1"/>
+          <rect x="1.5" y="10.5" width="6" height="6" rx="1"/><rect x="10.5" y="10.5" width="6" height="6" rx="1"/>
+        </svg>
+      </div>
+      <div class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1.5" y="2.5" width="15" height="13" rx="2"/><circle cx="5.5" cy="6.5" r="1.5"/><path d="M1.5 13.5l4-4 3 3 3-3 5 5"/>
+        </svg>
+      </div>
+      <div class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="9" r="2.5"/><path d="M9 1.5v1.5M9 15v1.5M3.7 3.7l1.06 1.06M13.24 13.24l1.06 1.06M1.5 9h1.5M15 9h1.5M3.7 14.3l1.06-1.06M13.24 4.76l1.06-1.06"/>
+        </svg>
+      </div>
+      <div class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 14.5V9M9 14.5V3.5M14.5 14.5V7"/>
+        </svg>
+      </div>
+      <div class="sidebar-spacer"></div>
+      <div class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 1.5H1.5V7M11 16.5h5.5V11"/>
+        </svg>
+      </div>
+    </nav>
+
+    <!-- Content -->
+    <div class="content-area">
+      <!-- Header with version -->
+      <header class="header">
+        <div class="header-left">
+          <span class="brandflow">Brandflow</span>
+          <span class="version-badge" id="versionDisplay">· v0.7.13</span>
+        </div>
+        <div class="scene-selector">
+          <span style="font-size:12px;color:var(--text-tertiary);margin-right:4px;">场景:</span>
+          <button class="scene-btn active" data-scene="normal" onclick="switchScene('normal')">当前版本</button>
+          <button class="scene-btn" data-scene="update" onclick="switchScene('update')">有更新时</button>
+          <button class="scene-btn" data-scene="error" onclick="switchScene('error')">检查失败</button>
+        </div>
+      </header>
+
+      <!-- Update Banner -->
+      <div class="update-banner" id="updateBanner">
+        <svg class="update-banner-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="6.5"/>
+          <path d="M8 4.5v4M8 11v.5"/>
+        </svg>
+        <span class="update-banner-text">
+          <strong>新版本可用</strong>
+          <span id="updateBannerDetail">v0.8.0 已发布，当前为 v0.7.13</span>
+        </span>
+        <button class="update-banner-close" onclick="dismissBanner()">×</button>
+      </div>
+
+      <!-- Mock content -->
+      <div class="mock-content">
+        <div class="mock-card"></div>
+        <div class="mock-card"></div>
+        <div class="mock-card"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prototype controls -->
+  <div class="prototype-controls">
+    <div style="display:flex;gap:12px;align-items:center;">
+      <label>
+        <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
+        暗色模式
+      </label>
+      <label>
+        <input type="checkbox" id="bannerToggle" checked onchange="toggleBannerVisibility()">
+        更新提示
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span class="prototype-badge">一次性原型</span>
+      <span style="font-size:11px;color:var(--text-tertiary)">状态: <span id="statusDisplay">当前版本，无更新</span></span>
+    </div>
+  </div>
+</div>
+
+<script>
+// State
+const state = {
+  theme: 'light',
+  scene: 'normal',
+  bannerVisible: true,
+  dismissed: false,
+  version: '0.7.13',
+};
+
+function render() {
+  const banner = document.getElementById('updateBanner');
+  const versionEl = document.getElementById('versionDisplay');
+  const statusEl = document.getElementById('statusDisplay');
+  const bannerDetail = document.getElementById('updateBannerDetail');
+
+  versionEl.textContent = `· v${state.version}`;
+
+  const showBanner = state.bannerVisible && !state.dismissed && state.scene === 'update';
+  banner.classList.toggle('dismissed', !showBanner);
+
+  if (state.scene === 'update') {
+    bannerDetail.textContent = `v0.8.0 已发布，当前为 v${state.version}`;
+    statusEl.textContent = `有更新可用 (v0.8.0)`;
+  } else if (state.scene === 'error') {
+    statusEl.textContent = `检查失败（网络/限流），静默跳过`;
+  } else {
+    statusEl.textContent = `当前版本，无更新`;
+  }
+}
+
+function switchScene(scene) {
+  state.scene = scene;
+  state.dismissed = false;
+  document.querySelectorAll('.scene-btn').forEach(b => b.classList.toggle('active', b.dataset.scene === scene));
+  render();
+}
+
+function dismissBanner() {
+  state.dismissed = true;
+  render();
+}
+
+function toggleTheme() {
+  state.theme = state.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', state.theme);
+}
+
+function toggleBannerVisibility() {
+  state.bannerVisible = document.getElementById('bannerToggle').checked;
+  if (state.bannerVisible) state.dismissed = false;
+  render();
+}
+
+// Init
+document.documentElement.setAttribute('data-theme', 'light');
+render();
+</script>
+</body>
+</html>
