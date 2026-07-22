@@ -2,12 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import PipelineSidebar from "../../components/PipelineSidebar";
-import type { ExportTaskState, JobDetail, Phase, SceneFolder } from "../../types";
+import type {
+	ExportTaskState,
+	JobDetail,
+	Phase,
+	SceneFolder,
+} from "../../types";
 import { PIPELINE_STEPS } from "../../types";
 import AssetRetrievingPanel from "./panels/AssetRetrievingPanel";
 import AssetReviewPanel from "./panels/AssetReviewPanel";
 import CompletedPanel from "./panels/CompletedPanel";
-import { MontagePanel, FinalRenderPanel } from "./panels/ExecutionPanels";
+import { FinalRenderPanel, MontagePanel } from "./panels/ExecutionPanels";
 import FailedPanel from "./panels/FailedPanel";
 import FinalReviewPanel from "./panels/FinalReviewPanel";
 import MigrationPanel from "./panels/MigrationPanel";
@@ -86,7 +91,9 @@ export default function JobPipeline() {
 	const [rejectedClips, setRejectedClips] = useState<Set<number>>(new Set());
 	const [showAllBlankConfirm, setShowAllBlankConfirm] = useState(false);
 	const [sceneFolders, setSceneFolders] = useState<SceneFolder[]>([]);
-	const [selectedSceneFolders, setSelectedSceneFolders] = useState<string[]>([]);
+	const [selectedSceneFolders, setSelectedSceneFolders] = useState<string[]>(
+		[],
+	);
 	const initialLoad = useRef(true);
 
 	const [ttsVoices, setTtsVoices] = useState<
@@ -488,9 +495,7 @@ export default function JobPipeline() {
 		if (checked) {
 			setSelectedSceneFolders([...selectedSceneFolders, path]);
 		} else {
-			setSelectedSceneFolders(
-				selectedSceneFolders.filter((id) => id !== path),
-			);
+			setSelectedSceneFolders(selectedSceneFolders.filter((id) => id !== path));
 		}
 	};
 

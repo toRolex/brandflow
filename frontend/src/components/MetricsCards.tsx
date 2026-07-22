@@ -13,7 +13,7 @@ const ITEMS = [
 ];
 
 function formatNum(v: number): string {
-	if (v >= 10000) return (v / 10000).toFixed(1) + "万";
+	if (v >= 10_000) return (v / 10_000).toFixed(1) + "万";
 	return v.toLocaleString();
 }
 

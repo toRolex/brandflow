@@ -1,6 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api/client";
 import ProjectList from "../ProjectList";
 
@@ -37,18 +43,14 @@ describe("ProjectList", () => {
 			renderPage();
 			expect(screen.getByText("加载中...")).toBeInTheDocument();
 			// Empty state text should NOT be present
-			expect(
-				screen.queryByText("开始你的第一个项目"),
-			).not.toBeInTheDocument();
+			expect(screen.queryByText("开始你的第一个项目")).not.toBeInTheDocument();
 		});
 
 		it("shows empty state after loading when no projects", async () => {
 			vi.mocked(api.listProjects).mockResolvedValue([]);
 			renderPage();
 			await waitFor(() => {
-				expect(
-					screen.getByText("开始你的第一个项目"),
-				).toBeInTheDocument();
+				expect(screen.getByText("开始你的第一个项目")).toBeInTheDocument();
 			});
 		});
 
@@ -83,9 +85,7 @@ describe("ProjectList", () => {
 			// Header is inside the flex header div
 			const header = screen.getByText("项目列表").parentElement!;
 			fireEvent.click(within(header).getByText("新建项目"));
-			expect(
-				screen.getByPlaceholderText("请输入项目名称"),
-			).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("请输入项目名称")).toBeInTheDocument();
 			expect(screen.getByText("创建")).toBeInTheDocument(); // modal has create button
 		});
 	});
@@ -95,16 +95,12 @@ describe("ProjectList", () => {
 			vi.mocked(api.listProjects).mockResolvedValue([]);
 			renderPage();
 			await waitFor(() => {
-				expect(
-					screen.getByText("开始你的第一个项目"),
-				).toBeInTheDocument();
+				expect(screen.getByText("开始你的第一个项目")).toBeInTheDocument();
 			});
 			// Empty-state button lives in the empty-state section
 			const emptyState = screen.getByText("开始你的第一个项目").parentElement!;
 			fireEvent.click(within(emptyState).getByText("新建项目"));
-			expect(
-				screen.getByPlaceholderText("请输入项目名称"),
-			).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("请输入项目名称")).toBeInTheDocument();
 		});
 	});
 
@@ -113,16 +109,12 @@ describe("ProjectList", () => {
 			vi.mocked(api.listProjects).mockResolvedValue([]);
 			renderPage();
 			await waitFor(() => {
-				expect(
-					screen.getByText("开始你的第一个项目"),
-				).toBeInTheDocument();
+				expect(screen.getByText("开始你的第一个项目")).toBeInTheDocument();
 			});
 			// Open modal via empty state button
 			const emptyState = screen.getByText("开始你的第一个项目").parentElement!;
 			fireEvent.click(within(emptyState).getByText("新建项目"));
-			expect(
-				screen.getByPlaceholderText("请输入项目名称"),
-			).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("请输入项目名称")).toBeInTheDocument();
 			// Click create without entering name
 			fireEvent.click(screen.getByText("创建"));
 			expect(screen.getByText("项目名称不能为空")).toBeInTheDocument();
@@ -135,9 +127,7 @@ describe("ProjectList", () => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
 			});
 			const header = screen.getByText("项目列表").parentElement!;
-			fireEvent.click(
-				within(header).getByText("新建项目"),
-			);
+			fireEvent.click(within(header).getByText("新建项目"));
 			const input = screen.getByPlaceholderText("请输入项目名称");
 			fireEvent.change(input, { target: { value: "项目A" } });
 			fireEvent.click(screen.getByText("创建"));
@@ -145,9 +135,7 @@ describe("ProjectList", () => {
 				screen.getByText("项目名称已存在，请使用其他名称"),
 			).toBeInTheDocument();
 			// Modal should still be open
-			expect(
-				screen.getByPlaceholderText("请输入项目名称"),
-			).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("请输入项目名称")).toBeInTheDocument();
 		});
 	});
 
@@ -171,9 +159,7 @@ describe("ProjectList", () => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
 			});
 			const header = screen.getByText("项目列表").parentElement!;
-			fireEvent.click(
-				within(header).getByText("新建项目"),
-			);
+			fireEvent.click(within(header).getByText("新建项目"));
 			const input = screen.getByPlaceholderText("请输入项目名称");
 			fireEvent.change(input, { target: { value: "项目C" } });
 			fireEvent.click(screen.getByText("创建"));
@@ -183,9 +169,7 @@ describe("ProjectList", () => {
 				expect(screen.getByText("项目C")).toBeInTheDocument();
 			});
 			// Success banner should appear
-			expect(
-				screen.getByText('项目「项目C」创建成功'),
-			).toBeInTheDocument();
+			expect(screen.getByText("项目「项目C」创建成功")).toBeInTheDocument();
 		});
 	});
 
@@ -201,24 +185,17 @@ describe("ProjectList", () => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
 			});
 			const header = screen.getByText("项目列表").parentElement!;
-			fireEvent.click(
-				within(header).getByText("新建项目"),
-			);
-			fireEvent.change(
-				screen.getByPlaceholderText("请输入项目名称"),
-				{ target: { value: "新项目" } },
-			);
+			fireEvent.click(within(header).getByText("新建项目"));
+			fireEvent.change(screen.getByPlaceholderText("请输入项目名称"), {
+				target: { value: "新项目" },
+			});
 			fireEvent.click(screen.getByText("创建"));
 
 			await waitFor(() => {
-				expect(
-					screen.getByText("创建失败：服务错误"),
-				).toBeInTheDocument();
+				expect(screen.getByText("创建失败：服务错误")).toBeInTheDocument();
 			});
 			// Modal should remain open so user can retry
-			expect(
-				screen.getByPlaceholderText("请输入项目名称"),
-			).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("请输入项目名称")).toBeInTheDocument();
 		});
 	});
 
@@ -238,9 +215,7 @@ describe("ProjectList", () => {
 			fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
 
 			await waitFor(() => {
-				expect(
-					screen.getByText("删除失败：权限不足"),
-				).toBeInTheDocument();
+				expect(screen.getByText("删除失败：权限不足")).toBeInTheDocument();
 			});
 		});
 	});

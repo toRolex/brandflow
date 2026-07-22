@@ -198,7 +198,10 @@ export default function QualityRulesForm() {
 								}`}
 								value={rules.word_count_min}
 								onChange={(e) =>
-									updateRule("word_count_min", parseInt(e.target.value) || 0)
+									updateRule(
+										"word_count_min",
+										Number.parseInt(e.target.value) || 0,
+									)
 								}
 								min={1}
 							/>
@@ -216,7 +219,10 @@ export default function QualityRulesForm() {
 								}`}
 								value={rules.word_count_max}
 								onChange={(e) =>
-									updateRule("word_count_max", parseInt(e.target.value) || 0)
+									updateRule(
+										"word_count_max",
+										Number.parseInt(e.target.value) || 0,
+									)
 								}
 								min={1}
 							/>
@@ -251,7 +257,7 @@ export default function QualityRulesForm() {
 								onChange={(e) =>
 									updateRule(
 										"product_name_count",
-										Math.max(0, parseInt(e.target.value) || 0),
+										Math.max(0, Number.parseInt(e.target.value) || 0),
 									)
 								}
 								min={0}
@@ -268,7 +274,7 @@ export default function QualityRulesForm() {
 								onChange={(e) =>
 									updateRule(
 										"brand_name_count",
-										Math.max(0, parseInt(e.target.value) || 0),
+										Math.max(0, Number.parseInt(e.target.value) || 0),
 									)
 								}
 								min={0}
@@ -320,7 +326,7 @@ export default function QualityRulesForm() {
 								onKeyDown={(e) => {
 									if (e.key === "Enter") addForbiddenWord();
 								}}
-								autoFocus
+								autoFocus={true}
 							/>
 							<button
 								className="px-3 py-2 bg-[var(--accent)] text-[var(--text-inverse)] rounded-lg text-sm hover:brightness-110 transition-colors"

@@ -1,5 +1,5 @@
 import ClipReviewCard from "../../../components/ClipReviewCard";
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function AssetReviewPanel({
 	selectedClips,
@@ -51,10 +51,8 @@ export default function AssetReviewPanel({
 										: undefined,
 									method: String(clip.method || ""),
 									visual_type:
-										(clip.visual_type as
-											| "clip"
-											| "blank"
-											| "unresolved") || "unresolved",
+										(clip.visual_type as "clip" | "blank" | "unresolved") ||
+										"unresolved",
 								}}
 								index={index}
 								onReject={onRejectClip}
@@ -121,9 +119,7 @@ export default function AssetReviewPanel({
 					)}
 				</div>
 			) : (
-				<p className="text-[var(--text-tertiary)] text-sm">
-					等待素材加载...
-				</p>
+				<p className="text-[var(--text-tertiary)] text-sm">等待素材加载...</p>
 			)}
 		</div>
 	);

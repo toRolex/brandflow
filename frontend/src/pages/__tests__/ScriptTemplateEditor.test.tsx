@@ -49,7 +49,7 @@ function renderNewTemplate() {
 	);
 }
 
-function renderExistingTemplate(id: string = "tmpl_001") {
+function renderExistingTemplate(id = "tmpl_001") {
 	return render(
 		<MemoryRouter initialEntries={[`/system/config/templates/${id}`]}>
 			<Routes>

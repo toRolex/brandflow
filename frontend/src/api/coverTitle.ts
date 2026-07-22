@@ -5,7 +5,10 @@ export const generateCoverTitle = (body: {
 	product?: string;
 	brand?: string;
 }) =>
-	request<{ text: string; highlight_words: string[] }>("/api/cover-title/generate", {
-		method: "POST",
-		body: JSON.stringify(body),
-	});
+	request<{ text: string; highlight_words: string[] }>(
+		"/api/cover-title/generate",
+		{
+			method: "POST",
+			body: JSON.stringify(body),
+		},
+	);

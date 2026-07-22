@@ -336,7 +336,7 @@ export default function ScriptTemplateEditor() {
 													const slots = [...template.slots];
 													slots[idx] = {
 														...slots[idx],
-														max_length: parseInt(e.target.value) || 200,
+														max_length: Number.parseInt(e.target.value) || 200,
 													};
 													setTemplate({ ...template, slots });
 												}}

@@ -1,5 +1,5 @@
 import ScriptPreview from "../../../components/ScriptPreview";
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function ScriptPanel({
 	job,
@@ -15,9 +15,7 @@ export default function ScriptPanel({
 	const scriptArtifact = findArtifact("script");
 	return (
 		<ScriptPreview
-			script={
-				scriptContent || (scriptArtifact ? "加载中..." : "等待生成...")
-			}
+			script={scriptContent || (scriptArtifact ? "加载中..." : "等待生成...")}
 			checks={null}
 			brand={job.brand}
 			mode={job.mode}

@@ -215,7 +215,7 @@ export default function AssetPreviewPanel({
 			<div className="rounded-lg bg-black overflow-hidden">
 				<video
 					key={asset.asset_id}
-					controls
+					controls={true}
 					className="w-full max-h-[360px]"
 					preload="metadata"
 				>

@@ -1,6 +1,6 @@
 import ExportTaskControls from "../../../components/ExportTaskControls";
 import MediaPlayer from "../../../components/MediaPlayer";
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function CompletedPanel({
 	exportTask,
@@ -13,7 +13,9 @@ export default function CompletedPanel({
 	const finalVideo = findArtifact("final_video");
 	return (
 		<div className="text-center py-12">
-			<div className="text-[var(--color-signal-green)] text-5xl mb-4">{"✓"}</div>
+			<div className="text-[var(--color-signal-green)] text-5xl mb-4">
+				{"✓"}
+			</div>
 			<h3 className="text-lg font-semibold text-[var(--color-signal-green)] mb-2">
 				生产完成
 			</h3>

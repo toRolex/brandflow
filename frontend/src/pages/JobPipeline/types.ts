@@ -1,4 +1,9 @@
-import type { ExportTaskState, JobDetail, Phase, SceneFolder } from "../../types";
+import type {
+	ExportTaskState,
+	JobDetail,
+	Phase,
+	SceneFolder,
+} from "../../types";
 
 export interface TTSVoice {
 	id: string;
@@ -57,9 +62,9 @@ export interface PanelProps {
 	onAssetApprove: () => void;
 	onForceApprove: () => void;
 	onDismissAllBlankConfirm: () => void;
-	findArtifact: (kind: string) =>
-		| { kind: string; relative_path: string; url: string }
-		| undefined;
+	findArtifact: (
+		kind: string,
+	) => { kind: string; relative_path: string; url: string } | undefined;
 }
 
-export { JobDetail, Phase, SceneFolder };
+export type { JobDetail, Phase, SceneFolder };

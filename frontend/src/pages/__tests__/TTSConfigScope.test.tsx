@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../api/client";
 import { ProductProvider } from "../../ProductContext";
-import TTSConfigPage from "../TTSConfig";
+import TtsConfigPage from "../TTSConfig";
 
 vi.mock("../../api/client", () => ({
 	api: {
@@ -65,7 +65,7 @@ function renderWithProduct(
 	});
 	render(
 		<ProductProvider>
-			<TTSConfigPage />
+			<TtsConfigPage />
 		</ProductProvider>,
 	);
 }

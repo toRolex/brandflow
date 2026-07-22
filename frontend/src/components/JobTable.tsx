@@ -238,7 +238,7 @@ function NameRow({
 				className="py-2.5 px-2 font-mono text-xs"
 				style={{ color: "var(--accent)" }}
 			>
-				{displayIndex != null ? displayIndex : "—"}
+				{displayIndex == null ? "—" : displayIndex}
 			</td>
 			<td className="py-2.5 px-2 font-mono text-xs">{job.job_id}</td>
 			<td className="py-2.5 px-2">
@@ -256,7 +256,7 @@ function NameRow({
 								setDraft(job.name || job.product);
 							}
 						}}
-						autoFocus
+						autoFocus={true}
 					/>
 				) : (
 					<span

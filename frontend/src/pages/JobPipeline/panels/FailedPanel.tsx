@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { PIPELINE_STEPS } from "../../../types";
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function FailedPanel({ job, onRetry }: PanelProps) {
 	const navigate = useNavigate();

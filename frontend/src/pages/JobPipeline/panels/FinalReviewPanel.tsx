@@ -1,5 +1,5 @@
 import MediaPlayer from "../../../components/MediaPlayer";
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function FinalReviewPanel({
 	isCurrentReviewStep,

@@ -714,11 +714,11 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 							}}
 							disabled={!canGenerateCover}
 							title={
-								!canGenerateCover
-									? coverTitleCooldown
+								canGenerateCover
+									? ""
+									: coverTitleCooldown
 										? "冷却中，请等待 5 秒"
 										: "需先输入文案才能生成"
-									: ""
 							}
 							onClick={handleGenerateCoverTitle}
 						>
@@ -781,9 +781,9 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 							{musicTracks.map((t) => (
 								<option key={t.relative_path} value={t.relative_path}>
 									{t.filename}
-									{t.duration_seconds != null
-										? ` (${Math.floor(t.duration_seconds)}s)`
-										: ""}
+									{t.duration_seconds == null
+										? ""
+										: ` (${Math.floor(t.duration_seconds)}s)`}
 								</option>
 							))}
 						</select>

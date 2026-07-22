@@ -1,6 +1,6 @@
 import MediaPlayer from "../../../components/MediaPlayer";
 import TtsVoiceSelector from "../components/TtsVoiceSelector";
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function TtsPanel(props: PanelProps) {
 	const { job, ttsPreviewUrl, onRetry, findArtifact } = props;
@@ -85,10 +85,7 @@ export default function TtsPanel(props: PanelProps) {
 			{(!execStatus ||
 				execStatus === "succeeded" ||
 				execStatus === "pending") && (
-				<MediaPlayer
-					src={audio?.url || ttsPreviewUrl || ""}
-					kind="audio"
-				/>
+				<MediaPlayer src={audio?.url || ttsPreviewUrl || ""} kind="audio" />
 			)}
 
 			{execStatus === "failed" && execError && (

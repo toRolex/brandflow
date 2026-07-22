@@ -166,12 +166,12 @@ describe("BatchCreateForm", () => {
 	});
 
 	it("generate 模式下不加载场景文件夹且不显示错误", async () => {
-		vi.mocked(api.getSceneFolders).mockRejectedValue(new Error("should not be called"));
+		vi.mocked(api.getSceneFolders).mockRejectedValue(
+			new Error("should not be called"),
+		);
 		const onError = vi.fn();
 		render(
-			<BatchCreateForm
-				{...defaultProps({ onError, product: "测试产品" })}
-			/>,
+			<BatchCreateForm {...defaultProps({ onError, product: "测试产品" })} />,
 		);
 
 		await waitFor(() => {

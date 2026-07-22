@@ -28,7 +28,7 @@ export default function BatchActionBar({
 	const labelText =
 		typeof label === "function"
 			? label(count)
-			: label ?? `已选择 ${count} 张卡片`;
+			: (label ?? `已选择 ${count} 张卡片`);
 	const [showEdit, setShowEdit] = useState(false);
 	const [editProduct, setEditProduct] = useState("");
 	const [editCategory, setEditCategory] = useState("");
@@ -59,9 +59,7 @@ export default function BatchActionBar({
 	return (
 		<div className="bg-blue-50 border border-blue-500 rounded-lg px-4 py-2 mb-3">
 			<div className="flex items-center justify-between">
-				<span className="text-sm font-semibold text-blue-700">
-					{labelText}
-				</span>
+				<span className="text-sm font-semibold text-blue-700">{labelText}</span>
 				<div className="flex gap-2">
 					{onReclassify && hasUnmappedReclassifyTargets && (
 						<button

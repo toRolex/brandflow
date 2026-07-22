@@ -1,5 +1,5 @@
-import { request } from "./core";
 import type { Project } from "../types/project";
+import { request } from "./core";
 
 export const listProjects = () => request<Project[]>("/api/projects");
 

@@ -122,7 +122,9 @@ export default function ClipReviewCard({
 							想匹配：{clip.requested_category} → 降级为：{clip.category}
 						</span>
 					) : (
-						clip.method && !isBlank && !isUnresolved && (
+						clip.method &&
+						!isBlank &&
+						!isUnresolved && (
 							<span
 								className={`text-xs ${clip.method === "llm_match" ? "text-[var(--color-signal-green)]" : "text-[var(--text-tag-yellow)]"}`}
 							>
@@ -142,7 +144,9 @@ export default function ClipReviewCard({
 				<div className="flex items-center gap-3 mb-2">
 					<div
 						className={`w-20 h-14 rounded overflow-hidden flex-shrink-0 ${
-							isBlank ? "bg-black border border-gray-700" : "bg-[var(--bg-page)]"
+							isBlank
+								? "bg-black border border-gray-700"
+								: "bg-[var(--bg-page)]"
 						}`}
 					>
 						{isBlank ? (

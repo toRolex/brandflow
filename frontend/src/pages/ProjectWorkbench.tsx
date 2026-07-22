@@ -28,9 +28,7 @@ function parseApiError(e: unknown): string {
 		const detail = body?.detail;
 		if (typeof detail === "string") return detail;
 		if (detail?.message) {
-			return detail.code
-				? `${detail.code}: ${detail.message}`
-				: detail.message;
+			return detail.code ? `${detail.code}: ${detail.message}` : detail.message;
 		}
 		if (detail?.errors && Array.isArray(detail.errors)) {
 			const first = detail.errors[0];
@@ -484,7 +482,7 @@ export default function ProjectWorkbench() {
 				title="确认删除"
 				message={confirmMessage}
 				confirmLabel="删除"
-				danger
+				danger={true}
 				onConfirm={confirmDelete}
 				onCancel={() => setConfirmOpen(false)}
 			/>

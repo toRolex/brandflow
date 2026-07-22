@@ -1,5 +1,5 @@
-import { request } from "./core";
 import type { ProviderConfig, ProviderOptions } from "../types/config";
+import { request } from "./core";
 
 export const getConfig = () => request<ProviderConfig>("/api/config");
 

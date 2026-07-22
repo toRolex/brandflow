@@ -707,9 +707,9 @@ function BatchJobCard({
 						{musicTracks.map((t) => (
 							<option key={t.relative_path} value={t.relative_path}>
 								{t.filename}
-								{t.duration_seconds != null
-									? ` (${Math.floor(t.duration_seconds)}s)`
-									: ""}
+								{t.duration_seconds == null
+									? ""
+									: ` (${Math.floor(t.duration_seconds)}s)`}
 							</option>
 						))}
 					</select>

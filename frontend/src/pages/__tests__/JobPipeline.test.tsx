@@ -1010,7 +1010,9 @@ describe("JobPipeline new phase rendering (#262)", () => {
 	it("renders montage_assembling job without 'unknown step' fallback", async () => {
 		renderPhaseJob("montage_assembling");
 
-		expect(await screen.findByText("蒙太奇组装完成，等待下一阶段...")).toBeInTheDocument();
+		expect(
+			await screen.findByText("蒙太奇组装完成，等待下一阶段..."),
+		).toBeInTheDocument();
 	});
 
 	it("renders final_rendering job without 'unknown step' fallback", async () => {

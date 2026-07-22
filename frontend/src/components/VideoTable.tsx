@@ -29,7 +29,7 @@ function platformTag(p: string) {
 }
 
 function formatNum(v: number): string {
-	if (v >= 10000) return (v / 10000).toFixed(1) + "万";
+	if (v >= 10_000) return (v / 10_000).toFixed(1) + "万";
 	return v.toLocaleString();
 }
 
@@ -152,7 +152,11 @@ export default function VideoTable({
 										{formatNum(v.shares)}
 									</td>
 									<td className="px-3 py-2">
-										{v.completion_rate != null ? (
+										{v.completion_rate == null ? (
+											<span className="text-xs text-[var(--text-tertiary)]">
+												-
+											</span>
+										) : (
 											<div className="flex items-center gap-1 justify-center">
 												<div className="w-16 h-1.5 bg-[var(--bg-table-head)] rounded-full overflow-hidden">
 													<div
@@ -166,10 +170,6 @@ export default function VideoTable({
 													{v.completion_rate.toFixed(0)}%
 												</span>
 											</div>
-										) : (
-											<span className="text-xs text-[var(--text-tertiary)]">
-												-
-											</span>
 										)}
 									</td>
 									<td className="px-3 py-2 text-right">
