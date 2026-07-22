@@ -3,6 +3,7 @@
 import requests
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from apps.control_plane._version import get_version
 
@@ -27,7 +28,7 @@ def _latest_github_tag() -> str:
 
 
 @router.get("/api/check-version")
-async def check_version() -> dict:
+async def check_version() -> JSONResponse:
     current = get_version()
     try:
         latest = _latest_github_tag()
@@ -38,8 +39,11 @@ async def check_version() -> dict:
         # ponytail: network/GitHub failures silently return no update
         latest = ""
         update_available = False
-    return {
-        "current": current,
-        "latest": latest,
-        "update_available": update_available,
-    }
+    return JSONResponse(
+        content={
+            "current": current,
+            "latest": latest,
+            "update_available": update_available,
+        },
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
