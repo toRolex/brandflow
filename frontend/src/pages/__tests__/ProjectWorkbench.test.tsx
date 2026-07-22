@@ -44,10 +44,11 @@ const MOCK_PROJECT = {
 		{
 			job_id: "job-2",
 			product: "产品B",
-			phase: "script_generating" as const,
-			review_status: "none" as const,
+			phase: "asset_review" as const,
+			review_status: "pending" as const,
 			phase_index: 2,
 			phase_total: 14,
+			asset_review_unresolved_count: 3,
 		},
 	],
 };
@@ -78,6 +79,7 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			await waitFor(() => {
 				expect(screen.getByText("job-1")).toBeInTheDocument();
 			});
+			expect(screen.getByText("待处理素材：3 条")).toBeInTheDocument();
 
 			expect(screen.getByText("job-2")).toBeInTheDocument();
 			expect(screen.queryByText("创建新 Job")).not.toBeInTheDocument();

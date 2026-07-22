@@ -29,6 +29,7 @@ export interface JobSummary {
 	display_index?: string;
 	skip_subtitle?: boolean;
 	auto_approve?: boolean;
+	asset_review_unresolved_count?: number | null;
 	review_strategy?: ReviewStrategy;
 	mode?: ProductionMode;
 	artifacts?: Artifact[];
