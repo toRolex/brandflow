@@ -189,8 +189,16 @@ def _render_cover_title_png(
 
 
 def _format_ass_path_for_ffmpeg(ass_path: Path) -> str:
-    """Escape ASS path for FFmpeg subtitles filter."""
-    return str(ass_path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+    """Normalize path for FFmpeg subtitles filter (used inside single quotes).
+
+    Strip Windows drive letter prefix (``D:``) — its colon is parsed as a
+    key-value separator by the subtitles filter.  The worker subprocess runs
+    on the same drive, so ``/absolute/path`` resolves correctly.
+    """
+    path = str(ass_path).replace("\\", "/")
+    if len(path) > 1 and path[1] == ":":
+        path = path[2:]
+    return path
 
 
 def _make_music_mix_filter(
@@ -216,6 +224,7 @@ def _build_cover_video_filter(
     has_subtitles: bool,
     srt_sub_escaped: str,
     subtitle_style: str,
+    original_size: str | None = None,
 ) -> tuple[str, str]:
     """Build video filter chain with cover clip concatenation.
 
@@ -229,7 +238,8 @@ def _build_cover_video_filter(
     if cover_title_idx is not None:
         fc += f";[cv][{cover_title_idx}:v]overlay=0:0:enable='between(t,0,3)'[v]"
     elif has_subtitles:
-        fc += f";[cv]subtitles='{srt_sub_escaped}':force_style='{subtitle_style}'[v]"
+        orig = f":original_size={original_size}" if original_size else ""
+        fc += f";[cv]subtitles='{srt_sub_escaped}'{orig}:force_style='{subtitle_style}'[v]"
     else:
         fc += ";[cv]null[v]"
     return fc, "[v]"
@@ -241,6 +251,7 @@ def _build_simple_video_filter(
     has_subtitles: bool,
     srt_sub_escaped: str,
     subtitle_style: str,
+    original_size: str | None = None,
 ) -> tuple[str, str]:
     """Build video filter chain for the no-cover-clip path.
 
@@ -248,19 +259,20 @@ def _build_simple_video_filter(
     When filter_complex is empty, label is a stream spec like "0:v:0".
     Cover title (PNG overlay) and subtitles can coexist (chained) in this path.
     """
+    orig = f":original_size={original_size}" if original_size else ""
     if cover_title_idx is not None:
         overlay = (
             f"[{base_idx}:v][{cover_title_idx}:v]overlay=0:0:enable='between(t,0,3)'[v]"
         )
         if has_subtitles:
             return (
-                f"{overlay};[v]subtitles='{srt_sub_escaped}':force_style='{subtitle_style}'[out]",
+                f"{overlay};[v]subtitles='{srt_sub_escaped}'{orig}:force_style='{subtitle_style}'[out]",
                 "[out]",
             )
         return overlay, "[v]"
     if has_subtitles:
         return (
-            f"[{base_idx}:v]subtitles='{srt_sub_escaped}':force_style='{subtitle_style}'[v]",
+            f"[{base_idx}:v]subtitles='{srt_sub_escaped}'{orig}:force_style='{subtitle_style}'[v]",
             "[v]",
         )
     return "", f"{base_idx}:v:0"
@@ -487,6 +499,10 @@ class VideoService:
 
             has_cover = cover_clip_path is not None and cover_clip_path.exists()
             has_cover_title = cover_title_png is not None and cover_title_png.exists()
+            sub_orig_size: str | None = None
+            if has_subtitles:
+                vw, vh = get_video_size(base_video_path)
+                sub_orig_size = f"{vw}x{vh}"
 
             # ── Build video filter ──
             if has_cover:
@@ -501,6 +517,7 @@ class VideoService:
                     has_subtitles=has_subtitles,
                     srt_sub_escaped=srt_ffmpeg,
                     subtitle_style=subtitle_style,
+                    original_size=sub_orig_size,
                 )
                 inputs = [
                     "-i",
@@ -521,6 +538,7 @@ class VideoService:
                     has_subtitles=has_subtitles,
                     srt_sub_escaped=srt_ffmpeg,
                     subtitle_style=subtitle_style,
+                    original_size=sub_orig_size,
                 )
                 inputs = ["-i", str(base_video_path), "-i", str(audio_path)]
                 if has_cover_title:
