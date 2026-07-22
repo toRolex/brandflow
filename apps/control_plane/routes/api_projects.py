@@ -59,7 +59,9 @@ def get_project(request: Request, project_id: str):
 
 @router.delete("/{project_id}")
 def delete_project(request: Request, project_id: str):
+    print(f"[API-DELETE] project_id={project_id}", flush=True)
     repo = FileStoreRepository(request.app.state.root_dir)
     if not repo.delete_project(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
+    print(f"[API-DELETE] project_id={project_id} DONE", flush=True)
     return {"ok": True}
