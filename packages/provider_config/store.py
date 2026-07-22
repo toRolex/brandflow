@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -250,7 +251,11 @@ def _sync_secrets_to_env(root_dir: Path, payload: dict) -> dict:
     for section_name, section in result.get("providers", {}).items():
         for provider_name, provider in section.get("providers", {}).items():
             for field_name in list(provider.keys()):
-                if _SECRET_ENV_MAP.get((section_name, provider_name, field_name)):
+                env_key = _SECRET_ENV_MAP.get((section_name, provider_name, field_name))
+                if env_key is None:
+                    continue
+                env_val = os.environ.get(env_key, "").strip()
+                if env_val:
                     provider[field_name] = ""
 
     return result

@@ -1,6 +1,8 @@
 import asyncio
 import json
 import os
+import time
+
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -8,6 +10,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+from apps.control_plane._version import get_version as _get_version
 
 from apps.control_plane.routes.api_assets import router as api_assets_router
 from apps.control_plane.routes.api_jobs import router as api_jobs_router
@@ -23,6 +27,7 @@ from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.routes.knowledge import router as knowledge_router
 from apps.control_plane.routes.templates import router as templates_router
 from apps.control_plane.routes.products import router as products_router
+from apps.control_plane.routes.version_check import router as version_check_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
@@ -38,13 +43,22 @@ AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 
 
 async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
-    """Dev-mode background loop: scans disk and delegates to JobTickService."""
-    # Construct orchestrator and tick service once; deps are stateless
+    """Dev-mode background loop: offloads tick to executor, respects single-in-flight.
+
+    Each ``tick()`` call is dispatched through ``run_in_executor`` so the
+    event loop stays free for API requests during blocking work (FFmpeg,
+    TTS/LLM network calls).  A set of in-flight job ids prevents the
+    outer scan from re-picking a job that is still executing.
+    """
     orchestrator = create_orchestrator(root_dir, config_reader=config_reader)
     repo = FileStoreRepository(root_dir)
     tick_svc = JobTickService(
-        orchestrator=orchestrator, repo=repo, config_reader=config_reader
+        orchestrator=orchestrator,
+        repo=repo,
+        config_reader=config_reader,
+        sleep_fn=time.sleep,
     )
+    _in_flight: set[str] = set()
 
     while True:
         await asyncio.sleep(AUTO_TICK_INTERVAL)
@@ -68,6 +82,14 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
                         if not job_id:
                             continue
 
+                        # Single-in-flight guard: skip jobs already being
+                        # processed.  Currently defensive — each tick is awaited
+                        # before the next job iteration, so the set never holds
+                        # more than one entry.  It is kept as a safety net for
+                        # future concurrency changes (e.g. fan-out scheduling).
+                        if job_id in _in_flight:
+                            continue
+
                         product = data.get("product", os.environ.get("PRODUCT", ""))
                         options = {
                             "manual_script": data.get("manual_script", ""),
@@ -76,14 +98,24 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
                             "mode": data.get("mode", "generate"),
                         }
 
-                        summary = tick_svc.tick(
-                            project_id,
-                            job_id,
-                            product,
-                            root_dir=root_dir,
-                            project_dir=project_dir,
-                            options=options,
-                        )
+                        _in_flight.add(job_id)
+                        try:
+                            loop = asyncio.get_running_loop()
+
+                            def _tick_job():
+                                return tick_svc.tick(
+                                    project_id,
+                                    job_id,
+                                    product,
+                                    root_dir=root_dir,
+                                    project_dir=project_dir,
+                                    options=options,
+                                )
+
+                            summary = await loop.run_in_executor(None, _tick_job)
+                        finally:
+                            _in_flight.discard(job_id)
+
                         if summary.action != "skipped":
                             print(
                                 f"[AUTO-TICK] {job_id}: {summary.from_phase} -> {summary.to_phase} ({summary.action})",
@@ -177,12 +209,13 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(knowledge_router)
     app.include_router(templates_router)
     app.include_router(products_router)
+    app.include_router(version_check_router)
 
     @app.get("/api/health")
     async def health(deploy_check: bool = False):
         from packages.deploy_health.checker import DeployHealthChecker
 
-        result: dict = {"status": "ok", "version": "0.7.0"}
+        result: dict = {"status": "ok", "version": _get_version()}
         if deploy_check:
             checker = DeployHealthChecker(root_dir=app.state.root_dir)
             health_result = checker.check_all()

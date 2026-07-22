@@ -95,7 +95,29 @@ export default function CategoryManager() {
 		setSaving(true);
 		setSaveMsg(null);
 
-		if (editingIndex !== null) {
+		if (editingIndex === null) {
+			// Add new category — auto-generate id
+			const newCategory: CategoryConfig = {
+				id: generateCategoryId(formData.name.trim()),
+				name: formData.name.trim(),
+				description: formData.description.trim(),
+				vision_prompt: formData.vision_prompt.trim(),
+			};
+
+			try {
+				const updated = await api.saveProductConfig({
+					...config,
+					categories: [...categories, newCategory],
+				});
+				setConfig(updated);
+				setShowForm(false);
+				setFormData(EMPTY_FORM);
+				setSaveMsg("分类已保存");
+				setTimeout(() => setSaveMsg(null), 3000);
+			} catch {
+				setSaveMsg("保存失败");
+			}
+		} else {
 			// Edit existing category — preserve existing id
 			const existingId = categories[editingIndex]?.id;
 			const updatedCategories = categories.map((c, i) =>
@@ -119,28 +141,6 @@ export default function CategoryManager() {
 				setFormData(EMPTY_FORM);
 				setEditingIndex(null);
 				setSaveMsg("分类已更新");
-				setTimeout(() => setSaveMsg(null), 3000);
-			} catch {
-				setSaveMsg("保存失败");
-			}
-		} else {
-			// Add new category — auto-generate id
-			const newCategory: CategoryConfig = {
-				id: generateCategoryId(formData.name.trim()),
-				name: formData.name.trim(),
-				description: formData.description.trim(),
-				vision_prompt: formData.vision_prompt.trim(),
-			};
-
-			try {
-				const updated = await api.saveProductConfig({
-					...config,
-					categories: [...categories, newCategory],
-				});
-				setConfig(updated);
-				setShowForm(false);
-				setFormData(EMPTY_FORM);
-				setSaveMsg("分类已保存");
 				setTimeout(() => setSaveMsg(null), 3000);
 			} catch {
 				setSaveMsg("保存失败");
@@ -367,7 +367,7 @@ export default function CategoryManager() {
 				<div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
 					<div className="bg-[var(--bg-card)] rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
 						<h3 className="text-lg font-semibold mb-4">
-							{editingIndex !== null ? "编辑分类" : "新增分类"}
+							{editingIndex === null ? "新增分类" : "编辑分类"}
 						</h3>
 						<div className="space-y-4">
 							<div>

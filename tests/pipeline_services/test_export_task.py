@@ -55,6 +55,7 @@ def _make_service(
         project_dir=project_dir,
         export_dir=export_dir,
         get_scene_config=lambda: {"folders": [], "transition_duration_ms": 500},
+        validate_bundle=lambda _path: [],
     )
 
 
@@ -135,6 +136,28 @@ class TestRunAndAtomicPublish:
         assert service.get(task["task_id"])["progress"] == 0
         service.run(task["task_id"])
         assert service.get(task["task_id"])["progress"] == 100
+
+    def test_build_progress_is_persisted_before_validation(
+        self, service: ExportTaskService, export_dir: Path
+    ) -> None:
+        observed: list[int] = []
+
+        def build_with_progress(*, progress_callback, **_kwargs):
+            progress_callback(20)
+            observed.append(service.get(task["task_id"])["progress"])
+            progress_callback(80)
+            observed.append(service.get(task["task_id"])["progress"])
+            staged = export_dir / ".staging_job-001" / "export_job-001.zip"
+            staged.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(staged, "w") as zf:
+                zf.writestr("ok", "ok")
+            return staged
+
+        task = service.create_or_reuse(fingerprint="fp-a")
+        service.run(task["task_id"], build_fn=build_with_progress)
+
+        assert observed[0] > 10
+        assert observed[0] < observed[1] < 90
 
 
 class TestMarkStale:

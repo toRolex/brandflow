@@ -19,7 +19,7 @@ export default function IndexProgress({
 	taskId = null,
 	isRunning = false,
 }: Props) {
-	const STEPS = [
+	const Steps = [
 		{ key: "cut", label: "场景切分" },
 		{ key: "frame", label: "关键帧提取" },
 		{ key: "classify", label: "AI 分类" },
@@ -46,7 +46,7 @@ export default function IndexProgress({
 				/>
 			</div>
 			<div className="text-xs text-gray-500 space-y-0.5">
-				{STEPS.map((s) => {
+				{Steps.map((s) => {
 					const idx = stepOrder.indexOf(s.key);
 					const done = idx <= currentIdx || step === "done";
 					return (

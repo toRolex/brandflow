@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
 
 from packages.domain_core.models import (
     ArtifactPointer,
@@ -24,8 +24,13 @@ from packages.domain_core.phase_execution import (
     PhaseExecutionFailure,
     PhaseExecutionSuccess,
 )
-from packages.domain_core.models import PHASE_ORDER, next_phase
+from packages.domain_core.models import PHASE_ORDER, REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
+from packages.pipeline_services.asset_snapshot import (
+    AssetValidationError,
+    validate_assets,
+    write_reviewed_snapshot,
+)
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
@@ -38,10 +43,6 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-
-REVIEW_PHASES: frozenset[str] = frozenset(
-    {"script_review", "tts_review", "asset_review", "final_review"}
-)
 
 HANDLED_PHASES: frozenset[str] = frozenset(
     {
@@ -59,6 +60,20 @@ HANDLED_PHASES: frozenset[str] = frozenset(
 _TERMINAL_PHASES: frozenset[str] = frozenset(
     {"completed", "failed", "cancelled", "paused", "migration_required"}
 )
+
+_BACKOFF_DELAYS: tuple[float, ...] = (2.0, 4.0, 8.0)
+
+
+def _retry_delay(current_attempt: int) -> float:
+    """Return the backoff delay before retry attempt *current_attempt*.
+
+    ``current_attempt`` is 1-indexed for the first retry.  The sequence is
+    2/4/8 s; longer budgets reuse the last value.
+    """
+    index = max(0, current_attempt - 1)
+    if index >= len(_BACKOFF_DELAYS):
+        return _BACKOFF_DELAYS[-1]
+    return _BACKOFF_DELAYS[index]
 
 
 # ---------------------------------------------------------------------------
@@ -151,13 +166,25 @@ def _merge_artifacts(
     existing: list[ArtifactPointer],
     new_artifacts: list[ArtifactPointer],
 ) -> list[ArtifactPointer]:
-    """Merge *new_artifacts* into *existing*, deduplicating by kind."""
-    existing_kinds = {a.kind for a in existing}
-    result = list(existing)
+    """Merge new artifacts into existing, replacing same-kind entries so
+    re-rendered outputs (url, size_bytes, relative_path) stay current."""
+    by_kind: dict[str, ArtifactPointer] = {}
+    for a in existing:
+        by_kind[a.kind] = a
     for a in new_artifacts:
-        if a.kind not in existing_kinds:
+        by_kind[a.kind] = a
+    # Preserve original order for kinds that existed before; append new kinds at the end.
+    result: list[ArtifactPointer] = []
+    seen: set[str] = set()
+    for a in existing:
+        replacement = by_kind.get(a.kind)
+        if replacement is not None and a.kind not in seen:
+            result.append(replacement)
+            seen.add(a.kind)
+    for a in new_artifacts:
+        if a.kind not in seen:
             result.append(a)
-            existing_kinds.add(a.kind)
+            seen.add(a.kind)
     return result
 
 
@@ -390,21 +417,38 @@ def _transition_after_artifacts(
             message="subtitle_generating produced no artifacts, staying in phase",
         )
 
-    # 2c. asset_retrieving: auto-advance on no artifacts (transitional phase)
+    # 2c. tts_generating: stay in phase (critical — do not auto-advance, #253)
+    if effective_phase == "tts_generating":
+        return TickAction(
+            message="tts_generating produced no artifacts, staying in phase",
+        )
+
+    # 2d. asset_retrieving: auto-advance on no artifacts (transitional phase)
     if effective_phase == "asset_retrieving":
         return TickAction(
             new_phase=_safe_next(effective_phase),
             message="asset_retrieving produced no artifacts, auto-advancing",
         )
 
-    # 2d. Other handled phases: auto-advance (transitional or empty handler)
+    # 2e. final_rendering: a missing final.mp4 is a real failure, not a skip
+    if effective_phase == "final_rendering":
+        if record.execution.error is not None:
+            return TickAction(
+                new_phase="failed",
+                message="final_rendering failed after retry",
+            )
+        return TickAction(
+            message="final_rendering produced no artifacts, will retry next tick",
+        )
+
+    # 2f. Other handled phases: auto-advance (transitional or empty handler)
     if effective_phase in HANDLED_PHASES:
         return TickAction(
             new_phase=_safe_next(effective_phase),
             message=f"{effective_phase} produced no artifacts, auto-advancing (fallback)",
         )
 
-    # 2e. Fallback — auto-advance
+    # 2f. Fallback — auto-advance
     return TickAction(
         new_phase=_safe_next(effective_phase),
         message=f"auto-advance from {effective_phase} (fallback)",
@@ -431,11 +475,14 @@ def _compute_failure_transition(
     No I/O, no side effects.  Returns the next execution state and the
     TickAction describing the transition, mirroring _compute_transition's
     contract so all transition logic stays unit-testable without mocks.
-    The retryable error is preserved on the retrying state so the tick loop
-    never has to parse strings to apply the retry policy.
+
+    ``max_attempts`` is interpreted as the number of retries *after* the
+    first attempt, so a failure is terminal once ``current_attempt`` exceeds
+    ``max_attempts``.  The retryable error is preserved on the retrying state
+    so the tick loop never has to parse strings to apply the retry policy.
     """
     current_attempt = _attempts_so_far(execution) + 1
-    terminal = not error.retryable or current_attempt >= execution.max_attempts
+    terminal = not error.retryable or current_attempt > execution.max_attempts
     next_execution = PhaseExecutionState(
         status="failed" if terminal else "retrying",
         current_attempt=current_attempt,
@@ -449,7 +496,7 @@ def _compute_failure_transition(
             if terminal
             else (
                 f"{handler_phase} retrying after attempt "
-                f"{current_attempt}/{execution.max_attempts}"
+                f"{current_attempt}/{execution.max_attempts + 1}"
             )
         ),
     )
@@ -480,10 +527,14 @@ class JobTickService:
         repo: FileStoreRepository,
         *,
         config_reader: "ConfigReader | None" = None,
+        sleep_fn: "Callable[[float], None] | None" = None,
     ) -> None:
         self._orchestrator = orchestrator
         self._repo = repo
         self._config = config_reader
+        self._sleep_fn: "Callable[[float], None]" = (
+            sleep_fn if sleep_fn is not None else (lambda _s: None)
+        )
 
     def tick(
         self,
@@ -495,7 +546,17 @@ class JobTickService:
         project_dir: Path,
         options: dict[str, str] | None = None,
     ) -> TickSummary:
-        """Auto-tick entry point: advances a single job by one step.
+        """Chain-advance a job through consecutive phases in one pass.
+
+        Each step reloads the JobRecord from disk so that external edits
+        (cancel, voice switch, etc.) made during execution are respected.
+        The chain stops at the first unapproved review gate or terminal
+        phase, whichever comes first.
+
+        Transient phase failures are retried inline with exponential
+        backoff (2/4/8 s) until ``max_attempts`` retries (default 3) are
+        exhausted, for a maximum of ``max_attempts + 1`` total attempts.
+        Non-retryable failures go terminal immediately without backoff.
 
         Parameters
         ----------
@@ -516,133 +577,241 @@ class JobTickService:
         Returns
         -------
         TickSummary
-            Describes what happened during this tick cycle.
+            Describes the final state reached during this tick pass.
 
         Raises
         ------
         PhaseExecutionError
             When a phase handler raises an unexpected exception.
         """
-        # 1. Load current state
         record = self._repo.load_job(project_id, job_id)
+
+        # 1b. Fallback: populate scene_folder_ids from scene config for import
+        # mode when the record has no explicit folders.  This lets upgraded
+        # jobs (pre-selection) and newly-created import jobs without manual
+        # folder selection proceed past the queued → migration_required gate.
+        if record.mode == "import" and not record.scene_folder_ids:
+            if self._config is not None:
+                scene_cfg = self._config.get_scene_config(product_id=product)
+            else:
+                from packages.provider_config.config_reader import ConfigReader
+
+                scene_cfg = ConfigReader().get_scene_config(product_id=product)
+            folders = [
+                entry.get("path", "")
+                for entry in scene_cfg.get("folders", [])
+                if entry.get("path")
+            ]
+            if folders:
+                record = record.model_copy(update={"scene_folder_ids": folders})
+
+        initial_phase = record.phase
+        first = True
+        last_summary: TickSummary | None = None
+
+        while True:
+            # Reload each iteration except the first to observe external
+            # edits made between steps (cancel, voice switch, etc.).
+            if not first:
+                record = self._repo.load_job(project_id, job_id)
+            first = False
+
+            # Terminal check after reload — an external edit may have
+            # moved the job to a terminal state between steps.
+            if record.phase in _TERMINAL_PHASES:
+                if last_summary is None:
+                    return _build_tick_summary(initial_phase, TickAction())
+                return last_summary
+
+            record, summary = self._tick_step(
+                record,
+                project_id,
+                job_id,
+                product,
+                root_dir=root_dir,
+                project_dir=project_dir,
+                options=options,
+            )
+            last_summary = summary
+
+            # Stop chaining at natural boundaries:
+            #  - Nothing happened (skipped / waiting for human)
+            #  - Terminal phase reached
+            #  - Review gate that needs human approval
+            if summary.action == "skipped":
+                return summary
+            if record.phase in _TERMINAL_PHASES:
+                return summary
+            if (
+                record.phase in REVIEW_PHASES
+                and not record.auto_approve
+                and record.review_status not in ("approved",)
+            ):
+                return summary
+
+        return last_summary or _build_tick_summary(initial_phase, TickAction())
+
+    def _build_phase_context(
+        self,
+        record: JobRecord,
+        project_id: str,
+        job_id: str,
+        product: str,
+        *,
+        root_dir: Path,
+        project_dir: Path,
+        options: dict[str, str] | None = None,
+    ) -> PhaseContext:
+        """Build a fresh PhaseContext from the current JobRecord.
+
+        Rebuilt before every handler attempt (including retries) so external
+        edits to the record (cancel, voice switch, etc.) are observed.
+        """
+        scene_folder_paths: list[str] = []
+        transition_duration_ms = 500
+        scene_config: dict[str, Any] = {}
+        if record.mode == "import":
+            if self._config is not None:
+                scene_cfg = self._config.get_scene_config(product_id=product)
+            else:
+                from packages.provider_config.config_reader import ConfigReader
+
+                scene_cfg = ConfigReader().get_scene_config(product_id=product)
+            scene_config = scene_cfg
+            scene_folder_paths = list(record.scene_folder_ids) or [
+                entry.get("path", "")
+                for entry in scene_cfg.get("folders", [])
+                if entry.get("path")
+            ]
+            transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
+
+            if record.manual_script:
+                job_dir = project_dir / "runtime" / "jobs" / job_id
+                job_dir.mkdir(parents=True, exist_ok=True)
+                script_path = job_dir / f"{record.product}口播文案.txt"
+                script_path.write_text(record.manual_script, encoding="utf-8")
+
+        merged_options: dict[str, Any] = dict(options or {})
+        if record.manual_script:
+            merged_options["manual_script"] = record.manual_script
+        if record.tts_model:
+            merged_options["tts_model"] = record.tts_model
+        if record.tts_voice:
+            merged_options["tts_voice"] = record.tts_voice
+        # Forward audio_source so the TTS handler can skip synthesis for
+        # upload / library audio jobs (#249).
+        merged_options["audio_source"] = record.audio_source
+
+        return PhaseContext(
+            job_id=job_id,
+            project_dir=project_dir,
+            root_dir=root_dir,
+            product=product,
+            brand=record.brand,
+            options=merged_options,
+            scene_folder_paths=scene_folder_paths,
+            transition_duration_ms=transition_duration_ms,
+            scene_config=scene_config,
+        )
+
+    def _tick_step(
+        self,
+        record: JobRecord,
+        project_id: str,
+        job_id: str,
+        product: str,
+        *,
+        root_dir: Path,
+        project_dir: Path,
+        options: dict[str, str] | None = None,
+    ) -> tuple[JobRecord, TickSummary]:
+        """Single phase advancement with inline retry for transient failures.
+
+        On retryable failure the handler is re-executed after exponential
+        backoff (2/4/8 s).  ``max_attempts`` is the number of retries after
+        the first attempt; when the total attempt count reaches
+        ``max_attempts + 1`` the failure becomes terminal.  The record is
+        reloaded from disk before each retry so external edits (cancel, voice
+        switch, etc.) made during the backoff are respected.
+        """
         initial_phase = record.phase
 
-        # 2. First transition decision (pre-handler)
+        # 1. First transition decision (pre-handler)
         action = _compute_transition(record, ())
 
-        # 3. Execute handler(s) if the transition requires it
+        # 2. Handler execution with inline retry for transient failures
         artifacts: list[ArtifactPointer] = []
         handler_ran = action.run_handler
+        handler_phase: str | None = None
+        primary_result: Any = None
+
         if action.run_handler:
-            # Populate scene config for import mode
-            scene_folder_paths: list[str] = []
-            transition_duration_ms: int = 500
-            scene_config: dict[str, Any] = {}
-            if record.mode == "import":
-                # Resolve scene config: ConfigReader
-                if self._config is not None:
-                    scene_cfg = self._config.get_scene_config(product_id=product)
-                else:
-                    from packages.provider_config.config_reader import ConfigReader
-
-                    scene_cfg = ConfigReader().get_scene_config(product_id=product)
-                scene_config = scene_cfg
-                # Use user-selected folders from the JobRecord; fall back to
-                # configured folders only when the job predates explicit selection.
-                scene_folder_paths = list(record.scene_folder_ids) or [
-                    entry.get("path", "")
-                    for entry in scene_cfg.get("folders", [])
-                    if entry.get("path")
-                ]
-                transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
-
-                # Write manual_script so TTS handler can discover it in import mode
-                if record.manual_script:
-                    job_dir = project_dir / "runtime" / "jobs" / job_id
-                    job_dir.mkdir(parents=True, exist_ok=True)
-                    script_path = job_dir / f"{record.product}口播文案.txt"
-                    script_path.write_text(record.manual_script, encoding="utf-8")
-
-            # Inject job-level TTS overrides (tts_model / tts_voice) into options
-            # so the phase orchestrator can apply them in _run_tts
-            merged_options: dict[str, Any] = dict(options or {})
-            if record.manual_script:
-                merged_options["manual_script"] = record.manual_script
-            if record.tts_model:
-                merged_options["tts_model"] = record.tts_model
-            if record.tts_voice:
-                merged_options["tts_voice"] = record.tts_voice
-
-            ctx = PhaseContext(
-                job_id=job_id,
-                project_dir=project_dir,
-                root_dir=root_dir,
-                product=product,
-                brand=record.brand,
-                options=merged_options,
-                scene_folder_paths=scene_folder_paths,
-                transition_duration_ms=transition_duration_ms,
-                scene_config=scene_config,
-            )
             handler_phase = action.handler_phase or record.phase
 
-            try:
-                if action.parallel_phases:
-                    all_phases = [handler_phase] + action.parallel_phases
-                    phase_results = self._orchestrator.execute_phases_parallel(
-                        all_phases, ctx
-                    )
-                    for phase_result in phase_results.values():
-                        if isinstance(phase_result, PhaseExecutionSuccess):
-                            artifacts.extend(phase_result.artifacts)
-                    primary_result = phase_results[handler_phase]
-                    if not isinstance(primary_result, PhaseExecutionFailure):
-                        # Surface a parallel-phase failure under its own phase
-                        # so failed_phase / retry target the phase that broke
-                        # (e.g. a TTS crash must not advance the import job and
-                        # mis-attribute the failure to subtitle_generating).
-                        for parallel_phase in action.parallel_phases:
-                            parallel_result = phase_results[parallel_phase]
-                            if isinstance(parallel_result, PhaseExecutionFailure):
-                                primary_result = parallel_result
-                                handler_phase = parallel_phase
-                                break
-                elif handler_phase in STRUCTURED_MEDIA_PHASES:
-                    primary_result = self._orchestrator.execute_phase(
-                        handler_phase, ctx
-                    )
-                    # Tick-level guarantee (#170): a success without artifacts
-                    # is a bounded internal failure, even if the orchestrator
-                    # ever lets one through.
-                    if (
-                        isinstance(primary_result, PhaseExecutionSuccess)
-                        and not primary_result.artifacts
-                    ):
-                        primary_result = PhaseExecutionFailure(
-                            error=ExecutionFailure(
-                                code="INTERNAL_EMPTY_RESULT",
-                                message=(
-                                    f"{handler_phase} reported success"
-                                    " without an artifact."
-                                ),
-                                retryable=False,
-                            )
+            while True:
+                ctx = self._build_phase_context(
+                    record,
+                    project_id,
+                    job_id,
+                    product,
+                    root_dir=root_dir,
+                    project_dir=project_dir,
+                    options=options,
+                )
+                try:
+                    if action.parallel_phases:
+                        all_phases = [handler_phase] + action.parallel_phases
+                        phase_results = self._orchestrator.execute_phases_parallel(
+                            all_phases, ctx
                         )
-                    if isinstance(primary_result, PhaseExecutionSuccess):
-                        artifacts = primary_result.artifacts
-                else:
-                    primary_result = None
-                    artifacts = self._orchestrator.run_phase(handler_phase, ctx)
-            except Exception as e:
-                raise PhaseExecutionError(job_id, handler_phase, str(e), e) from e
+                        artifacts = []
+                        for phase_result in phase_results.values():
+                            if isinstance(phase_result, PhaseExecutionSuccess):
+                                artifacts.extend(phase_result.artifacts)
+                        primary_result = phase_results[handler_phase]
+                        if not isinstance(primary_result, PhaseExecutionFailure):
+                            for parallel_phase in action.parallel_phases:
+                                parallel_result = phase_results[parallel_phase]
+                                if isinstance(parallel_result, PhaseExecutionFailure):
+                                    primary_result = parallel_result
+                                    handler_phase = parallel_phase
+                                    break
+                    elif handler_phase in STRUCTURED_MEDIA_PHASES:
+                        primary_result = self._orchestrator.execute_phase(
+                            handler_phase, ctx
+                        )
+                        if (
+                            isinstance(primary_result, PhaseExecutionSuccess)
+                            and not primary_result.artifacts
+                        ):
+                            primary_result = PhaseExecutionFailure(
+                                error=ExecutionFailure(
+                                    code="INTERNAL_EMPTY_RESULT",
+                                    message=(
+                                        f"{handler_phase} reported success"
+                                        " without an artifact."
+                                    ),
+                                    retryable=False,
+                                )
+                            )
+                        if isinstance(primary_result, PhaseExecutionSuccess):
+                            artifacts = primary_result.artifacts
+                    else:
+                        primary_result = None
+                        artifacts = self._orchestrator.run_phase(handler_phase, ctx)
+                except Exception as e:
+                    raise PhaseExecutionError(job_id, handler_phase, str(e), e) from e
 
-            # Merge new artifacts before any persistence decision so that
-            # successful parallel outputs (e.g. tts_audio) survive a failure
-            # of the primary phase in the same tick.
-            record.artifacts = _merge_artifacts(record.artifacts, artifacts)
+                # Merge new artifacts before any persistence decision so that
+                # successful parallel outputs (e.g. tts_audio) survive a
+                # failure of the primary phase in the same tick.
+                record.artifacts = _merge_artifacts(record.artifacts, artifacts)
 
-            if isinstance(primary_result, PhaseExecutionFailure):
-                execution, action = _compute_failure_transition(
+                if not isinstance(primary_result, PhaseExecutionFailure):
+                    break  # success — exit retry loop
+
+                # --- failure path ---
+                execution, fail_action = _compute_failure_transition(
                     record.execution, handler_phase, primary_result.error
                 )
                 record = record.model_copy(
@@ -653,21 +822,76 @@ class JobTickService:
                         ),
                     }
                 )
-            else:
-                # 4. Second transition decision after handler ran
-                if action.new_phase is None:
-                    # Pass explicit phase so per-phase rules use the handler's
-                    # phase instead of the record's current phase.
-                    action = _transition_after_artifacts(
-                        record, tuple(artifacts), phase=handler_phase
-                    )
-                if isinstance(primary_result, PhaseExecutionSuccess):
+
+                if execution.status == "failed":
+                    # Terminal failure — update phase and save.
                     record = record.model_copy(
-                        update={
-                            "execution": _compute_success_execution(record.execution),
-                            "failed_phase": None,
-                        }
+                        update={"phase": fail_action.new_phase or "failed"}
                     )
+                    self._repo.save_job(project_id, record)
+                    return record, _build_tick_summary(initial_phase, fail_action)
+
+                # Retryable — save retrying state, backoff, then reload and retry.
+                self._repo.save_job(project_id, record)
+                self._sleep_fn(_retry_delay(execution.current_attempt))
+                reloaded = self._repo.load_job(project_id, job_id)
+                if reloaded.phase in _TERMINAL_PHASES or reloaded.phase != record.phase:
+                    return reloaded, _build_tick_summary(
+                        initial_phase,
+                        TickAction(
+                            message=(
+                                f"{handler_phase} retry cancelled by external edit"
+                            )
+                        ),
+                    )
+                record = reloaded
+                artifacts = []
+                primary_result = None
+
+            # 4. Second transition decision after handler succeeded
+            if action.new_phase is None:
+                action = _transition_after_artifacts(
+                    record, tuple(artifacts), phase=handler_phase
+                )
+            if isinstance(primary_result, PhaseExecutionSuccess):
+                record = record.model_copy(
+                    update={
+                        "execution": _compute_success_execution(record.execution),
+                        "failed_phase": None,
+                    }
+                )
+
+        # 4b. Auto-approve asset_review: run integrity checks + write snapshot (#254).
+        # Note: auto_approve intentionally does NOT bypass unresolved clips;
+        # correctness is preserved over fully automatic chaining (#266 review).
+        if (
+            action.new_phase is not None
+            and action.new_review_status == "approved"
+            and record.phase == "asset_review"
+            and record.auto_approve
+        ):
+            job_dir = project_dir / "runtime" / "jobs" / job_id
+            try:
+                clips = validate_assets(job_dir, force=True)
+                write_reviewed_snapshot(job_dir, clips)
+            except AssetValidationError:
+                import logging
+
+                _log = logging.getLogger(__name__)
+                _log.warning(
+                    f"[Tick] auto-approve blocked for {job_id}: "
+                    f"unresolved clips present, staying in asset_review"
+                )
+                action.new_phase = None
+                action.new_review_status = None
+                action.message = (
+                    "auto-approve blocked: unresolved clips in asset_review"
+                )
+                record = record.model_copy(update={"review_status": "pending"})
+                self._repo.save_job(project_id, record)
+                return record, _build_tick_summary(initial_phase, action)
+            except FileNotFoundError:
+                pass
 
         # 5. Apply phase / review_status changes
         update: dict[str, Any] = {}
@@ -691,7 +915,7 @@ class JobTickService:
                 self._repo.append_review_event(project_id, event)
 
         # 7. Build summary
-        return _build_tick_summary(initial_phase, action)
+        return record, _build_tick_summary(initial_phase, action)
 
     def advance_after_report(
         self,
@@ -807,6 +1031,10 @@ class JobTickService:
 
 def _artifact_kind(path: str) -> str:
     """Map artifact file path to a known kind."""
+    if path.endswith("montage_segment.mp4"):
+        return "montage_segment"
+    if path.endswith("montage_segments.json"):
+        return "montage_segments"
     if path.endswith(".txt") or path.endswith(".json"):
         return "script"
     if path.endswith(".mp3"):

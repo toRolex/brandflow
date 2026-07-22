@@ -54,14 +54,21 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 	const [sceneFolderIds, setSceneFolderIds] = useState<string[]>([]);
 	const [sceneFoldersLoading, setSceneFoldersLoading] = useState(false);
 
+	const hasImportJob = batchConfigs.some((c) => c.productionMode === "import");
+
 	useEffect(() => {
+		if (!hasImportJob || !product) {
+			setSceneFoldersLoading(false);
+			setSceneFolders([]);
+			return;
+		}
 		setSceneFoldersLoading(true);
 		api
 			.getSceneFolders(product)
 			.then((data) => setSceneFolders(data.folders))
 			.catch(() => onError("加载场景文件夹失败"))
 			.finally(() => setSceneFoldersLoading(false));
-	}, [product, onError]);
+	}, [product, hasImportJob, onError]);
 
 	useEffect(() => {
 		setBatchConfigs((prev) => prev.map((c) => ({ ...c, sceneFolderIds })));
@@ -118,7 +125,7 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 			{/* shared fields */}
 			<div className="flex gap-4 flex-wrap items-end">
 				<label
-					className="grid gap-1.5 text-xs min-w-[200px]"
+					className="grid w-full gap-1.5 text-xs sm:w-auto sm:min-w-[200px]"
 					style={{ color: "var(--text-secondary)" }}
 				>
 					产品名称
@@ -136,7 +143,7 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 					/>
 				</label>
 				<label
-					className="grid gap-1.5 text-xs min-w-[160px]"
+					className="grid w-full gap-1.5 text-xs sm:w-auto sm:min-w-[160px]"
 					style={{ color: "var(--text-secondary)" }}
 				>
 					品牌（可选）
@@ -282,7 +289,7 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 			))}
 
 			{/* batch global toggles */}
-			<div className="mt-4 flex items-center gap-4">
+			<div className="mt-4 flex flex-wrap items-center gap-4">
 				<label
 					className="flex items-center gap-1.5 text-sm cursor-pointer"
 					style={{ color: "var(--text-primary)" }}
@@ -414,7 +421,7 @@ function BatchJobCard({
 			style={{ borderColor: "var(--border-default)" }}
 		>
 			{/* header */}
-			<div className="flex items-center gap-2 mb-3">
+			<div className="mb-3 flex flex-wrap items-center gap-2">
 				<span
 					className="text-sm font-semibold"
 					style={{ color: "var(--accent)" }}
@@ -426,7 +433,7 @@ function BatchJobCard({
 					placeholder={`${productName} 任务`}
 					value={config.name}
 					onChange={(e) => updateConfig({ name: e.target.value })}
-					className="border rounded-lg px-3 py-1.5 text-sm flex-1 max-w-xs"
+					className="min-w-0 w-full border rounded-lg px-3 py-1.5 text-sm sm:w-auto sm:flex-1 sm:max-w-xs"
 					style={{
 						background: "var(--bg-input)",
 						borderColor: "var(--border-default)",
@@ -434,7 +441,7 @@ function BatchJobCard({
 					}}
 				/>
 				<label
-					className="flex items-center gap-1.5 text-sm cursor-pointer ml-4"
+					className="flex items-center gap-1.5 text-sm cursor-pointer sm:ml-4"
 					style={{ color: "var(--text-primary)" }}
 				>
 					<input
@@ -445,7 +452,7 @@ function BatchJobCard({
 					跳过字幕
 				</label>
 				<label
-					className="flex items-center gap-1.5 text-sm cursor-pointer ml-2"
+					className="flex items-center gap-1.5 text-sm cursor-pointer sm:ml-2"
 					style={{ color: "var(--text-primary)" }}
 				>
 					<input
@@ -462,7 +469,7 @@ function BatchJobCard({
 			</div>
 
 			{/* production mode */}
-			<div className="flex items-center gap-4 mb-3">
+			<div className="mb-3 flex flex-wrap items-center gap-4">
 				<span
 					className="text-xs font-medium"
 					style={{ color: "var(--text-secondary)" }}
@@ -562,7 +569,7 @@ function BatchJobCard({
 				}}
 			>
 				{/* Audio Source */}
-				<div className="flex items-center gap-4 mb-3">
+				<div className="mb-3 flex flex-wrap items-center gap-4">
 					<span
 						className="text-xs font-medium"
 						style={{ color: "var(--text-secondary)" }}
@@ -595,7 +602,7 @@ function BatchJobCard({
 					</label>
 				</div>
 				{config.audioMode === "upload" && (
-					<div className="flex items-center gap-3 mb-3">
+					<div className="mb-3 flex flex-wrap items-center gap-3">
 						<label
 							className="border-2 border-dashed rounded-lg px-6 py-3 text-sm cursor-pointer"
 							style={{
@@ -622,7 +629,7 @@ function BatchJobCard({
 				)}
 
 				{/* Cover Title */}
-				<div className="flex items-center gap-4 mb-3 mt-3">
+				<div className="mb-3 mt-3 flex flex-wrap items-center gap-4">
 					<span
 						className="text-xs font-medium"
 						style={{ color: "var(--text-secondary)" }}
@@ -650,7 +657,7 @@ function BatchJobCard({
 				<div className="flex items-center gap-3 flex-wrap mb-3">
 					<input
 						type="text"
-						className="border rounded-lg px-3 py-2 text-sm min-w-[220px] flex-1 max-w-xs"
+						className="w-full border rounded-lg px-3 py-2 text-sm sm:w-auto sm:min-w-[220px] sm:flex-1 sm:max-w-xs"
 						style={{
 							borderColor: "var(--border-default)",
 							background: "var(--bg-input)",
@@ -662,7 +669,7 @@ function BatchJobCard({
 					/>
 					<input
 						type="text"
-						className="border rounded-lg px-3 py-2 text-sm min-w-[180px]"
+						className="w-full border rounded-lg px-3 py-2 text-sm sm:w-auto sm:min-w-[180px]"
 						style={{
 							borderColor: "var(--border-default)",
 							background: "var(--bg-input)",
@@ -677,7 +684,7 @@ function BatchJobCard({
 				</div>
 
 				{/* Background Music */}
-				<div className="flex items-center gap-4 mb-3 mt-3">
+				<div className="mb-3 mt-3 flex flex-wrap items-center gap-4">
 					<span
 						className="text-xs font-medium"
 						style={{ color: "var(--text-secondary)" }}
@@ -687,7 +694,7 @@ function BatchJobCard({
 				</div>
 				<div className="flex items-center gap-3 flex-wrap mb-3">
 					<select
-						className="border rounded-lg px-3 py-1.5 text-sm min-w-[200px]"
+						className="w-full border rounded-lg px-3 py-1.5 text-sm sm:w-auto sm:min-w-[200px]"
 						style={{
 							borderColor: "var(--border-default)",
 							background: "var(--bg-input)",
@@ -700,9 +707,9 @@ function BatchJobCard({
 						{musicTracks.map((t) => (
 							<option key={t.relative_path} value={t.relative_path}>
 								{t.filename}
-								{t.duration_seconds != null
-									? ` (${Math.floor(t.duration_seconds)}s)`
-									: ""}
+								{t.duration_seconds == null
+									? ""
+									: ` (${Math.floor(t.duration_seconds)}s)`}
 							</option>
 						))}
 					</select>
@@ -731,7 +738,7 @@ function BatchJobCard({
 						</span>
 					)}
 					<label
-						className="flex items-center gap-2 text-xs ml-4"
+						className="flex items-center gap-2 text-xs sm:ml-4"
 						style={{ color: "var(--text-secondary)" }}
 					>
 						音量

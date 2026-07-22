@@ -333,17 +333,17 @@ class TestSkeletonHandlers:
         result = orch.run_phase("scene_assembling", ctx)
         assert result == []
 
-    def test_montage_assembly_returns_empty_list(self) -> None:
-        """montage_assembling skeleton returns []."""
+    def test_montage_assembly_requires_reviewed_snapshot(self, tmp_path: Path) -> None:
+        """montage_assembling raises when the reviewed snapshot is missing (#264)."""
         orch = PhaseOrchestrator(*[MagicMock()] * 2)
         ctx = PhaseContext(
             job_id="job-001",
-            project_dir=Path("/tmp/proj"),
-            root_dir=Path("/tmp"),
+            project_dir=tmp_path / "proj",
+            root_dir=tmp_path,
             product="test",
         )
-        result = orch.run_phase("montage_assembling", ctx)
-        assert result == []
+        with pytest.raises(ValueError, match="reviewed asset snapshot is missing"):
+            orch.run_phase("montage_assembling", ctx)
 
     def test_handlers_are_registered_in_map(self) -> None:
         """Both new handlers are registered in the handler map."""

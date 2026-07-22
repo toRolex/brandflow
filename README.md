@@ -141,7 +141,7 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 
 ### Phase 执行状态与重试（Issue #169 / #170）
 
-Job API 响应包含 `execution` 字段（`PhaseExecutionState`），暴露当前 phase 的执行生命周期：`pending / running / retrying / failed / succeeded`、attempt 计数（`current_attempt` / `max_attempts`，默认最多 3 次）与结构化错误（`code` / `message` / `retryable`）。结构化 phase 结果模型定义于 `packages/domain_core/phase_execution.py`。
+Job API 响应包含 `execution` 字段（`PhaseExecutionState`），暴露当前 phase 的执行生命周期：`pending / running / retrying / failed / succeeded`、attempt 计数（`current_attempt` / `max_attempts`，默认最多 3 次重试，即最多 4 次总尝试）与结构化错误（`code` / `message` / `retryable`）。结构化 phase 结果模型定义于 `packages/domain_core/phase_execution.py`。
 
 Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 attempt，确定性错误立即终态并记录 `failed_phase`。`POST /api/jobs/{id}/retry` 会先 revalidate 失败阶段输入，通过则从失败阶段恢复（保留已有 artifacts）；不通过返回 409 + 结构化 detail。存量失败 job（无 `failed_phase`）回退为重置 `queued` 重试。
 ## 知识库 API（Issue #28）
@@ -177,7 +177,22 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 .
 ├── apps/
 │   ├── control_plane/       # FastAPI 控制面（Web + API + 任务调度）
-│   │   ├── routes/           # API 路由（projects/jobs/reviews/workers/knowledge/products/config/templates）
+│   │   ├── routes/           # API 路由聚合层与子路由包
+│   │   │   ├── api_jobs.py   # Job 路由聚合层，include routes/jobs/*
+│   │   │   ├── api_assets.py # Asset 路由聚合层，include routes/assets/*
+│   │   │   ├── jobs/         # Job 子路由（crud / tts / export / content / metadata / migration / cover_title）
+│   │   │   ├── assets/       # Asset 子路由（query / index / reclassify / thumbnails / status / ...）
+│   │   │   ├── api_projects.py
+│   │   │   ├── reviews.py
+│   │   │   ├── workers.py
+│   │   │   ├── knowledge.py
+│   │   │   ├── products.py
+│   │   │   ├── config.py
+│   │   │   ├── templates.py
+│   │   │   ├── tts.py
+│   │   │   ├── metrics.py
+│   │   │   ├── category_suggestion.py
+│   │   │   └── version_check.py
 │   │   ├── services/         # 调度器、排期存储
 │   │   └── templates/        # 旧 Jinja2 模板（逐步淘汰中）
 │   └── runtime_worker/      # 拉模式 worker（poll → execute → report）
@@ -186,8 +201,10 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   └── src/
 │       ├── pages/            # 5 个页面
 │       ├── components/       # 16 个复用组件
-│       ├── api/              # API 客户端
-│       └── types/            # TypeScript 类型定义
+│       ├── api/              # 按领域拆分的 API 客户端（jobs / assets / tts / ...）
+│       ├── types/            # 按领域拆分的 TypeScript 类型定义
+│       ├── hooks/            # 复用状态逻辑
+│       └── context/          # 全局状态上下文
 │
 ├── packages/
 │   ├── domain_core/          # 领域模型 + 状态机 + worker 协议
@@ -195,6 +212,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   ├── deploy_health/        # 部署体检：CLI + /api/health?deploy_check=true（Issue #76）
 │   ├── knowledge_store/      # 知识库：文档、items、LLM 提取（Issue #28）
 │   ├── pipeline_services/    # 业务能力（独立 service：脚本/TTS/字幕/视频）
+│   │   └── phases/           # Phase handler 实现（由 PhaseOrchestrator 策略表派发）
 │   ├── provider_config/      # 统一配置入口与 provider 配置桥接
 │   └── runtime_adapters/     # 平台适配（Mac / Windows）
 │
@@ -206,8 +224,15 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │
 ├── tests/                    # pytest 测试
 │
+├── tools/                    # 辅助脚本（export_metrics_json / sync_version）
+│
 └── llm_libraries/            # LLM 能力库（script/packaging/correction）
 ```
+
+**路由与编排说明：**
+
+- `api_jobs.py` 与 `api_assets.py` 不再包含具体 handler，仅作为 `APIRouter` 聚合层按顺序 `include_router` 子路由；注意子路由的注册顺序（更具体的 `/jobs/{job_id}/...` 路径优先于动态路径 `/jobs/{job_id}`），以避免路径遮蔽。
+- `PhaseOrchestrator` 维护 `_handlers` 策略表，将 10 个 phase 派发到 `packages/pipeline_services/phases/` 下对应的 handler；控制面 `auto_tick` 与 `runtime_worker` 共用同一套编排逻辑。
 
 ## 可用命令
 
@@ -216,13 +241,17 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 uv run python -m packages.deploy_health            # CLI 输出 JSON 体检结果
 
 # 健康接口
-# GET /api/health?deploy_check=true
+# GET /api/health?deploy_check=true  — 健康检查，返回 version（pyproject.toml 实时读取）
+# GET /api/check-version            — 检查更新，返回 {current, latest, update_available}
 
 # 测试
 uv run pytest tests/ -q                # 全量测试
 
 # 构建前端（生产）
 cd frontend && npm run build
+
+# 版本同步
+uv run python tools/sync_version.py    # 同步版本到 package.json 和 CONTEXT.md
 ```
 
 ## 前端视觉设计

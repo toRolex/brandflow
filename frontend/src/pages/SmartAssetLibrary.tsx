@@ -331,13 +331,14 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 		[projectId, loadAssets, pollIndexProgress],
 	);
 
-	useEffect(() => {
-		return () => {
+	useEffect(
+		() => () => {
 			if (pollIntervalRef.current) {
 				clearInterval(pollIntervalRef.current);
 			}
-		};
-	}, []);
+		},
+		[],
+	);
 
 	const handleBatchUpdate = useCallback(
 		async (status: "available" | "disabled") => {
@@ -641,7 +642,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 						))}
 						{unmappedCategoryNames.length > 0 && (
 							<>
-								<option disabled>── 未映射/历史分类 ──</option>
+								<option disabled={true}>── 未映射/历史分类 ──</option>
 								{unmappedCategoryNames.map((cat) => (
 									<option key={cat} value={cat}>
 										{cat} ({categoryCounts.get(cat) ?? 0})
@@ -989,7 +990,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 						? `确认删除选中的 ${confirmDelete.batchCount} 个素材？此操作不可撤销。`
 						: "确认删除此素材？此操作不可撤销。"
 				}
-				danger
+				danger={true}
 				confirmLabel="删除"
 				onConfirm={executeDelete}
 				onCancel={() => setConfirmDelete(null)}

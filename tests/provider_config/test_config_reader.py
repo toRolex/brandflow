@@ -188,7 +188,7 @@ class TestProviderConfigs:
             reader = ConfigReader(config_dir=tmpdir)
             config = reader.get_tts_config()
             assert config["provider"] == "qwen"
-            assert config["model"] == "qwen-tts"
+            assert config["model"] == "qwen3-tts-flash"
             assert config["voice"] == "Cherry"
 
     def test_get_tts_config_root_override(self) -> None:

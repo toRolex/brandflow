@@ -6,8 +6,13 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from packages.domain_core.models import next_phase
+from packages.domain_core.models import REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
+from packages.pipeline_services.asset_snapshot import (
+    AssetValidationError,
+    validate_assets,
+    write_reviewed_snapshot,
+)
 from packages.pipeline_services.script_service import generate_script
 from packages.provider_config.config_reader import ConfigReader, ConfigResolver
 from packages.provider_config.secret_store import SecretStore
@@ -82,6 +87,20 @@ def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
     return None
 
 
+def _validate_review_gate(phase: str, review_gate: str) -> None:
+    """Raise HTTP 409 if *phase* is not a review gate or *review_gate* mismatches."""
+    if phase not in REVIEW_PHASES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"job is not in a review phase (current: {phase})",
+        )
+    if review_gate != phase:
+        raise HTTPException(
+            status_code=409,
+            detail=f"review gate mismatch: expected {phase}, got {review_gate}",
+        )
+
+
 @router.post("/{job_id}/approve")
 def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     repo = FileStoreRepository(request.app.state.root_dir)
@@ -90,37 +109,23 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
 
+    # ── Phase validation ──
+    _validate_review_gate(record.phase, payload.review_gate)
+
     # ── Asset review specific checks ──
     if record.phase == "asset_review":
         root_dir = Path(request.app.state.root_dir)
         job_dir = _find_job_dir(root_dir, project_id, job_id)
-        clips_path = job_dir / "selected_clips.json"
-        if clips_path.exists():
-            clips = json.loads(clips_path.read_text(encoding="utf-8"))
-
-            # Check for unresolved clips — block approval
-            unresolved = [c for c in clips if c.get("visual_type") == "unresolved"]
-            if unresolved:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"尚有 {len(unresolved)} 个句子素材未解决（unresolved），请先处理",
-                )
-
-            # Check all-blank — warn unless force=True
-            has_clip = any(c.get("visual_type") == "clip" for c in clips)
-            if not has_clip and not payload.force:
-                raise HTTPException(
-                    status_code=409,
-                    detail="所有素材均为空白（blank），确认后请使用 force=true",
-                )
-
-            # Freeze snapshot: write reviewed_assets.json
-            snapshot_path = job_dir / "reviewed_assets.json"
-            snapshot_path.write_text(
-                json.dumps(clips, ensure_ascii=False, indent=2),
-                encoding="utf-8",
+        try:
+            clips = validate_assets(job_dir, force=payload.force)
+            write_reviewed_snapshot(job_dir, clips)
+            logger.info(
+                f"[Review] 素材审核快照已保存: {job_dir / 'reviewed_assets.json'}"
             )
-            logger.info(f"[Review] 素材审核快照已保存: {snapshot_path}")
+        except AssetValidationError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.message)
+        except FileNotFoundError:
+            pass  # no clips to validate — proceed normally
 
     try:
         nxt = next_phase(record.phase)
@@ -145,6 +150,8 @@ def reject_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
+
+    _validate_review_gate(record.phase, payload.review_gate)
 
     if record.phase == "tts_review":
         reject_target = "tts_generating"
@@ -405,6 +412,20 @@ def _save_clips(job_dir: Path, clips: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _check_asset_review_phase(root_dir: Path, job_id: str) -> None:
+    """Raise 409 if the job is not in the asset_review phase."""
+    repo = FileStoreRepository(root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+    record = repo.load_job(project_id, job_id)
+    if record.phase != "asset_review":
+        raise HTTPException(
+            status_code=409,
+            detail=f"asset mutations are only allowed during asset_review phase (current: {record.phase})",
+        )
+
+
 def _ensure_original(clips: list[dict], index: int) -> None:
     """Store the original state of a clip entry before user modification."""
     entry = clips[index]
@@ -423,7 +444,8 @@ def _ensure_original(clips: list[dict], index: int) -> None:
 @router.post("/{job_id}/asset/set-blank")
 def asset_set_blank(job_id: str, payload: AssetIndexRequest, request: Request) -> dict:
     """Set a clip position to blank (black frame, no asset)."""
-    _, _, job_dir = _resolve_job_context(request, job_id)
+    root_dir, _, job_dir = _resolve_job_context(request, job_id)
+    _check_asset_review_phase(root_dir, job_id)
     clips = _load_clips(job_dir, payload.clip_index)
 
     _ensure_original(clips, payload.clip_index)
@@ -444,7 +466,8 @@ def asset_set_blank(job_id: str, payload: AssetIndexRequest, request: Request) -
 @router.post("/{job_id}/asset/set-asset")
 def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> dict:
     """Manually assign a specific asset to a clip position."""
-    _, _, job_dir = _resolve_job_context(request, job_id)
+    root_dir, _, job_dir = _resolve_job_context(request, job_id)
+    _check_asset_review_phase(root_dir, job_id)
     clips = _load_clips(job_dir, payload.clip_index)
 
     _ensure_original(clips, payload.clip_index)
@@ -479,6 +502,7 @@ def asset_re_search(job_id: str, payload: AssetIndexRequest, request: Request) -
     Does NOT overwrite clips that are explicitly blank.
     """
     root_dir, _, job_dir = _resolve_job_context(request, job_id)
+    _check_asset_review_phase(root_dir, job_id)
     clips = _load_clips(job_dir, payload.clip_index)
 
     entry = clips[payload.clip_index]
@@ -551,7 +575,8 @@ def asset_re_search(job_id: str, payload: AssetIndexRequest, request: Request) -
 @router.post("/{job_id}/asset/restore")
 def asset_restore(job_id: str, payload: AssetIndexRequest, request: Request) -> dict:
     """Restore a clip position to its original asset suggestion."""
-    _, _, job_dir = _resolve_job_context(request, job_id)
+    root_dir, _, job_dir = _resolve_job_context(request, job_id)
+    _check_asset_review_phase(root_dir, job_id)
     clips = _load_clips(job_dir, payload.clip_index)
 
     entry = clips[payload.clip_index]

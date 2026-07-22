@@ -313,12 +313,12 @@ class TestCreateTTSProvider:
         assert provider.api_key == "mimo-key"
         assert provider.base_url == "https://mimo.example.com"
 
-    def test_empty_model_defaults_to_mimo(self):
-        secrets = SecretStore(env={"MIMO_API_KEY": "mimo-key"})
+    def test_empty_model_defaults_to_qwen(self):
+        secrets = SecretStore(env={"DASHSCOPE_API_KEY": "qwen-key"})
         provider = create_tts_provider({}, secrets)
-        assert isinstance(provider, MiMoTTSProvider)
-        assert provider.api_key == "mimo-key"
-        assert provider.base_url == "https://api.xiaomimimo.com/v1"
+        assert isinstance(provider, QwenTTSProvider)
+        assert provider.api_key == "qwen-key"
+        assert provider.base_url == "https://dashscope.aliyuncs.com/api/v1"
 
     def test_fallback_base_url_when_env_missing(self):
         secrets = SecretStore(env={"DASHSCOPE_API_KEY": "qwen-key"})
@@ -343,19 +343,21 @@ class TestTTSConfigShimDefaults:
 
     def test_empty_dict_gets_all_defaults(self):
         """Empty dict → every expected attribute gets its default value."""
+        from packages.provider_config.config_constants import DEFAULTS
         from packages.pipeline_services.tts_provider import TTSConfigShim
 
+        defaults = DEFAULTS["tts"]
         shim = TTSConfigShim({})
-        assert shim.model == "mimo-v2.5-tts"
-        assert shim.voice == "Mia"
-        assert shim.style_control_mode == "simple"
-        assert shim.style_prompt == "自然 清晰"
-        assert shim.audio_format == "wav"
-        assert shim.director_character == ""
-        assert shim.director_scene == ""
-        assert shim.director_guidance == ""
-        assert shim.audio_tags_enabled is False
-        assert shim.audio_tags == ""
+        assert shim.model == defaults["model"]
+        assert shim.voice == defaults["voice"]
+        assert shim.style_control_mode == defaults["style_control_mode"]
+        assert shim.style_prompt == defaults["style_prompt"]
+        assert shim.audio_format == defaults["audio_format"]
+        assert shim.director_character == defaults["director"]["character"]
+        assert shim.director_scene == defaults["director"]["scene"]
+        assert shim.director_guidance == defaults["director"]["guidance"]
+        assert shim.audio_tags_enabled is defaults["audio_tags"]["enabled"]
+        assert shim.audio_tags == defaults["audio_tags"]["tags"]
 
     def test_missing_nested_keys_get_defaults(self):
         """A config dict with nested director/audio_tags but no flat keys

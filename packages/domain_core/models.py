@@ -23,6 +23,10 @@ PHASE_ORDER = [
     "scene_assembling",
 ]
 
+REVIEW_PHASES: frozenset[str] = frozenset(
+    {"script_review", "tts_review", "asset_review", "final_review"}
+)
+
 
 def next_phase(current: str) -> str:
     index = PHASE_ORDER.index(current)
@@ -71,6 +75,7 @@ class AssetPosition(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sentence: str
+    sentence_index: int = 0
     category: str = ""
     requested_category: str = ""
     file_path: str = ""
@@ -126,13 +131,15 @@ class PhaseExecutionState(BaseModel):
 
     @model_validator(mode="after")
     def validate_status_attempts_and_error(self) -> "PhaseExecutionState":
-        if self.current_attempt > self.max_attempts:
-            raise ValueError("current_attempt must not exceed max_attempts")
+        # max_attempts is the number of retries *after* the first attempt,
+        # so the total allowed attempts is max_attempts + 1.
+        if self.current_attempt > self.max_attempts + 1:
+            raise ValueError("current_attempt must not exceed max_attempts + 1")
         if self.status in {"running", "retrying", "failed", "succeeded"}:
             if self.current_attempt < 1:
                 raise ValueError(f"{self.status} requires at least one attempt")
-        if self.status == "retrying" and self.current_attempt >= self.max_attempts:
-            raise ValueError("retrying requires a remaining attempt")
+        if self.status == "retrying" and self.current_attempt > self.max_attempts:
+            raise ValueError("retrying requires a remaining retry")
         if self.status == "failed" and self.error is None:
             raise ValueError("failed execution requires error details")
         if self.status not in {"failed", "retrying"} and self.error is not None:

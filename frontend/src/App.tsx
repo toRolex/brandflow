@@ -13,7 +13,7 @@ import QualityRulesForm from "./pages/QualityRulesForm";
 import ScriptTemplateEditor from "./pages/ScriptTemplateEditor";
 import ScriptTemplateList from "./pages/ScriptTemplateList";
 import SmartAssetLibrary from "./pages/SmartAssetLibrary";
-import TTSConfig from "./pages/TTSConfig";
+import TtsConfig from "./pages/TTSConfig";
 
 export default function App() {
 	return (
@@ -46,7 +46,7 @@ export default function App() {
 							path="/system/config/knowledge"
 							element={<KnowledgeBasePage />}
 						/>
-						<Route path="/tts-config" element={<TTSConfig />} />
+						<Route path="/tts-config" element={<TtsConfig />} />
 						<Route path="/analytics" element={<AnalyticsPage />} />
 					</Routes>
 				</Layout>

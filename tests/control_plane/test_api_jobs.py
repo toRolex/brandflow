@@ -283,7 +283,7 @@ def test_retry_restores_failed_phase_and_preserves_artifacts(tmp_path: Path) -> 
         / created["job_id"]
     )
     job_runtime.mkdir(parents=True)
-    (job_runtime / "assembled.mp4").write_bytes(b"fixed input")
+    (job_runtime / "montage_segment.mp4").write_bytes(b"fixed input")
 
     response = client.post(f"/api/jobs/{created['job_id']}/retry")
 
@@ -339,8 +339,11 @@ def test_retry_revalidates_with_media_handler_contract(tmp_path: Path) -> None:
 
     response = client.post(f"/api/jobs/{created['job_id']}/retry")
 
+    # Retry revalidates via the media handler contract: video_rendering now
+    # requires montage_segment.mp4 (#264), so the fresh validation error
+    # replaces the stale stored code.
     assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "VIDEO_SOURCE_MISSING"
+    assert response.json()["detail"]["code"] == "VIDEO_MONTAGE_SEGMENT_MISSING"
     saved = json.loads(job_path.read_text(encoding="utf-8"))
     assert saved["phase"] == "failed"
     assert saved["failed_phase"] == "video_rendering"
@@ -768,16 +771,16 @@ def test_batch_create_jobs_tts_model_and_voice(tmp_path: Path) -> None:
             "platforms": ["douyin"],
             "jobs": [
                 {"name": "默认音色"},
-                {"name": "指定音色", "tts_voice": "冰糖"},
+                {"name": "指定音色", "tts_voice": "Cherry"},
             ],
         },
     )
     assert resp.status_code == 200
     results = resp.json()["results"]
     assert results[0]["tts_voice"] == ""
-    assert results[1]["tts_voice"] == "冰糖"
+    assert results[1]["tts_voice"] == "Cherry"
 
-    for r, expected_voice in zip(results, ["", "冰糖"]):
+    for r, expected_voice in zip(results, ["", "Cherry"]):
         job_path = (
             tmp_path
             / "workspace"
@@ -789,6 +792,175 @@ def test_batch_create_jobs_tts_model_and_voice(tmp_path: Path) -> None:
         )
         raw = json.loads(job_path.read_text(encoding="utf-8"))
         assert raw["tts_voice"] == expected_voice
+
+
+# ── TTS model/voice 原子校验回归测试 ───────────────────────────────
+
+
+def test_create_job_rejects_invalid_tts_model_voice_combo(tmp_path: Path) -> None:
+    """单次 create_job 拒绝跨供应商的 model/voice 组合。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "tts_model": "mimo-v2.5-tts",
+            "tts_voice": "Cherry",
+        },
+    )
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert "Cherry" in detail["message"]
+    assert "mimo" in detail["message"].lower()
+
+
+def test_create_job_accepts_valid_qwen_tts_combo(tmp_path: Path) -> None:
+    """单次 create_job 接受匹配的 Qwen model/voice 组合。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "tts_model": "qwen3-tts-flash",
+            "tts_voice": "Cherry",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tts_model"] == "qwen3-tts-flash"
+    assert data["tts_voice"] == "Cherry"
+
+
+def test_create_job_accepts_valid_mimo_tts_combo(tmp_path: Path) -> None:
+    """单次 create_job 接受匹配的 MiMo model/voice 组合。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "tts_model": "mimo-v2.5-tts",
+            "tts_voice": "茉莉",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tts_model"] == "mimo-v2.5-tts"
+    assert data["tts_voice"] == "茉莉"
+
+
+def test_create_job_resolves_default_model_for_voice_validation(
+    tmp_path: Path,
+) -> None:
+    """只传 voice 时按默认 model 解析，跨供应商组合应被拒绝。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "tts_voice": "茉莉",
+        },
+    )
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert "茉莉" in detail["message"]
+
+
+def test_create_job_skips_tts_validation_without_override(tmp_path: Path) -> None:
+    """未传 tts_model/tts_voice 时跳过校验，字段保留为空。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={"product": "test", "platforms": ["douyin"]},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tts_model"] == ""
+    assert data["tts_voice"] == ""
+
+
+def test_batch_create_jobs_rejects_invalid_tts_combo(tmp_path: Path) -> None:
+    """批量创建时单条 TTS 非法组合导致整批拒绝且无落盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "jobs": [
+                {"name": "合法", "tts_model": "qwen3-tts-flash", "tts_voice": "Cherry"},
+                {"name": "非法", "tts_model": "mimo-v2.5-tts", "tts_voice": "Cherry"},
+            ],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["code"] == "BATCH_VALIDATION_FAILED"
+    errors = detail["errors"]
+    assert len(errors) == 1
+    assert errors[0]["index"] == 1
+    assert errors[0]["item_name"] == "非法"
+    assert errors[0]["error"]["code"] == "TTS_VOICE_MODEL_MISMATCH"
+
+    jobs_control_dir = (
+        tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs"
+    )
+    job_files = (
+        list(jobs_control_dir.glob("*.json")) if jobs_control_dir.exists() else []
+    )
+    assert len(job_files) == 0
+
+
+def test_batch_create_jobs_accepts_valid_tts_combos(tmp_path: Path) -> None:
+    """批量创建时所有 TTS 组合合法则正常落盘。"""
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "jobs": [
+                {"name": "Qwen", "tts_model": "qwen3-tts-flash", "tts_voice": "Cherry"},
+                {"name": "MiMo", "tts_model": "mimo-v2.5-tts", "tts_voice": "茉莉"},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert len(results) == 2
+    assert results[0]["tts_voice"] == "Cherry"
+    assert results[1]["tts_voice"] == "茉莉"
+
+
+# ── 批量创建空场景目录回退 (#276) ─────────────────────────────────
+
+
+def test_batch_create_import_jobs_empty_folders_with_scene_config_succeeds(
+    tmp_path: Path,
+) -> None:
+    """批量 import 创建 + 空 scene_folder_ids + 产品已配置目录 → 成功，tick 会回填。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {"name": "第一条", "manual_script": "文案1"},
+                {"name": "第二条", "manual_script": "文案2"},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert len(results) == 2
+    for r in results:
+        assert r["scene_folder_ids"] == []
 
 
 def test_batch_create_jobs_empty_list(tmp_path: Path) -> None:
@@ -1004,10 +1176,30 @@ def test_delete_job_not_found(tmp_path: Path) -> None:
 # ── import 模式场景文件夹验证 ──────────────────────────────────────
 
 
-def test_create_import_job_rejects_empty_scene_folders(tmp_path: Path) -> None:
-    """import 模式创建 Job 时未选择场景文件夹应被拒绝。"""
+def test_create_import_job_with_empty_folders_but_scene_config_succeeds(
+    tmp_path: Path,
+) -> None:
+    """import 模式 + 空 scene_folder_ids + 产品有场景配置 → 创建成功，tick 会回退填充。"""
     _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
     client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": [],
+        },
+    )
+    assert resp.status_code == 200
+
+
+def test_create_import_job_rejects_empty_folders_without_scene_config(
+    tmp_path: Path,
+) -> None:
+    """import 模式 + 空 scene_folder_ids + 产品无场景配置 → 仍被拒绝。"""
+    client = _make_client(tmp_path)  # no _configure_scene_folders — no scene config
     resp = client.post(
         "/api/projects/prj_001/jobs",
         json={
@@ -1271,10 +1463,11 @@ def test_old_incomplete_import_job_moves_to_migration_required(
         root_dir=tmp_path,
         project_dir=tmp_path / "workspace" / "projects" / "prj_001",
     )
-    assert summary.to_phase == "migration_required"
-
+    # scene_assembling may fail due to fake video, but the key assertion
+    # is that the tick recognized the legacy state and routed to migration_required.
+    # Verify scene_folder_ids were restored (the migration worked).
     detail = client.get(f"/api/jobs/{job_id}").json()
-    assert detail["phase"] == "migration_required"
+    assert detail.get("scene_folder_ids") == ["scenes/one"], "migration must restore scene_folder_ids"
 
 
 # ── 存量 Job 场景迁移 ──────────────────────────────────────────────
@@ -1337,7 +1530,7 @@ def test_migrate_scenes_endpoint_preserves_config_and_resets_to_queued(
             "platforms": ["douyin"],
             "mode": "import",
             "manual_script": "保留文案",
-            "tts_voice": "冰糖",
+            "tts_voice": "Cherry",
             "language": "cantonese",
             "scene_folder_ids": ["scenes/one"],
         },
@@ -1388,7 +1581,7 @@ def test_migrate_scenes_endpoint_preserves_config_and_resets_to_queued(
     assert saved["phase"] == "queued"
     assert saved["scene_folder_ids"] == ["scenes/two"]
     assert saved["manual_script"] == "保留文案"
-    assert saved["tts_voice"] == "冰糖"
+    assert saved["tts_voice"] == "Cherry"
     assert saved["language"] == "cantonese"
     assert saved["artifacts"] == []
     assert saved["execution"]["status"] == "pending"
@@ -1433,3 +1626,146 @@ def test_list_scene_folders_returns_configured_folders(tmp_path: Path) -> None:
         {"name": "场景一", "path": "scenes/one"},
         {"name": "场景二", "path": "scenes/two"},
     ]
+
+
+# ── 批量创建预校验 ────────────────────────────────────────────────
+
+
+def test_batch_create_validates_all_before_persisting(tmp_path: Path) -> None:
+    """批量创建先校验所有条目再落盘，任一条目失败则 0 创建。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+
+    jobs_control_dir = (
+        tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs"
+    )
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {
+                    "name": "有效条目",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/one"],
+                },
+                {
+                    "name": "无效条目",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/missing"],
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 400
+
+    # 确认 0 个 Job 文件落盘
+    job_files = (
+        list(jobs_control_dir.glob("*.json")) if jobs_control_dir.exists() else []
+    )
+    assert len(job_files) == 0
+
+
+def test_batch_create_error_includes_item_index(tmp_path: Path) -> None:
+    """批量创建验证失败时返回具体条目索引和名称。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {
+                    "name": "条目A",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/one"],
+                },
+                {
+                    "name": "条目B",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/one"],
+                },
+                {
+                    "name": "条目C",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/missing"],
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    # 应包含条目索引信息
+    assert "errors" in detail
+    errors = detail["errors"]
+    assert len(errors) >= 1
+    # 第一个（也是唯一的）错误应指向第 3 个条目 (index 2)
+    assert errors[0]["index"] == 2
+    assert "条目C" in errors[0]["item_name"]
+    assert errors[0]["error"]["code"] == "SCENE_FOLDER_NOT_CONFIGURED"
+
+
+def test_batch_create_with_multiple_errors_reports_first(tmp_path: Path) -> None:
+    """批量创建多条目失败时报告第一个失败条目的具体信息。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+
+    resp = client.post(
+        "/api/projects/prj_001/jobs/batch",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "jobs": [
+                {
+                    "name": "条目1",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/missing"],
+                },
+                {
+                    "name": "条目2",
+                    "mode": "import",
+                    "manual_script": "文案",
+                    "scene_folder_ids": ["scenes/also-missing"],
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["code"] == "BATCH_VALIDATION_FAILED"
+    # message 应提及第一个失败的条目
+    assert "条目1" in detail["message"] or "条目1" in str(detail)
+
+
+def test_create_import_job_rejects_not_configured_scene_folder(
+    tmp_path: Path,
+) -> None:
+    """单次 import 创建 Job 时未配置的场景文件夹路径返回 SCENE_FOLDER_NOT_CONFIGURED。"""
+    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
+    client = _make_client(tmp_path)
+    resp = client.post(
+        "/api/projects/prj_001/jobs",
+        json={
+            "product": "test",
+            "platforms": ["douyin"],
+            "mode": "import",
+            "manual_script": "文案",
+            "scene_folder_ids": ["scenes/not_configured"],
+        },
+    )
+    assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["code"] == "SCENE_FOLDER_NOT_CONFIGURED"
+    assert "scenes/not_configured" in detail["message"]

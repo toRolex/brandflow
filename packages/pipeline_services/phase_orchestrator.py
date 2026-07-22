@@ -1,17 +1,14 @@
 """PhaseOrchestrator — executes pipeline phases and returns ArtifactPointer lists.
 
-This module extracts the logic from ``app._phase_to_artifacts`` (285-line god function)
-into small, testable, injectable handler methods.
-
-Slice 1: ``script_generating`` only.  Subsequent slices migrate remaining phases.
-Slice 2: ``tts_generating``.
-Slice 4: ConfigReader injection — all config reads use ConfigReader (no AppConfigManager).
+This module is the dispatcher: it maintains the phase-to-handler strategy map,
+wraps handler execution in structured result contracts, and exposes shared
+helpers used by the handler sub-modules.  The concrete phase logic lives in
+``packages.pipeline_services.phases``.
 """
 
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -24,30 +21,43 @@ from packages.domain_core.phase_execution import (
     PhaseExecutionResult,
     PhaseExecutionSuccess,
 )
-from packages.pipeline_services.script_service import generate_script
-from packages.pipeline_services.script_service.generator import ScriptGenerator
-from packages.pipeline_services.force_align_service import (
-    ForceAlignError,
-    ForceAlignService,
+from packages.pipeline_services.force_align_service import ForceAlignError
+from packages.pipeline_services.phases import (
+    classify_tts_error,
+    load_montage_inputs,
+    run_asset,
+    run_final_rendering,
+    run_final_review,
+    run_montage_assembly,
+    run_scene_assembly,
+    run_script,
+    run_subtitle,
+    run_tts,
+    run_tts_review,
+    run_video_rendering,
+    _build_tts_provider as _build_tts_provider_fn,
+    _discover_script as _discover_script_fn,
+    _discover_sentence_timings as _discover_sentence_timings_fn,
+    _get_ffmpeg_path as _get_ffmpeg_path_fn,
+    _get_media_duration as _get_media_duration_fn,
+    _job_dir as _job_dir_fn,
+    _resolve_api_key as _resolve_api_key_fn,
+    _resolve_api_url as _resolve_api_url_fn,
+    _resolve_categories as _resolve_categories_fn,
+    _resolve_llm_config as _resolve_llm_config_fn,
+    _resolve_scene_folders as _resolve_scene_folders_fn,
+    _resolve_tts_config as _resolve_tts_config_fn,
+    _scene_candidates as _scene_candidates_fn,
+    _to_artifact as _to_artifact_fn,
+    to_url_path,
 )
-from packages.pipeline_services.final_timeline import (
-    align_audio,
-    build_final_timeline,
-    compute_scene_offset_ms,
-    shift_srt,
-)
-from packages.pipeline_services.script_sentence import parse_script_sentences
-from packages.pipeline_services.sentence_tts_service import (
-    SentenceTiming,
-    SentenceTTSService,
-)
-from packages.pipeline_services.subtitle_service import SubtitleService
-from packages.pipeline_services.video_service import VideoService
-from packages.provider_config.config_reader import ConfigReader, ConfigResolver
+from packages.pipeline_services.sentence_tts_service import SentenceTiming
+from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
 
 STRUCTURED_MEDIA_PHASES = frozenset(
     {
+        "tts_generating",
         "scene_assembling",
         "subtitle_generating",
         "montage_assembling",
@@ -56,15 +66,18 @@ STRUCTURED_MEDIA_PHASES = frozenset(
     }
 )
 
+__all__ = [
+    "STRUCTURED_MEDIA_PHASES",
+    "PhaseContext",
+    "PhaseOrchestrator",
+    "create_orchestrator",
+    "to_url_path",
+]
+
 
 # ---------------------------------------------------------------------------
 # Public helpers
 # ---------------------------------------------------------------------------
-
-
-def to_url_path(path: Path, workspace_dir: Path) -> str:
-    """Convert a workspace-relative *Path* to a URL-safe forward-slash string."""
-    return path.relative_to(workspace_dir).as_posix()
 
 
 def create_orchestrator(
@@ -82,40 +95,6 @@ def create_orchestrator(
         video_svc=VideoService(dry_run=False),
         config_reader=config_reader,
     )
-
-
-# ---------------------------------------------------------------------------
-# TTS config shim (duck-type, preserves tts_provider.synthesize() API)
-# ---------------------------------------------------------------------------
-
-
-class _TTSConfigShim:
-    """Duck-type config object built from the TTS config dict.
-
-    Preserves the interface expected by ``tts_provider.synthesize()``.
-    """
-
-    def __init__(self, cfg: dict[str, Any]) -> None:
-        self.model: str = cfg.get("model", "mimo-v2.5-tts")
-        self.voice: str = cfg.get("voice", "Mia")
-        self.instructions: str = cfg.get("instructions", "")
-        self.language_type: str = cfg.get("language_type", "")
-        self.optimize_instructions: bool = cfg.get("optimize_instructions", False)
-        self.fallback_voice: str = cfg.get("fallback_voice", "Dean")
-        self.randomize_voice: bool = cfg.get("randomize_voice", False)
-        self.random_voices: list[str] = cfg.get("random_voices", ["Mia", "Dean"])
-        self.style_control_mode: str = cfg.get("style_control_mode", "simple")
-        self.style_prompt: str = cfg.get("style_prompt", "自然 清晰")
-        self.voice_design_prompt: str = cfg.get("voice_design_prompt", "")
-        self.audio_format: str = cfg.get("audio_format", "wav")
-        self.audio_tags_enabled: bool = cfg.get("audio_tags_enabled", False)
-        self.audio_tags: str = cfg.get("audio_tags", "")
-        self.voice_clone_sample_path: str = cfg.get("voice_clone_sample_path", "")
-        self.voice_clone_mime_type: str = cfg.get("voice_clone_mime_type", "")
-        self.optimize_text_preview: bool = cfg.get("optimize_text_preview", False)
-        self.director_character: str = cfg.get("director_character", "")
-        self.director_scene: str = cfg.get("director_scene", "")
-        self.director_guidance: str = cfg.get("director_guidance", "")
 
 
 # ---------------------------------------------------------------------------
@@ -151,8 +130,8 @@ class PhaseOrchestrator:
 
     def __init__(
         self,
-        subtitle_svc: SubtitleService,
-        video_svc: VideoService,
+        subtitle_svc: Any,
+        video_svc: Any,
         *,
         schedule_store: Any = None,
         config_reader: ConfigReader | None = None,
@@ -169,16 +148,16 @@ class PhaseOrchestrator:
         self._get_llm_config = get_llm_config
 
         self._handlers: dict[str, Callable[[PhaseContext], list[ArtifactPointer]]] = {
-            "script_generating": self._run_script,
-            "tts_generating": self._run_tts,
-            "tts_review": self._run_tts_review,
-            "subtitle_generating": self._run_subtitle,
-            "asset_retrieving": self._run_asset,
-            "video_rendering": self._run_video,
-            "final_rendering": self._run_final_rendering,
-            "final_review": self._run_final,
-            "scene_assembling": self._run_scene_assembly,
-            "montage_assembling": self._run_montage_assembly,
+            "script_generating": lambda ctx: run_script(self, ctx),
+            "tts_generating": lambda ctx: run_tts(self, ctx),
+            "tts_review": lambda ctx: run_tts_review(self, ctx),
+            "subtitle_generating": lambda ctx: run_subtitle(self, ctx),
+            "asset_retrieving": lambda ctx: run_asset(self, ctx),
+            "video_rendering": lambda ctx: run_video_rendering(self, ctx),
+            "final_rendering": lambda ctx: run_final_rendering(self, ctx),
+            "final_review": lambda ctx: run_final_review(self, ctx),
+            "scene_assembling": lambda ctx: run_scene_assembly(self, ctx),
+            "montage_assembling": lambda ctx: run_montage_assembly(self, ctx),
         }
 
     # -- public interface ---------------------------------------------------
@@ -223,7 +202,23 @@ class PhaseOrchestrator:
                     retryable=False,
                 )
             )
+        except ForceAlignError as exc:
+            # Uploaded audio alignment failure — non-retryable data-quality issue
+            detail = "\n".join(d.summary() for d in exc.result.diagnostics)
+            return PhaseExecutionFailure(
+                error=ExecutionFailure(
+                    code="UPLOAD_AUDIO_ALIGN_FAILED",
+                    message=(
+                        f"Uploaded audio force-alignment failed: {exc.result.message}"
+                        f"\n{detail}"
+                    ),
+                    retryable=False,
+                )
+            )
         except Exception as exc:
+            # Provider-specific TTS error classification (#253)
+            if phase == "tts_generating":
+                return self._classify_tts_error(phase, exc)
             return PhaseExecutionFailure(
                 error=ExecutionFailure(
                     code="MEDIA_PROCESSING_FAILED",
@@ -242,12 +237,33 @@ class PhaseOrchestrator:
             )
         return PhaseExecutionSuccess(artifacts=artifacts)
 
+    def _classify_tts_error(self, phase: str, exc: Exception) -> PhaseExecutionFailure:
+        """Classify a TTS provider error into a structured failure (#253)."""
+        return classify_tts_error(phase, exc)
+
     def validate_phase_input(
         self, phase: str, ctx: PhaseContext
     ) -> ExecutionFailure | None:
         """Validate a media phase using the same contract as execution/retry."""
 
         job_dir = self._job_dir(ctx)
+        if phase == "tts_generating":
+            if not self._discover_script(job_dir):
+                return ExecutionFailure(
+                    code="TTS_SCRIPT_MISSING",
+                    message="Script text is required before TTS audio can be synthesized.",
+                    retryable=False,
+                )
+            # Check for uploaded audio: validate source file exists
+            uploaded_audio_path: str = ctx.options.get("uploaded_audio_path", "")
+            if uploaded_audio_path:
+                src_audio = ctx.root_dir / uploaded_audio_path
+                if not src_audio.exists():
+                    return ExecutionFailure(
+                        code="UPLOAD_AUDIO_NOT_FOUND",
+                        message=f"Uploaded audio file not found: {uploaded_audio_path}",
+                        retryable=False,
+                    )
         if phase == "scene_assembling":
             # Snapshot exists → local copies available, skip source-folder check
             if (job_dir / ".scene_snapshot" / "manifest.json").exists():
@@ -286,56 +302,16 @@ class PhaseOrchestrator:
                     retryable=False,
                 )
         elif phase == "montage_assembling":
-            # For generate mode, montage_assembling is a no-op pass-through
-            # (neither scene_segment.mp4 nor base.mp4 exist yet).
-            job_json = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
-            if job_json.exists():
-                try:
-                    if (
-                        json.loads(job_json.read_text(encoding="utf-8")).get("mode")
-                        == "generate"
-                    ):
-                        return None
-                except json.JSONDecodeError:
-                    pass
-            if (
-                not (job_dir / "scene_segment.mp4").exists()
-                and not (job_dir / "base.mp4").exists()
-            ):
+            _, _, error = self._load_montage_inputs(ctx)
+            return error
+        elif phase == "video_rendering":
+            if not (job_dir / "montage_segment.mp4").exists():
                 return ExecutionFailure(
-                    code="MONTAGE_SOURCE_MISSING",
-                    message="A scene segment or base video is required for montage assembly.",
+                    code="VIDEO_MONTAGE_SEGMENT_MISSING",
+                    message="The montage segment is required before video rendering.",
                     retryable=False,
                 )
-        elif phase == "video_rendering":
-            if (job_dir / "base.mp4").exists() or (job_dir / "assembled.mp4").exists():
-                return None
-            audio_path = job_dir / "audio.mp3"
-            clip_list_path = job_dir / "selected_clips.json"
-            if audio_path.exists() and clip_list_path.exists():
-                try:
-                    selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
-                    has_real = any(
-                        Path(item["file_path"]).exists()
-                        for item in selected
-                        if item.get("file_path")
-                    )
-                    all_blank = all(
-                        item.get("visual_type") == "blank" for item in selected
-                    )
-                    if has_real or all_blank:
-                        return None
-                except (json.JSONDecodeError, KeyError, TypeError):
-                    return ExecutionFailure(
-                        code="MEDIA_INPUT_INVALID",
-                        message="selected_clips.json is not a valid media input.",
-                        retryable=False,
-                    )
-            return ExecutionFailure(
-                code="VIDEO_SOURCE_MISSING",
-                message="No usable assembled video or selected clips are available.",
-                retryable=False,
-            )
+            return None
         elif phase == "final_rendering":
             missing = [
                 name
@@ -414,1185 +390,120 @@ class PhaseOrchestrator:
 
     def _job_dir(self, ctx: PhaseContext) -> Path:
         """Return (and ensure) the job's runtime output directory."""
-        d = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
-        d.mkdir(parents=True, exist_ok=True)
-        return d
+        return _job_dir_fn(ctx)
 
-    @staticmethod
-    def _to_artifact(kind: str, path: Path, workspace_dir: Path) -> ArtifactPointer:
+    def _to_artifact(
+        self, kind: str, path: Path, workspace_dir: Path
+    ) -> ArtifactPointer:
         """Build an ``ArtifactPointer`` from an absolute file path."""
-        rel = to_url_path(path, workspace_dir)
-        return ArtifactPointer(
-            kind=kind,
-            relative_path=rel,
-            url=f"/workspace/{rel}",
-            size_bytes=path.stat().st_size if path.exists() else 0,
-        )
+        return _to_artifact_fn(kind, path, workspace_dir)
 
     # -- config resolution helpers (ConfigReader-first, fallback to callbacks) --
 
     def _resolve_tts_config(self, ctx: PhaseContext) -> dict[str, Any]:
         """Resolve TTS config via ConfigReader."""
-        if self._config is not None:
-            return self._config.get_tts_config(product_id=ctx.product)
-        if self._get_tts_config is not None:
-            return self._get_tts_config()
-        raise RuntimeError(
-            "No ConfigReader or TTS config callback available; "
-            "create_orchestrator() requires a ConfigReader"
-        )
+        return _resolve_tts_config_fn(self, ctx)
 
     def _resolve_llm_config(self, ctx: PhaseContext) -> dict[str, Any]:
         """Resolve LLM config via ConfigReader."""
-        if self._config is not None:
-            return self._config.get_llm_config(product_id=ctx.product)
-        if self._get_llm_config is not None:
-            return self._get_llm_config()
-        raise RuntimeError(
-            "No ConfigReader or LLM config callback available; "
-            "create_orchestrator() requires a ConfigReader"
-        )
+        return _resolve_llm_config_fn(self, ctx)
 
     def _resolve_api_key(self, llm_config: dict[str, Any]) -> str:
-        """Resolve API key via SecretStore (replaces _resolve_llm_api_key + _resolve_asset_api_key)."""
-        provider = llm_config.get("provider", "deepseek")
-        return self._secrets.get_api_key(provider)
+        """Resolve API key via SecretStore."""
+        return _resolve_api_key_fn(self, llm_config)
 
     def _resolve_api_url(self, llm_config: dict[str, Any]) -> str:
-        """Resolve API base URL via SecretStore (replaces _resolve_llm_endpoint + _resolve_asset_api_url)."""
-        provider = llm_config.get("provider", "deepseek")
-        return self._secrets.get_api_base_url(provider)
+        """Resolve API base URL via SecretStore."""
+        return _resolve_api_url_fn(self, llm_config)
 
-    @staticmethod
-    def _resolve_categories(
-        config_reader: ConfigReader | None, ctx: PhaseContext
-    ) -> list[str]:
-        """Resolve category names for asset classification.
-
-        Priority: product-level categories > asset_library categories > defaults.
-        Uses ConfigReader when available; otherwise returns default food categories.
-        """
-        if config_reader is not None:
-            product_config = config_reader.get_product_config(product_id=ctx.product)
-            product_cats: list[dict] = product_config.get("categories", [])
-            if product_cats:
-                return [c.get("name", "") for c in product_cats if c.get("name")]
-
-            al_config = config_reader.get_asset_library_config()
-            raw: list[dict] = al_config.get("categories", [])
-            if raw:
-                return [c.get("name", "") for c in raw if c.get("name")]
-
-        # Default food category names
-        from packages.pipeline_services.asset_library.category_config import (
-            default_categories,
-        )
-
-        return [c.name for c in default_categories()]
+    def _resolve_categories(self, ctx: PhaseContext) -> list[str]:
+        """Resolve category names for asset classification."""
+        return _resolve_categories_fn(self, ctx)
 
     def _build_tts_provider(self, tts_cfg: dict[str, Any]) -> Any:
-        """Build TTS provider dynamically from current config.
+        """Build TTS provider dynamically from current config."""
+        return _build_tts_provider_fn(self, tts_cfg)
 
-        Reads model from *tts_cfg* and returns the matching provider instance
-        so that config changes (e.g. mimo to qwen) take effect immediately
-        without restarting the worker.
+    # -- discovery helpers --------------------------------------------------
 
-        API keys are resolved via SecretStore (replaces inline os.getenv closures).
-        """
-        from packages.pipeline_services.tts_provider import (
-            MiMoTTSProvider,
-            QwenTTSProvider,
-        )
+    def _discover_script(self, job_dir: Path) -> str | None:
+        """Return the script text from *口播文案.txt or *口播文案.json, or None."""
+        return _discover_script_fn(job_dir)
 
-        tts_model = tts_cfg.get("model", "mimo-v2.5-tts") or ""
-
-        if tts_model.startswith("qwen"):
-            return QwenTTSProvider(
-                api_key=self._secrets.get_api_key("qwen"),
-                base_url=self._secrets.get_api_base_url("qwen")
-                or "https://dashscope.aliyuncs.com/api/v1",
-            )
-        return MiMoTTSProvider(
-            api_key=self._secrets.get_api_key("mimo"),
-            base_url=self._secrets.get_api_base_url("mimo")
-            or "https://api.xiaomimimo.com/v1",
-        )
-
-    # -- script_generating handler ------------------------------------------
-
-    def _run_script(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """Execute script generation (manual or LLM) and optional cover title."""
-        workspace_dir = ctx.root_dir / "workspace"
-        job_dir = self._job_dir(ctx)
-        manual_script: str = ctx.options.get("manual_script", "")
-        result: list[ArtifactPointer] = []
-
-        # 1. Generate or write script
-        if manual_script:
-            language = ctx.options.get("language", "mandarin")
-            if language == "cantonese":
-                try:
-                    llm_cfg = self._resolve_llm_config(ctx)
-
-                    class _LLMConfig:
-                        api_key = self._resolve_api_key(llm_cfg)
-                        base_url = self._resolve_api_url(llm_cfg)
-                        model = llm_cfg.get("model", "deepseek-v4-pro")
-
-                    gen = ScriptGenerator(_LLMConfig())
-                    manual_script = gen.to_cantonese(
-                        manual_script, ctx.product, ctx.brand
-                    )
-                    print("[SCRIPT] Converted manual script to Cantonese", flush=True)
-                except Exception as e:
-                    print(
-                        f"[SCRIPT WARN] Cantonese conversion failed, using original: {e}",
-                        flush=True,
-                    )
-
-            txt_path = job_dir / "口播文案.txt"
-            txt_path.write_text(manual_script, encoding="utf-8")
-            json_path = job_dir / "口播文案.json"
-            json_path.write_text(
-                json.dumps(
-                    {"text": manual_script, "source": "manual"},
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            script_result: dict[str, Any] = {
-                "txt_path": str(txt_path),
-                "json_path": str(json_path),
-                "final_script": manual_script,
-            }
-        else:
-            language = ctx.options.get("language", "mandarin")
-            config_resolver = ConfigResolver(
-                reader=self._config if self._config is not None else ConfigReader(),
-                secrets=self._secrets,
-            )
-            script_result = generate_script(
-                product=ctx.product,
-                output_dir=job_dir,
-                language=language,
-                brand=ctx.brand,
-                config_resolver=config_resolver,
-            )
-
-        # 2. Emit artifact pointers for txt + json
-        txt_path = Path(script_result["txt_path"])
-        json_path = Path(script_result["json_path"])
-        for p in [txt_path, json_path]:
-            if p.exists():
-                result.append(self._to_artifact("script", p, workspace_dir))
-
-        # 3. Auto-generate cover title (if not already set)
-        self._maybe_generate_cover_title(ctx, script_result)
-
-        return result
-
-    def _maybe_generate_cover_title(
-        self,
-        ctx: PhaseContext,
-        script_result: dict[str, Any],
-    ) -> None:
-        """Auto-generate cover title if the job JSON has no ``cover_title.text``.
-
-        Uses ConfigReader for LLM config resolution.
-        Errors are logged but never propagated.
-        """
-        job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
-        if not job_json_path.exists():
-            return
-
-        job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
-        existing_ct = job_data.get("cover_title", {})
-        if existing_ct and existing_ct.get("text"):
-            return  # already set
-
-        try:
-            script_text = script_result.get("final_script", "")
-            txt_path = Path(script_result.get("txt_path", ""))
-            if not script_text and txt_path.exists():
-                script_text = txt_path.read_text(encoding="utf-8").strip()
-            if not script_text:
-                return
-
-            llm_config = self._resolve_llm_config(ctx)
-
-            class _CoverConfig:
-                api_key = self._resolve_api_key(llm_config)
-                base_url = self._resolve_api_url(llm_config)
-                model = llm_config.get("model", "deepseek-v4-pro")
-
-            gen = ScriptGenerator(_CoverConfig())
-            cover_title = gen.generate_cover_title(script_text, ctx.product, ctx.brand)
-            job_data["cover_title"] = cover_title
-            job_json_path.write_text(
-                json.dumps(job_data, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            print(f"[COVER_TITLE] Auto-generated: {cover_title['text']}", flush=True)
-        except Exception as e:
-            print(f"[COVER_TITLE WARN] Failed to auto-generate: {e}", flush=True)
-
-    # -- tts_generating handler ---------------------------------------------
-
-    def _run_tts(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """Execute per-sentence TTS synthesis or copy uploaded audio.
-
-        Discovery order for uploaded audio:
-            1. ``ctx.options["uploaded_audio_path"]`` → copy file, force-align,
-               persist sentence timings, or raise ``ForceAlignError`` with
-               per-sentence diagnostics.
-            2. Otherwise discover script text from ``*口播文案.txt`` then ``*.json``
-               and synthesize each canonical Script Sentence separately.
-        """
-        workspace_dir = ctx.root_dir / "workspace"
-        job_dir = self._job_dir(ctx)
-        audio_path = job_dir / "audio.mp3"
-        result: list[ArtifactPointer] = []
-        uploaded_audio_path: str = ctx.options.get("uploaded_audio_path", "")
-
-        if uploaded_audio_path:
-            src_audio = ctx.root_dir / uploaded_audio_path
-            if src_audio.exists():
-                shutil.copy2(src_audio, audio_path)
-                print(f"[TTS] Using uploaded audio: {src_audio}", flush=True)
-
-                # Force-align uploaded audio to canonical Script Sentences
-                existing_script = self._discover_script(job_dir)
-                if existing_script:
-                    sentences = parse_script_sentences(existing_script)
-                    if sentences:
-                        align_svc = ForceAlignService()
-                        align_result = align_svc.align(audio_path, sentences)
-
-                        if align_result.status == "success":
-                            sentences_path = job_dir / "sentences.json"
-                            sentences_path.write_text(
-                                json.dumps(
-                                    [t.model_dump() for t in align_result.timings],
-                                    ensure_ascii=False,
-                                    indent=2,
-                                ),
-                                encoding="utf-8",
-                            )
-                            result.append(
-                                self._to_artifact(
-                                    "sentence_timings",
-                                    sentences_path,
-                                    workspace_dir,
-                                )
-                            )
-                            print(
-                                f"[TTS] Force-aligned uploaded audio: "
-                                f"{len(align_result.timings)} sentences, "
-                                f"audio size={audio_path.stat().st_size}",
-                                flush=True,
-                            )
-                        else:
-                            # No fallback — surface per-sentence diagnostics
-                            raise ForceAlignError(align_result)
-                    else:
-                        print(
-                            "[TTS] Uploaded audio: no parseable sentences in script",
-                            flush=True,
-                        )
-                else:
-                    print(
-                        f"[TTS] Uploaded audio: no script text found in {job_dir}",
-                        flush=True,
-                    )
-            else:
-                print(f"[TTS WARN] Uploaded audio not found: {src_audio}", flush=True)
-        else:
-            existing_script = self._discover_script(job_dir)
-            print(
-                f"[TTS DEBUG] phase=tts_generating, script_found={existing_script is not None}, "
-                f"len={len(existing_script) if existing_script else 0}",
-                flush=True,
-            )
-            if existing_script:
-                try:
-                    tts_cfg = self._resolve_tts_config(ctx)
-
-                    # Apply job-level TTS overrides (tts_model / tts_voice)
-                    # Priority: job override > provider defaults > global/product config
-                    job_tts_model: str = ctx.options.get("tts_model", "")
-                    job_tts_voice: str = ctx.options.get("tts_voice", "")
-                    if job_tts_model:
-                        tts_cfg["model"] = job_tts_model
-                    if job_tts_voice:
-                        tts_cfg["voice"] = job_tts_voice
-
-                    tts_provider = self._build_tts_provider(tts_cfg)
-                    service = self._create_sentence_tts_service(
-                        tts_provider, tts_cfg, ctx
-                    )
-                    timings = service.synthesize_script(existing_script, audio_path)
-
-                    sentences_path = job_dir / "sentences.json"
-                    sentences_path.write_text(
-                        json.dumps(
-                            [t.model_dump() for t in timings],
-                            ensure_ascii=False,
-                            indent=2,
-                        ),
-                        encoding="utf-8",
-                    )
-                    result.append(
-                        self._to_artifact(
-                            "sentence_timings", sentences_path, workspace_dir
-                        )
-                    )
-                    print(
-                        f"[TTS] Synthesized: {audio_path.exists()}, "
-                        f"size={audio_path.stat().st_size if audio_path.exists() else 0}",
-                        flush=True,
-                    )
-                except Exception as e:
-                    print(f"[TTS ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback
-
-                    traceback.print_exc()
-            else:
-                print(f"[TTS WARN] No script text found in {job_dir}", flush=True)
-
-        if audio_path.exists():
-            result.append(self._to_artifact("tts_audio", audio_path, workspace_dir))
-
-        return result
-
-    def _create_sentence_tts_service(
-        self, provider: Any, tts_cfg: dict[str, Any], ctx: PhaseContext
-    ) -> SentenceTTSService:
-        """Factory hook for the sentence-level TTS service (overridable in tests)."""
-        cache_dir = ctx.root_dir / "workspace" / ".cache" / "tts"
-        return SentenceTTSService(
-            provider=provider,
-            config=tts_cfg,
-            cache_dir=cache_dir,
-        )
-
-    def _run_tts_review(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """tts_review: return existing audio artifact for review."""
-        job_dir = self._job_dir(ctx)
-        workspace_dir = ctx.root_dir / "workspace"
-        audio_path = job_dir / "audio.mp3"
-        if audio_path.exists():
-            print(f"[TTS_REVIEW] Audio ready for review: {audio_path}", flush=True)
-            return [self._to_artifact("tts_audio", audio_path, workspace_dir)]
-        print(f"[TTS_REVIEW WARN] No audio found in {job_dir}", flush=True)
-        return []
-
-    def _run_subtitle(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """subtitle_generating: build SRT from audio + script text.
-
-        When ``sentences.json`` is present, subtitle chunks are constrained to
-        the Script Sentence boundaries so that no subtitle block crosses a
-        sentence boundary.
-        """
-        job_dir = self._job_dir(ctx)
-        workspace_dir = ctx.root_dir / "workspace"
-        audio_path = job_dir / "audio.mp3"
-        srt_path = job_dir / "subtitles.srt"
-        print(
-            f"[SUBTITLE] audio exists={audio_path.exists()}, srt exists={srt_path.exists()}",
-            flush=True,
-        )
-        if audio_path.exists():
-            script_text = self._discover_script(job_dir) or ""
-            print(
-                f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}",
-                flush=True,
-            )
-            if script_text:
-                try:
-                    sentence_timings = self._discover_sentence_timings(job_dir)
-                    if sentence_timings:
-                        self._subtitle_svc.build_srt(
-                            audio_path,
-                            srt_path,
-                            script_text,
-                            sentence_timings=sentence_timings,
-                        )
-                    else:
-                        self._subtitle_svc.build_srt(audio_path, srt_path, script_text)
-                    print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
-                except Exception as e:
-                    print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
-                    import traceback
-
-                    traceback.print_exc()
-        else:
-            print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
-        if srt_path.exists():
-            return [self._to_artifact("subtitle", srt_path, workspace_dir)]
-        return []
-
-    # -- asset_retrieving handler --------------------------------------------
-
-    def _run_asset(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """Execute semantic retrieval: script text -> keyword match -> selected clips."""
-        job_dir = self._job_dir(ctx)
-        workspace_dir = ctx.root_dir / "workspace"
-
-        script_text = self._discover_script(job_dir)
-
-        if not script_text:
-            print("[ASSET] No script text found — emitting sentinel", flush=True)
-            return [
-                ArtifactPointer(
-                    kind="asset_retrieval_done",
-                    relative_path="",
-                    url="",
-                    size_bytes=0,
-                )
-            ]
-
-        from packages.pipeline_services.asset_library import (
-            AssetRepository,
-            AssetRetriever,
-        )
-        from packages.pipeline_services.asset_library.classify import create_classify_fn
-
-        db_path = ctx.root_dir / "workspace" / "shared_assets" / "asset_index.db"
-
-        llm_config = self._resolve_llm_config(ctx)
-
-        api_key = self._resolve_api_key(llm_config)
-        api_url = self._resolve_api_url(llm_config)
-
-        classify_fn = None
-        if api_key and api_url:
-            if not api_url.endswith("/chat/completions"):
-                api_url = f"{api_url}/chat/completions"
-
-            category_names = self._resolve_categories(self._config, ctx)
-
-            classify_fn = create_classify_fn(
-                api_url=api_url,
-                api_key=api_key,
-                model=self._config.get_category_suggestion_model()
-                if self._config is not None
-                else _fallback_category_suggestion_model(),
-                category_names=category_names,
-            )
-
-        repo = AssetRepository(db_path)
-        retriever = AssetRetriever(repo, classify_fn=classify_fn)
-
-        selected = retriever.retrieve(script_text, ctx.product)
-
-        clip_list_path = job_dir / "selected_clips.json"
-        clip_list_path.write_text(
-            json.dumps(selected, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-        print(
-            f"[ASSET] Retrieved {len(selected)} clips -> {clip_list_path}", flush=True
-        )
-        return [self._to_artifact("selected_clips", clip_list_path, workspace_dir)]
-
-    # -- video_rendering handler ---------------------------------------------
-
-    def _run_video(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """video_rendering: compose base video for final rendering.
-
-        In import mode:
-          1. Build a clip-based montage video from ``audio.mp3`` and
-             ``selected_clips.json``.
-          2. Concatenate ``assembled.mp4`` (scene segment from
-             ``montage_assembling``) with the clip-based video → ``base.mp4``.
-
-        In generate mode, builds base video from clips directly (no
-        ``assembled.mp4`` expected to exist).
-
-        Falls back gracefully when one or both sources are missing.
-        """
-        job_dir = self._job_dir(ctx)
-        workspace_dir = ctx.root_dir / "workspace"
-        audio_path = job_dir / "audio.mp3"
-        clip_list_path = job_dir / "selected_clips.json"
-        base_path = job_dir / "base.mp4"
-        assembled_path = job_dir / "assembled.mp4"
-
-        # -- Step 1: build clip-based montage video ---------------------------
-        clip_base_path = job_dir / "_clip_base.mp4"
-        clip_base_built = False
-        trim_params: list[dict] = []
-
-        if audio_path.exists() and clip_list_path.exists():
-            selected = json.loads(clip_list_path.read_text(encoding="utf-8"))
-            selected = [
-                item
-                for item in selected
-                if item.get("visual_type") == "blank"
-                or Path(item["file_path"]).exists()
-            ]
-
-            if selected:
-                sentence_timings = self._discover_sentence_timings(job_dir)
-                timing_dicts = (
-                    [t.model_dump() for t in sentence_timings]
-                    if sentence_timings
-                    else None
-                )
-                returned = self._video_svc.build_base_video(
-                    ctx.project_dir,
-                    {
-                        "job_id": ctx.job_id,
-                        "asset_bundle": {
-                            "audio_path": str(audio_path),
-                            "selected_clips": selected,
-                        },
-                        "sequence": 1,
-                    },
-                    clip_base_path,
-                    sentence_timings=timing_dicts,
-                )
-                # Reuse the trim params computed inside build_base_video so the
-                # Final Timeline's montage segments match the render exactly.
-                if isinstance(returned, list):
-                    trim_params = returned
-                clip_base_built = clip_base_path.exists()
-
-        # -- Step 2: compose final base.mp4 ------------------------------------
-        assembled_exists = assembled_path.exists()
-
-        if assembled_exists and clip_base_built:
-            # Import mode: concat scene segment + montage clips
-            # ponytail: normalize both inputs before concat to ensure matching
-            # resolution/fps/pix_fmt (assembled.mp4 is 720x1280 from scene_assembling,
-            # _clip_base.mp4 is 1080x1920 from normalize_clip_to_vertical).
-            ffmpeg = self._get_ffmpeg_path()
-            subprocess.run(
-                [
-                    ffmpeg,
-                    "-y",
-                    "-i",
-                    str(assembled_path),
-                    "-i",
-                    str(clip_base_path),
-                    "-filter_complex",
-                    "[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
-                    "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v0];"
-                    "[1:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,"
-                    "pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=pix_fmts=yuv420p[v1];"
-                    "[v0][v1]concat=n=2:v=1:a=0[v]",
-                    "-map",
-                    "[v]",
-                    "-an",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "ultrafast",
-                    "-crf",
-                    "23",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    str(base_path),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-            print(
-                f"[VIDEO] Concatenated assembled + clip base for {ctx.job_id}",
-                flush=True,
-            )
-        elif clip_base_built:
-            # Generate mode (or import mode without assembled.mp4 yet)
-            shutil.copy2(clip_base_path, base_path)
-            print(
-                f"[VIDEO] Using clip-based video as base for {ctx.job_id}",
-                flush=True,
-            )
-        elif assembled_exists:
-            # Import mode fallback: scene segment only, no clips available
-            shutil.copy2(assembled_path, base_path)
-            print(
-                f"[VIDEO] Using assembled video as base for {ctx.job_id} (no clips)",
-                flush=True,
-            )
-        else:
-            print(
-                f"[VIDEO WARN] Neither assembled.mp4 nor clip base produced"
-                f" for {ctx.job_id}",
-                flush=True,
-            )
-
-        # Clean up temp clip base
-        if clip_base_path.exists():
-            clip_base_path.unlink()
-
-        if base_path.exists():
-            # Inject AV alignment + authoritative Final Timeline (issue #179).
-            self._inject_av_alignment(ctx, job_dir, base_path, trim_params)
-            return [self._to_artifact("video_base", base_path, workspace_dir)]
-        print(f"[VIDEO WARN] base.mp4 not produced for {ctx.job_id}", flush=True)
-        return []
-
-    def _inject_av_alignment(
-        self,
-        ctx: PhaseContext,
-        job_dir: Path,
-        base_path: Path,
-        trim_params: list[dict],
-    ) -> None:
-        """Shift TTS audio + subtitles to the montage start and persist the
-        authoritative Final Timeline (issue #179).
-
-        The scene segment occupies ``[0, scene_ms)`` with no voice/subtitle;
-        the montage (voice + subtitle) is offset by ``scene_ms``.  Produces
-        ``audio_aligned.mp3``, ``subtitles_offset.srt`` and ``final_timeline.json``
-        next to ``base.mp4``.  On alignment failure the original audio is kept
-        and the timeline is marked ``aligned: false`` (best-effort render).
-        """
-        audio_path = job_dir / "audio.mp3"
-        srt_path = job_dir / "subtitles.srt"
-        assembled_path = job_dir / "assembled.mp4"
-        if not audio_path.exists() or not trim_params:
-            return
-
-        scene_ms = compute_scene_offset_ms(assembled_path)
-        base_ms = int(round(self._get_media_duration(base_path) * 1000))
-
-        aligned = True
-        # 1. Offset TTS audio to the montage start, sized to the base length.
-        try:
-            align_audio(
-                audio_path,
-                job_dir / "audio_aligned.mp3",
-                offset_ms=scene_ms,
-                total_ms=base_ms,
-            )
-        except Exception as exc:  # noqa: BLE001 — best-effort alignment
-            aligned = False
-            print(f"[VIDEO WARN] audio align failed, using original: {exc}", flush=True)
-
-        # 2. Offset subtitles by the same scene duration (if present).
-        if srt_path.exists():
-            shifted = shift_srt(srt_path.read_text(encoding="utf-8"), scene_ms)
-            (job_dir / "subtitles_offset.srt").write_text(shifted, encoding="utf-8")
-
-        # 3. Persist the authoritative Final Timeline (render-time, no dir scan).
-        timeline = build_final_timeline(
-            scene_ms=scene_ms,
-            montage_segments=trim_params,
-            aligned=aligned,
-        )
-        (job_dir / "final_timeline.json").write_text(
-            json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        # Rerender changed the Final Timeline — any prior export is now stale (#180).
-        try:
-            from packages.pipeline_services.export_task import ExportTaskService
-
-            ExportTaskService(
-                job_id=ctx.job_id,
-                job_dir=job_dir,
-                workspace_dir=ctx.project_dir.parent,
-                project_dir=ctx.project_dir,
-                export_dir=ctx.project_dir / "runtime" / "exports",
-            ).mark_stale()
-        except Exception:  # noqa: BLE001 — never block rendering on export cleanup
-            pass
-        print(
-            f"[VIDEO] Final Timeline: scene_ms={scene_ms} aligned={aligned} "
-            f"segments={len(timeline['segments'])} fp={timeline['fingerprint'][:8]}",
-            flush=True,
-        )
-
-    # -- final_rendering handler ---------------------------------------------
-
-    def _run_final_rendering(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """final_rendering: burn subtitles, music, cover title into final video.
-
-        Reads settings from the job JSON file (written by the UI) rather than
-        ``ctx.options``, since that is where the UI persists them.
-        """
-        job_dir = self._job_dir(ctx)
-        workspace_dir = ctx.root_dir / "workspace"
-        final_path = job_dir / "final.mp4"
-        base_path = job_dir / "base.mp4"
-        audio_path = job_dir / "audio.mp3"
-        srt_path = job_dir / "subtitles.srt"
-        job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
-
-        skip_subtitle = False
-        music_path: Path | None = None
-        music_volume = 80
-        cover_title_data: dict | None = None
-
-        if job_json_path.exists():
-            job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
-            skip_subtitle = job_data.get("skip_subtitle", False)
-            music_track = job_data.get("music_track_path", "")
-            music_volume = job_data.get("music_volume", 80)
-            ct = job_data.get("cover_title")
-            if ct and ct.get("text"):
-                cover_title_data = ct
-            if music_track:
-                music_path = ctx.root_dir / music_track
-                if not music_path.exists():
-                    music_path = None
-
-        actual_srt_path = None if skip_subtitle else srt_path
-        # Prefer AV-aligned audio + offset subtitles produced by video_rendering
-        # (issue #179): TTS/subtitle shifted to the montage start.
-        aligned_audio = job_dir / "audio_aligned.mp3"
-        offset_srt = job_dir / "subtitles_offset.srt"
-        if aligned_audio.exists():
-            audio_path = aligned_audio
-        if not skip_subtitle and offset_srt.exists():
-            actual_srt_path = offset_srt
-        cond = (
-            f"base={base_path.exists()} audio={audio_path.exists()}"
-            f" skip_subtitle={skip_subtitle} srt={srt_path.exists()}"
-        )
-        print(f"[FINAL] {ctx.job_id}: {cond}", flush=True)
-        if (
-            base_path.exists()
-            and audio_path.exists()
-            and (skip_subtitle or srt_path.exists())
-        ):
-            self._video_svc.burn_final_video(
-                base_path,
-                audio_path,
-                actual_srt_path,
-                final_path,
-                cover_clip_path=None,
-                cover_title=cover_title_data,
-                music_path=music_path,
-                music_volume=music_volume,
-            )
-
-        if final_path.exists():
-            print(
-                f"[FINAL] {ctx.job_id}: final.mp4 produced ({final_path.stat().st_size} bytes)",
-                flush=True,
-            )
-            return [self._to_artifact("final_video", final_path, workspace_dir)]
-        print(f"[FINAL] {ctx.job_id}: final.mp4 NOT produced", flush=True)
-        return []
-
-    # -- final_review handler (pure gate) ------------------------------------
-
-    def _run_final(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """final_review: pure gate — no handler logic.  Burn happens in final_rendering."""
-        return []
-
-    # -- scene_assembling handler (import mode) --------------------------------
-
-    def _run_scene_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """scene_assembling: build scene segment from scene folders with crossfade transitions.
-
-        Reads scene folder paths from ``ctx.scene_folder_paths`` (populated by
-        the tick service) or falls back to ``ctx.scene_config`` or ConfigReader.
-        Picks one random video file from each folder, then uses ffmpeg ``xfade``
-        to create a crossfade scene segment.
-        """
-        import random
-
-        workspace_dir = ctx.root_dir / "workspace"
-        job_dir = self._job_dir(ctx)
-
-        # 1. Resolve scene folder paths
-        folders = self._resolve_scene_folders(ctx)
-
-        if not folders:
-            print(f"[SCENE] No scene folders configured for {ctx.job_id}", flush=True)
-            return []
-
-        # 2. Check for existing snapshot (deterministic re-render, Issue #174)
-        import json as _json
-        import shutil as _shutil
-
-        snapshot_dir = job_dir / ".scene_snapshot"
-        manifest_path = snapshot_dir / "manifest.json"
-        force_reselect: bool = ctx.options.get("force_reselect", False)
-        clips: list[Path] = []
-
-        if manifest_path.exists() and not force_reselect:
-            # Verify source file fingerprints per-entry (issue #227 / #174 AC-6)
-            manifest = _json.loads(manifest_path.read_text(encoding="utf-8"))
-            valid_entries: list[int] = []  # indices whose fingerprint still matches
-            invalid_entries: list[int] = []  # indices whose source has changed
-            for idx, entry in enumerate(manifest):
-                src = Path(entry["source"])
-                if src.exists():
-                    st = src.stat()
-                    if st.st_size == entry["size"] and st.st_mtime == entry["mtime"]:
-                        valid_entries.append(idx)
-                    else:
-                        # ponytail: mtime-based fingerprint; content hash if drift
-                        invalid_entries.append(idx)
-                else:
-                    # missing source = snapshot still valid (we have the local copy)
-                    valid_entries.append(idx)
-
-            if invalid_entries:
-                print(
-                    f"[SCENE] {len(invalid_entries)}/{len(manifest)} source fingerprints "
-                    f"changed, re-randomizing only those entries",
-                    flush=True,
-                )
-
-            for idx in valid_entries:
-                local_path = snapshot_dir / manifest[idx]["local"]
-                if local_path.exists():
-                    clips.append(local_path)
-
-            # Re-randomize only the invalidated entries from their source folders
-            if invalid_entries:
-                for idx in invalid_entries:
-                    if idx < len(folders) and folders[idx].exists():
-                        candidates = self._scene_candidates(folders[idx])
-                        if candidates:
-                            clips.insert(idx, random.choice(candidates))
-                        else:
-                            # Fallback: use existing snapshot even if stale
-                            local_path = snapshot_dir / manifest[idx]["local"]
-                            if local_path.exists():
-                                clips.insert(idx, local_path)
-                    else:
-                        local_path = snapshot_dir / manifest[idx]["local"]
-                        if local_path.exists():
-                            clips.insert(idx, local_path)
-
-            if clips:
-                print(
-                    f"[SCENE] Using snapshot ({len(valid_entries)} cached + "
-                    f"{len(invalid_entries)} re-randomized)",
-                    flush=True,
-                )
-
-            # Update snapshot for re-randomized entries
-            if invalid_entries:
-                snapshot_dir.mkdir(parents=True, exist_ok=True)
-                for idx in invalid_entries:
-                    if idx < len(clips):
-                        clip = clips[idx]
-                        local_name = f"{idx}{clip.suffix}"
-                        _shutil.copy2(clip, snapshot_dir / local_name)
-                        st = clip.stat()
-                        found = False
-                        for entry in manifest:
-                            if entry["local"] == manifest[idx]["local"]:
-                                entry.update(
-                                    {
-                                        "source": str(clip.resolve()),
-                                        "local": local_name,
-                                        "size": st.st_size,
-                                        "mtime": st.st_mtime,
-                                    }
-                                )
-                                found = True
-                                break
-                        if not found:
-                            manifest.append(
-                                {
-                                    "source": str(clip.resolve()),
-                                    "local": local_name,
-                                    "size": st.st_size,
-                                    "mtime": st.st_mtime,
-                                }
-                            )
-                (snapshot_dir / "manifest.json").write_text(
-                    _json.dumps(manifest, ensure_ascii=False, indent=2),
-                    encoding="utf-8",
-                )
-
-        if not clips:
-            # Fully fresh selection: every entry was invalid or no manifest
-            for folder in folders:
-                if not folder.exists():
-                    print(f"[SCENE] Folder not found: {folder}", flush=True)
-                    continue
-                candidates = self._scene_candidates(folder)
-                if not candidates:
-                    print(f"[SCENE] No video files in {folder}", flush=True)
-                    continue
-                clips.append(random.choice(candidates))
-
-            if not clips:
-                print(f"[SCENE] No clips found for {ctx.job_id}", flush=True)
-                return []
-
-            print(f"[SCENE] {len(clips)} clips selected for {ctx.job_id}", flush=True)
-            for c in clips:
-                print(f"[SCENE]   {c}", flush=True)
-
-            # Snapshot: copy selected clips to job-owned .scene_snapshot/
-            snapshot_dir.mkdir(parents=True, exist_ok=True)
-            manifest = []
-            for i, clip in enumerate(clips):
-                local_name = f"{i}{clip.suffix}"
-                _shutil.copy2(clip, snapshot_dir / local_name)
-                st = clip.stat()
-                manifest.append(
-                    {
-                        "source": str(clip.resolve()),
-                        "local": local_name,
-                        "size": st.st_size,
-                        "mtime": st.st_mtime,
-                    }
-                )
-            (snapshot_dir / "manifest.json").write_text(
-                _json.dumps(manifest, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            print(
-                f"[SCENE] Snapshot saved: {len(manifest)} clips → {snapshot_dir}",
-                flush=True,
-            )
-
-        transition_duration = ctx.transition_duration_ms / 1000.0
-        scene_path = job_dir / "scene_segment.mp4"
-
-        if len(clips) == 1:
-            # Single clip -- copy directly
-            import shutil
-
-            shutil.copy2(clips[0], scene_path)
-            print(f"[SCENE] Single clip copied to {scene_path}", flush=True)
-        else:
-            # Build ffmpeg xfade chain
-            ffmpeg = self._get_ffmpeg_path()
-            durations = [self._get_media_duration(c) for c in clips]
-
-            # Filter chain: settb on all inputs, then chained xfade
-            filter_parts: list[str] = []
-            accumulated = durations[0]
-            for i in range(1, len(clips)):
-                offset = accumulated - transition_duration
-                prev_label = f"r{i - 1}" if i > 1 else "c0"
-                cur_in_label = f"c{i}"
-                out_label = f"t{i}"
-
-                # Build segments
-                filter_parts.append(
-                    f"[{i}:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[{cur_in_label}]"
-                )
-                filter_parts.append(
-                    f"[{prev_label}][{cur_in_label}]"
-                    f"xfade=transition=fade:duration={transition_duration:.3f}:"
-                    f"offset={offset:.3f}[{out_label}]"
-                )
-                if i < len(clips) - 1:
-                    filter_parts.append(
-                        f"[{out_label}]setpts=PTS-STARTPTS,fps=30[r{i}]"
-                    )
-
-                accumulated += durations[i] - transition_duration
-
-            # First input always needs settb + fps + scale normalization
-            filter_complex = (
-                "[0:v]settb=AVTB,fps=30,scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2[c0];"
-                + ";".join(filter_parts)
-            )
-            final_label = f"t{len(clips) - 1}"
-
-            cmd = [ffmpeg, "-y"]
-            for clip in clips:
-                cmd.extend(["-i", str(clip)])
-            cmd.extend(
-                [
-                    "-filter_complex",
-                    filter_complex,
-                    "-map",
-                    f"[{final_label}]",
-                    "-an",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "ultrafast",
-                    "-crf",
-                    "23",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    str(scene_path),
-                ]
-            )
-
-            print(f"[SCENE] Running ffmpeg xfade for {len(clips)} clips", flush=True)
-            subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
-
-        if scene_path.exists():
-            print(
-                f"[SCENE] scene_segment.mp4 produced ({scene_path.stat().st_size} bytes)",
-                flush=True,
-            )
-            return [self._to_artifact("scene_segment", scene_path, workspace_dir)]
-        return []
+    def _discover_sentence_timings(self, job_dir: Path) -> list[SentenceTiming]:
+        """Return sentence timings from sentences.json if present and valid."""
+        return _discover_sentence_timings_fn(job_dir)
 
     def _resolve_scene_folders(self, ctx: PhaseContext) -> list[Path]:
-        folders: list[Path] = []
-        if ctx.scene_folder_paths:
-            for folder_path in ctx.scene_folder_paths:
-                path = Path(folder_path)
-                if not path.is_absolute():
-                    path = ctx.root_dir / "workspace" / path
-                folders.append(path)
-            return folders
+        """Resolve scene folder paths from context, config or ConfigReader."""
+        return _resolve_scene_folders_fn(ctx, self._config)
 
-        scene_config = ctx.scene_config
-        if not scene_config and self._config is not None:
-            scene_config = self._config.get_scene_config(product_id=ctx.product)
-        for entry in scene_config.get("folders", []):
-            path_str = entry.get("path", "")
-            if path_str:
-                folders.append(ctx.root_dir / "workspace" / path_str)
-        return folders
+    def _scene_candidates(self, folder: Path) -> list[Path]:
+        """Return usable video files inside a scene folder."""
+        return _scene_candidates_fn(folder)
 
-    @staticmethod
-    def _scene_candidates(folder: Path) -> list[Path]:
-        if not folder.exists() or not folder.is_dir():
-            return []
-        video_ext = {".mp4", ".mov", ".avi"}
-        return [
-            path
-            for path in folder.iterdir()
-            if path.is_file() and path.suffix.lower() in video_ext
-        ]
-
-    # -- montage_assembling handler (import mode) ------------------------------
-
-    def _run_montage_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
-        """montage_assembling: merge scene segment + base video into assembled video.
-
-        Reads ``scene_segment.mp4`` from the scene_assembling phase and
-        ``base.mp4`` (if present, e.g. from a previous generate-mode run).
-        Concatenates them into ``assembled.mp4`` which ``_run_video`` then uses
-        as the base video in import mode.
-
-        If only one of the two files exists it is used directly; if neither
-        exists the handler returns an empty list.
-        """
-        workspace_dir = ctx.root_dir / "workspace"
-        job_dir = self._job_dir(ctx)
-        scene_path = job_dir / "scene_segment.mp4"
-        base_path = job_dir / "base.mp4"
-        assembled_path = job_dir / "assembled.mp4"
-
-        scene_exists = scene_path.exists()
-        base_exists = base_path.exists()
-
-        if scene_exists and base_exists:
-            print(
-                f"[MONTAGE] Concatenating scene_segment + base for {ctx.job_id}",
-                flush=True,
-            )
-            ffmpeg = self._get_ffmpeg_path()
-            subprocess.run(
-                [
-                    ffmpeg,
-                    "-y",
-                    "-i",
-                    str(scene_path),
-                    "-i",
-                    str(base_path),
-                    "-filter_complex",
-                    "[0:v]settb=AVTB[sv];[1:v]settb=AVTB[bv];"
-                    "[sv][bv]concat=n=2:v=1:a=0",
-                    "-map",
-                    "[v]",
-                    "-an",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "ultrafast",
-                    "-crf",
-                    "23",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    str(assembled_path),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-        elif scene_exists:
-            print(
-                f"[MONTAGE] Using scene_segment as assembled for {ctx.job_id}",
-                flush=True,
-            )
-            shutil.copy2(scene_path, assembled_path)
-        elif base_exists:
-            print(
-                f"[MONTAGE] Using base as assembled for {ctx.job_id}",
-                flush=True,
-            )
-            shutil.copy2(base_path, assembled_path)
-        else:
-            print(
-                f"[MONTAGE] Neither scene_segment nor base found for {ctx.job_id}",
-                flush=True,
-            )
-            return []
-
-        if assembled_path.exists():
-            print(
-                f"[MONTAGE] assembled.mp4 produced ({assembled_path.stat().st_size} bytes)",
-                flush=True,
-            )
-            return [self._to_artifact("assembled_video", assembled_path, workspace_dir)]
-        return []
-
-    @staticmethod
-    def _discover_script(job_dir: Path) -> str | None:
-        """Return the script text from *口播文案.txt or *口播文案.json, or None."""
-        for p in job_dir.glob("*口播文案.txt"):
-            return p.read_text(encoding="utf-8").strip() or None
-        for p in job_dir.glob("*口播文案.json"):
-            jdata = json.loads(p.read_text(encoding="utf-8"))
-            text = jdata.get("text", "").strip()
-            return text or None
-        return None
-
-    @staticmethod
-    def _discover_sentence_timings(job_dir: Path) -> list[SentenceTiming]:
-        """Return sentence timings from sentences.json if present and valid."""
-        path = job_dir / "sentences.json"
-        if not path.exists():
-            return []
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            return [SentenceTiming.model_validate(item) for item in data]
-        except Exception as exc:  # noqa: BLE001
-            print(
-                f"[TTS TIMING WARN] Failed to load sentence timings: {exc}", flush=True
-            )
-            return []
+    def _load_montage_inputs(
+        self, ctx: PhaseContext
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], ExecutionFailure | None]:
+        """Load and validate the immutable inputs for ``montage_assembling``."""
+        return load_montage_inputs(ctx)
 
     # -- ffmpeg helpers (lazy imports) -----------------------------------------
 
-    @staticmethod
-    def _get_ffmpeg_path() -> str:
+    def _get_ffmpeg_path(self) -> str:
         """Resolve ffmpeg path via media_utils."""
-        from packages.pipeline_services.media_utils import get_ffmpeg_path as _gfp
+        return _get_ffmpeg_path_fn()
 
-        return _gfp()
-
-    @staticmethod
-    def _get_media_duration(file_path: Path) -> float:
+    def _get_media_duration(self, file_path: Path) -> float:
         """Get media duration in seconds via ffprobe."""
-        from packages.pipeline_services.media_utils import get_media_duration as _gmd
+        return _get_media_duration_fn(file_path)
 
-        return _gmd(file_path)
+    def _create_sentence_tts_service(
+        self, provider: Any, tts_cfg: dict[str, Any], ctx: PhaseContext
+    ) -> Any:
+        """Factory hook for the sentence-level TTS service (overridable in tests)."""
+        from packages.pipeline_services.phases.tts import _create_sentence_tts_service
 
+        return _create_sentence_tts_service(provider, tts_cfg, ctx)
 
-def _fallback_category_suggestion_model() -> str:
-    """Fallback: return the default category suggestion model."""
-    return "deepseek-v4-flash"
+    # -- legacy handler entry points (kept for backward-compatible callers) ----
+
+    def _run_script(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute script generation (legacy method, delegates to handler)."""
+        return run_script(self, ctx)
+
+    def _run_tts(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute TTS synthesis (legacy method, delegates to handler)."""
+        return run_tts(self, ctx)
+
+    def _run_tts_review(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute TTS review (legacy method, delegates to handler)."""
+        return run_tts_review(self, ctx)
+
+    def _run_subtitle(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute subtitle generation (legacy method, delegates to handler)."""
+        return run_subtitle(self, ctx)
+
+    def _run_asset(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute asset retrieval (legacy method, delegates to handler)."""
+        return run_asset(self, ctx)
+
+    def _run_video(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute video rendering (legacy method, delegates to handler)."""
+        return run_video_rendering(self, ctx)
+
+    def _run_final_rendering(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute final rendering (legacy method, delegates to handler)."""
+        return run_final_rendering(self, ctx)
+
+    def _run_final(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute final review gate (legacy method, delegates to handler)."""
+        return run_final_review(self, ctx)
+
+    def _run_scene_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute scene assembly (legacy method, delegates to handler)."""
+        return run_scene_assembly(self, ctx)
+
+    def _run_montage_assembly(self, ctx: PhaseContext) -> list[ArtifactPointer]:
+        """Execute montage assembly (legacy method, delegates to handler)."""
+        return run_montage_assembly(self, ctx)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from packages.pipeline_services.media_utils import get_ffmpeg_path
 
@@ -51,6 +51,8 @@ def segment_final_video(
     final_mp4: Path,
     segments: list[dict[str, Any]],
     out_dir: Path,
+    *,
+    progress_callback: Callable[[int], None] | None = None,
 ) -> list[Path]:
     """Split *final_mp4* into one ``seg_NNN.mp4`` per timeline segment.
 
@@ -98,5 +100,7 @@ def segment_final_video(
             timeout=300,
         )
         produced.append(out_path)
+        if progress_callback is not None:
+            progress_callback(round(index / len(segments) * 100))
 
     return produced

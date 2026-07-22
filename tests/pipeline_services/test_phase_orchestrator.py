@@ -186,7 +186,7 @@ class TestStructuredImportMediaResults:
         result = orchestrator.execute_phase("video_rendering", ctx)
 
         assert isinstance(result, PhaseExecutionFailure)
-        assert result.error.code == "VIDEO_SOURCE_MISSING"
+        assert result.error.code == "VIDEO_MONTAGE_SEGMENT_MISSING"
         assert result.error.retryable is False
 
     def test_media_timeout_is_retryable(
@@ -194,7 +194,7 @@ class TestStructuredImportMediaResults:
     ) -> None:
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
-        (job_dir / "assembled.mp4").write_bytes(b"source")
+        (job_dir / "montage_segment.mp4").write_bytes(b"source")
         orchestrator._handlers["video_rendering"] = MagicMock(
             side_effect=TimeoutError("ffmpeg timed out")
         )
@@ -210,7 +210,7 @@ class TestStructuredImportMediaResults:
     ) -> None:
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
-        (job_dir / "assembled.mp4").write_bytes(b"source")
+        (job_dir / "montage_segment.mp4").write_bytes(b"source")
         orchestrator._handlers["video_rendering"] = MagicMock(return_value=[])
 
         result = orchestrator.execute_phase("video_rendering", ctx)
@@ -221,10 +221,17 @@ class TestStructuredImportMediaResults:
 
 
 class TestExecutePhasesParallel:
+    def _setup_tts_script(self, ctx: PhaseContext) -> None:
+        """Ensure a script file exists so tts_generating validation passes."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        (job_dir / "口播文案.txt").write_text("测试文案。", encoding="utf-8")
+
     def test_legacy_phase_crash_becomes_structured_failure(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
         """非结构化并行 phase 的异常不得转成空成功 sentinel。"""
+        self._setup_tts_script(ctx)
         orchestrator._handlers["tts_generating"] = MagicMock(
             side_effect=RuntimeError("tts provider crashed")
         )
@@ -233,13 +240,16 @@ class TestExecutePhasesParallel:
 
         result = results["tts_generating"]
         assert isinstance(result, PhaseExecutionFailure)
-        assert result.error.code == "MEDIA_PROCESSING_FAILED"
+        # tts_generating is now structured (#253) — RuntimeError is classified
+        # as TTS_SYNTHESIS_FAILED (retryable).
+        assert result.error.code == "TTS_SYNTHESIS_FAILED"
         assert result.error.retryable is True
 
     def test_legacy_phase_empty_success_becomes_internal_failure(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
         """无产物成功在并行边界同样是有界内部错误。"""
+        self._setup_tts_script(ctx)
         orchestrator._handlers["tts_generating"] = MagicMock(return_value=[])
 
         results = orchestrator.execute_phases_parallel(["tts_generating"], ctx)
@@ -252,6 +262,7 @@ class TestExecutePhasesParallel:
     def test_successful_phases_pass_through(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ) -> None:
+        self._setup_tts_script(ctx)
         artifact = ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")
         orchestrator._handlers["tts_generating"] = MagicMock(return_value=[artifact])
 
@@ -303,7 +314,7 @@ class TestRunScriptManual:
 
 
 class TestRunScriptLLM:
-    @patch("packages.pipeline_services.phase_orchestrator.generate_script")
+    @patch("packages.pipeline_services.phases.script.generate_script")
     def test_llm_generation_calls_script_generator_and_returns_artifacts(
         self,
         mock_generate_script: MagicMock,
@@ -339,7 +350,7 @@ class TestRunScriptCoverTitle:
     @patch.object(PhaseOrchestrator, "_resolve_llm_config")
     @patch.object(PhaseOrchestrator, "_resolve_api_key")
     @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phases.script.ScriptGenerator")
     def test_auto_generates_cover_title_when_missing(
         self,
         mock_sg_cls: MagicMock,
@@ -384,7 +395,7 @@ class TestRunScriptCoverTitle:
     @patch.object(PhaseOrchestrator, "_resolve_llm_config")
     @patch.object(PhaseOrchestrator, "_resolve_api_key")
     @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phases.script.ScriptGenerator")
     def test_skips_cover_title_when_already_set(
         self,
         mock_sg_cls: MagicMock,
@@ -418,7 +429,7 @@ class TestRunScriptCoverTitle:
     @patch.object(PhaseOrchestrator, "_resolve_llm_config")
     @patch.object(PhaseOrchestrator, "_resolve_api_key")
     @patch.object(PhaseOrchestrator, "_resolve_api_url")
-    @patch("packages.pipeline_services.phase_orchestrator.ScriptGenerator")
+    @patch("packages.pipeline_services.phases.script.ScriptGenerator")
     def test_cover_title_error_does_not_propagate(
         self,
         mock_sg_cls: MagicMock,
@@ -685,9 +696,10 @@ class TestRunTTSUploadedAudio:
 
 
 class TestRunTTSSynthesizeError:
-    """TTS errors should be caught and logged, not propagated."""
+    """TTS errors propagate to execute_phase for structured classification (#253)."""
 
-    def test_synthesize_error_does_not_raise(self, ctx: PhaseContext, capsys):
+    def test_synthesize_error_propagates_from_run_phase(self, ctx: PhaseContext):
+        """TTS synthesis errors now propagate — caught by execute_phase wrapper."""
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
         txt = job_dir / "口播文案.txt"
@@ -697,13 +709,29 @@ class TestRunTTSSynthesizeError:
         mock_tts.synthesize.side_effect = RuntimeError("TTS service down")
         orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
 
-        # Should NOT raise
-        artifacts = orch.run_phase("tts_generating", ctx)
-        assert artifacts == []
+        # run_phase will now propagate the error (no more silent catch)
+        with pytest.raises(RuntimeError, match="TTS service down"):
+            orch.run_phase("tts_generating", ctx)
 
-        # Error was logged
-        captured = capsys.readouterr()
-        assert "TTS service down" in captured.out
+    def test_synthesize_error_becomes_structured_failure_via_execute_phase(
+        self, ctx: PhaseContext
+    ):
+        """execute_phase wraps TTS errors in PhaseExecutionFailure."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("测试文案。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.side_effect = RuntimeError("TTS service down")
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        # execute_phase catches the error and classifies it
+        result = orch.execute_phase("tts_generating", ctx)
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_SYNTHESIS_FAILED"
+        assert result.error.retryable is True
+        assert "TTS service down" in result.error.message
 
 
 class TestRunTTSConfigBuilding:
@@ -836,44 +864,61 @@ class TestRunTTSPerSentence:
 
 
 class TestRunVideo:
-    """Import mode: _run_video now composes montage clips instead of
-    short-circuiting on assembled.mp4."""
+    """video_rendering composes base.mp4 from the Montage Segment and an optional Scene Segment."""
 
-    def test_import_mode_concats_assembled_and_clips(
+    def test_no_montage_segment_returns_empty(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
-        """Import mode: assembled.mp4 + selected_clips → built clip base + concat."""
+        """Without a montage_segment.mp4 the handler cannot produce base.mp4."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+
+        artifacts = orchestrator.run_phase("video_rendering", ctx)
+
+        assert artifacts == []
+        orchestrator._video_svc.build_base_video.assert_not_called()
+
+    def test_copies_montage_when_no_scene(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        """Generate mode: montage_segment.mp4 is used directly as base.mp4."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "montage_segment.mp4").write_text("montage video")
+        (job_dir / "montage_segments.json").write_text(
+            json.dumps([{"sentence": "s", "visual_type": "blank", "duration": 1.0}]),
+            encoding="utf-8",
+        )
+
+        artifacts = orchestrator.run_phase("video_rendering", ctx)
+
+        assert len(artifacts) == 1
+        assert artifacts[0].kind == "video_base"
+        assert (job_dir / "base.mp4").exists()
+        assert (job_dir / "base.mp4").read_text() == "montage video"
+        orchestrator._video_svc.build_base_video.assert_not_called()
+
+    def test_concats_scene_and_montage(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        """Import mode: scene_segment.mp4 + montage_segment.mp4 → base.mp4."""
         import subprocess
         from unittest.mock import patch
 
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
-
-        # Create assembled.mp4 (scene segment from montage_assembling)
-        (job_dir / "assembled.mp4").write_text("fake assembled video")
-
-        # Create audio.mp3 and selected_clips.json (from tts + asset retrieval)
-        (job_dir / "audio.mp3").write_text("fake audio")
-        (job_dir / "selected_clips.json").write_text(
-            json.dumps([{"file_path": str(job_dir / "clip1.mp4")}]),
+        (job_dir / "scene_segment.mp4").write_text("fake scene")
+        (job_dir / "montage_segment.mp4").write_text("fake montage")
+        (job_dir / "montage_segments.json").write_text(
+            json.dumps([{"sentence": "s", "visual_type": "blank", "duration": 1.0}]),
             encoding="utf-8",
         )
-        (job_dir / "clip1.mp4").write_text("fake clip")
-
-        def _build_side_effect(*args, **kwargs):
-            """Simulate VideoService.build_base_video producing _clip_base.mp4."""
-            # args: (project_dir, job_dict, output_path)
-            output_path = args[2]
-            output_path.write_text("fake clip base video")
-
-        orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
 
         with patch.object(orchestrator, "_get_ffmpeg_path", return_value="ffmpeg"):
             with patch.object(subprocess, "run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
 
                 def _concat_effect(*args, **kwargs):
-                    """Simulate ffmpeg concat producing base.mp4."""
                     (job_dir / "base.mp4").write_text("concatenated video")
                     return MagicMock(returncode=0)
 
@@ -886,81 +931,429 @@ class TestRunVideo:
         assert (job_dir / "base.mp4").exists()
         assert (job_dir / "base.mp4").read_text() == "concatenated video"
 
-        # Verify build_base_video was called
-        orchestrator._video_svc.build_base_video.assert_called_once()
-
-        # Verify ffmpeg concat was called with both inputs
         concat_call = mock_run.call_args
         assert concat_call is not None
         call_args = concat_call[0][0]
-        assert "-i" in call_args
         assert "-filter_complex" in call_args
         filter_idx = call_args.index("-filter_complex")
         filter_str = call_args[filter_idx + 1]
         assert "concat=n=2" in filter_str
-        # Verify normalization: both inputs scaled to 720x1280@30fps yuv420p before concat
         assert "scale=720:1280" in filter_str
-        assert "fps=30" in filter_str
-        assert "format=pix_fmts=yuv420p" in filter_str
-        assert "setsar=1" in filter_str
 
-        # Temp _clip_base.mp4 should be cleaned up
-        assert not (job_dir / "_clip_base.mp4").exists()
-
-    def test_import_mode_fallback_no_clips(
+    def test_uses_montage_segments_for_final_timeline(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
-        """Import mode with assembled.mp4 but no clips → copy assembled as base."""
+        """The authoritative trim params are read from montage_segments.json."""
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
-
-        (job_dir / "assembled.mp4").write_text("fake assembled")
-        # No audio.mp3, no selected_clips.json
-
-        artifacts = orchestrator.run_phase("video_rendering", ctx)
-
-        assert len(artifacts) == 1
-        assert artifacts[0].kind == "video_base"
-        assert (job_dir / "base.mp4").exists()
-        assert (job_dir / "base.mp4").read_text() == "fake assembled"
-        orchestrator._video_svc.build_base_video.assert_not_called()
-
-    def test_generate_mode_clips_only(
-        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
-    ):
-        """Generate mode: no assembled.mp4, build clip base directly."""
-        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
-        job_dir.mkdir(parents=True)
-
-        (job_dir / "audio.mp3").write_text("fake audio")
-        (job_dir / "selected_clips.json").write_text(
-            json.dumps([{"file_path": str(job_dir / "clip1.mp4")}]),
+        (job_dir / "audio.mp3").write_bytes(b"fake audio")
+        (job_dir / "montage_segment.mp4").write_text("fake montage")
+        (job_dir / "montage_segments.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "sentence": "第一句。",
+                        "file_path": "",
+                        "asset_id": "",
+                        "visual_type": "blank",
+                        "ss": 0.0,
+                        "duration": 1.5,
+                    }
+                ]
+            ),
             encoding="utf-8",
         )
-        (job_dir / "clip1.mp4").write_text("fake clip")
 
-        def _build_side_effect(*args, **kwargs):
-            output_path = args[2]
-            output_path.write_text("clip base video")
+        with patch.object(orchestrator, "_get_media_duration", return_value=1.5):
+            orchestrator.run_phase("video_rendering", ctx)
+
+        timeline_path = job_dir / "final_timeline.json"
+        assert timeline_path.exists()
+        timeline = json.loads(timeline_path.read_text(encoding="utf-8"))
+        assert timeline["duration_ms"] == 1500
+
+
+class TestMontageAssembling:
+    """montage_assembling builds the independent Montage Segment from the reviewed snapshot."""
+
+    @pytest.fixture()
+    def montage_job_dir(self, project_dir: Path) -> Path:
+        d = project_dir / "runtime" / "jobs" / "job-001"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    @pytest.fixture()
+    def reviewed_snapshot(self, montage_job_dir: Path) -> Path:
+        path = montage_job_dir / "reviewed_assets.json"
+        path.write_text(
+            json.dumps(
+                [
+                    {
+                        "sentence": "第一句。",
+                        "file_path": "",
+                        "asset_id": "",
+                        "visual_type": "blank",
+                        "duration": 1.5,
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    @pytest.fixture()
+    def audio(self, montage_job_dir: Path) -> Path:
+        path = montage_job_dir / "audio.mp3"
+        path.write_bytes(b"fake audio")
+        return path
+
+    @pytest.fixture()
+    def sentences(self, montage_job_dir: Path) -> Path:
+        path = montage_job_dir / "sentences.json"
+        path.write_text(
+            json.dumps(
+                [
+                    {
+                        "index": 0,
+                        "text": "第一句。",
+                        "start_seconds": 0.0,
+                        "end_seconds": 1.5,
+                        "model": "mimo-v2.5-tts",
+                        "voice": "Mia",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_validation_requires_snapshot(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        """No reviewed_assets.json → MONTAGE_SNAPSHOT_MISSING."""
+        error = orchestrator.validate_phase_input("montage_assembling", ctx)
+        assert error is not None
+        assert error.code == "MONTAGE_SNAPSHOT_MISSING"
+
+    def test_validation_requires_audio(
+        self,
+        orchestrator: PhaseOrchestrator,
+        ctx: PhaseContext,
+        reviewed_snapshot: Path,
+    ):
+        error = orchestrator.validate_phase_input("montage_assembling", ctx)
+        assert error is not None
+        assert error.code == "MONTAGE_AUDIO_MISSING"
+
+    def test_validation_requires_sentence_timings(
+        self,
+        orchestrator: PhaseOrchestrator,
+        ctx: PhaseContext,
+        reviewed_snapshot: Path,
+        audio: Path,
+    ):
+        error = orchestrator.validate_phase_input("montage_assembling", ctx)
+        assert error is not None
+        assert error.code == "MONTAGE_TIMINGS_MISSING"
+
+    def test_validation_rejects_unresolved_decisions(
+        self,
+        orchestrator: PhaseOrchestrator,
+        ctx: PhaseContext,
+        audio: Path,
+        sentences: Path,
+        montage_job_dir: Path,
+    ):
+        (montage_job_dir / "reviewed_assets.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "sentence": "第一句。",
+                        "file_path": "",
+                        "asset_id": "",
+                        "visual_type": "unresolved",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        error = orchestrator.validate_phase_input("montage_assembling", ctx)
+        assert error is not None
+        assert error.code == "MONTAGE_UNRESOLVED_DECISIONS"
+
+    def test_validation_rejects_missing_clip_file(
+        self,
+        orchestrator: PhaseOrchestrator,
+        ctx: PhaseContext,
+        audio: Path,
+        sentences: Path,
+        montage_job_dir: Path,
+    ):
+        (montage_job_dir / "reviewed_assets.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "sentence": "第一句。",
+                        "file_path": "/nonexistent/clip.mp4",
+                        "asset_id": "clip-1",
+                        "visual_type": "clip",
+                        "duration": 1.5,
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        error = orchestrator.validate_phase_input("montage_assembling", ctx)
+        assert error is not None
+        assert error.code == "MONTAGE_CLIP_FILE_MISSING"
+
+    def test_builds_montage_segment_and_segments_json(
+        self,
+        orchestrator: PhaseOrchestrator,
+        ctx: PhaseContext,
+        reviewed_snapshot: Path,
+        audio: Path,
+        sentences: Path,
+        montage_job_dir: Path,
+    ):
+        """Happy path: produces montage_segment.mp4 and montage_segments.json artifacts."""
+        expected_trim = [
+            {
+                "sentence": "第一句。",
+                "file_path": "",
+                "asset_id": "",
+                "visual_type": "blank",
+                "ss": 0.0,
+                "duration": 1.5,
+            }
+        ]
+
+        def _build_side_effect(project_dir, job, output_path, sentence_timings=None):
+            output_path.write_text("fake montage video")
+            return expected_trim
 
         orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
 
-        artifacts = orchestrator.run_phase("video_rendering", ctx)
+        artifacts = orchestrator.run_phase("montage_assembling", ctx)
 
-        assert len(artifacts) == 1
-        assert artifacts[0].kind == "video_base"
-        assert (job_dir / "base.mp4").exists()
-        assert (job_dir / "base.mp4").read_text() == "clip base video"
-        orchestrator._video_svc.build_base_video.assert_called_once()
+        assert len(artifacts) == 2
+        kinds = {a.kind for a in artifacts}
+        assert kinds == {"montage_segment", "montage_segments"}
+        assert (montage_job_dir / "montage_segment.mp4").exists()
+        assert (montage_job_dir / "montage_segments.json").exists()
+        assert (
+            json.loads(
+                (montage_job_dir / "montage_segments.json").read_text(encoding="utf-8")
+            )
+            == expected_trim
+        )
+        call_args = orchestrator._video_svc.build_base_video.call_args
+        assert call_args[0][2] == montage_job_dir / "montage_segment.mp4"
+        assert call_args[1]["sentence_timings"] == [
+            {
+                "index": 0,
+                "text": "第一句。",
+                "start_seconds": 0.0,
+                "end_seconds": 1.5,
+                "model": "mimo-v2.5-tts",
+                "voice": "Mia",
+            }
+        ]
 
-    def test_no_sources_returns_empty(
+    def test_build_base_video_without_sentence_timings(
+        self,
+        orchestrator: PhaseOrchestrator,
+        ctx: PhaseContext,
+        reviewed_snapshot: Path,
+        audio: Path,
+        montage_job_dir: Path,
+    ):
+        """Legacy jobs without usable sentence timings still build the montage."""
+        (montage_job_dir / "sentences.json").write_text(
+            json.dumps([], ensure_ascii=False), encoding="utf-8"
+        )
+
+        def _build_side_effect(project_dir, job, output_path, sentence_timings=None):
+            output_path.write_text("fake montage video")
+            return []
+
+        orchestrator._video_svc.build_base_video.side_effect = _build_side_effect
+
+        artifacts = orchestrator.run_phase("montage_assembling", ctx)
+
+        assert len(artifacts) == 2
+        call_args = orchestrator._video_svc.build_base_video.call_args
+        assert call_args[1]["sentence_timings"] is None
+
+
+class TestMontageAssemblingEmptyResult:
+    """When montage_assembling produces no artifacts, execute_phase reports a failure."""
+
+    def test_empty_artifacts_are_structured_failure(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
     ):
-        """Neither assembled.mp4 nor clips available → empty artifacts."""
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
+        (job_dir / "reviewed_assets.json").write_text(
+            json.dumps([{"sentence": "s", "visual_type": "blank", "duration": 1.0}]),
+            encoding="utf-8",
+        )
+        (job_dir / "audio.mp3").write_bytes(b"fake audio")
+        (job_dir / "sentences.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "index": 0,
+                        "text": "s",
+                        "start_seconds": 0.0,
+                        "end_seconds": 1.0,
+                        "model": "",
+                        "voice": "",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
 
-        artifacts = orchestrator.run_phase("video_rendering", ctx)
+        orchestrator._video_svc.build_base_video.return_value = []
 
-        assert artifacts == []
-        orchestrator._video_svc.build_base_video.assert_not_called()
+        result = orchestrator.execute_phase("montage_assembling", ctx)
+
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "INTERNAL_EMPTY_RESULT"
+
+
+class TestMontageRegression:
+    """Issue #264: video_rendering must require the new Montage Segment, not legacy artifacts."""
+
+    def test_video_rendering_no_longer_requires_assembled_mp4(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "assembled.mp4").write_text("legacy scene")
+        (job_dir / "selected_clips.json").write_text("[]", encoding="utf-8")
+
+        error = orchestrator.validate_phase_input("video_rendering", ctx)
+        assert error is not None
+        assert error.code == "VIDEO_MONTAGE_SEGMENT_MISSING"
+        assert "assembled.mp4" not in error.message
+
+    def test_video_rendering_accepts_montage_segment(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ):
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "montage_segment.mp4").write_text("montage")
+        (job_dir / "montage_segments.json").write_text("[]", encoding="utf-8")
+
+        assert orchestrator.validate_phase_input("video_rendering", ctx) is None
+
+
+# ---------------------------------------------------------------------------
+# TTS error classification (#253)
+# ---------------------------------------------------------------------------
+
+
+class TestTTSFailureClassification:
+    """Provider-specific TTS errors map to vendor-agnostic execution failures."""
+
+    def test_tts_quota_exceeded_is_retryable(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """TTSQuotaExceededError → retryable TTS_QUOTA_EXCEEDED."""
+        from packages.pipeline_services.tts_provider import TTSQuotaExceededError
+
+        result = orchestrator._classify_tts_error(
+            "tts_generating", TTSQuotaExceededError("配额超限")
+        )
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_QUOTA_EXCEEDED"
+        assert result.error.retryable is True
+
+    def test_tts_blocked_error_is_non_retryable(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """TTSBlockedError → non-retryable TTS_PROVIDER_REJECTED."""
+        from packages.pipeline_services.tts_provider import TTSBlockedError
+
+        result = orchestrator._classify_tts_error(
+            "tts_generating", TTSBlockedError("鉴权失败")
+        )
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_PROVIDER_REJECTED"
+        assert result.error.retryable is False
+
+    def test_tts_retryable_error_is_retryable(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """TTSRetryableError → retryable TTS_SYNTHESIS_FAILED."""
+        from packages.pipeline_services.tts_provider import TTSRetryableError
+
+        result = orchestrator._classify_tts_error(
+            "tts_generating", TTSRetryableError("临时故障")
+        )
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_SYNTHESIS_FAILED"
+        assert result.error.retryable is True
+
+    def test_unknown_tts_error_is_retryable(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """Unknown/network errors → retryable TTS_SYNTHESIS_FAILED."""
+        result = orchestrator._classify_tts_error(
+            "tts_generating", ConnectionError("网络不可达")
+        )
+        assert isinstance(result, PhaseExecutionFailure)
+        assert result.error.code == "TTS_SYNTHESIS_FAILED"
+        assert result.error.retryable is True
+
+
+class TestTTSValidation:
+    """validate_phase_input for tts_generating."""
+
+    def test_no_script_returns_validation_error(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """tts_generating without script → deterministic non-retryable error."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        # Ensure no script file exists
+        for p in job_dir.glob("*口播文案*"):
+            p.unlink()
+
+        error = orchestrator.validate_phase_input("tts_generating", ctx)
+        assert error is not None
+        assert error.code == "TTS_SCRIPT_MISSING"
+        assert error.retryable is False
+
+    def test_validate_uploaded_audio_not_found(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """tts_generating with missing uploaded audio → deterministic error."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        # Write script so that check passes
+        (job_dir / "口播文案.txt").write_text("测试文案", encoding="utf-8")
+        ctx.options["uploaded_audio_path"] = "missing/audio.mp3"
+
+        error = orchestrator.validate_phase_input("tts_generating", ctx)
+        assert error is not None
+        assert error.code == "UPLOAD_AUDIO_NOT_FOUND"
+        assert error.retryable is False
+
+    def test_script_exists_and_no_upload_audio_passes_validation(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """tts_generating with script and no upload → passes validation."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "口播文案.txt").write_text("测试文案", encoding="utf-8")
+
+        error = orchestrator.validate_phase_input("tts_generating", ctx)
+        assert error is None

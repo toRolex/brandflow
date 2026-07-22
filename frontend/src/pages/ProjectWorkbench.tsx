@@ -5,6 +5,8 @@ import BatchCreateForm from "../components/BatchCreateForm";
 import ConfirmDialog from "../components/ConfirmDialog";
 import type { SingleJobFormData } from "../components/CreateJobForm";
 import CreateJobForm from "../components/CreateJobForm";
+import InlineBanner from "../components/InlineBanner";
+import Modal from "../components/Modal";
 import ProjectTabs from "../components/ProjectTabs";
 import WorkbenchShell from "../components/WorkbenchShell";
 import type {
@@ -16,6 +18,29 @@ import type {
 import type { BatchConfig } from "../utils/batchScriptSplit";
 
 type TabKey = "jobs";
+
+function parseApiError(e: unknown): string {
+	if (!(e instanceof Error)) return "操作失败";
+	const match = e.message.match(/^\d+:\s*([\s\S]*)$/);
+	if (!match) return e.message || "操作失败";
+	try {
+		const body = JSON.parse(match[1]);
+		const detail = body?.detail;
+		if (typeof detail === "string") return detail;
+		if (detail?.message) {
+			return detail.code ? `${detail.code}: ${detail.message}` : detail.message;
+		}
+		if (detail?.errors && Array.isArray(detail.errors)) {
+			const first = detail.errors[0];
+			if (first?.error?.message) {
+				return first.error.code
+					? `第 ${first.index + 1} 项「${first.item_name}」验证失败: ${first.error.message} (${first.error.code})`
+					: `第 ${first.index + 1} 项「${first.item_name}」验证失败: ${first.error.message}`;
+			}
+		}
+	} catch {}
+	return "操作失败";
+}
 
 export default function ProjectWorkbench() {
 	const { id } = useParams<{ id: string }>();
@@ -63,6 +88,13 @@ export default function ProjectWorkbench() {
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [confirmMessage, setConfirmMessage] = useState("");
 	const [confirmTarget, setConfirmTarget] = useState<string>("");
+
+	/* ── modal / banner ── */
+	const [isOpen, setIsOpen] = useState(false);
+	const [banner, setBanner] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
 
 	/* ── 数据加载 ── */
 	const load = useCallback(async () => {
@@ -193,10 +225,15 @@ export default function ProjectWorkbench() {
 					setError("音频上传失败");
 				}
 			}
-			navigate(`/jobs/${job.job_id}`);
+			setIsOpen(false);
+			load();
+			setBanner({
+				type: "success",
+				message: `Job ${job.name || job.job_id} 创建成功`,
+			});
 		} catch (e) {
 			console.error("create job failed", e);
-			setError("创建 Job 失败");
+			setError(parseApiError(e));
 		}
 	};
 
@@ -241,7 +278,7 @@ export default function ProjectWorkbench() {
 			load();
 		} catch (e) {
 			console.error("batch create failed", e);
-			setError("批量创建失败");
+			setError(parseApiError(e));
 		}
 	};
 
@@ -289,21 +326,48 @@ export default function ProjectWorkbench() {
 			onDismissError={() => setError("")}
 			onBack={() => navigate("/")}
 		>
-			{/* ── 创建 Job ── */}
-			<section
-				className="border rounded-xl p-5 mb-6"
-				style={{
-					background: "var(--bg-card)",
-					borderColor: "var(--border-default)",
-				}}
-			>
-				<h2
-					className="text-[15px] font-semibold mb-3.5"
+			{/* ── Banner ── */}
+			{banner && (
+				<InlineBanner
+					type={banner.type}
+					message={banner.message}
+					onClose={() => setBanner(null)}
+				/>
+			)}
+
+			{/* ── Header ── */}
+			<div className="flex items-center justify-between mb-6">
+				<h1
+					className="text-xl font-bold"
 					style={{ color: "var(--text-primary)" }}
 				>
-					创建新 Job
-				</h2>
+					Jobs
+				</h1>
+				<button
+					className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+					style={{
+						background: "var(--btn-primary-bg)",
+						color: "var(--btn-primary-text)",
+					}}
+					onMouseEnter={(e) => {
+						e.currentTarget.style.background = "var(--btn-primary-hover)";
+					}}
+					onMouseLeave={(e) => {
+						e.currentTarget.style.background = "var(--btn-primary-bg)";
+					}}
+					onClick={() => setIsOpen(true)}
+				>
+					＋ 新建 Job
+				</button>
+			</div>
 
+			{/* ── 创建 Job Modal ── */}
+			<Modal
+				isOpen={isOpen}
+				title="创建新 Job"
+				onClose={() => setIsOpen(false)}
+				size="wide"
+			>
 				{/* 创建模式切换 */}
 				<div
 					className="flex items-center gap-4 mb-4 pb-4 border-b"
@@ -398,7 +462,7 @@ export default function ProjectWorkbench() {
 						onError={setError}
 					/>
 				)}
-			</section>
+			</Modal>
 
 			{/* ── Tabs ── */}
 			<ProjectTabs
@@ -418,7 +482,7 @@ export default function ProjectWorkbench() {
 				title="确认删除"
 				message={confirmMessage}
 				confirmLabel="删除"
-				danger
+				danger={true}
 				onConfirm={confirmDelete}
 				onCancel={() => setConfirmOpen(false)}
 			/>

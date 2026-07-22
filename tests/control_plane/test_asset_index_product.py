@@ -26,7 +26,7 @@ def _setup_source_videos(tmp_path: Path) -> Path:
 def _mock_vision_config_ok(monkeypatch) -> None:
     """Make validate_vision_config a no-op so product-resolution tests can focus."""
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.validate_vision_config",
+        "apps.control_plane.routes.assets.helpers.validate_vision_config",
         lambda *a, **kw: None,
     )
 
@@ -195,7 +195,7 @@ def test_index_uses_resolve_product_name(tmp_path: Path, monkeypatch) -> None:
         return "零食测试"
 
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets._resolve_product_name",
+        "apps.control_plane.routes.assets.helpers._resolve_product_name",
         _fake_resolve_name,
     )
 
@@ -304,7 +304,7 @@ def test_sync_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> N
         self.category_names = category_names
 
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        "apps.control_plane.routes.assets.helpers.resolve_vision_config",
         _fake_resolve,
     )
     monkeypatch.setattr(AssetIndexer, "__init__", _fake_init)
@@ -313,7 +313,7 @@ def test_sync_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> N
         lambda self, video_path, output_base, log_callback=None: [],
     )
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.validate_vision_config",
+        "apps.control_plane.routes.assets.helpers.validate_vision_config",
         lambda *a, **kw: None,
     )
 
@@ -364,7 +364,7 @@ def test_async_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> 
         self.category_names = category_names
 
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        "apps.control_plane.routes.assets.helpers.resolve_vision_config",
         _fake_resolve,
     )
     monkeypatch.setattr(AssetIndexer, "__init__", _fake_init)
@@ -373,7 +373,7 @@ def test_async_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> 
         lambda self, video_path, output_base, log_callback=None: [],
     )
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.validate_vision_config",
+        "apps.control_plane.routes.assets.helpers.validate_vision_config",
         lambda *a, **kw: None,
     )
 
@@ -410,7 +410,7 @@ def test_sync_index_fails_on_invalid_vision_config(tmp_path, monkeypatch):
         }
 
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        "apps.control_plane.routes.assets.helpers.resolve_vision_config",
         _fake_resolve,
     )
 
@@ -442,7 +442,7 @@ def test_async_index_task_fails_on_invalid_vision_config(tmp_path, monkeypatch):
         }
 
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        "apps.control_plane.routes.assets.helpers.resolve_vision_config",
         _fake_resolve,
     )
 
@@ -480,7 +480,7 @@ def test_sync_index_fails_when_vision_not_configured(tmp_path, monkeypatch):
         }
 
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        "apps.control_plane.routes.assets.helpers.resolve_vision_config",
         _fake_resolve,
     )
 
@@ -511,7 +511,7 @@ def test_async_index_fails_when_vision_not_configured(tmp_path, monkeypatch):
         }
 
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.resolve_vision_config",
+        "apps.control_plane.routes.assets.helpers.resolve_vision_config",
         _fake_resolve,
     )
 

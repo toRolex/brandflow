@@ -3,7 +3,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../api/client";
-import JobPipeline from "../JobPipeline";
+import { KNOWN_PHASES } from "../../types";
+import JobPipeline, { phaseToStepKey } from "../JobPipeline";
 
 vi.mock("../../api/client", () => ({
 	api: {
@@ -19,6 +20,9 @@ vi.mock("../../api/client", () => ({
 		previewJobTTS: vi.fn(),
 		approveReview: vi.fn(),
 		rejectReview: vi.fn(),
+		createExport: vi.fn(),
+		getExportStatus: vi.fn(),
+		downloadExport: vi.fn(),
 	},
 }));
 
@@ -42,7 +46,7 @@ const failedJob = {
 		error: {
 			code: "VIDEO_SOURCE_MISSING",
 			message: "No usable video source is available.",
-			retryable: false,
+			retryable: false as const,
 		},
 	},
 };
@@ -73,31 +77,62 @@ describe("JobPipeline execution failure workflow", () => {
 		expect(
 			screen.getByText("No usable video source is available."),
 		).toBeInTheDocument();
-		expect(screen.getByText(/video_rendering/)).toBeInTheDocument();
-		expect(screen.getByText(/3 \/ 3/)).toBeInTheDocument();
+		// The failed phase label uses the Chinese display name from PIPELINE_STEPS
+		expect(screen.getByText(/底包拼接/)).toBeInTheDocument();
+		expect(screen.getByText(/不可重试/)).toBeInTheDocument();
 	});
 
-	it("awaits retry and reloads the recovered phase", async () => {
+	it("does not expose an unknown failed phase identifier", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...failedJob,
+			failed_phase: "legacy_phase",
+		} as never);
+
 		renderPage();
-		fireEvent.click(
-			await screen.findByRole("button", { name: "重试失败阶段" }),
-		);
 
-		await waitFor(() => expect(api.retryJob).toHaveBeenCalledWith("job-170"));
-		await waitFor(() => expect(api.getJob).toHaveBeenCalledTimes(2));
+		expect(await screen.findByText("未知阶段")).toBeInTheDocument();
+		expect(screen.queryByText("legacy_phase")).not.toBeInTheDocument();
 	});
 
-	it("shows retry request failures", async () => {
+	it("shows retry request failures for retryable errors", async () => {
+		// Use a retryable error so the retry button appears
+		vi.mocked(api.getJob).mockResolvedValue({
+			...failedJob,
+			execution: {
+				...failedJob.execution,
+				error: {
+					code: "MEDIA_PROCESSING_TIMEOUT",
+					message: "Processing timed out.",
+					retryable: true,
+				},
+			},
+		} as never);
 		vi.mocked(api.retryJob).mockRejectedValue(new Error("still invalid"));
-		renderPage();
-		fireEvent.click(
-			await screen.findByRole("button", { name: "重试失败阶段" }),
-		);
 
-		expect(await screen.findByText("重试前验证失败")).toBeInTheDocument();
+		renderPage();
+
+		const retryBtn = await screen.findByRole("button", {
+			name: "重试失败阶段",
+		});
+		fireEvent.click(retryBtn);
+
+		// Non-structured errors trigger the fallback message from formatRetryError
+		expect(await screen.findByText(/重试前验证失败/)).toBeInTheDocument();
 	});
 
 	it("surfaces structured 409 revalidation detail from the server", async () => {
+		// Use a retryable error so the retry button appears
+		vi.mocked(api.getJob).mockResolvedValue({
+			...failedJob,
+			execution: {
+				...failedJob.execution,
+				error: {
+					code: "VIDEO_SOURCE_MISSING",
+					message: "No usable video source is available.",
+					retryable: true,
+				},
+			},
+		} as never);
 		vi.mocked(api.retryJob).mockRejectedValue(
 			new Error(
 				`409: ${JSON.stringify({
@@ -109,10 +144,13 @@ describe("JobPipeline execution failure workflow", () => {
 				})}`,
 			),
 		);
+
 		renderPage();
-		fireEvent.click(
-			await screen.findByRole("button", { name: "重试失败阶段" }),
-		);
+
+		const retryBtn = await screen.findByRole("button", {
+			name: "重试失败阶段",
+		});
+		fireEvent.click(retryBtn);
 
 		expect(
 			await screen.findByText(
@@ -158,7 +196,7 @@ describe("JobPipeline migration_required workflow", () => {
 			error: {
 				code: "SCENE_INPUT_MISSING",
 				message: "missing scene input",
-				retryable: false,
+				retryable: false as const,
 			},
 		},
 	};
@@ -193,13 +231,25 @@ describe("JobPipeline migration_required workflow", () => {
 		expect(await screen.findByLabelText("场景一")).toBeInTheDocument();
 
 		fireEvent.click(screen.getByLabelText("场景一"));
-		fireEvent.click(screen.getByRole("button", { name: "重新启动任务" }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "补充场景并重新启动任务" }),
+		);
 
 		await waitFor(() => {
 			expect(api.migrateScenes).toHaveBeenCalledWith("job-migration", [
 				"scenes/one",
 			]);
 		});
+	});
+
+	it("shows explicit rebuild/migration guidance text", async () => {
+		renderMigrationPage();
+
+		expect(await screen.findByText(/历史创建/)).toBeInTheDocument();
+		expect(screen.getByText(/缺少有效的场景输入/)).toBeInTheDocument();
+		expect(
+			screen.getByText(/系统将重建任务并保留现有文案与配置/),
+		).toBeInTheDocument();
 	});
 });
 
@@ -224,7 +274,7 @@ describe("JobPipeline TTS voice selection (#177)", () => {
 		mode: "generate" as const,
 	};
 
-	function renderTTSPage() {
+	function renderTtsPage() {
 		return render(
 			<MemoryRouter initialEntries={["/jobs/job-tts-1"]}>
 				<Routes>
@@ -253,27 +303,26 @@ describe("JobPipeline TTS voice selection (#177)", () => {
 			model: "mimo-v2.5-tts",
 			voice: "Mia",
 			resolved_from: "global",
+			product: "test-product",
 		});
 		vi.mocked(api.updateJobTTSVoice).mockResolvedValue({
 			model: "mimo-v2.5-tts",
 			voice: "Dean",
 			resolved_from: "job",
+			product: "test-product",
 		});
 		vi.mocked(api.previewJobTTS).mockResolvedValue("blob:preview-audio");
 	});
 
 	it("renders TTS voice selector with available voices", async () => {
-		renderTTSPage();
+		renderTtsPage();
 
-		// Should show the TTS step title
 		expect(await screen.findByText("TTS 配音")).toBeInTheDocument();
-
-		// Should show resolution badge
 		expect(await screen.findByText(/全局/)).toBeInTheDocument();
 	});
 
 	it("renders preview button and calls preview API", async () => {
-		renderTTSPage();
+		renderTtsPage();
 
 		const previewBtn = await screen.findByRole("button", { name: /试听/ });
 		expect(previewBtn).toBeInTheDocument();
@@ -285,10 +334,700 @@ describe("JobPipeline TTS voice selection (#177)", () => {
 	});
 
 	it("shows link to global TTS config page", async () => {
-		renderTTSPage();
+		renderTtsPage();
 
 		const link = await screen.findByText(/高级 TTS 配置/);
 		expect(link).toBeInTheDocument();
 		expect(link.closest("a")?.getAttribute("href")).toBe("/tts-config");
+	});
+});
+
+describe("JobPipeline asset phase states", () => {
+	const assetRetrievingBase = {
+		job_id: "job-asset-1",
+		project_id: "project-1",
+		product: "product",
+		platforms: ["douyin"],
+		phase: "asset_retrieving" as const,
+		failed_phase: null,
+		review_status: "none" as const,
+		artifacts: [],
+		mode: "generate" as const,
+	};
+
+	function renderAssetPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-asset-1"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("shows asset_retrieving pending state: waiting to start", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			execution: {
+				status: "pending",
+				current_attempt: 0,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderAssetPage();
+
+		expect(await screen.findByText("等待开始切配...")).toBeInTheDocument();
+	});
+
+	it("shows asset_retrieving running state with attempt info", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			execution: {
+				status: "running",
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderAssetPage();
+
+		expect(await screen.findByText("正在切配素材...")).toBeInTheDocument();
+		expect(screen.getByText(/1 \/ 3/)).toBeInTheDocument();
+	});
+
+	it("shows asset_retrieving no-assets state when succeeded but no clip artifact", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			execution: {
+				status: "succeeded",
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderAssetPage();
+
+		expect(await screen.findByText("无可用素材")).toBeInTheDocument();
+		expect(screen.getByText(/未找到与当前文案匹配的素材/)).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "重新检索素材" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows asset_retrieving succeeded with clips artifact and asset grid", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			artifacts: [
+				{
+					kind: "selected_clips",
+					relative_path: "clips.json",
+					url: "/api/workspace/projects/project-1/runtime/jobs/job-asset-1/clips.json",
+				},
+			],
+			execution: {
+				status: "succeeded",
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		renderAssetPage();
+
+		// When clips artifact exists, we show "已检索到 N 个匹配素材"
+		expect(await screen.findByText(/已检索到/)).toBeInTheDocument();
+		expect(screen.getByText(/个匹配素材/)).toBeInTheDocument();
+	});
+
+	it("shows failed asset retrieval with retryable error and retry button", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			phase: "failed",
+			failed_phase: "asset_retrieving",
+			execution: {
+				status: "failed",
+				current_attempt: 2,
+				max_attempts: 3,
+				error: {
+					code: "ASSET_SEARCH_FAILED",
+					message: "素材检索服务暂时不可用",
+					retryable: true,
+				},
+			},
+		} as never);
+		vi.mocked(api.retryJob).mockResolvedValue({
+			status: "phase_queued_for_retry",
+		});
+
+		renderAssetPage();
+
+		expect(
+			await screen.findByText("素材检索失败（可重试）"),
+		).toBeInTheDocument();
+		expect(screen.getByText("ASSET_SEARCH_FAILED")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "重试失败阶段" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows failed asset retrieval with terminal error and no retry button", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			...assetRetrievingBase,
+			phase: "failed",
+			failed_phase: "asset_retrieving",
+			execution: {
+				status: "failed",
+				current_attempt: 3,
+				max_attempts: 3,
+				error: {
+					code: "ASSET_LIBRARY_EMPTY",
+					message: "素材库为空，请先上传素材",
+					retryable: false,
+				},
+			},
+		} as never);
+
+		renderAssetPage();
+
+		expect(
+			await screen.findByText("素材检索失败（已终止）"),
+		).toBeInTheDocument();
+		expect(screen.getByText("ASSET_LIBRARY_EMPTY")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "重试失败阶段" }),
+		).not.toBeInTheDocument();
+		expect(screen.getByText(/不可重试/)).toBeInTheDocument();
+	});
+
+	const completedJob = {
+		job_id: "job-200",
+		project_id: "project-1",
+		product: "product",
+		platforms: ["douyin"],
+		phase: "completed" as const,
+		failed_phase: null,
+		review_status: "approved" as const,
+		artifacts: [
+			{
+				kind: "final_video",
+				url: "/workspace/projects/project-1/runtime/jobs/job-200/final.mp4",
+			},
+		],
+		execution: {
+			status: "completed" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+		},
+	};
+
+	function renderCompletedPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-200"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	describe("JobPipeline async export UI (#255)", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+			vi.mocked(api.getJob).mockResolvedValue(completedJob as never);
+			vi.mocked(api.getExportStatus).mockResolvedValue(null);
+		});
+
+		it("shows export button in completed state", async () => {
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText("导出")).toBeInTheDocument();
+		});
+
+		it("shows creating state after clicking export", async () => {
+			// Start with no existing task so we see the export button
+			let statusCalls = 0;
+			vi.mocked(api.getExportStatus).mockImplementation(async () => {
+				statusCalls++;
+				if (statusCalls === 1) return null;
+				return {
+					task_id: "task-1",
+					status: "queued",
+					progress: 0,
+					error: null,
+				};
+			});
+			vi.mocked(api.createExport).mockResolvedValue({
+				task_id: "task-1",
+				status: "queued",
+			});
+
+			renderCompletedPage();
+
+			await screen.findByText("导出");
+			const btn = screen.getByText("导出");
+			fireEvent.click(btn);
+
+			expect(await screen.findByText("排队中...")).toBeInTheDocument();
+		});
+
+		it("shows running state with progress", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "running",
+				progress: 45,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText("处理中...")).toBeInTheDocument();
+		});
+
+		it("renders the actual zero progress without a visual floor", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "running",
+				progress: 0,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			const progressbar = await screen.findByRole("progressbar");
+			expect(progressbar).toHaveStyle({ width: "0%" });
+			expect(progressbar).toHaveAttribute("aria-valuenow", "0");
+		});
+
+		it("keeps the created task when the immediate status refresh fails", async () => {
+			vi.mocked(api.getExportStatus)
+				.mockResolvedValueOnce(null)
+				.mockRejectedValueOnce(new Error("status unavailable"));
+			vi.mocked(api.createExport).mockResolvedValue({
+				task_id: "task-1",
+				status: "queued",
+			});
+
+			renderCompletedPage();
+			fireEvent.click(await screen.findByText("导出"));
+
+			expect(await screen.findByText("排队中...")).toBeInTheDocument();
+		});
+
+		it("shows the actionable backend detail when task creation is rejected", async () => {
+			vi.mocked(api.createExport).mockRejectedValue(
+				new Error(
+					'409: {"detail":"no Final Timeline; rerender required before export"}',
+				),
+			);
+
+			renderCompletedPage();
+			fireEvent.click(await screen.findByText("导出"));
+
+			expect(
+				await screen.findByText(
+					"no Final Timeline; rerender required before export",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("keeps the current task visible when a polling request fails", async () => {
+			vi.mocked(api.getExportStatus)
+				.mockResolvedValueOnce({
+					task_id: "task-1",
+					status: "running",
+					progress: 45,
+					error: null,
+				})
+				.mockRejectedValue(new Error("temporary status failure"));
+
+			renderCompletedPage();
+			expect(await screen.findByText("45%")).toBeInTheDocument();
+
+			await new Promise((resolve) => setTimeout(resolve, 2100));
+
+			expect(screen.getByText("45%")).toBeInTheDocument();
+			expect(screen.queryByText("导出")).not.toBeInTheDocument();
+		});
+
+		it("shows download button when ready", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "ready",
+				progress: 100,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText("下载导出包")).toBeInTheDocument();
+		});
+
+		it("shows error and re-create action when failed", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "failed",
+				progress: 0,
+				error: "segment count mismatch: 3 segments for 5 timeline entries",
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText(/segment count mismatch/)).toBeInTheDocument();
+			expect(screen.getByText("重新创建")).toBeInTheDocument();
+		});
+
+		it("shows stale message with re-create action", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: "task-1",
+				status: "stale",
+				progress: 0,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByText(/已过期/)).toBeInTheDocument();
+			expect(screen.getByText("重新创建")).toBeInTheDocument();
+		});
+	});
+});
+
+describe("JobPipeline review phase guard (#261)", () => {
+	const ttsReviewJob = {
+		job_id: "job-tts-review",
+		project_id: "project-1",
+		product: "product",
+		brand: "TestBrand",
+		platforms: ["douyin"],
+		phase: "tts_review" as const,
+		failed_phase: null,
+		review_status: "pending" as const,
+		artifacts: [
+			{
+				kind: "tts_audio",
+				relative_path: "tts.mp3",
+				url: "/api/workspace/projects/project-1/runtime/jobs/job-tts-review/tts.mp3",
+			},
+		],
+		execution: {
+			status: "succeeded" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+			error: null,
+		},
+		tts_model: "mimo-v2.5-tts",
+		tts_voice: "Mia",
+		mode: "generate" as const,
+	};
+
+	const finalReviewJob = {
+		job_id: "job-final-review",
+		project_id: "project-1",
+		product: "product",
+		brand: "TestBrand",
+		platforms: ["douyin"],
+		phase: "final_review" as const,
+		failed_phase: null,
+		review_status: "pending" as const,
+		artifacts: [
+			{
+				kind: "final_video",
+				relative_path: "final.mp4",
+				url: "/api/workspace/projects/project-1/runtime/jobs/job-final-review/final.mp4",
+			},
+		],
+		execution: {
+			status: "succeeded" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+			error: null,
+		},
+		mode: "generate" as const,
+	};
+
+	const scriptGenJob = {
+		job_id: "job-script-gen",
+		project_id: "project-1",
+		product: "product",
+		brand: "TestBrand",
+		platforms: ["douyin"],
+		phase: "script_generating" as const,
+		failed_phase: null,
+		review_status: "none" as const,
+		artifacts: [],
+		execution: {
+			status: "running" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+			error: null,
+		},
+		mode: "generate" as const,
+	};
+
+	function renderTtsReviewPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-tts-review"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	function renderFinalReviewPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-final-review"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	function renderScriptGenPage() {
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-script-gen"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(api.getTTSVoices).mockResolvedValue({
+			preset_voices: [],
+		});
+		vi.mocked(api.getJobTTSVoice).mockResolvedValue({
+			model: "mimo-v2.5-tts",
+			voice: "Mia",
+			resolved_from: "job",
+			product: "test-product",
+		});
+	});
+
+	it("shows enabled approve/reject buttons when on the current tts_review phase", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(ttsReviewJob as never);
+		vi.mocked(api.approveReview).mockResolvedValue({ status: "ok" });
+		vi.mocked(api.rejectReview).mockResolvedValue({ status: "ok" });
+
+		renderTtsReviewPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		expect(approveBtn).not.toBeDisabled();
+
+		const rejectBtn = screen.getByRole("button", {
+			name: "✗ 打回重新生成",
+		});
+		expect(rejectBtn).not.toBeDisabled();
+
+		fireEvent.click(approveBtn);
+		await waitFor(() => {
+			expect(api.approveReview).toHaveBeenCalledWith(
+				"job-tts-review",
+				"tts_review",
+			);
+		});
+	});
+
+	it("shows enabled approve/reject buttons when on the current final_review phase", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(finalReviewJob as never);
+		vi.mocked(api.approveReview).mockResolvedValue({ status: "ok" });
+
+		renderFinalReviewPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		expect(approveBtn).not.toBeDisabled();
+
+		fireEvent.click(approveBtn);
+		await waitFor(() => {
+			expect(api.approveReview).toHaveBeenCalledWith(
+				"job-final-review",
+				"final_review",
+			);
+		});
+	});
+
+	it("shows disabled approve/reject buttons and hint when viewing a non-review step (script_generating)", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(scriptGenJob as never);
+
+		renderScriptGenPage();
+
+		// The ScriptPreview should show the view-only hint
+		expect(
+			await screen.findByText("当前不在该审核阶段，无法操作"),
+		).toBeInTheDocument();
+
+		// Buttons should be disabled
+		const approveBtn = screen.getByRole("button", { name: "✓ 通过" });
+		expect(approveBtn).toBeDisabled();
+
+		const rejectBtn = screen.getByRole("button", { name: "✗ 打回" });
+		expect(rejectBtn).toBeDisabled();
+	});
+
+	it("does not call approve API when phase guard blocks (script_generating)", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(scriptGenJob as never);
+
+		renderScriptGenPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		fireEvent.click(approveBtn);
+
+		expect(api.approveReview).not.toHaveBeenCalled();
+		expect(
+			await screen.findByText("当前不在该审核阶段，无法操作"),
+		).toBeInTheDocument();
+	});
+
+	it("shows server error detail when approve fails with structured error", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(ttsReviewJob as never);
+		vi.mocked(api.approveReview).mockRejectedValue(
+			new Error(
+				'409: {"detail":"TTS audio not yet generated; cannot approve"}',
+			),
+		);
+
+		renderTtsReviewPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		fireEvent.click(approveBtn);
+
+		expect(
+			await screen.findByText("TTS audio not yet generated; cannot approve"),
+		).toBeInTheDocument();
+	});
+
+	it("shows server error detail when reject fails with structured error", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(ttsReviewJob as never);
+		vi.mocked(api.rejectReview).mockRejectedValue(
+			new Error('409: {"detail":"Review already processed; cannot reject"}'),
+		);
+
+		renderTtsReviewPage();
+
+		const rejectBtn = await screen.findByRole("button", {
+			name: "✗ 打回重新生成",
+		});
+		fireEvent.click(rejectBtn);
+
+		expect(
+			await screen.findByText("Review already processed; cannot reject"),
+		).toBeInTheDocument();
+	});
+
+	it("shows generic error when approve fails without structured detail", async () => {
+		vi.mocked(api.getJob).mockResolvedValue(ttsReviewJob as never);
+		vi.mocked(api.approveReview).mockRejectedValue(new Error("Network error"));
+
+		renderTtsReviewPage();
+
+		const approveBtn = await screen.findByRole("button", {
+			name: "✓ 通过",
+		});
+		fireEvent.click(approveBtn);
+
+		expect(await screen.findByText("审核操作失败")).toBeInTheDocument();
+	});
+});
+
+describe("PIPELINE_STEPS coverage for backend phases (#262)", () => {
+	it("maps every known pipeline phase to a non-empty step key", () => {
+		for (const phase of KNOWN_PHASES) {
+			expect(phaseToStepKey(phase), phase).not.toBe("");
+		}
+	});
+
+	it("includes the unknown phase value in its diagnostic warning", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+		expect(phaseToStepKey("legacy_phase" as never)).toBe("");
+		expect(warn).toHaveBeenCalledWith(
+			'phaseToStepKey: no step found for phase "legacy_phase"',
+		);
+
+		warn.mockRestore();
+	});
+});
+
+describe("JobPipeline new phase rendering (#262)", () => {
+	const makeMockJob = (
+		phase: "montage_assembling" | "final_rendering" | "scene_assembling",
+	) => ({
+		job_id: "job-phase",
+		project_id: "project-1",
+		product: "product",
+		platforms: ["douyin"],
+		phase,
+		failed_phase: null,
+		review_status: "none" as const,
+		artifacts: [],
+		execution: {
+			status: "succeeded" as const,
+			current_attempt: 1,
+			max_attempts: 3,
+			error: null,
+		},
+	});
+
+	function renderPhaseJob(phase: Parameters<typeof makeMockJob>[0]) {
+		vi.mocked(api.getJob).mockResolvedValue(makeMockJob(phase) as never);
+		return render(
+			<MemoryRouter initialEntries={["/jobs/job-phase"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("renders montage_assembling job without 'unknown step' fallback", async () => {
+		renderPhaseJob("montage_assembling");
+
+		expect(
+			await screen.findByText("蒙太奇组装完成，等待下一阶段..."),
+		).toBeInTheDocument();
+	});
+
+	it("renders final_rendering job without 'unknown step' fallback", async () => {
+		renderPhaseJob("final_rendering");
+
+		expect(
+			await screen.findByText("终审合成完成，等待下一阶段..."),
+		).toBeInTheDocument();
+	});
+
+	it("renders scene_assembling job without 'unknown step' fallback", async () => {
+		renderPhaseJob("scene_assembling");
+
+		expect(
+			await screen.findByText("场景拼接完成，等待下一阶段..."),
+		).toBeInTheDocument();
 	});
 });

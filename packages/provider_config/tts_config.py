@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from packages.provider_config.config_constants import DEFAULTS
+
 
 @dataclass
 class TTSConfig:
@@ -92,43 +94,46 @@ class TTSConfig:
         )
 
     def with_defaults(self) -> TTSConfig:
-        defaults = TTSConfigManager.DEFAULTS
+        defaults = DEFAULTS["tts"]
+        director = defaults.get("director", {})
+        audio_tags = defaults.get("audio_tags", {})
+
         return TTSConfig(
-            model=self.model if self.model is not None else defaults["model"],
-            voice=self.voice if self.voice is not None else defaults["voice"],
+            model=self.model if self.model is not None else defaults.get("model"),
+            voice=self.voice if self.voice is not None else defaults.get("voice"),
             fallback_voice=self.fallback_voice
             if self.fallback_voice is not None
-            else defaults["fallback_voice"],
+            else defaults.get("fallback_voice", ""),
             randomize_voice=self.randomize_voice
             if self.randomize_voice is not None
-            else defaults["randomize_voice"],
+            else defaults.get("randomize_voice"),
             random_voices=self.random_voices
             if self.random_voices is not None
-            else defaults["random_voices"],
+            else defaults.get("random_voices", []),
             voice_design_prompt=self.voice_design_prompt
             if self.voice_design_prompt is not None
-            else defaults["voice_design_prompt"],
+            else defaults.get("voice_design_prompt", ""),
             style_control_mode=self.style_control_mode
             if self.style_control_mode is not None
-            else defaults["style_control_mode"],
+            else defaults.get("style_control_mode", "simple"),
             style_prompt=self.style_prompt
             if self.style_prompt is not None
-            else defaults["style_prompt"],
+            else defaults.get("style_prompt", ""),
             director_character=self.director_character
             if self.director_character is not None
-            else defaults["director_character"],
+            else director.get("character", ""),
             director_scene=self.director_scene
             if self.director_scene is not None
-            else defaults["director_scene"],
+            else director.get("scene", ""),
             director_guidance=self.director_guidance
             if self.director_guidance is not None
-            else defaults["director_guidance"],
+            else director.get("guidance", ""),
             audio_tags_enabled=self.audio_tags_enabled
             if self.audio_tags_enabled is not None
-            else defaults["audio_tags_enabled"],
+            else audio_tags.get("enabled", False),
             audio_tags=self.audio_tags
             if self.audio_tags is not None
-            else defaults["audio_tags"],
+            else audio_tags.get("tags", ""),
             voice_clone_sample_path=self.voice_clone_sample_path,
             voice_clone_mime_type=self.voice_clone_mime_type,
             optimize_text_preview=self.optimize_text_preview,
@@ -141,32 +146,11 @@ class TTSConfig:
             else defaults["language_type"],
             audio_format=self.audio_format
             if self.audio_format is not None
-            else defaults["audio_format"],
+            else defaults.get("audio_format", "wav"),
         )
 
 
 class TTSConfigManager:
-    DEFAULTS: dict[str, Any] = {
-        "model": "mimo-v2.5-tts",
-        "voice": "Mia",
-        "fallback_voice": "Dean",
-        "randomize_voice": True,
-        "random_voices": ["Mia", "Dean"],
-        "voice_design_prompt": "",
-        "style_control_mode": "simple",
-        "style_prompt": "自然 清晰 适合短视频带货口播",
-        "director_character": "",
-        "director_scene": "",
-        "director_guidance": "",
-        "audio_tags_enabled": False,
-        "audio_tags": "",
-        "optimize_text_preview": False,
-        "instructions": "",
-        "optimize_instructions": False,
-        "language_type": "Chinese",
-        "audio_format": "wav",
-    }
-
     _FLAT_TO_NESTED = {
         "director_character": "director.character",
         "director_scene": "director.scene",

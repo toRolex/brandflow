@@ -11,6 +11,10 @@ Covers:
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
+import wave
+from io import BytesIO
 import zipfile
 from pathlib import Path
 
@@ -117,7 +121,7 @@ def _populate_full_job(job_dir: Path, workspace_dir: Path) -> None:
         },
     ]
     (job_dir / "selected_clips.json").write_text(
-        json.dumps(selected, ensure_ascii=False)
+        json.dumps(selected, ensure_ascii=False), encoding="utf-8"
     )
 
     # Scene folders (via workspace /scene)
@@ -165,7 +169,7 @@ class TestBuildExportBundle:
         prefix = "export_job-001/"
         # Check expected entries exist
         assert f"{prefix}final/final.mp4" in names
-        assert f"{prefix}audio/tts.wav" in names
+        assert f"{prefix}audio/tts.mp3" in names
         assert f"{prefix}subtitle/script.srt" in names
         assert f"{prefix}timeline.json" in names
         # Scene clips
@@ -242,10 +246,10 @@ class TestBuildExportBundle:
         assert f"{prefix}audio/tts.wav" not in names
         assert f"{prefix}timeline.json" in names
 
-    def test_audio_mp3_renamed_to_wav(
+    def test_audio_mp3_keeps_mp3_extension(
         self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
     ) -> None:
-        """MP3 audio is stored as tts.wav in the ZIP."""
+        """MP3 audio keeps its .mp3 extension inside the ZIP."""
         (job_dir / "audio.mp3").write_text("mp3 data")
         _write_minimal_final_timeline(job_dir)
 
@@ -260,8 +264,8 @@ class TestBuildExportBundle:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
             prefix = "export_job-001/"
-            assert f"{prefix}audio/tts.wav" in names
-            assert zf.read(f"{prefix}audio/tts.wav") == b"mp3 data"
+            assert f"{prefix}audio/tts.mp3" in names
+            assert zf.read(f"{prefix}audio/tts.mp3") == b"mp3 data"
 
     def test_audio_wav_preferred(
         self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
@@ -281,6 +285,77 @@ class TestBuildExportBundle:
 
         with zipfile.ZipFile(zip_path, "r") as zf:
             assert zf.read("export_job-001/audio/tts.wav") == b"wav data"
+
+    @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not available")
+    def test_mislabeled_mp3_is_exported_with_mp3_extension(
+        self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
+    ) -> None:
+        """The ZIP name follows probed encoding, not the source filename."""
+        subprocess.run(
+            [
+                shutil.which("ffmpeg") or "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=1000:duration=0.2",
+                "-f",
+                "mp3",
+                str(job_dir / "audio.wav"),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        _write_minimal_final_timeline(job_dir)
+
+        zip_path = build_export_bundle(
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
+            get_scene_config=lambda: _SCENE_CFG_FULL,
+        )
+
+        with zipfile.ZipFile(zip_path) as zf:
+            assert "export_job-001/audio/tts.mp3" in zf.namelist()
+            assert "export_job-001/audio/tts.wav" not in zf.namelist()
+
+    @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not available")
+    def test_non_mp3_audio_is_reencoded_as_pcm_wav(
+        self, job_dir: Path, workspace_dir: Path, project_dir: Path, export_dir: Path
+    ) -> None:
+        """A .wav export is a real PCM WAV, never a renamed source stream."""
+        subprocess.run(
+            [
+                shutil.which("ffmpeg") or "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=1000:duration=0.2",
+                "-c:a",
+                "aac",
+                "-f",
+                "adts",
+                str(job_dir / "audio.wav"),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        _write_minimal_final_timeline(job_dir)
+
+        zip_path = build_export_bundle(
+            job_dir,
+            workspace_dir,
+            project_dir,
+            export_dir,
+            get_scene_config=lambda: _SCENE_CFG_FULL,
+        )
+
+        with zipfile.ZipFile(zip_path) as zf:
+            audio = zf.read("export_job-001/audio/tts.wav")
+        with wave.open(BytesIO(audio)) as wav:
+            assert wav.getnframes() > 0
 
     def test_bundle_creates_export_dir(
         self, job_dir: Path, workspace_dir: Path, project_dir: Path, tmp_path: Path
@@ -380,15 +455,15 @@ class TestAddAudioToZip:
         with zipfile.ZipFile(zip_path, "r") as zf:
             assert zf.read("audio/tts.wav") == b"wav"
 
-    def test_adds_mp3_as_wav(self, job_dir: Path, tmp_path: Path) -> None:
-        """MP3 is stored as tts.wav when no WAV file exists."""
+    def test_adds_mp3_keeps_mp3_extension(self, job_dir: Path, tmp_path: Path) -> None:
+        """MP3 audio keeps its .mp3 extension inside the ZIP."""
         (job_dir / "audio.mp3").write_text("mp3")
         zip_path = tmp_path / "test.zip"
         with zipfile.ZipFile(zip_path, "w") as zf:
             _add_audio_to_zip(job_dir, zf, "")
 
         with zipfile.ZipFile(zip_path, "r") as zf:
-            assert zf.read("audio/tts.wav") == b"mp3"
+            assert zf.read("audio/tts.mp3") == b"mp3"
 
     def test_skips_when_no_audio(self, job_dir: Path, tmp_path: Path) -> None:
         """No audio files -> nothing added."""

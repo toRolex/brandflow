@@ -17,7 +17,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "tts": {
         "provider": "qwen",
-        "model": "qwen-tts",
+        "model": "qwen3-tts-flash",
         "voice": "Cherry",
         "fallback_voice": "Stella",
         "randomize_voice": True,
@@ -34,6 +34,8 @@ DEFAULTS: dict[str, Any] = {
             "enabled": False,
             "tags": "",
         },
+        "instructions": "",
+        "language_type": "Chinese",
         "audio_format": "wav",
     },
     "vision": {

@@ -77,7 +77,7 @@ def _mock_thumbnail_generate(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.ThumbnailGenerator.generate",
+        "apps.control_plane.routes.assets.helpers.ThumbnailGenerator.generate",
         _fake_generate,
     )
 
@@ -85,7 +85,7 @@ def _mock_thumbnail_generate(monkeypatch) -> None:
 def _mock_validate_vision_config_ok(monkeypatch) -> None:
     """Make validate_vision_config a no-op (config is valid)."""
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.validate_vision_config",
+        "apps.control_plane.routes.assets.helpers.validate_vision_config",
         lambda *a, **kw: None,
     )
 
@@ -128,7 +128,7 @@ class TestReclassifyVisionConfigInvalid:
             raise VisionConfigError("missing api_key")
 
         monkeypatch.setattr(
-            "apps.control_plane.routes.api_assets.validate_vision_config",
+            "apps.control_plane.routes.assets.helpers.validate_vision_config",
             _raise,
         )
 
@@ -144,7 +144,7 @@ class TestReclassifyVisionConfigInvalid:
             raise VisionConfigError("provider, api_key")
 
         monkeypatch.setattr(
-            "apps.control_plane.routes.api_assets.validate_vision_config",
+            "apps.control_plane.routes.assets.helpers.validate_vision_config",
             _raise,
         )
 

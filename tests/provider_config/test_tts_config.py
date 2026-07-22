@@ -13,15 +13,15 @@ from packages.provider_config.tts_config import TTSConfig, TTSConfigManager
 
 
 def test_default_model() -> None:
-    assert TTSConfig().with_defaults().model == "mimo-v2.5-tts"
+    assert TTSConfig().with_defaults().model == "qwen3-tts-flash"
 
 
 def test_default_voice() -> None:
-    assert TTSConfig().with_defaults().voice == "Mia"
+    assert TTSConfig().with_defaults().voice == "Cherry"
 
 
 def test_default_fallback_voice() -> None:
-    assert TTSConfig().with_defaults().fallback_voice == "Dean"
+    assert TTSConfig().with_defaults().fallback_voice == "Stella"
 
 
 def test_default_randomize_voice() -> None:
@@ -29,7 +29,7 @@ def test_default_randomize_voice() -> None:
 
 
 def test_default_random_voices() -> None:
-    assert TTSConfig().with_defaults().random_voices == ["Mia", "Dean"]
+    assert TTSConfig().with_defaults().random_voices == ["Cherry", "Stella"]
 
 
 def test_default_voice_design_prompt() -> None:
@@ -143,7 +143,7 @@ def test_with_defaults_fills_none() -> None:
     config = TTSConfig(model="custom")
     with_defaults = config.with_defaults()
     assert with_defaults.model == "custom"
-    assert with_defaults.voice == "Mia"
+    assert with_defaults.voice == "Cherry"
 
 
 def test_with_defaults_preserves_set_values() -> None:
@@ -162,8 +162,8 @@ def test_get_config_returns_defaults() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = TTSConfigManager(config_dir=tmpdir)
         config = manager.get_config()
-        assert config.model == "mimo-v2.5-tts"
-        assert config.voice == "Mia"
+        assert config.model == "qwen3-tts-flash"
+        assert config.voice == "Cherry"
 
 
 def test_save_and_load_config() -> None:
@@ -212,7 +212,7 @@ def test_project_config_without_global() -> None:
         manager = TTSConfigManager(config_dir=tmpdir)
         config = manager.get_config(project_id="proj-1")
         assert config.model == "project-only"
-        assert config.voice == "Mia"  # default
+        assert config.voice == "Cherry"  # default
 
 
 def test_project_overrides_global() -> None:
@@ -338,3 +338,84 @@ def test_tts_config_save_to_app_config() -> None:
 
         reader = ConfigReader(config_dir=tmpdir)
         assert reader.get_tts_config()["model"] == "saved-model"
+
+
+# ---------------------------------------------------------------------------
+# Anti-drift invariant: TTSConfigManager and ConfigReader resolve to same values
+# ---------------------------------------------------------------------------
+
+
+def test_defaults_consistent_between_reader_and_manager() -> None:
+    """TTSConfigManager.get_config() 与 ConfigReader.get_tts_config() 解析出的 model/voice 一致"""
+    from packages.provider_config.config_io import save_config
+    from packages.provider_config.config_reader import ConfigReader
+
+    # Scenario 1: no config files at all — both fall back to factory defaults
+    with tempfile.TemporaryDirectory() as tmpdir:
+        reader = ConfigReader(config_dir=tmpdir)
+        manager = TTSConfigManager(config_dir=tmpdir)
+
+        reader_config = reader.get_tts_config()
+        manager_config = manager.get_config()
+
+        assert manager_config.model == reader_config["model"], (
+            f"model mismatch: TTSConfigManager={manager_config.model} "
+            f"vs ConfigReader={reader_config['model']}"
+        )
+        assert manager_config.voice == reader_config["voice"], (
+            f"voice mismatch: TTSConfigManager={manager_config.voice} "
+            f"vs ConfigReader={reader_config['voice']}"
+        )
+
+    # Scenario 2: empty app_config.json — both read DEFAULTS via ConfigReader
+    with tempfile.TemporaryDirectory() as tmpdir:
+        save_config(Path(tmpdir) / "app_config.json", {})
+        reader = ConfigReader(config_dir=tmpdir)
+        manager = TTSConfigManager(config_dir=tmpdir)
+
+        reader_config = reader.get_tts_config()
+        manager_config = manager.get_config()
+
+        assert manager_config.model == reader_config["model"]
+        assert manager_config.voice == reader_config["voice"]
+
+    # Scenario 4: active product scope override
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "app_config.json"
+        save_config(
+            config_path,
+            {
+                "active_product_id": "prod-1",
+                "products": [
+                    {
+                        "id": "prod-1",
+                        "tts": {"voice": "ProductVoice"},
+                    }
+                ],
+            },
+        )
+        reader = ConfigReader(config_dir=tmpdir)
+        manager = TTSConfigManager(config_dir=tmpdir)
+
+        reader_config = reader.get_tts_config(product_id="prod-1")
+        manager_config = manager.get_config()
+
+        assert manager_config.model == reader_config["model"]
+        assert manager_config.voice == reader_config["voice"]
+
+
+# ---------------------------------------------------------------------------
+# Factory default validity
+# ---------------------------------------------------------------------------
+
+
+def test_factory_default_model_is_valid() -> None:
+    """config_constants.DEFAULTS[\"tts\"][\"model\"] 是 MODEL_TO_PROVIDER 中存在的有效 model"""
+    from apps.control_plane.routes.tts import MODEL_TO_PROVIDER
+    from packages.provider_config.config_constants import DEFAULTS
+
+    model = DEFAULTS["tts"]["model"]
+    assert model in MODEL_TO_PROVIDER, (
+        f"Default TTS model '{model}' is not recognised by MODEL_TO_PROVIDER. "
+        f"Valid models: {list(MODEL_TO_PROVIDER)}"
+    )

@@ -13,10 +13,13 @@ interface Props {
 	onViewLogs?: () => void;
 }
 
-const IMPORT_HIDE_PHASES: Set<string> = new Set([
+const IMPORT_HIDE_PHASES: ReadonlySet<Phase> = new Set([
+	"script_generating",
 	"script_review",
 	"tts_review",
 ]);
+
+const GENERATE_HIDE_PHASES: ReadonlySet<Phase> = new Set(["scene_assembling"]);
 
 export default function PipelineSidebar({
 	currentPhase,
@@ -29,6 +32,31 @@ export default function PipelineSidebar({
 	onRetry,
 	onViewLogs,
 }: Props) {
+	const terminalPhases: ReadonlySet<Phase> = new Set([
+		"completed",
+		"failed",
+		"cancelled",
+		"paused",
+	]);
+	const visibleSteps = PIPELINE_STEPS.filter((step) => {
+		if (terminalPhases.has(step.phase) && step.phase !== currentPhase) {
+			return false;
+		}
+		if (
+			step.phase === "migration_required" &&
+			currentPhase !== "migration_required"
+		) {
+			return false;
+		}
+		if (mode === "import" && IMPORT_HIDE_PHASES.has(step.phase)) {
+			return false;
+		}
+		if (mode === "generate" && GENERATE_HIDE_PHASES.has(step.phase)) {
+			return false;
+		}
+		return true;
+	});
+
 	return (
 		<div className="w-52 bg-[var(--bg-page)] border-r border-[var(--border-default)] p-3 flex-shrink-0 overflow-y-auto">
 			{jobInfo && (
@@ -39,38 +67,31 @@ export default function PipelineSidebar({
 			<div className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide mb-3">
 				流水线步骤
 			</div>
-			{PIPELINE_STEPS.filter((step) => {
-				const terminalPhases: Phase[] = [
-					"completed",
-					"failed",
-					"cancelled",
-					"paused",
-				];
-				if (
-					terminalPhases.includes(step.phase) &&
-					step.phase !== currentPhase
-				) {
-					return false;
-				}
-				if (mode === "import" && IMPORT_HIDE_PHASES.has(step.phase)) {
-					return false;
-				}
-				return true;
-			}).map((step) => {
-				const stepNum = PIPELINE_STEPS.indexOf(step) + 1;
+			{visibleSteps.map((step, index) => {
+				const stepNum = index + 1;
 				const done = completedPhases.includes(step.phase);
 				const active = step.key === activeStepKey;
 				const isReview = step.isReview;
+				const isOperableReview =
+					active && isReview && step.phase === currentPhase;
+				const isViewOnlyReview =
+					active && isReview && step.phase !== currentPhase;
 
 				return (
 					<button
 						key={step.key}
 						onClick={() => onStepClick(step.key)}
+						aria-current={active ? "step" : undefined}
+						title={
+							isViewOnlyReview ? "当前不在该审核阶段，无法操作" : undefined
+						}
 						className={`flex items-center gap-1.5 w-full text-left px-1.5 py-1.5 rounded-md mb-0.5 text-xs transition-colors ${
 							active
-								? isReview
+								? isOperableReview
 									? "bg-[var(--color-caution-amber)] text-[var(--text-primary)] font-semibold"
-									: "bg-[var(--btn-primary-bg)] text-white"
+									: isViewOnlyReview
+										? "border border-[var(--color-caution-amber)] text-[var(--text-primary)] bg-[var(--bg-table-head)]"
+										: "bg-[var(--btn-primary-bg)] text-white"
 								: done
 									? "bg-[var(--btn-primary-bg)] text-white"
 									: "text-[var(--text-secondary)]"
@@ -85,9 +106,17 @@ export default function PipelineSidebar({
 										: "border-1.5 border-[var(--border-default)] text-[var(--text-secondary)]"
 							}`}
 						>
-							{done ? "\u2713" : active ? "!" : stepNum}
+							{done ? "✓" : active ? "!" : stepNum}
 						</span>
 						{step.label}
+						{isViewOnlyReview && (
+							<span
+								className="text-[9px] ml-0.5"
+								style={{ color: "var(--text-tertiary)" }}
+							>
+								(仅查看)
+							</span>
+						)}
 					</button>
 				);
 			})}
@@ -96,19 +125,19 @@ export default function PipelineSidebar({
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md mb-1 transition-colors"
 					onClick={onPause}
 				>
-					{"\u23F8"} 暂停
+					{"⏸"} 暂停
 				</button>
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md mb-1 transition-colors"
 					onClick={onRetry}
 				>
-					{"\u21BB"} 重试当前
+					{"↻"} 重试当前
 				</button>
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
 					onClick={onViewLogs}
 				>
-					{"\uD83D\uDCCB"} 查看日志
+					{"📋"} 查看日志
 				</button>
 			</div>
 		</div>

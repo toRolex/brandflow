@@ -60,7 +60,7 @@ def _setup_asset(
 
 def _mock_validate_vision_config_ok(monkeypatch) -> None:
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.validate_vision_config",
+        "apps.control_plane.routes.assets.helpers.validate_vision_config",
         lambda *a, **kw: None,
     )
 
@@ -71,7 +71,7 @@ def _mock_thumbnail_generate(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(
-        "apps.control_plane.routes.api_assets.ThumbnailGenerator.generate",
+        "apps.control_plane.routes.assets.helpers.ThumbnailGenerator.generate",
         _fake_generate,
     )
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from packages.provider_config.secret_store import SecretStore
+from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.tts_config import TTSConfigManager
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
@@ -84,7 +85,7 @@ class TTSConfigResponse(BaseModel):
 
 class TTSPreviewRequest(BaseModel):
     text: str
-    model: str = "mimo-v2.5-tts"
+    model: str = DEFAULTS["tts"]["model"]
     voice: str | None = None
     style_prompt: str | None = None
     voice_design_prompt: str | None = None
@@ -366,7 +367,11 @@ async def get_tts_config(project_id: str | None = None):
 
 
 @router.put("/config")
-async def save_tts_config(request: TTSConfigRequest, project_id: str | None = None):
+async def save_tts_config(
+    req: Request,
+    request: TTSConfigRequest,
+    project_id: str | None = None,
+):
     current = config_manager.get_config(project_id)
     update_data = request.model_dump(exclude_none=True)
 
@@ -376,6 +381,14 @@ async def save_tts_config(request: TTSConfigRequest, project_id: str | None = No
     validate_voice_for_model(current.model, current.voice)
 
     config_manager.save_config(current, project_id)
+
+    # Invalidate ConfigReader cache so pipeline phases see the newly
+    # saved values (e.g. language_type, instructions, model/voice).
+    # Per-project configs (stored under config/projects/) don't affect
+    # ConfigReader, so skip the reload when project_id is set.
+    if project_id is None:
+        req.app.state.config_reader.reload()
+
     return {"success": True}
 
 
@@ -490,6 +503,9 @@ async def preview_tts(request: TTSPreviewRequest):
             config.language_type = request.language_type
 
         validate_voice_for_model(config.model, config.voice)
+
+        # Preview must resolve the same voice as formal synthesis — never randomize (#252)
+        config.randomize_voice = False
 
         model = config.model or ""
         if model.startswith("qwen"):

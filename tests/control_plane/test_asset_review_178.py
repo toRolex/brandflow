@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
@@ -422,3 +423,103 @@ class TestApprove:
         )
         assert resp.status_code == 200
         assert resp.json()["status"] == "approved"
+
+
+def _set_phase(tmp_path: Path, project_id: str, job_id: str, phase: str) -> None:
+    """Update the job record phase in the control directory."""
+    control_dir = tmp_path / "workspace" / "projects" / project_id / "control" / "jobs"
+    job_json = control_dir / f"{job_id}.json"
+    job_data = json.loads(job_json.read_text(encoding="utf-8"))
+    job_data["phase"] = phase
+    job_json.write_text(
+        json.dumps(job_data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+class TestPhaseGating:
+    """All asset mutation endpoints return 409 when job is not in asset_review phase."""
+
+    @pytest.mark.parametrize(
+        "phase", ["queued", "script_generating", "video_rendering", "completed"]
+    )
+    def test_set_blank_outside_asset_review_returns_409(
+        self, tmp_path: Path, phase: str
+    ) -> None:
+        ctx = _setup_job(tmp_path, CLIP_SAMPLE)
+        _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
+        app = create_app(root_dir=ctx["tmp_path"])
+        client = TestClient(app)
+
+        resp = client.post(
+            f"/api/reviews/{ctx['job_id']}/asset/set-blank",
+            json={"clip_index": 0},
+        )
+        assert resp.status_code == 409
+        assert "asset_review" in resp.json()["detail"].lower()
+
+    @pytest.mark.parametrize(
+        "phase", ["queued", "script_generating", "video_rendering", "completed"]
+    )
+    def test_set_asset_outside_asset_review_returns_409(
+        self, tmp_path: Path, phase: str
+    ) -> None:
+        ctx = _setup_job(tmp_path, CLIP_SAMPLE)
+        _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
+        app = create_app(root_dir=ctx["tmp_path"])
+        client = TestClient(app)
+
+        resp = client.post(
+            f"/api/reviews/{ctx['job_id']}/asset/set-asset",
+            json={"clip_index": 0, "file_path": "/data/clip.mp4", "asset_id": "a1"},
+        )
+        assert resp.status_code == 409
+        assert "asset_review" in resp.json()["detail"].lower()
+
+    @pytest.mark.parametrize(
+        "phase", ["queued", "script_generating", "video_rendering", "completed"]
+    )
+    def test_re_search_outside_asset_review_returns_409(
+        self, tmp_path: Path, phase: str
+    ) -> None:
+        ctx = _setup_job(tmp_path, CLIP_SAMPLE)
+        _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
+        app = create_app(root_dir=ctx["tmp_path"])
+        client = TestClient(app)
+
+        resp = client.post(
+            f"/api/reviews/{ctx['job_id']}/asset/re-search",
+            json={"clip_index": 0},
+        )
+        assert resp.status_code == 409
+        assert "asset_review" in resp.json()["detail"].lower()
+
+    @pytest.mark.parametrize(
+        "phase", ["queued", "script_generating", "video_rendering", "completed"]
+    )
+    def test_restore_outside_asset_review_returns_409(
+        self, tmp_path: Path, phase: str
+    ) -> None:
+        ctx = _setup_job(tmp_path, CLIP_SAMPLE)
+        _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
+        app = create_app(root_dir=ctx["tmp_path"])
+        client = TestClient(app)
+
+        resp = client.post(
+            f"/api/reviews/{ctx['job_id']}/asset/restore",
+            json={"clip_index": 0},
+        )
+        assert resp.status_code == 409
+        assert "asset_review" in resp.json()["detail"].lower()
+
+    def test_set_blank_in_asset_review_succeeds(self, tmp_path: Path) -> None:
+        """Sanity check: the endpoint works normally when in the right phase."""
+        ctx = _setup_job(tmp_path, CLIP_SAMPLE)
+        app = create_app(root_dir=ctx["tmp_path"])
+        client = TestClient(app)
+
+        resp = client.post(
+            f"/api/reviews/{ctx['job_id']}/asset/set-blank",
+            json={"clip_index": 0},
+        )
+        assert resp.status_code == 200
