@@ -12,8 +12,8 @@ from packages.file_store.repository import FileStoreRepository
 
 
 @pytest.fixture
-def client():
-    app = create_app()
+def client(tmp_path):
+    app = create_app(root_dir=tmp_path)
     return TestClient(app)
 
 
