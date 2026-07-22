@@ -587,6 +587,16 @@ export default function JobPipeline() {
 		}
 	};
 
+	const handleSelectAsset = async (clipIndex: number, assetId: string) => {
+		try {
+			await api.assetSetAsset(job.job_id, clipIndex, assetId, job.project_id);
+			load();
+		} catch (e) {
+			console.error("select asset failed", e);
+			setError("选择素材失败");
+		}
+	};
+
 	const handleAssetApprove = () => {
 		const allBlank =
 			selectedClips.length > 0 &&
@@ -650,6 +660,7 @@ export default function JobPipeline() {
 		onRejectClip: handleRejectClip,
 		onToggleBlank: handleToggleBlank,
 		onRestoreClip: handleRestoreClip,
+		onSelectAsset: handleSelectAsset,
 		onAssetApprove: handleAssetApprove,
 		onForceApprove: handleForceApprove,
 		onDismissAllBlankConfirm: () => setShowAllBlankConfirm(false),

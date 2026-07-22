@@ -58,6 +58,7 @@ export interface PanelProps {
 	onConfirmVoiceChange: () => void;
 	onCancelVoiceChange: () => void;
 	onRejectClip: (index: number) => void;
+	onSelectAsset: (index: number, assetId: string) => void;
 	onToggleBlank: (index: number) => void;
 	onRestoreClip: (index: number) => void;
 	onAssetApprove: () => void;
