@@ -82,15 +82,15 @@ def test_update_manual_script_preserves_import_mode(tmp_path: Path) -> None:
     assert resp.status_code == 200
     job_id = resp.json()["job_id"]
 
-    resp = client.post(
-        f"/api/jobs/{job_id}/script",
-        json={"manual_script": "修改后的文案"},
-    )
-    assert resp.status_code == 200
+        resp = client.post(
+            f"/api/jobs/{job_id}/script",
+            json={"manual_script": "修改后的文案"},
+        )
+        assert resp.status_code == 200
 
-    detail = client.get(f"/api/jobs/{job_id}").json()
-    assert detail["mode"] == "import"
-    assert detail["manual_script"] == "修改后的文案"
+        detail = client.get(f"/api/jobs/{job_id}").json()
+        assert detail["mode"] == "import"
+        assert detail["manual_script"] == "修改后的文案"
 
 
 # ── 单个 create_job ──────────────────────────────────────────────
@@ -113,18 +113,18 @@ def test_create_job_persists_manual_script_in_generate_mode(tmp_path: Path) -> N
     assert data["mode"] == "generate"
     assert data["manual_script"] == "这是用户手动输入的口播文案"
 
-    job_path = (
-        tmp_path
-        / "workspace"
-        / "projects"
-        / "prj_001"
-        / "control"
-        / "jobs"
-        / f"{data['job_id']}.json"
-    )
-    raw = json.loads(job_path.read_text(encoding="utf-8"))
-    assert raw["manual_script"] == "这是用户手动输入的口播文案"
-    assert raw["mode"] == "generate"
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "control"
+            / "jobs"
+            / f"{data['job_id']}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["manual_script"] == "这是用户手动输入的口播文案"
+        assert raw["mode"] == "generate"
 
 
 def test_create_job_persists_skip_subtitle(tmp_path: Path) -> None:
@@ -142,18 +142,18 @@ def test_create_job_persists_skip_subtitle(tmp_path: Path) -> None:
     data = resp.json()
     assert data["skip_subtitle"] is True
 
-    # 从磁盘直接读 JobRecord 验证持久化
-    job_path = (
-        tmp_path
-        / "workspace"
-        / "projects"
-        / "prj_001"
-        / "control"
-        / "jobs"
-        / f"{data['job_id']}.json"
-    )
-    raw = json.loads(job_path.read_text(encoding="utf-8"))
-    assert raw["skip_subtitle"] is True
+        # 从磁盘直接读 JobRecord 验证持久化
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "control"
+            / "jobs"
+            / f"{data['job_id']}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["skip_subtitle"] is True
 
 
 def test_create_job_exposes_pending_execution_state(tmp_path: Path) -> None:
@@ -203,10 +203,10 @@ def test_get_job_round_trips_failed_execution_state(tmp_path: Path) -> None:
     }
     job_path.write_text(json.dumps(raw), encoding="utf-8")
 
-    response = client.get(f"/api/jobs/{created['job_id']}")
+        response = client.get(f"/api/jobs/{created['job_id']}")
 
-    assert response.status_code == 200
-    assert response.json()["execution"] == raw["execution"]
+        assert response.status_code == 200
+        assert response.json()["execution"] == raw["execution"]
 
 
 def test_failed_job_response_exposes_failed_phase(tmp_path: Path) -> None:
@@ -244,10 +244,10 @@ def test_failed_job_response_exposes_failed_phase(tmp_path: Path) -> None:
     )
     job_path.write_text(json.dumps(raw), encoding="utf-8")
 
-    response = client.get(f"/api/jobs/{created['job_id']}")
+        response = client.get(f"/api/jobs/{created['job_id']}")
 
-    assert response.status_code == 200
-    assert response.json()["failed_phase"] == "video_rendering"
+        assert response.status_code == 200
+        assert response.json()["failed_phase"] == "video_rendering"
 
 
 def test_retry_restores_failed_phase_and_preserves_artifacts(tmp_path: Path) -> None:
@@ -297,29 +297,45 @@ def test_retry_restores_failed_phase_and_preserves_artifacts(tmp_path: Path) -> 
                 }
             }
         }
-    )
-    job_path.write_text(json.dumps(raw), encoding="utf-8")
-    job_runtime = (
-        tmp_path
-        / "workspace"
-        / "projects"
-        / "prj_001"
-        / "runtime"
-        / "jobs"
-        / created["job_id"]
-    )
-    job_runtime.mkdir(parents=True)
-    (job_runtime / "montage_segment.mp4").write_bytes(b"fixed input")
+        raw.update(
+            {
+                "phase": "failed",
+                "failed_phase": "video_rendering",
+                "artifacts": [artifact],
+                "execution": {
+                    "status": "failed",
+                    "current_attempt": 3,
+                    "max_attempts": 3,
+                    "error": {
+                        "code": "MEDIA_PROCESSING_TIMEOUT",
+                        "message": "Timed out.",
+                        "retryable": True,
+                    },
+                },
+            }
+        )
+        job_path.write_text(json.dumps(raw), encoding="utf-8")
+        job_runtime = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "runtime"
+            / "jobs"
+            / created["job_id"]
+        )
+        job_runtime.mkdir(parents=True)
+        (job_runtime / "montage_segment.mp4").write_bytes(b"fixed input")
 
-    response = client.post(f"/api/jobs/{created['job_id']}/retry")
+        response = client.post(f"/api/jobs/{created['job_id']}/retry")
 
-    assert response.status_code == 200
-    saved = json.loads(job_path.read_text(encoding="utf-8"))
-    assert saved["phase"] == "video_rendering"
-    assert saved["failed_phase"] is None
-    assert saved["artifacts"] == [artifact]
-    assert saved["execution"]["status"] == "pending"
-    assert saved["execution"]["current_attempt"] == 0
+        assert response.status_code == 200
+        saved = json.loads(job_path.read_text(encoding="utf-8"))
+        assert saved["phase"] == "video_rendering"
+        assert saved["failed_phase"] is None
+        assert saved["artifacts"] == [artifact]
+        assert saved["execution"]["status"] == "pending"
+        assert saved["execution"]["current_attempt"] == 0
 
 
 def test_retry_revalidates_with_media_handler_contract(tmp_path: Path) -> None:
@@ -363,16 +379,16 @@ def test_retry_revalidates_with_media_handler_contract(tmp_path: Path) -> None:
     )
     job_path.write_text(json.dumps(raw), encoding="utf-8")
 
-    response = client.post(f"/api/jobs/{created['job_id']}/retry")
+        response = client.post(f"/api/jobs/{created['job_id']}/retry")
 
-    # Retry revalidates via the media handler contract: video_rendering now
-    # requires montage_segment.mp4 (#264), so the fresh validation error
-    # replaces the stale stored code.
-    assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "VIDEO_MONTAGE_SEGMENT_MISSING"
-    saved = json.loads(job_path.read_text(encoding="utf-8"))
-    assert saved["phase"] == "failed"
-    assert saved["failed_phase"] == "video_rendering"
+        # Retry revalidates via the media handler contract: video_rendering now
+        # requires montage_segment.mp4 (#264), so the fresh validation error
+        # replaces the stale stored code.
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "VIDEO_MONTAGE_SEGMENT_MISSING"
+        saved = json.loads(job_path.read_text(encoding="utf-8"))
+        assert saved["phase"] == "failed"
+        assert saved["failed_phase"] == "video_rendering"
 
 
 def test_retry_legacy_failed_job_without_failed_phase_resets_to_queued(
@@ -399,13 +415,13 @@ def test_retry_legacy_failed_job_without_failed_phase_resets_to_queued(
     raw.pop("failed_phase", None)
     job_path.write_text(json.dumps(raw), encoding="utf-8")
 
-    response = client.post(f"/api/jobs/{created['job_id']}/retry")
+        response = client.post(f"/api/jobs/{created['job_id']}/retry")
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "queued_for_retry"
-    saved = json.loads(job_path.read_text(encoding="utf-8"))
-    assert saved["phase"] == "queued"
-    assert saved["execution"]["status"] == "pending"
+        assert response.status_code == 200
+        assert response.json()["status"] == "queued_for_retry"
+        saved = json.loads(job_path.read_text(encoding="utf-8"))
+        assert saved["phase"] == "queued"
+        assert saved["execution"]["status"] == "pending"
 
 
 def test_retry_non_failed_job_is_rejected(tmp_path: Path) -> None:
@@ -416,9 +432,9 @@ def test_retry_non_failed_job_is_rejected(tmp_path: Path) -> None:
         json={ "platforms": ["douyin"]},
     ).json()
 
-    response = client.post(f"/api/jobs/{created['job_id']}/retry")
+        response = client.post(f"/api/jobs/{created['job_id']}/retry")
 
-    assert response.status_code == 409
+        assert response.status_code == 409
 
 
 def test_create_job_persists_language_and_cover_title(tmp_path: Path) -> None:
@@ -450,19 +466,19 @@ def test_create_job_persists_language_and_cover_title(tmp_path: Path) -> None:
     assert data["cover_title"]["highlight_words"] == ["荔枝菌"]
     assert data["cover_title"]["style"]["position"] == "top"
 
-    job_path = (
-        tmp_path
-        / "workspace"
-        / "projects"
-        / "prj_001"
-        / "control"
-        / "jobs"
-        / f"{data['job_id']}.json"
-    )
-    raw = json.loads(job_path.read_text(encoding="utf-8"))
-    assert raw["language"] == "cantonese"
-    assert raw["cover_title"]["text"] == "鲜嫩荔枝菌"
-    assert raw["cover_title"]["style"]["outline_width"] == 3
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "control"
+            / "jobs"
+            / f"{data['job_id']}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        assert raw["language"] == "cantonese"
+        assert raw["cover_title"]["text"] == "鲜嫩荔枝菌"
+        assert raw["cover_title"]["style"]["outline_width"] == 3
 
 
 def test_batch_create_jobs_persists_manual_script_in_generate_mode(
@@ -507,9 +523,27 @@ def test_batch_create_jobs_persists_manual_script_in_generate_mode(
             / "jobs"
             / f"{r['job_id']}.json"
         )
-        raw = json.loads(job_path.read_text(encoding="utf-8"))
-        assert raw["manual_script"] == expected
-        assert raw["mode"] == "generate"
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert len(results) == 2
+        assert results[0]["manual_script"] == "这是第一条手动文案"
+        assert results[1]["manual_script"] == "这是第二条手动文案"
+        assert results[0]["mode"] == "generate"
+        assert results[1]["mode"] == "generate"
+
+        for r, expected in zip(results, ["这是第一条手动文案", "这是第二条手动文案"]):
+            job_path = (
+                tmp_path
+                / "workspace"
+                / "projects"
+                / "prj_001"
+                / "control"
+                / "jobs"
+                / f"{r['job_id']}.json"
+            )
+            raw = json.loads(job_path.read_text(encoding="utf-8"))
+            assert raw["manual_script"] == expected
+            assert raw["mode"] == "generate"
 
 
 def test_batch_create_jobs_persists_cover_title_and_language(tmp_path: Path) -> None:
@@ -554,9 +588,27 @@ def test_batch_create_jobs_persists_cover_title_and_language(tmp_path: Path) -> 
             / "jobs"
             / f"{r['job_id']}.json"
         )
-        raw = json.loads(job_path.read_text(encoding="utf-8"))
-        assert raw["cover_title"]["text"] == r["cover_title"]["text"]
-        assert raw["language"] == r["language"]
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert len(results) == 2
+        assert results[0]["language"] == "cantonese"
+        assert results[0]["cover_title"]["text"] == "鮮嫩荔枝菌"
+        assert results[1]["language"] == "mandarin"
+        assert results[1]["cover_title"]["text"] == "鲜嫩荔枝菌"
+
+        for r in results:
+            job_path = (
+                tmp_path
+                / "workspace"
+                / "projects"
+                / "prj_001"
+                / "control"
+                / "jobs"
+                / f"{r['job_id']}.json"
+            )
+            raw = json.loads(job_path.read_text(encoding="utf-8"))
+            assert raw["cover_title"]["text"] == r["cover_title"]["text"]
+            assert raw["language"] == r["language"]
 
 
 def test_create_job_rejects_legacy_auto_approve(tmp_path: Path) -> None:
@@ -714,11 +766,9 @@ def test_batch_create_jobs_per_job_skip_subtitle(tmp_path: Path) -> None:
             / "jobs"
             / f"{r['job_id']}.json"
         )
-        raw = json.loads(job_path.read_text(encoding="utf-8"))
-        if r["name"] == "无字幕":
-            assert raw["skip_subtitle"] is True
-        else:
-            assert raw["skip_subtitle"] is False
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["auto_approve"] is True
 
 
 def test_batch_create_rejects_legacy_auto_approve(tmp_path: Path) -> None:
@@ -738,6 +788,150 @@ def test_batch_create_rejects_legacy_auto_approve(tmp_path: Path) -> None:
     )
     assert resp.status_code == 422
     assert "auto_approve is no longer accepted" in resp.text
+
+
+def test_create_job_defaults_skip_subtitle_false(tmp_path: Path) -> None:
+    """未传 skip_subtitle 时默认值为 False。"""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        resp = client.post(
+            "/api/projects/prj_001/jobs",
+            json={"platforms": ["douyin"]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["skip_subtitle"] is False
+
+
+# ── 批量创建接口 ─────────────────────────────────────────────────
+
+
+def _unused_test_batch_create_jobs_basic(tmp_path: Path) -> None:
+    """批量创建 2 个 job，返回正确的 display_index。"""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        resp = client.post(
+            "/api/projects/prj_001/jobs/batch",
+            json={
+                "platforms": ["douyin", "xiaohongshu"],
+                "jobs": [
+                    {"name": "第一条", "manual_script": "这是第一条文案"},
+                    {"name": "第二条", "manual_script": "这是第二条文案"},
+                ],
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["product"] == "test_product"
+        assert len(data["results"]) == 2
+
+        r1 = data["results"][0]
+        r2 = data["results"][1]
+        assert r1["display_index"] == "001"
+        assert r1["name"] == "第一条"
+        assert r1["product"] == "test_product"
+        assert r1["phase"] == "queued"
+        assert r2["display_index"] == "002"
+        assert r2["name"] == "第二条"
+
+        # 每个 job 都能通过 GET /api/jobs/{job_id} 查回
+        for r in data["results"]:
+            detail = client.get(f"/api/jobs/{r['job_id']}")
+            assert detail.status_code == 200
+            assert detail.json()["product"] == "荔枝菌"
+
+
+def test_batch_create_jobs_display_index_offset(tmp_path: Path) -> None:
+    """批量创建时 display_index 从已有 job 数 + 1 开始。"""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        # 先创建 2 个 job
+        client.post(
+            "/api/projects/prj_001/jobs",
+            json={"platforms": ["douyin"]},
+        )
+        client.post(
+            "/api/projects/prj_001/jobs",
+            json={"platforms": ["douyin"]},
+        )
+
+        resp = client.post(
+            "/api/projects/prj_001/jobs/batch",
+            json={
+                "platforms": ["douyin"],
+                "jobs": [{"name": "批量1"}, {"name": "批量2"}],
+            },
+        )
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert results[0]["display_index"] == "003"
+        assert results[1]["display_index"] == "004"
+
+
+def test_batch_create_jobs_per_job_skip_subtitle(tmp_path: Path) -> None:
+    """批量请求中 per-job 的 skip_subtitle 能持久化到磁盘。"""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        resp = client.post(
+            "/api/projects/prj_001/jobs/batch",
+            json={
+                "platforms": ["douyin"],
+                "jobs": [
+                    {"name": "无字幕", "manual_script": "", "skip_subtitle": True},
+                    {"name": "有字幕", "manual_script": "", "skip_subtitle": False},
+                ],
+            },
+        )
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert results[0]["skip_subtitle"] is True
+        assert results[1]["skip_subtitle"] is False
+
+        # 磁盘验证
+        for r in results:
+            job_path = (
+                tmp_path
+                / "workspace"
+                / "projects"
+                / "prj_001"
+                / "control"
+                / "jobs"
+                / f"{r['job_id']}.json"
+            )
+            raw = json.loads(job_path.read_text(encoding="utf-8"))
+            if r["name"] == "无字幕":
+                assert raw["skip_subtitle"] is True
+            else:
+                assert raw["skip_subtitle"] is False
+
+
+def test_batch_create_jobs_top_level_auto_approve(tmp_path: Path) -> None:
+    """批量请求顶层 auto_approve=True 对所有 job 生效并落盘。"""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        resp = client.post(
+            "/api/projects/prj_001/jobs/batch",
+            json={
+                "platforms": ["douyin"],
+                "auto_approve": True,
+                "jobs": [{"name": "自动审核1"}, {"name": "自动审核2"}],
+            },
+        )
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert len(results) == 2
+        for r in results:
+            assert r["auto_approve"] is True
+            job_path = (
+                tmp_path
+                / "workspace"
+                / "projects"
+                / "prj_001"
+                / "control"
+                / "jobs"
+                / f"{r['job_id']}.json"
+            )
+            raw = json.loads(job_path.read_text(encoding="utf-8"))
+            assert raw["auto_approve"] is True
 
 
 def test_create_job_tts_model_and_voice(tmp_path: Path) -> None:
@@ -812,10 +1006,58 @@ def test_batch_create_jobs_tts_model_and_voice(tmp_path: Path) -> None:
             / "prj_001"
             / "control"
             / "jobs"
-            / f"{r['job_id']}.json"
+            / f"{data['job_id']}.json"
         )
         raw = json.loads(job_path.read_text(encoding="utf-8"))
-        assert raw["tts_voice"] == expected_voice
+        assert raw["tts_model"] == "mimo-v2.5-tts"
+        assert raw["tts_voice"] == "茉莉"
+
+
+def test_create_job_tts_defaults_empty(tmp_path: Path) -> None:
+    """未传 tts_model/tts_voice 时默认值为空字符串。"""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        resp = client.post(
+            "/api/projects/prj_001/jobs",
+            json={"platforms": ["douyin"]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["tts_model"] == ""
+        assert data["tts_voice"] == ""
+
+
+def test_batch_create_jobs_tts_model_and_voice(tmp_path: Path) -> None:
+    """批量创建时 per-job 的 tts_model/tts_voice 持久化到磁盘。"""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        resp = client.post(
+            "/api/projects/prj_001/jobs/batch",
+            json={
+                "platforms": ["douyin"],
+                "jobs": [
+                    {"name": "默认音色"},
+                    {"name": "指定音色", "tts_voice": "Cherry"},
+                ],
+            },
+        )
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert results[0]["tts_voice"] == ""
+        assert results[1]["tts_voice"] == "Cherry"
+
+        for r, expected_voice in zip(results, ["", "Cherry"]):
+            job_path = (
+                tmp_path
+                / "workspace"
+                / "projects"
+                / "prj_001"
+                / "control"
+                / "jobs"
+                / f"{r['job_id']}.json"
+            )
+            raw = json.loads(job_path.read_text(encoding="utf-8"))
+            assert raw["tts_voice"] == expected_voice
 
 
 # ── TTS model/voice 原子校验回归测试 ───────────────────────────────
@@ -930,13 +1172,13 @@ def _unused_test_batch_create_jobs_rejects_invalid_tts_combo(tmp_path: Path) -> 
     assert errors[0]["item_name"] == "非法"
     assert errors[0]["error"]["code"] == "TTS_VOICE_MODEL_MISMATCH"
 
-    jobs_control_dir = (
-        tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs"
-    )
-    job_files = (
-        list(jobs_control_dir.glob("*.json")) if jobs_control_dir.exists() else []
-    )
-    assert len(job_files) == 0
+        jobs_control_dir = (
+            tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs"
+        )
+        job_files = (
+            list(jobs_control_dir.glob("*.json")) if jobs_control_dir.exists() else []
+        )
+        assert len(job_files) == 0
 
 
 def test_batch_create_jobs_accepts_valid_tts_combos(tmp_path: Path) -> None:
@@ -1212,7 +1454,7 @@ def test_batch_create_jobs_uses_tts_audio_source(tmp_path: Path) -> None:
             / "prj_001"
             / "control"
             / "jobs"
-            / f"{r['job_id']}.json"
+            / f"{data['job_id']}.json"
         )
         raw = json.loads(job_path.read_text(encoding="utf-8"))
         assert raw["audio_source"] == "tts"
@@ -1249,14 +1491,14 @@ def test_get_music_scans_audio_files(tmp_path: Path) -> None:
     data = resp.json()
     assert len(data["tracks"]) == 2
 
-    names = {t["filename"] for t in data["tracks"]}
-    assert names == {"bgm_test.mp3", "intro.wav"}
+        names = {t["filename"] for t in data["tracks"]}
+        assert names == {"bgm_test.mp3", "intro.wav"}
 
-    for t in data["tracks"]:
-        assert "filename" in t
-        assert "relative_path" in t
-        assert t["relative_path"].startswith("workspace/music_library/")
-        assert t["relative_path"].endswith(t["filename"])
+        for t in data["tracks"]:
+            assert "filename" in t
+            assert "relative_path" in t
+            assert t["relative_path"].startswith("workspace/music_library/")
+            assert t["relative_path"].endswith(t["filename"])
 
 
 # ── 原有 delete job 测试 ─────────────────────────────────────────
@@ -1283,13 +1525,13 @@ def test_delete_job_success(tmp_path: Path) -> None:
     raw["phase"] = "completed"
     job_path.write_text(json.dumps(raw), encoding="utf-8")
 
-    resp = client.delete(f"/api/jobs/{job_id}")
-    assert resp.status_code == 200
-    assert resp.json() == {"status": "deleted", "job_id": job_id}
+        resp = client.delete(f"/api/jobs/{job_id}")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "deleted", "job_id": job_id}
 
-    # Verify job is gone
-    resp2 = client.get(f"/api/jobs/{job_id}")
-    assert resp2.status_code == 404
+        # Verify job is gone
+        resp2 = client.get(f"/api/jobs/{job_id}")
+        assert resp2.status_code == 404
 
 
 def test_delete_job_not_found(tmp_path: Path) -> None:
@@ -1399,24 +1641,24 @@ def test_old_incomplete_import_job_moves_to_migration_required(
     ).json()
     job_id = created["job_id"]
 
-    # Simulate legacy job without scene_folder_ids by editing disk directly
-    job_path = (
-        tmp_path
-        / "workspace"
-        / "projects"
-        / "prj_001"
-        / "control"
-        / "jobs"
-        / f"{job_id}.json"
-    )
-    raw = json.loads(job_path.read_text(encoding="utf-8"))
-    raw.pop("scene_folder_ids", None)
-    job_path.write_text(json.dumps(raw), encoding="utf-8")
+        # Simulate legacy job without scene_folder_ids by editing disk directly
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "control"
+            / "jobs"
+            / f"{job_id}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        raw.pop("scene_folder_ids", None)
+        job_path.write_text(json.dumps(raw), encoding="utf-8")
 
-    # Directly invoke the tick service to observe migration_required transition
-    from packages.file_store.repository import FileStoreRepository
-    from packages.pipeline_services.job_tick_service import JobTickService
-    from apps.control_plane.app import create_orchestrator
+        # Directly invoke the tick service to observe migration_required transition
+        from packages.file_store.repository import FileStoreRepository
+        from packages.pipeline_services.job_tick_service import JobTickService
+        from apps.control_plane.app import create_orchestrator
 
     repo = FileStoreRepository(tmp_path)
     orchestrator = create_orchestrator(tmp_path, client.app.state.config_reader)
@@ -1455,19 +1697,19 @@ def test_migrate_scenes_endpoint_rejects_invalid_folders(tmp_path: Path) -> None
     ).json()
     job_id = created["job_id"]
 
-    # Force migration_required state
-    job_path = (
-        tmp_path
-        / "workspace"
-        / "projects"
-        / "prj_001"
-        / "control"
-        / "jobs"
-        / f"{job_id}.json"
-    )
-    raw = json.loads(job_path.read_text(encoding="utf-8"))
-    raw["phase"] = "migration_required"
-    job_path.write_text(json.dumps(raw), encoding="utf-8")
+        # Force migration_required state
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "control"
+            / "jobs"
+            / f"{job_id}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        raw["phase"] = "migration_required"
+        job_path.write_text(json.dumps(raw), encoding="utf-8")
 
     resp = client.post(
         f"/api/jobs/{job_id}/migrate-scenes",
@@ -1528,29 +1770,35 @@ def test_migrate_scenes_endpoint_preserves_config_and_resets_to_queued(
     ]
     job_path.write_text(json.dumps(raw), encoding="utf-8")
 
-    runtime_dir = (
-        tmp_path / "workspace" / "projects" / "prj_001" / "runtime" / "jobs" / job_id
-    )
-    runtime_dir.mkdir(parents=True)
-    (runtime_dir / "old.mp4").write_bytes(b"old artifact")
+        runtime_dir = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "runtime"
+            / "jobs"
+            / job_id
+        )
+        runtime_dir.mkdir(parents=True)
+        (runtime_dir / "old.mp4").write_bytes(b"old artifact")
 
-    resp = client.post(
-        f"/api/jobs/{job_id}/migrate-scenes",
-        json={"scene_folder_ids": ["scenes/two"]},
-    )
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "migrated"
-    assert resp.json()["phase"] == "queued"
+        resp = client.post(
+            f"/api/jobs/{job_id}/migrate-scenes",
+            json={"scene_folder_ids": ["scenes/two"]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "migrated"
+        assert resp.json()["phase"] == "queued"
 
-    saved = json.loads(job_path.read_text(encoding="utf-8"))
-    assert saved["phase"] == "queued"
-    assert saved["scene_folder_ids"] == ["scenes/two"]
-    assert saved["manual_script"] == "保留文案"
-    assert saved["tts_voice"] == "Cherry"
-    assert saved["language"] == "cantonese"
-    assert saved["artifacts"] == []
-    assert saved["execution"]["status"] == "pending"
-    assert not (runtime_dir / "old.mp4").exists()
+        saved = json.loads(job_path.read_text(encoding="utf-8"))
+        assert saved["phase"] == "queued"
+        assert saved["scene_folder_ids"] == ["scenes/two"]
+        assert saved["manual_script"] == "保留文案"
+        assert saved["tts_voice"] == "Cherry"
+        assert saved["language"] == "cantonese"
+        assert saved["artifacts"] == []
+        assert saved["execution"]["status"] == "pending"
+        assert not (runtime_dir / "old.mp4").exists()
 
 
 def test_migrate_scenes_endpoint_rejects_non_migration_job(
@@ -1570,11 +1818,11 @@ def test_migrate_scenes_endpoint_rejects_non_migration_job(
     ).json()
     job_id = created["job_id"]
 
-    resp = client.post(
-        f"/api/jobs/{job_id}/migrate-scenes",
-        json={"scene_folder_ids": ["scenes/one"]},
-    )
-    assert resp.status_code == 409
+        resp = client.post(
+            f"/api/jobs/{job_id}/migrate-scenes",
+            json={"scene_folder_ids": ["scenes/one"]},
+        )
+        assert resp.status_code == 409
 
 
 def test_list_scene_folders_returns_configured_folders(tmp_path: Path) -> None:
@@ -1626,11 +1874,11 @@ def _unused_test_batch_create_validates_all_before_persisting(tmp_path: Path) ->
     )
     assert resp.status_code == 400
 
-    # 确认 0 个 Job 文件落盘
-    job_files = (
-        list(jobs_control_dir.glob("*.json")) if jobs_control_dir.exists() else []
-    )
-    assert len(job_files) == 0
+        # 确认 0 个 Job 文件落盘
+        job_files = (
+            list(jobs_control_dir.glob("*.json")) if jobs_control_dir.exists() else []
+        )
+        assert len(job_files) == 0
 
 
 def _unused_test_batch_create_error_includes_item_index(tmp_path: Path) -> None:
