@@ -147,10 +147,11 @@ describe("BatchCreateForm", () => {
 				{...defaultProps({ onBatchCreate, product: "测试产品" })}
 			/>,
 		);
-
-		await waitFor(() => {
-			expect(screen.getByLabelText("场景一")).toBeInTheDocument();
-		});
+			// 先切换一个任务为 import 模式，才能触发场景文件夹加载
+			fireEvent.click(screen.getAllByText("手动导入")[0]);
+			await waitFor(() => {
+				expect(screen.getByLabelText("场景一")).toBeInTheDocument();
+			});
 		fireEvent.click(screen.getByLabelText("场景一"));
 
 		const submitBtn = screen.getByText(/批量创建 2 个 Job/);

@@ -108,7 +108,7 @@ def _setup_completed_job(client: TestClient, project_id: str, job_id: str) -> Pa
         else None
     )
     if record is None:
-        from packages.domain_core.models import JobRecord
+        from packages.domain_core.models import ArtifactPointer, JobRecord
 
         record = JobRecord(
             job_id=job_id,
@@ -122,6 +122,12 @@ def _setup_completed_job(client: TestClient, project_id: str, job_id: str) -> Pa
         )
     else:
         record = record.model_copy(update={"phase": "completed"})
+    # Register the final_video artifact so the export endpoint accepts the job
+    has_final = any(a.kind == "final_video" for a in record.artifacts)
+    if not has_final:
+        record.artifacts.append(
+            ArtifactPointer(kind="final_video", relative_path="final.mp4", active=True)
+        )
     repo.save_job(project_id, record)
     return job_dir
 
