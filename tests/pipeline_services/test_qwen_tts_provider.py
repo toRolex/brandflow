@@ -56,6 +56,7 @@ class TestQwenTTSProvider:
 
                 result = provider.synthesize("你好世界", config)
                 assert result == FAKE_AUDIO
+                assert mock_get.call_args.kwargs["proxies"]["all"] is None
 
     def test_synthesize_with_instructions(self):
         """instruct 模型 + instructions + optimize_instructions"""

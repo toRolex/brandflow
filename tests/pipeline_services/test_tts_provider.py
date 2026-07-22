@@ -112,6 +112,19 @@ class TestMiMoTTSProviderSynthesize:
         assert len(audio) > 0
 
     @patch("packages.pipeline_services.tts_provider.requests")
+    def test_synthesize_bypasses_environment_proxies(self, mock_requests):
+        """TTS calls must connect directly even when the worker has ALL_PROXY."""
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"audio": {"data": "dGVzdA=="}}}]
+        }
+        mock_requests.post.return_value = mock_resp
+
+        self._make_provider().synthesize("test", self._mock_config())
+
+        assert mock_requests.post.call_args.kwargs["proxies"]["all"] is None
+
+    @patch("packages.pipeline_services.tts_provider.requests")
     def test_synthesize_decodes_nested_audio_data_byte_for_byte(
         self, mock_requests, wav_bytes: Callable[..., bytes]
     ):

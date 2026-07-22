@@ -78,7 +78,7 @@ class QwenTTSProvider:
             headers=headers,
             json=payload,
             timeout=180,
-            proxies={"http": None, "https": None},
+            proxies={"all": None, "http": None, "https": None},
         )
 
     def synthesize(self, text: str, config: Any) -> bytes:
@@ -124,7 +124,11 @@ class QwenTTSProvider:
         if not audio_url:
             raise TTSBlockedError("Qwen TTS 响应中未找到音频 URL")
 
-        audio_resp = requests.get(audio_url, timeout=60)
+        audio_resp = requests.get(
+            audio_url,
+            timeout=60,
+            proxies={"all": None, "http": None, "https": None},
+        )
         audio_resp.raise_for_status()
         return audio_resp.content
 
@@ -285,7 +289,7 @@ class MiMoTTSProvider:
             headers=headers,
             json=payload,
             timeout=180,
-            proxies={"http": None, "https": None},
+            proxies={"all": None, "http": None, "https": None},
         )
 
         if resp.status_code == 429:
