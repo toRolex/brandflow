@@ -1,9 +1,15 @@
 from pathlib import Path
 
+import base64
+import io
+import wave
+from collections.abc import Callable
+
 import pytest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from apps.control_plane.app import create_app
+from packages.provider_config.tts_config import TTSConfig
 
 
 @pytest.fixture(autouse=True)
@@ -43,6 +49,18 @@ class TestTTSConfigAPI:
         response = client.put("/api/tts/config", json=config)
         assert response.status_code == 200
         assert response.json()["success"] is True
+
+        # roundtrip: verify saved config is retrievable
+        loaded = client.get("/api/tts/config").json()
+        for key, value in config.items():
+            assert loaded[key] == value
+
+    def test_save_config_with_partial_fields(self, client):
+        response = client.put("/api/tts/config", json={"model": "custom-model"})
+        assert response.status_code == 200
+
+        loaded = client.get("/api/tts/config").json()
+        assert loaded["model"] == "custom-model"
 
     def test_get_voices_default(self, client):
         response = client.get("/api/tts/voices")
@@ -199,6 +217,54 @@ class TestTTSPreviewAPI:
             },
         )
         assert response.status_code in [200, 500]
+
+    def test_preview_without_api_key_returns_error(self, client, monkeypatch):
+        monkeypatch.delenv("MIMO_API_KEY", raising=False)
+        monkeypatch.delenv("TTS_API_KEY", raising=False)
+        response = client.post(
+            "/api/tts/preview",
+            json={"text": "测试文本", "model": "mimo-v2.5-tts", "voice": "Mia"},
+        )
+        assert response.status_code == 500
+        assert "MIMO_API_KEY" in response.json()["detail"]
+
+    def test_preview_with_invalid_model_returns_error(self, client, monkeypatch):
+        monkeypatch.delenv("MIMO_API_KEY", raising=False)
+        monkeypatch.delenv("TTS_API_KEY", raising=False)
+        response = client.post(
+            "/api/tts/preview", json={"text": "测试文本", "model": ""}
+        )
+        assert response.status_code in [400, 422, 500]
+
+    def test_preview_request_no_authorization_header(self, client):
+        """预览请求应包含 api-key 头"""
+        with (
+            patch("requests.post") as mock_post,
+            patch("apps.control_plane.routes.tts.app_config") as mock_config,
+        ):
+            mock_config.get_api_key.return_value = "test-api-key"
+            mock_config.get_api_base_url.return_value = "https://api.xiaomimimo.com/v1"
+            mock_config.get_tts_config.return_value = {"provider": "mimo"}
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "choices": [{"message": {"audio": {"data": "dGVzdA=="}}}]
+            }
+            mock_post.return_value = mock_response
+
+            response = client.post(
+                "/api/tts/preview",
+                json={"text": "测试", "model": "mimo-v2.5-tts", "voice": "Mia"},
+            )
+
+            assert mock_post.called, (
+                f"requests.post 应被调用，但返回 status={response.status_code}"
+            )
+            call_kwargs = mock_post.call_args[1]
+            headers = call_kwargs.get("headers", {})
+
+            assert "api-key" in headers, "应包含 api-key 头"
 
     # ── #221: preview passes qwen fields ─────────────────────────────
 
@@ -426,3 +492,146 @@ class TestTTSConfigCacheInvalidation:
         ).raise_for_status()
         cfg2 = reader.get_tts_config(product_id=pid)
         assert cfg2.get("language_type") == "English"
+
+
+class TestTTSPreviewResponse:
+    """TTS preview response format tests (WAV content-type, malformed rejection, PCM16 preservation)"""
+
+    @pytest.fixture
+    def client(self):
+        app = create_app()
+        return TestClient(app)
+
+    def test_preview_response_wav_content_type(
+        self, client, wav_bytes: Callable[..., bytes]
+    ):
+        """当 audio_format=wav 时，响应应为 audio/wav"""
+        source_audio = wav_bytes()
+        with (
+            patch("requests.post") as mock_post,
+            patch("apps.control_plane.routes.tts.app_config") as mock_config,
+        ):
+            mock_config.get_api_key.return_value = "test-api-key"
+            mock_config.get_api_base_url.return_value = "https://api.xiaomimimo.com/v1"
+            mock_config.get_tts_config.return_value = {"provider": "mimo"}
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "audio": {
+                                "data": base64.b64encode(source_audio).decode("ascii")
+                            }
+                        }
+                    }
+                ]
+            }
+            mock_post.return_value = mock_response
+
+            response = client.post(
+                "/api/tts/preview",
+                json={"text": "测试", "model": "mimo-v2.5-tts", "voice": "Mia"},
+            )
+
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "audio/wav"
+            assert "preview.wav" in response.headers.get("content-disposition", "")
+            assert response.content == source_audio
+            with wave.open(io.BytesIO(response.content), "rb") as wav_file:
+                assert wav_file.getnframes() / wav_file.getframerate() > 0
+
+    def test_preview_rejects_non_wav_payload_without_leaking_provider_data(
+        self, client
+    ):
+        provider_secret = "secret-provider-response"
+        with (
+            patch("requests.post") as mock_post,
+            patch("apps.control_plane.routes.tts.app_config") as mock_config,
+        ):
+            mock_config.get_api_key.return_value = "secret-api-key"
+            mock_response = MagicMock(status_code=200)
+            mock_response.json.return_value = {
+                "audio": base64.b64encode(provider_secret.encode()).decode("ascii")
+            }
+            mock_post.return_value = mock_response
+
+            response = client.post(
+                "/api/tts/preview",
+                json={"text": "测试", "model": "mimo-v2.5-tts", "voice": "Mia"},
+            )
+
+            assert response.status_code == 502
+            assert response.json()["detail"] == "TTS returned invalid WAV audio"
+            assert provider_secret not in response.text
+            assert "secret-api-key" not in response.text
+
+    @pytest.mark.parametrize(
+        "malformation",
+        ["header-only", "zero-frame", "zero-framerate", "truncated-frame-data"],
+    )
+    def test_preview_rejects_malformed_wav_container(
+        self,
+        client,
+        wav_bytes: Callable[..., bytes],
+        malformation: str,
+    ):
+        if malformation == "header-only":
+            source_audio = b"RIFF\x04\x00\x00\x00WAVE"
+        elif malformation == "zero-frame":
+            source_audio = wav_bytes(0)
+        elif malformation == "zero-framerate":
+            malformed_audio = bytearray(wav_bytes(1))
+            malformed_audio[24:32] = b"\x00" * 8
+            source_audio = bytes(malformed_audio)
+        else:
+            source_audio = wav_bytes()[:-2]
+        with (
+            patch("requests.post") as mock_post,
+            patch("apps.control_plane.routes.tts.app_config") as mock_config,
+        ):
+            mock_config.get_api_key.return_value = "test-api-key"
+            mock_response = MagicMock(status_code=200)
+            mock_response.json.return_value = {
+                "audio": base64.b64encode(source_audio).decode("ascii")
+            }
+            mock_post.return_value = mock_response
+
+            response = client.post(
+                "/api/tts/preview",
+                json={"text": "测试", "model": "mimo-v2.5-tts", "voice": "Mia"},
+            )
+
+            assert response.status_code == 502
+            assert response.json()["detail"] == "TTS returned invalid WAV audio"
+
+    def test_preview_preserves_raw_pcm16_payload(self, client):
+        source_audio = b"\x00\x00\x01\x00\xff\x7f"
+        config = TTSConfig(
+            model="mimo-v2.5-tts",
+            voice="Mia",
+            audio_format="pcm16",
+        ).with_defaults()
+        with (
+            patch("requests.post") as mock_post,
+            patch("apps.control_plane.routes.tts.app_config") as mock_config,
+            patch("apps.control_plane.routes.tts.config_manager") as mock_manager,
+        ):
+            mock_config.get_api_key.return_value = "test-api-key"
+            mock_manager.get_config.return_value.with_defaults.return_value = config
+            mock_response = MagicMock(status_code=200)
+            mock_response.json.return_value = {
+                "audio": base64.b64encode(source_audio).decode("ascii")
+            }
+            mock_post.return_value = mock_response
+
+            response = client.post(
+                "/api/tts/preview",
+                json={"text": "测试", "model": "mimo-v2.5-tts", "voice": "Mia"},
+            )
+
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "audio/L16;rate=24000;channels=1"
+            assert "preview.pcm" in response.headers["content-disposition"]
+            assert response.content == source_audio
