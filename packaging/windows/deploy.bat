@@ -34,6 +34,10 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
+:: 杀掉残留的 Vite dev server（生产环境只应通过后端 17890 访问前端）
+echo [0/7] 清理旧进程 ...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5173 " ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
+
 echo [%date% %time%] ========== 部署开始 ========== >> "%LOG_FILE%"
 
 :: ============================================
@@ -46,30 +50,30 @@ where uv >nul 2>&1 || (
     powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 )
 
-where nvm >nul 2>&1 || (
-    echo   - 安装 nvm-windows ...
-    powershell -c "Invoke-WebRequest -Uri https://github.com/coreybutler/nvm-windows/releases/download/1.2.2/nvm-setup.exe -OutFile %TEMP%\nvm-setup.exe; Start-Process %TEMP%\nvm-setup.exe -ArgumentList '/S' -Wait"
-)
-
 node -v >nul 2>&1 || (
-    echo   - 安装 Node.js 20 ...
-    call nvm install 20.18.3
-    call nvm use 20.18.3
+    if exist "C:\Program Files\nodejs\node.exe" (
+        set "PATH=C:\Program Files\nodejs;%PATH%"
+    ) else (
+        echo   - 安装 Node.js 20 ...
+        curl.exe -sL https://nodejs.org/dist/v20.18.3/node-v20.18.3-x64.msi -o %TEMP%\node-installer.msi
+        msiexec /i %TEMP%\node-installer.msi /qn /norestart
+        if exist "C:\Program Files\nodejs\node.exe" set "PATH=C:\Program Files\nodejs;%PATH%"
+    )
 )
 
 where pnpm >nul 2>&1 || (
-    echo   - 安装 pnpm ...
-    powershell -c "iwr https://get.pnpm.io/install.ps1 -useb | iex"
+    if exist "%USERPROFILE%\AppData\Local\pnpm\bin\pnpm.CMD" (
+        set "PATH=%USERPROFILE%\AppData\Local\pnpm\bin;%PATH%"
+    ) else (
+        echo   - 安装 pnpm ...
+        powershell -c "iwr https://get.pnpm.io/install.ps1 -useb | iex"
+        if exist "%USERPROFILE%\AppData\Local\pnpm\bin\pnpm.CMD" set "PATH=%USERPROFILE%\AppData\Local\pnpm\bin;%PATH%"
+    )
 )
 
 where ffmpeg >nul 2>&1 || (
     echo   - 安装 FFmpeg ...
     winget install --id Gyan.FFmpeg -e --silent --accept-package-agreements
-)
-
-where nssm >nul 2>&1 || (
-    echo   - 安装 NSSM ...
-    winget install --id NSSM.NSSM -e --silent --accept-package-agreements
 )
 
 echo   工具就绪。
@@ -122,11 +126,17 @@ if %errorlevel% neq 0 (
 :: ============================================
 echo [5/7] 编译前端 ...
 pushd "%PROJECT_DIR%\frontend"
-call nvm use 20.18.3 2>nul
-pnpm install --no-frozen-lockfile
-if %errorlevel% neq 0 (
-    echo [错误] pnpm install 失败 >> "%LOG_FILE%"
-    popd & pause & exit /b 1
+:: 确保 node 在 PATH 中（SSH 等非交互 shell 可能不加载）
+if not exist "%PROJECT_DIR%\frontend\node_modules" (
+    if exist "C:\Program Files\nodejs\node.exe" set "PATH=C:\Program Files\nodejs;%PATH%"
+    if exist "%USERPROFILE%\AppData\Local\pnpm\bin\pnpm.CMD" set "PATH=%USERPROFILE%\AppData\Local\pnpm\bin;%PATH%"
+    pnpm install --no-frozen-lockfile
+    if %errorlevel% neq 0 (
+        echo [错误] pnpm install 失败 >> "%LOG_FILE%"
+        popd & pause & exit /b 1
+    )
+) else (
+    echo   node_modules 已存在，跳过 install。
 )
 pnpm build
 if %errorlevel% neq 0 (
@@ -137,45 +147,10 @@ popd
 echo   前端编译完成。
 
 :: ============================================
-:: Step 6: 注册 / 重启 Windows 服务
+:: Step 6: 注册 / 重启计划任务
 :: ============================================
 echo [6/7] 注册并重启服务 ...
-
-nssm status brandflow-control-plane >nul 2>&1
-if errorlevel 2 (
-    echo   - 注册控制面服务 ...
-    nssm install brandflow-control-plane "uv" "run --project . python -m apps.control_plane"
-    nssm set brandflow-control-plane AppDirectory "%PROJECT_DIR%"
-    nssm set brandflow-control-plane AppStdout "%PROJECT_DIR%\logs\control-plane.log"
-    nssm set brandflow-control-plane AppStderr "%PROJECT_DIR%\logs\control-plane.log"
-    nssm set brandflow-control-plane AppRotateFiles 1
-    nssm set brandflow-control-plane AppRotateSeconds 86400
-    nssm set brandflow-control-plane Start SERVICE_AUTO_START
-)
-
-nssm status brandflow-worker >nul 2>&1
-if errorlevel 2 (
-    echo   - 注册 Worker 服务 ...
-    nssm install brandflow-worker "uv" "run --project . python -m apps.runtime_worker"
-    nssm set brandflow-worker AppDirectory "%PROJECT_DIR%"
-    nssm set brandflow-worker AppStdout "%PROJECT_DIR%\logs\worker.log"
-    nssm set brandflow-worker AppStderr "%PROJECT_DIR%\logs\worker.log"
-    nssm set brandflow-worker AppRotateFiles 1
-    nssm set brandflow-worker AppRotateSeconds 86400
-    nssm set brandflow-worker AppExit Default Exit
-    nssm set brandflow-worker Start SERVICE_AUTO_START
-)
-
-:: 确保服务参数是最新的（覆盖旧版部署）
-nssm set brandflow-control-plane AppParameters "run --project . python -m apps.control_plane" >nul 2>&1
-nssm set brandflow-worker AppParameters "run --project . python -m apps.runtime_worker" >nul 2>&1
-
-nssm restart brandflow-control-plane
-if errorlevel 1 nssm start brandflow-control-plane
-
-nssm restart brandflow-worker
-if errorlevel 1 nssm start brandflow-worker
-
+powershell -ExecutionPolicy Bypass -File "%~dp0manage-task.ps1" -Action restart
 echo   服务已启动。
 
 :: ============================================
@@ -195,8 +170,7 @@ if %errorlevel% neq 0 (
     if defined ROLLBACK_TAG (
         echo   回滚到 !ROLLBACK_TAG! ...
         git reset --hard !ROLLBACK_TAG!
-        nssm restart brandflow-control-plane
-        nssm restart brandflow-worker
+        powershell -ExecutionPolicy Bypass -File "%~dp0manage-task.ps1" -Action restart
         echo [完成] 已回滚 !ROLLBACK_TAG! >> "%LOG_FILE%"
         echo   已回滚到 !ROLLBACK_TAG!，请检查服务状态。
     ) else (
