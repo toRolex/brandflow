@@ -224,6 +224,8 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │
 ├── tests/                    # pytest 测试
 │
+├── tools/                    # 辅助脚本（export_metrics_json / sync_version）
+│
 └── llm_libraries/            # LLM 能力库（script/packaging/correction）
 ```
 
@@ -247,6 +249,9 @@ uv run pytest tests/ -q                # 全量测试
 
 # 构建前端（生产）
 cd frontend && npm run build
+
+# 版本同步
+uv run python tools/sync_version.py    # 同步版本到 package.json 和 CONTEXT.md
 ```
 
 ## 前端视觉设计
