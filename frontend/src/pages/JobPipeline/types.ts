@@ -24,6 +24,7 @@ export interface PanelProps {
 	activeStepKey: string;
 	scriptContent: string;
 	selectedClips: Record<string, unknown>[];
+	selectedClipsLoadState: "idle" | "loading" | "ready" | "failed";
 	rejectedClips: Set<number>;
 	showAllBlankConfirm: boolean;
 	sceneFolders: SceneFolder[];

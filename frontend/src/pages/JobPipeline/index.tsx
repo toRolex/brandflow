@@ -90,6 +90,9 @@ export default function JobPipeline() {
 	const [selectedClips, setSelectedClips] = useState<Record<string, unknown>[]>(
 		[],
 	);
+	const [selectedClipsLoadState, setSelectedClipsLoadState] = useState<
+		"idle" | "loading" | "ready" | "failed"
+	>("idle");
 	const [rejectedClips, setRejectedClips] = useState<Set<number>>(new Set());
 	const [showAllBlankConfirm, setShowAllBlankConfirm] = useState(false);
 	const [sceneFolders, setSceneFolders] = useState<SceneFolder[]>([]);
@@ -177,12 +180,20 @@ export default function JobPipeline() {
 			(a) => a.kind === "selected_clips",
 		);
 		if (clipsArtifact?.url) {
+			setSelectedClipsLoadState("loading");
 			fetch(clipsArtifact.url)
 				.then((r) => r.json())
-				.then((data) => setSelectedClips(Array.isArray(data) ? data : []))
-				.catch(() => setSelectedClips([]));
+				.then((data) => {
+					setSelectedClips(Array.isArray(data) ? data : []);
+					setSelectedClipsLoadState("ready");
+				})
+				.catch(() => {
+					setSelectedClips([]);
+					setSelectedClipsLoadState("failed");
+				});
 		} else {
 			setSelectedClips([]);
+			setSelectedClipsLoadState("idle");
 		}
 	}, [job, job?.artifacts]);
 
@@ -603,6 +614,7 @@ export default function JobPipeline() {
 		activeStepKey,
 		scriptContent,
 		selectedClips,
+		selectedClipsLoadState,
 		rejectedClips,
 		showAllBlankConfirm,
 		sceneFolders,
