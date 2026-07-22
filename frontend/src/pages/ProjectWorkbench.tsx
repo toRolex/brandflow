@@ -9,6 +9,7 @@ import InlineBanner from "../components/InlineBanner";
 import Modal from "../components/Modal";
 import ProjectTabs from "../components/ProjectTabs";
 import WorkbenchShell from "../components/WorkbenchShell";
+import { useProducts } from "../ProductContext";
 import type {
 	JobSummary,
 	MusicTrack,
@@ -55,9 +56,12 @@ export default function ProjectWorkbench() {
 	const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
 	const [templates, setTemplates] = useState<ScriptTemplate[]>([]);
 
+	/* ── 产品配置 ── */
+	const { activeProductConfig } = useProducts();
+	const productName = activeProductConfig?.default_name ?? "";
+	const productBrand = activeProductConfig?.default_brand ?? "";
+
 	/* ── 创建表单共享状态 ── */
-	const [product, setProduct] = useState("");
-	const [brand, setBrand] = useState("");
 	const [platforms, setPlatforms] = useState<string[]>([
 		"douyin",
 		"xiaohongshu",
@@ -82,7 +86,6 @@ export default function ProjectWorkbench() {
 		Record<string, string>
 	>({});
 	const [showTemplateSection, setShowTemplateSection] = useState(false);
-	const [sceneFolderIds, setSceneFolderIds] = useState<string[]>([]);
 
 	/* ── ConfirmDialog 状态 ── */
 	const [confirmOpen, setConfirmOpen] = useState(false);
@@ -151,15 +154,8 @@ export default function ProjectWorkbench() {
 			const tmpl = templates.find((t) => t.id === tmplId);
 			if (!tmpl) return;
 
-			let defaultName = product;
-			let defaultBrand = brand;
-			try {
-				const cfg = await api.getProductConfig();
-				defaultName = (cfg.default_name as string) || product;
-				defaultBrand = (cfg.default_brand as string) || brand;
-			} catch {
-				// 产品配置不可用时回退到当前输入框的值
-			}
+			const defaultName = productName;
+			const defaultBrand = productBrand;
 
 			const values: Record<string, string> = {};
 			for (const v of tmpl.variables) {
@@ -195,8 +191,6 @@ export default function ProjectWorkbench() {
 		if (!id) return;
 		try {
 			const job = await api.createJob(id, {
-				product: form.product,
-				brand: form.brand || undefined,
 				platforms: form.platforms,
 				name: form.name || undefined,
 				mode: form.mode,
@@ -215,8 +209,6 @@ export default function ProjectWorkbench() {
 								.filter(Boolean),
 						}
 					: undefined,
-				scene_folder_ids:
-					form.mode === "import" ? form.scene_folder_ids : undefined,
 			});
 			if (form.audio_source === "upload" && form.audioFile) {
 				try {
@@ -239,8 +231,6 @@ export default function ProjectWorkbench() {
 
 	/* ── 批量创建 ── */
 	const handleBatchCreate = async (payload: {
-		product: string;
-		brand?: string;
 		platforms: string[];
 		autoApprove: boolean;
 		jobs: BatchConfig[];
@@ -248,13 +238,10 @@ export default function ProjectWorkbench() {
 		if (!id) return;
 		try {
 			await api.batchCreateJobs(id, {
-				product: payload.product,
-				brand: payload.brand || undefined,
 				platforms: payload.platforms,
 				auto_approve: payload.autoApprove,
 				jobs: payload.jobs.map((c, i) => ({
-					name:
-						c.name || `${payload.product} #${String(i + 1).padStart(3, "0")}`,
+					name: c.name || `${productName} #${String(i + 1).padStart(3, "0")}`,
 					mode: c.productionMode,
 					manual_script: c.manualScript,
 					skip_subtitle: c.skipSubtitle,
@@ -271,8 +258,6 @@ export default function ProjectWorkbench() {
 									.filter(Boolean),
 							}
 						: undefined,
-					scene_folder_ids:
-						c.productionMode === "import" ? c.sceneFolderIds : undefined,
 				})),
 			});
 			load();
@@ -407,10 +392,7 @@ export default function ProjectWorkbench() {
 
 				{batchMode ? (
 					<BatchCreateForm
-						product={product}
-						setProduct={setProduct}
-						brand={brand}
-						setBrand={setBrand}
+						productName={productName}
 						platforms={platforms}
 						togglePlatform={togglePlatform}
 						musicTracks={musicTracks}
@@ -419,10 +401,7 @@ export default function ProjectWorkbench() {
 					/>
 				) : (
 					<CreateJobForm
-						product={product}
-						setProduct={setProduct}
-						brand={brand}
-						setBrand={setBrand}
+						productName={productName}
 						platforms={platforms}
 						togglePlatform={togglePlatform}
 						jobName={jobName}
@@ -448,8 +427,6 @@ export default function ProjectWorkbench() {
 						setCoverTitleText={setCoverTitleText}
 						coverHighlightWords={coverHighlightWords}
 						setCoverHighlightWords={setCoverHighlightWords}
-						sceneFolderIds={sceneFolderIds}
-						setSceneFolderIds={setSceneFolderIds}
 						templates={templates}
 						selectedTemplateId={selectedTemplateId}
 						setSelectedTemplateId={setSelectedTemplateId}

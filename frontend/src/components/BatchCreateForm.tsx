@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { PLATFORMS } from "../constants/platforms";
-import type { MusicTrack, SceneFolder } from "../types";
+import type { MusicTrack } from "../types";
 import {
 	type BatchConfig,
 	defaultBatchConfig,
@@ -9,16 +9,11 @@ import {
 import BatchScriptUploader from "./BatchScriptUploader";
 
 interface BatchCreateFormProps {
-	product: string;
-	setProduct: (v: string) => void;
-	brand: string;
-	setBrand: (v: string) => void;
+	productName: string;
 	platforms: string[];
 	togglePlatform: (p: string) => void;
 	musicTracks: MusicTrack[];
 	onBatchCreate: (payload: {
-		product: string;
-		brand?: string;
 		platforms: string[];
 		autoApprove: boolean;
 		jobs: BatchConfig[];
@@ -28,10 +23,7 @@ interface BatchCreateFormProps {
 
 export default function BatchCreateForm(props: BatchCreateFormProps) {
 	const {
-		product,
-		setProduct,
-		brand,
-		setBrand,
+		productName,
 		platforms,
 		togglePlatform,
 		musicTracks,
@@ -50,29 +42,6 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 	const [batchCoverCooldown, setBatchCoverCooldown] = useState<Set<number>>(
 		new Set(),
 	);
-	const [sceneFolders, setSceneFolders] = useState<SceneFolder[]>([]);
-	const [sceneFolderIds, setSceneFolderIds] = useState<string[]>([]);
-	const [sceneFoldersLoading, setSceneFoldersLoading] = useState(false);
-
-	const hasImportJob = batchConfigs.some((c) => c.productionMode === "import");
-
-	useEffect(() => {
-		if (!hasImportJob || !product) {
-			setSceneFoldersLoading(false);
-			setSceneFolders([]);
-			return;
-		}
-		setSceneFoldersLoading(true);
-		api
-			.getSceneFolders(product)
-			.then((data) => setSceneFolders(data.folders))
-			.catch(() => onError("加载场景文件夹失败"))
-			.finally(() => setSceneFoldersLoading(false));
-	}, [product, hasImportJob, onError]);
-
-	useEffect(() => {
-		setBatchConfigs((prev) => prev.map((c) => ({ ...c, sceneFolderIds })));
-	}, [sceneFolderIds]);
 
 	useEffect(() => {
 		setBatchConfigs((prev) => {
@@ -109,8 +78,6 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 		setBatchCreating(true);
 		try {
 			await onBatchCreate({
-				product,
-				brand: brand || undefined,
 				platforms,
 				autoApprove,
 				jobs: batchConfigs,
@@ -122,44 +89,8 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 
 	return (
 		<>
-			{/* shared fields */}
+			{/* shared fields: platforms */}
 			<div className="flex gap-4 flex-wrap items-end">
-				<label
-					className="grid w-full gap-1.5 text-xs sm:w-auto sm:min-w-[200px]"
-					style={{ color: "var(--text-secondary)" }}
-				>
-					产品名称
-					<input
-						type="text"
-						className="border rounded-lg px-3 py-2 text-sm"
-						style={{
-							background: "var(--bg-input)",
-							borderColor: "var(--border-default)",
-							color: "var(--text-primary)",
-						}}
-						placeholder="如：龙井茶"
-						value={product}
-						onChange={(e) => setProduct(e.target.value)}
-					/>
-				</label>
-				<label
-					className="grid w-full gap-1.5 text-xs sm:w-auto sm:min-w-[160px]"
-					style={{ color: "var(--text-secondary)" }}
-				>
-					品牌（可选）
-					<input
-						type="text"
-						className="border rounded-lg px-3 py-2 text-sm"
-						style={{
-							background: "var(--bg-input)",
-							borderColor: "var(--border-default)",
-							color: "var(--text-primary)",
-						}}
-						placeholder="如：您的品牌名"
-						value={brand}
-						onChange={(e) => setBrand(e.target.value)}
-					/>
-				</label>
 				<div
 					className="grid gap-1 text-xs"
 					style={{ color: "var(--text-secondary)" }}
@@ -182,56 +113,6 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 						))}
 					</div>
 				</div>
-			</div>
-
-			{/* Scene Folder Selector (used by import-mode jobs) */}
-			<div className="mt-4">
-				<span
-					className="text-xs font-medium"
-					style={{ color: "var(--text-secondary)" }}
-				>
-					场景文件夹（导入模式）
-				</span>
-				{sceneFoldersLoading ? (
-					<p
-						className="text-xs mt-1"
-						style={{ color: "var(--text-secondary)" }}
-					>
-						加载中...
-					</p>
-				) : sceneFolders.length === 0 ? (
-					<p
-						className="text-xs mt-1"
-						style={{ color: "var(--text-secondary)" }}
-					>
-						未配置场景文件夹
-					</p>
-				) : (
-					<div className="flex flex-wrap gap-3 mt-1.5">
-						{sceneFolders.map((folder) => (
-							<label
-								key={folder.path}
-								className="flex items-center gap-1.5 text-sm cursor-pointer"
-								style={{ color: "var(--text-primary)" }}
-							>
-								<input
-									type="checkbox"
-									checked={sceneFolderIds.includes(folder.path)}
-									onChange={(e) => {
-										if (e.target.checked) {
-											setSceneFolderIds([...sceneFolderIds, folder.path]);
-										} else {
-											setSceneFolderIds(
-												sceneFolderIds.filter((id) => id !== folder.path),
-											);
-										}
-									}}
-								/>
-								{folder.name}
-							</label>
-						))}
-					</div>
-				)}
 			</div>
 
 			{/* batch count + uploader */}
@@ -273,7 +154,7 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 					index={i}
 					config={c}
 					updateConfig={(partial) => updateBatchConfig(i, partial)}
-					productName={product}
+					productName={productName}
 					musicTracks={musicTracks}
 					coverCooldown={batchCoverCooldown.has(i)}
 					setCoverCooldown={(v) => {

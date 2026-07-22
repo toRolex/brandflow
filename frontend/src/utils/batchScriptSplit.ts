@@ -13,7 +13,6 @@ export interface BatchConfig {
 	musicVolume: number;
 	coverTitleText: string;
 	coverHighlightWords: string;
-	sceneFolderIds: string[];
 }
 
 export function defaultBatchConfig(): BatchConfig {
@@ -30,7 +29,6 @@ export function defaultBatchConfig(): BatchConfig {
 		musicVolume: 80,
 		coverTitleText: "",
 		coverHighlightWords: "",
-		sceneFolderIds: [],
 	};
 }
 

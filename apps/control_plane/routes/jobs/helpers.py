@@ -14,23 +14,17 @@ from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
 
 
-def _resolve_product_defaults(
-    product: str, brand: str, root_dir: Path | str
-) -> tuple[str, str]:
-    """当 product/brand 同时为空时从 product config 读取默认值."""
-    if product.strip():
-        return product, brand
+def _resolve_product_from_config(root_dir: Path | str) -> tuple[str, str]:
+    """从 active product config 读取产品名称和品牌."""
     reader = ConfigReader(config_dir=str(Path(root_dir) / "config"))
     active_id = reader.active_product_id
     cfg = (
-        reader.get_product_config(product_id=active_id)
-        if active_id
-        else reader.get_product_config()
+        reader.get_product_config(product_id=active_id) if active_id else reader.get_product_config()
     )
     default_name = cfg.get("default_name", "")
     if not default_name:
-        return product, brand
-    return default_name, cfg.get("default_brand", brand)
+        return "", ""
+    return default_name, cfg.get("default_brand", "")
 
 
 def _validate_import_scene_folders(
