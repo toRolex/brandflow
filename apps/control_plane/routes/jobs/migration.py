@@ -75,7 +75,9 @@ def retry_job(request: Request, job_id: str):
         transition_duration_ms=scene_config.get("transition_duration_ms", 500),
         scene_config=scene_config,
     )
-    validation_error = request.app.state.orchestrator.validate_phase_input(
+    from apps.control_plane.app import _get_orchestrator
+
+    validation_error = _get_orchestrator(request.app).validate_phase_input(
         record.failed_phase, ctx
     )
     if validation_error is not None:

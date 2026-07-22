@@ -161,6 +161,16 @@ async def lifespan(app: FastAPI):
             shutdown(wait=False, cancel_futures=True)
 
 
+def _get_orchestrator(app: FastAPI):
+    orchestrator = getattr(app.state, "orchestrator", None)
+    if orchestrator is None:
+        orchestrator = create_orchestrator(
+            app.state.root_dir, config_reader=app.state.config_reader
+        )
+        app.state.orchestrator = orchestrator
+    return orchestrator
+
+
 def create_app(root_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="Brandflow Control Plane", lifespan=lifespan)
 
@@ -183,9 +193,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     config_dir.mkdir(parents=True, exist_ok=True)
     reader = ConfigReader(config_dir=str(config_dir))
     app.state.config_reader = reader
-    app.state.orchestrator = create_orchestrator(
-        app.state.root_dir, config_reader=reader
-    )
+    app.state.orchestrator = None
     app.state.product_store = ProductStore(
         reader=reader, config_path=config_dir / "app_config.json"
     )
