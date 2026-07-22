@@ -44,6 +44,7 @@ markers = [
     "slow: long-running tests",
     "e2e: end-to-end tests",
 ]
+addopts = "-m 'not e2e'"
 
 [[tool.uv.index]]
 url = "http://mirrors.aliyun.com/pypi/simple/"
