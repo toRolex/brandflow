@@ -203,7 +203,6 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			vi.mocked(api.batchCreateJobs).mockResolvedValue({
 				product: "批量产品",
 				platforms: ["douyin"],
-				auto_approve: false,
 				review_strategy: "review_each",
 				count: 2,
 				results: [
@@ -214,7 +213,6 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 						name: "批量产品 #001",
 						phase: "queued" as const,
 						skip_subtitle: false,
-						auto_approve: false,
 						mode: "generate",
 						review_strategy: "review_each",
 					},
@@ -225,7 +223,6 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 						name: "批量产品 #002",
 						phase: "queued" as const,
 						skip_subtitle: false,
-						auto_approve: false,
 						mode: "generate",
 						review_strategy: "review_each",
 					},
