@@ -473,9 +473,9 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
 
     from packages.pipeline_services.asset_library import AssetRepository
 
-    asset_repo = AssetRepository(
-        root_dir / "workspace" / "shared_assets" / "asset_index.db"
-    )
+    asset_db = root_dir / "workspace" / "shared_assets" / "asset_index.db"
+    asset_db.parent.mkdir(parents=True, exist_ok=True)
+    asset_repo = AssetRepository(asset_db)
     asset = asset_repo.query_one(payload.asset_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="asset not found")
