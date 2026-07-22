@@ -15,6 +15,6 @@ jobs:
       - name: Deploy
         shell: cmd
         run: |
-          xcopy /y /e /q "%CD%\*" "D:\brandflow\" >nul
           cd /d D:\brandflow
+          git pull origin main
           call packaging\windows\deploy.bat
