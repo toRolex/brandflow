@@ -12,8 +12,13 @@ from packages.file_store.repository import FileStoreRepository
 
 
 @pytest.fixture
-def client():
-    app = create_app()
+def client(tmp_path):
+    (tmp_path / "config").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "config" / "app_config.json").write_text(
+        '{"active_product_id": "test", "products": [{"id": "test", "default_name": "test_product", "default_brand": "test_brand"}]}',
+        encoding="utf-8",
+    )
+    app = create_app(root_dir=tmp_path)
     with TestClient(app) as c:
         yield c
 
