@@ -103,7 +103,7 @@ if not exist "%PROJECT_DIR%\.env" (
 echo [3/7] 拉取最新代码 ...
 git fetch --tags
 git tag -a "deploy-%date:~0,4%%date:~5,2%%date:~8,2%-%time:~0,2%%time:~3,2%%time:~6,2%" -m "deploy before update" >nul 2>&1
-git pull
+git pull --rebase
 if %errorlevel% neq 0 (
     echo [错误] git pull 失败，请检查网络或冲突 >> "%LOG_FILE%"
     pause

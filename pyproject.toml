@@ -1,7 +1,7 @@
 [project]
 name = "brandflow-pipeline"
 
-version = "0.7.16"
+version = "0.7.17"
 
 description = "Local short-video automation pipeline"
 requires-python = ">=3.11"
@@ -42,7 +42,12 @@ pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
     "slow: long-running tests",
+    "media_integration: tests that invoke real FFmpeg and may use substantial memory",
     "e2e: end-to-end tests",
+]
+addopts = "-m 'not e2e and not slow and not media_integration' -p no:cacheprovider --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
 ]
 
 [[tool.uv.index]]

@@ -16,7 +16,7 @@ def test_health_returns_version_from_pyproject() -> None:
     with open(_PYPROJECT, "rb") as f:
         expected = tomllib.load(f)["project"]["version"]
 
-    client = TestClient(create_app())
-    resp = client.get("/api/health")
-    assert resp.status_code == 200
-    assert resp.json()["version"] == expected
+    with TestClient(create_app()) as client:
+        resp = client.get("/api/health")
+        assert resp.status_code == 200
+        assert resp.json()["version"] == expected

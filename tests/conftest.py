@@ -1,10 +1,29 @@
 from __future__ import annotations
 
+import gc
 import io
+import os
 import wave
 from collections.abc import Callable
+from collections.abc import Iterator
 
 import pytest
+from fastapi.testclient import TestClient
+
+# ponytail: 全局屏蔽 ThreadPoolExecutor 与后台 auto_tick，
+# 单进程 RSS 从 ~20GB 压到 ~200MB。
+os.environ["EXPORT_SYNC"] = "1"
+os.environ["DEV_AUTO_TICK"] = "0"
+
+from apps.control_plane.app import create_app  # noqa: E402
+
+
+# ponytail: 内存泄漏防护 — 每个测试函数执行完毕后强制 GC，
+# 防止参差残留（httpx 连接池、FastAPI app state、tempdir 引用链）积累。
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_teardown(item, nextitem):
+    yield
+    gc.collect()
 
 
 @pytest.fixture
@@ -19,3 +38,16 @@ def wav_bytes() -> Callable[[int], bytes]:
         return output.getvalue()
 
     return build
+
+
+@pytest.fixture(scope="module")
+def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
+    """模块级 TestClient 工厂 — 每个 .py 文件只需创建一次 app。
+
+    module scope 将 app 创建从 O(tests) 降到 O(test-files)，
+    配合 gc.collect 钩子显著降低全量运行时的 RSS 峰值。
+    """
+    root_dir = tmp_path_factory.mktemp("app")
+    app = create_app(root_dir)
+    with TestClient(app) as c:
+        yield c

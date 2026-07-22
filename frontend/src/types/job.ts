@@ -27,7 +27,6 @@ export interface JobSummary {
 	auto_approve?: boolean;
 	mode?: ProductionMode;
 	artifacts?: Artifact[];
-	scene_folder_ids?: string[];
 }
 
 export interface JobDetail {
@@ -51,7 +50,6 @@ export interface JobDetail {
 	mode?: ProductionMode;
 	tts_model?: string;
 	tts_voice?: string;
-	scene_folder_ids?: string[];
 }
 
 export interface BatchJobItem {
@@ -64,12 +62,9 @@ export interface BatchJobItem {
 	music_volume?: number;
 	language?: string;
 	cover_title?: CoverTitle | null;
-	scene_folder_ids?: string[];
 }
 
 export interface BatchCreateRequest {
-	product: string;
-	brand?: string;
 	platforms: string[];
 	auto_approve?: boolean;
 	jobs: BatchJobItem[];

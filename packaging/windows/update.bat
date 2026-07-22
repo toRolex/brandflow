@@ -8,53 +8,50 @@ pushd "%PROJECT_DIR%"
 set "PROJECT_DIR=%CD%"
 popd
 
-echo ============================================
-echo  Brandflow 快速更新
-echo  1. 拉取最新代码
-echo  2. 编译前端
-echo  3. 重启后端服务
-echo ============================================
-echo.
+set "LOG_FILE=%~dp0update.log"
+
+echo ============================================ >> "%LOG_FILE%" 2>&1
+echo  Brandflow 快速更新 >> "%LOG_FILE%" 2>&1
+echo  1. 拉取最新代码 >> "%LOG_FILE%" 2>&1
+echo  2. 编译前端 >> "%LOG_FILE%" 2>&1
+echo  3. 重启后端服务 >> "%LOG_FILE%" 2>&1
+echo ============================================ >> "%LOG_FILE%" 2>&1
 
 :: --- 1. 拉取最新代码 ---
-echo [1/3] 拉取最新代码 ...
-git pull
+echo [1/3] 拉取最新代码 ... >> "%LOG_FILE%" 2>&1
+git pull >> "%LOG_FILE%" 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] git pull 失败，请检查网络或冲突
-    pause
-    exit /b 1
+    echo [错误] git pull 失败，请检查网络或冲突 >> "%LOG_FILE%" 2>&1
+    exit /b %errorlevel%
 )
-echo   完成。
 
 :: --- 2. 编译前端 ---
-echo [2/3] 编译前端 ...
+echo [2/3] 编译前端 ... >> "%LOG_FILE%" 2>&1
 pushd "%PROJECT_DIR%\frontend"
-call pnpm install --no-frozen-lockfile
+call pnpm install --no-frozen-lockfile >> "%LOG_FILE%" 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] pnpm install 失败
-    popd & pause & exit /b 1
+    echo [错误] pnpm install 失败 >> "%LOG_FILE%" 2>&1
+    popd
+    exit /b %errorlevel%
 )
-call pnpm build
+call pnpm build >> "%LOG_FILE%" 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] pnpm build 失败
-    popd & pause & exit /b 1
+    echo [错误] pnpm build 失败 >> "%LOG_FILE%" 2>&1
+    popd
+    exit /b %errorlevel%
 )
 popd
-echo   完成。
 
 :: --- 3. 重启后端服务 ---
-echo [3/3] 重启后端服务 ...
-nssm restart brandflow-control-plane
+echo [3/3] 重启后端服务 ... >> "%LOG_FILE%" 2>&1
+nssm restart brandflow-control-plane >> "%LOG_FILE%" 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] nssm restart 失败，尝试 nssm start ...
-    nssm start brandflow-control-plane
+    echo [错误] nssm restart 失败，尝试 nssm start ... >> "%LOG_FILE%" 2>&1
+    nssm start brandflow-control-plane >> "%LOG_FILE%" 2>&1
 )
-echo   完成。
 
-echo.
-echo ============================================
-echo  更新完成！
-echo  后端: http://127.0.0.1:17890
-echo ============================================
-echo.
-pause
+echo. >> "%LOG_FILE%" 2>&1
+echo ============================================ >> "%LOG_FILE%" 2>&1
+echo  更新完成！ >> "%LOG_FILE%" 2>&1
+echo  后端: http://127.0.0.1:17890 >> "%LOG_FILE%" 2>&1
+echo ============================================ >> "%LOG_FILE%" 2>&1

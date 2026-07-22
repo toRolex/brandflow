@@ -124,51 +124,51 @@ class TestSingleEnableTriggersReclassify:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "烹饪翻炒", 0.92)
 
-        client = _make_client(tmp_path)
-        db_path = _setup_asset(tmp_path, status="classification_failed")
+        with _make_client(tmp_path) as client:
+            db_path = _setup_asset(tmp_path, status="classification_failed")
 
-        resp = client.patch(
-            "/api/assets/auto_reclassify_001", json={"status": "available"}
-        )
-        assert resp.status_code == 200
-        assert resp.json()["updated"] == 1
+            resp = client.patch(
+                "/api/assets/auto_reclassify_001", json={"status": "available"}
+            )
+            assert resp.status_code == 200
+            assert resp.json()["updated"] == 1
 
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT status, category, confidence FROM assets WHERE asset_id = ?",
-            ("auto_reclassify_001",),
-        ).fetchone()
-        conn.close()
-        assert row["status"] == "available"
-        assert row["category"] == "烹饪翻炒"
-        assert row["confidence"] == 0.92
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT status, category, confidence FROM assets WHERE asset_id = ?",
+                ("auto_reclassify_001",),
+            ).fetchone()
+            conn.close()
+            assert row["status"] == "available"
+            assert row["category"] == "烹饪翻炒"
+            assert row["confidence"] == 0.92
 
     def test_zero_confidence_triggers_reclassify(self, tmp_path, monkeypatch) -> None:
         _mock_validate_vision_config_ok(monkeypatch)
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "成品展示", 0.99)
 
-        client = _make_client(tmp_path)
-        db_path = _setup_asset(
-            tmp_path, status="available", confidence=0.0, category="产品特写"
-        )
+        with _make_client(tmp_path) as client:
+            db_path = _setup_asset(
+                tmp_path, status="available", confidence=0.0, category="产品特写"
+            )
 
-        resp = client.patch(
-            "/api/assets/auto_reclassify_001", json={"status": "available"}
-        )
-        assert resp.status_code == 200
-        assert resp.json()["updated"] == 1
+            resp = client.patch(
+                "/api/assets/auto_reclassify_001", json={"status": "available"}
+            )
+            assert resp.status_code == 200
+            assert resp.json()["updated"] == 1
 
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT status, category, confidence FROM assets WHERE asset_id = ?",
-            ("auto_reclassify_001",),
-        ).fetchone()
-        conn.close()
-        assert row["status"] == "available"
-        assert row["confidence"] == 0.99
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT status, category, confidence FROM assets WHERE asset_id = ?",
+                ("auto_reclassify_001",),
+            ).fetchone()
+            conn.close()
+            assert row["status"] == "available"
+            assert row["confidence"] == 0.99
 
     def test_invalid_category_triggers_reclassify(self, tmp_path, monkeypatch) -> None:
         """Asset with category not in active list triggers reclassify."""
@@ -187,26 +187,26 @@ class TestSingleEnableTriggersReclassify:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "开箱展示", 0.88)
 
-        client = _make_client(tmp_path)
-        # Asset has "产品特写" which is NOT in the active list
-        db_path = _setup_asset(
-            tmp_path, status="available", confidence=0.85, category="产品特写"
-        )
+        with _make_client(tmp_path) as client:
+            # Asset has "产品特写" which is NOT in the active list
+            db_path = _setup_asset(
+                tmp_path, status="available", confidence=0.85, category="产品特写"
+            )
 
-        resp = client.patch(
-            "/api/assets/auto_reclassify_001", json={"status": "available"}
-        )
-        assert resp.status_code == 200
-        assert resp.json()["updated"] == 1
+            resp = client.patch(
+                "/api/assets/auto_reclassify_001", json={"status": "available"}
+            )
+            assert resp.status_code == 200
+            assert resp.json()["updated"] == 1
 
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT category, confidence FROM assets WHERE asset_id = ?",
-            ("auto_reclassify_001",),
-        ).fetchone()
-        conn.close()
-        assert row["category"] == "开箱展示"
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT category, confidence FROM assets WHERE asset_id = ?",
+                ("auto_reclassify_001",),
+            ).fetchone()
+            conn.close()
+            assert row["category"] == "开箱展示"
 
 
 # ── Single asset: reclassify failure paths ────────────────────────────────
@@ -220,14 +220,14 @@ class TestSingleEnableReclassifyFails:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "产品特写", 0.0)
 
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path, status="classification_failed")
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path, status="classification_failed")
 
-        resp = client.patch(
-            "/api/assets/auto_reclassify_001", json={"status": "available"}
-        )
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "zero_confidence"
+            resp = client.patch(
+                "/api/assets/auto_reclassify_001", json={"status": "available"}
+            )
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "zero_confidence"
 
     def test_vision_config_invalid(self, tmp_path, monkeypatch) -> None:
         def _raise(*a, **kw):
@@ -238,14 +238,14 @@ class TestSingleEnableReclassifyFails:
             _raise,
         )
 
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path, status="classification_failed")
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path, status="classification_failed")
 
-        resp = client.patch(
-            "/api/assets/auto_reclassify_001", json={"status": "available"}
-        )
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "vision_config_invalid"
+            resp = client.patch(
+                "/api/assets/auto_reclassify_001", json={"status": "available"}
+            )
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "vision_config_invalid"
 
     def test_vision_returns_unknown_category(self, tmp_path, monkeypatch) -> None:
         _write_config(
@@ -264,16 +264,16 @@ class TestSingleEnableReclassifyFails:
         # Vision returns a category NOT in the active list
         _mock_classify_frame(monkeypatch, "不存在的分类", 0.85)
 
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path, status="classification_failed")
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path, status="classification_failed")
 
-        resp = client.patch(
-            "/api/assets/auto_reclassify_001", json={"status": "available"}
-        )
-        assert resp.status_code == 422
-        detail = resp.json()["detail"]
-        assert detail["code"] == "unknown_category"
-        assert "不存在的分类" in detail["message"]
+            resp = client.patch(
+                "/api/assets/auto_reclassify_001", json={"status": "available"}
+            )
+            assert resp.status_code == 422
+            detail = resp.json()["detail"]
+            assert detail["code"] == "unknown_category"
+            assert "不存在的分类" in detail["message"]
 
 
 # ── Single asset: no reclassify needed ────────────────────────────────────
@@ -284,73 +284,79 @@ class TestSingleEnableNoReclassify:
 
     def test_already_good_asset(self, tmp_path, monkeypatch) -> None:
         """Asset with confidence>0 and valid category -> no reclassify."""
-        client = _make_client(tmp_path)
-        db_path = _setup_asset(
-            tmp_path, status="available", confidence=0.95, category="产品特写"
-        )
+        with _make_client(tmp_path) as client:
+            db_path = _setup_asset(
+                tmp_path, status="available", confidence=0.95, category="产品特写"
+            )
 
-        resp = client.patch(
-            "/api/assets/auto_reclassify_001", json={"status": "available"}
-        )
-        assert resp.status_code == 200
-        assert resp.json()["updated"] == 1
+            resp = client.patch(
+                "/api/assets/auto_reclassify_001", json={"status": "available"}
+            )
+            assert resp.status_code == 200
+            assert resp.json()["updated"] == 1
 
-        # Should NOT have triggered reclassify (confidence unchanged)
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT status, confidence FROM assets WHERE asset_id = ?",
-            ("auto_reclassify_001",),
-        ).fetchone()
-        conn.close()
-        assert row["status"] == "available"
-        assert row["confidence"] == 0.95
+            # Should NOT have triggered reclassify (confidence unchanged)
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT status, confidence FROM assets WHERE asset_id = ?",
+                ("auto_reclassify_001",),
+            ).fetchone()
+            conn.close()
+            assert row["status"] == "available"
+            assert row["confidence"] == 0.95
 
     def test_status_disabled_no_reclassify(self, tmp_path, monkeypatch) -> None:
-        client = _make_client(tmp_path)
-        db_path = _setup_asset(tmp_path, status="classification_failed", confidence=0.0)
+        with _make_client(tmp_path) as client:
+            db_path = _setup_asset(
+                tmp_path, status="classification_failed", confidence=0.0
+            )
 
-        resp = client.patch(
-            "/api/assets/auto_reclassify_001", json={"status": "disabled"}
-        )
-        assert resp.status_code == 200
-        assert resp.json()["updated"] == 1
+            resp = client.patch(
+                "/api/assets/auto_reclassify_001", json={"status": "disabled"}
+            )
+            assert resp.status_code == 200
+            assert resp.json()["updated"] == 1
 
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT status FROM assets WHERE asset_id = ?",
-            ("auto_reclassify_001",),
-        ).fetchone()
-        conn.close()
-        assert row["status"] == "disabled"
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT status FROM assets WHERE asset_id = ?",
+                ("auto_reclassify_001",),
+            ).fetchone()
+            conn.close()
+            assert row["status"] == "disabled"
 
     def test_status_pending_review_no_reclassify(self, tmp_path, monkeypatch) -> None:
-        client = _make_client(tmp_path)
-        db_path = _setup_asset(tmp_path, status="classification_failed", confidence=0.0)
+        with _make_client(tmp_path) as client:
+            db_path = _setup_asset(
+                tmp_path, status="classification_failed", confidence=0.0
+            )
 
-        resp = client.patch(
-            "/api/assets/auto_reclassify_001", json={"status": "pending_review"}
-        )
-        assert resp.status_code == 200
-        assert resp.json()["updated"] == 1
+            resp = client.patch(
+                "/api/assets/auto_reclassify_001", json={"status": "pending_review"}
+            )
+            assert resp.status_code == 200
+            assert resp.json()["updated"] == 1
 
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT status FROM assets WHERE asset_id = ?",
-            ("auto_reclassify_001",),
-        ).fetchone()
-        conn.close()
-        assert row["status"] == "pending_review"
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT status FROM assets WHERE asset_id = ?",
+                ("auto_reclassify_001",),
+            ).fetchone()
+            conn.close()
+            assert row["status"] == "pending_review"
 
     def test_asset_not_found_404(self, tmp_path, monkeypatch) -> None:
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path)
 
-        resp = client.patch("/api/assets/does_not_exist", json={"status": "available"})
-        assert resp.status_code == 404
-        assert "not found" in resp.json()["detail"].lower()
+            resp = client.patch(
+                "/api/assets/does_not_exist", json={"status": "available"}
+            )
+            assert resp.status_code == 404
+            assert "not found" in resp.json()["detail"].lower()
 
 
 # ── Batch enable ──────────────────────────────────────────────────────────
@@ -404,40 +410,40 @@ class TestBatchEnable:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "烹饪翻炒", 0.92)
 
-        client = _make_client(tmp_path)
-        db_path, asset_ids = _setup_multi_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            db_path, asset_ids = _setup_multi_asset(tmp_path)
 
-        resp = client.patch(
-            "/api/assets/batch",
-            json={"asset_ids": asset_ids, "status": "available"},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["updated"] == len(asset_ids)
+            resp = client.patch(
+                "/api/assets/batch",
+                json={"asset_ids": asset_ids, "status": "available"},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["updated"] == len(asset_ids)
 
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        for aid in asset_ids:
-            row = conn.execute(
-                "SELECT status FROM assets WHERE asset_id = ?", (aid,)
-            ).fetchone()
-            assert row["status"] == "available"
-        conn.close()
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            for aid in asset_ids:
+                row = conn.execute(
+                    "SELECT status FROM assets WHERE asset_id = ?", (aid,)
+                ).fetchone()
+                assert row["status"] == "available"
+            conn.close()
 
     def test_batch_vision_zero_confidence(self, tmp_path, monkeypatch) -> None:
         _mock_validate_vision_config_ok(monkeypatch)
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "产品特写", 0.0)
 
-        client = _make_client(tmp_path)
-        db_path, asset_ids = _setup_multi_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            db_path, asset_ids = _setup_multi_asset(tmp_path)
 
-        resp = client.patch(
-            "/api/assets/batch",
-            json={"asset_ids": asset_ids, "status": "available"},
-        )
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "zero_confidence"
+            resp = client.patch(
+                "/api/assets/batch",
+                json={"asset_ids": asset_ids, "status": "available"},
+            )
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "zero_confidence"
 
     def test_batch_vision_config_invalid(self, tmp_path, monkeypatch) -> None:
         def _raise(*a, **kw):
@@ -448,74 +454,74 @@ class TestBatchEnable:
             _raise,
         )
 
-        client = _make_client(tmp_path)
-        db_path, asset_ids = _setup_multi_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            db_path, asset_ids = _setup_multi_asset(tmp_path)
 
-        resp = client.patch(
-            "/api/assets/batch",
-            json={"asset_ids": asset_ids, "status": "available"},
-        )
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "vision_config_invalid"
+            resp = client.patch(
+                "/api/assets/batch",
+                json={"asset_ids": asset_ids, "status": "available"},
+            )
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "vision_config_invalid"
 
     def test_batch_no_reclassify_needed(self, tmp_path, monkeypatch) -> None:
         """All assets already good -> simple batch update."""
-        client = _make_client(tmp_path)
-        db_path, asset_ids = _setup_multi_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            db_path, asset_ids = _setup_multi_asset(tmp_path)
 
-        # All assets are already "available", change to "disabled"
-        resp = client.patch(
-            "/api/assets/batch",
-            json={"asset_ids": asset_ids, "status": "disabled"},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["updated"] == len(asset_ids)
+            # All assets are already "available", change to "disabled"
+            resp = client.patch(
+                "/api/assets/batch",
+                json={"asset_ids": asset_ids, "status": "disabled"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["updated"] == len(asset_ids)
 
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        for aid in asset_ids:
-            row = conn.execute(
-                "SELECT status FROM assets WHERE asset_id = ?", (aid,)
-            ).fetchone()
-            assert row["status"] == "disabled"
-        conn.close()
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            for aid in asset_ids:
+                row = conn.execute(
+                    "SELECT status FROM assets WHERE asset_id = ?", (aid,)
+                ).fetchone()
+                assert row["status"] == "disabled"
+            conn.close()
 
     def test_batch_all_good_available_no_reclassify(
         self, tmp_path, monkeypatch
     ) -> None:
         """All assets already have confidence>0 and valid category -> no reclassify."""
-        client = _make_client(tmp_path)
-        db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
+        with _make_client(tmp_path) as client:
+            db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
+            db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        good_ids = ["good_001", "good_002"]
-        for aid in good_ids:
-            cat_dir = (
-                tmp_path
-                / "workspace"
-                / "shared_assets"
-                / "indexed"
-                / "test-product"
-                / "产品特写"
-            )
-            cat_dir.mkdir(parents=True, exist_ok=True)
-            file_path = cat_dir / f"{aid}.mp4"
-            file_path.write_bytes(b"fake mp4")
-            repo = AssetRepository(db_path)
-            repo.insert(
-                AssetRecord(
-                    asset_id=aid,
-                    file_path=str(file_path.resolve()),
-                    category="产品特写",
-                    product="test-product",
-                    confidence=0.95,
-                    status="available",
+            good_ids = ["good_001", "good_002"]
+            for aid in good_ids:
+                cat_dir = (
+                    tmp_path
+                    / "workspace"
+                    / "shared_assets"
+                    / "indexed"
+                    / "test-product"
+                    / "产品特写"
                 )
-            )
+                cat_dir.mkdir(parents=True, exist_ok=True)
+                file_path = cat_dir / f"{aid}.mp4"
+                file_path.write_bytes(b"fake mp4")
+                repo = AssetRepository(db_path)
+                repo.insert(
+                    AssetRecord(
+                        asset_id=aid,
+                        file_path=str(file_path.resolve()),
+                        category="产品特写",
+                        product="test-product",
+                        confidence=0.95,
+                        status="available",
+                    )
+                )
 
-        resp = client.patch(
-            "/api/assets/batch",
-            json={"asset_ids": good_ids, "status": "available"},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["updated"] == 2
+            resp = client.patch(
+                "/api/assets/batch",
+                json={"asset_ids": good_ids, "status": "available"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["updated"] == 2

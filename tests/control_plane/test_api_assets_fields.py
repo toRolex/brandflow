@@ -79,71 +79,71 @@ def test_patch_asset_fields_valid_custom_category(tmp_path: Path) -> None:
         },
     )
 
-    client = _make_client(tmp_path)
-    db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
+    with _make_client(tmp_path) as client:
+        db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
 
-    resp = client.patch(
-        f"/api/assets/{asset_id}/fields",
-        json={"category": "促销活动"},
-    )
+        resp = client.patch(
+            f"/api/assets/{asset_id}/fields",
+            json={"category": "促销活动"},
+        )
 
-    assert resp.status_code == 200
-    assert resp.json() == {"updated": 1}
+        assert resp.status_code == 200
+        assert resp.json() == {"updated": 1}
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    row = conn.execute(
-        "SELECT category, product FROM assets WHERE asset_id = ?", (asset_id,)
-    ).fetchone()
-    conn.close()
-    assert row["category"] == "促销活动"
-    assert row["product"] == old_product
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT category, product FROM assets WHERE asset_id = ?", (asset_id,)
+        ).fetchone()
+        conn.close()
+        assert row["category"] == "促销活动"
+        assert row["product"] == old_product
 
 
 def test_patch_asset_fields_valid_old_food_category(tmp_path: Path) -> None:
     """Old default food categories should still be accepted (backward compat)."""
-    client = _make_client(tmp_path)
-    db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
+    with _make_client(tmp_path) as client:
+        db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
 
-    resp = client.patch(
-        f"/api/assets/{asset_id}/fields",
-        json={"category": "烹饪翻炒"},
-    )
+        resp = client.patch(
+            f"/api/assets/{asset_id}/fields",
+            json={"category": "烹饪翻炒"},
+        )
 
-    assert resp.status_code == 200
-    assert resp.json() == {"updated": 1}
+        assert resp.status_code == 200
+        assert resp.json() == {"updated": 1}
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    row = conn.execute(
-        "SELECT category FROM assets WHERE asset_id = ?", (asset_id,)
-    ).fetchone()
-    conn.close()
-    assert row["category"] == "烹饪翻炒"
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT category FROM assets WHERE asset_id = ?", (asset_id,)
+        ).fetchone()
+        conn.close()
+        assert row["category"] == "烹饪翻炒"
 
 
 def test_patch_asset_fields_invalid_category_returns_error(tmp_path: Path) -> None:
     """An unrecognized category should return a 400 error."""
-    client = _make_client(tmp_path)
-    db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
+    with _make_client(tmp_path) as client:
+        db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
 
-    resp = client.patch(
-        f"/api/assets/{asset_id}/fields",
-        json={"category": "不存在的分类"},
-    )
+        resp = client.patch(
+            f"/api/assets/{asset_id}/fields",
+            json={"category": "不存在的分类"},
+        )
 
-    assert resp.status_code == 400
-    detail = resp.json()["detail"]
-    assert "不存在的分类" in detail
-    assert "分类" in detail
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert "不存在的分类" in detail
+        assert "分类" in detail
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    row = conn.execute(
-        "SELECT category FROM assets WHERE asset_id = ?", (asset_id,)
-    ).fetchone()
-    conn.close()
-    assert row["category"] == old_cat
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT category FROM assets WHERE asset_id = ?", (asset_id,)
+        ).fetchone()
+        conn.close()
+        assert row["category"] == old_cat
 
 
 def test_patch_asset_fields_file_move_on_category_change(tmp_path: Path) -> None:
@@ -153,53 +153,53 @@ def test_patch_asset_fields_file_move_on_category_change(tmp_path: Path) -> None
         {"product": {"categories": [{"id": "promo", "name": "促销活动"}]}},
     )
 
-    client = _make_client(tmp_path)
-    db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
+    with _make_client(tmp_path) as client:
+        db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
 
-    resp = client.patch(
-        f"/api/assets/{asset_id}/fields",
-        json={"category": "促销活动"},
-    )
+        resp = client.patch(
+            f"/api/assets/{asset_id}/fields",
+            json={"category": "促销活动"},
+        )
 
-    assert resp.status_code == 200
+        assert resp.status_code == 200
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    row = conn.execute(
-        "SELECT file_path FROM assets WHERE asset_id = ?", (asset_id,)
-    ).fetchone()
-    conn.close()
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT file_path FROM assets WHERE asset_id = ?", (asset_id,)
+        ).fetchone()
+        conn.close()
 
-    new_path = Path(row["file_path"])
-    assert "促销活动" in str(new_path)
-    assert new_path.exists()
-    assert not Path(old_file).exists()
+        new_path = Path(row["file_path"])
+        assert "促销活动" in str(new_path)
+        assert new_path.exists()
+        assert not Path(old_file).exists()
 
 
 def test_patch_asset_fields_no_category_change_keeps_file(tmp_path: Path) -> None:
     """Updating only product (not category) should keep the file in place."""
-    client = _make_client(tmp_path)
-    db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
+    with _make_client(tmp_path) as client:
+        db_path, asset_id, old_cat, old_product, old_file = _setup_asset_db(tmp_path)
 
-    resp = client.patch(
-        f"/api/assets/{asset_id}/fields",
-        json={"product": "羊肚菌"},
-    )
+        resp = client.patch(
+            f"/api/assets/{asset_id}/fields",
+            json={"product": "羊肚菌"},
+        )
 
-    assert resp.status_code == 200
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    row = conn.execute(
-        "SELECT product, category, file_path FROM assets WHERE asset_id = ?",
-        (asset_id,),
-    ).fetchone()
-    conn.close()
-    assert row["product"] == "羊肚菌"
-    assert row["category"] == old_cat
-    # File moved to new product dir
-    new_path_prod = Path(row["file_path"])
-    assert "羊肚菌" in str(new_path_prod)
-    assert new_path_prod.exists()
+        assert resp.status_code == 200
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT product, category, file_path FROM assets WHERE asset_id = ?",
+            (asset_id,),
+        ).fetchone()
+        conn.close()
+        assert row["product"] == "羊肚菌"
+        assert row["category"] == old_cat
+        # File moved to new product dir
+        new_path_prod = Path(row["file_path"])
+        assert "羊肚菌" in str(new_path_prod)
+        assert new_path_prod.exists()
 
 
 # ── Batch asset field update (PATCH /api/assets/batch-fields) ──
@@ -243,61 +243,61 @@ def test_batch_fields_valid_custom_category(tmp_path: Path) -> None:
         {"product": {"categories": [{"id": "promo", "name": "促销活动"}]}},
     )
 
-    client = _make_client(tmp_path)
-    db_path, asset_ids, old_cat, file_paths = _setup_multi_asset_db(tmp_path)
+    with _make_client(tmp_path) as client:
+        db_path, asset_ids, old_cat, file_paths = _setup_multi_asset_db(tmp_path)
 
-    resp = client.patch(
-        "/api/assets/batch-fields",
-        json={"asset_ids": asset_ids, "category": "促销活动"},
-    )
+        resp = client.patch(
+            "/api/assets/batch-fields",
+            json={"asset_ids": asset_ids, "category": "促销活动"},
+        )
 
-    assert resp.status_code == 200
-    assert resp.json() == {"updated": 2}
+        assert resp.status_code == 200
+        assert resp.json() == {"updated": 2}
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT asset_id, category FROM assets ORDER BY asset_id"
-    ).fetchall()
-    conn.close()
-    for row in rows:
-        assert row["category"] == "促销活动"
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT asset_id, category FROM assets ORDER BY asset_id"
+        ).fetchall()
+        conn.close()
+        for row in rows:
+            assert row["category"] == "促销活动"
 
 
 def test_batch_fields_invalid_category_returns_error(tmp_path: Path) -> None:
     """Batch update with an invalid category should return 400 and not update."""
-    client = _make_client(tmp_path)
-    db_path, asset_ids, old_cat, file_paths = _setup_multi_asset_db(tmp_path)
+    with _make_client(tmp_path) as client:
+        db_path, asset_ids, old_cat, file_paths = _setup_multi_asset_db(tmp_path)
 
-    resp = client.patch(
-        "/api/assets/batch-fields",
-        json={"asset_ids": asset_ids, "category": "无效分类名"},
-    )
+        resp = client.patch(
+            "/api/assets/batch-fields",
+            json={"asset_ids": asset_ids, "category": "无效分类名"},
+        )
 
-    assert resp.status_code == 400
-    detail = resp.json()["detail"]
-    assert "无效分类名" in detail
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert "无效分类名" in detail
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute("SELECT category FROM assets ORDER BY asset_id").fetchall()
-    conn.close()
-    for row in rows:
-        assert row["category"] == old_cat
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT category FROM assets ORDER BY asset_id").fetchall()
+        conn.close()
+        for row in rows:
+            assert row["category"] == old_cat
 
 
 def test_batch_fields_old_food_category_still_valid(tmp_path: Path) -> None:
     """Old default food categories pass validation when no product custom config."""
-    client = _make_client(tmp_path)
-    db_path, asset_ids, old_cat, file_paths = _setup_multi_asset_db(tmp_path)
+    with _make_client(tmp_path) as client:
+        db_path, asset_ids, old_cat, file_paths = _setup_multi_asset_db(tmp_path)
 
-    resp = client.patch(
-        "/api/assets/batch-fields",
-        json={"asset_ids": asset_ids, "category": "烹饪翻炒"},
-    )
+        resp = client.patch(
+            "/api/assets/batch-fields",
+            json={"asset_ids": asset_ids, "category": "烹饪翻炒"},
+        )
 
-    assert resp.status_code == 200
-    assert resp.json() == {"updated": 2}
+        assert resp.status_code == 200
+        assert resp.json() == {"updated": 2}
 
 
 def test_batch_fields_file_move_consistency(tmp_path: Path) -> None:
@@ -307,28 +307,28 @@ def test_batch_fields_file_move_consistency(tmp_path: Path) -> None:
         {"product": {"categories": [{"id": "unboxing", "name": "开箱展示"}]}},
     )
 
-    client = _make_client(tmp_path)
-    db_path, asset_ids, old_cat, file_paths = _setup_multi_asset_db(tmp_path)
+    with _make_client(tmp_path) as client:
+        db_path, asset_ids, old_cat, file_paths = _setup_multi_asset_db(tmp_path)
 
-    resp = client.patch(
-        "/api/assets/batch-fields",
-        json={"asset_ids": asset_ids, "category": "开箱展示"},
-    )
+        resp = client.patch(
+            "/api/assets/batch-fields",
+            json={"asset_ids": asset_ids, "category": "开箱展示"},
+        )
 
-    assert resp.status_code == 200
+        assert resp.status_code == 200
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute("SELECT file_path FROM assets ORDER BY asset_id").fetchall()
-    conn.close()
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT file_path FROM assets ORDER BY asset_id").fetchall()
+        conn.close()
 
-    for row in rows:
-        fp = Path(row["file_path"])
-        assert "开箱展示" in str(fp)
-        assert fp.exists()
+        for row in rows:
+            fp = Path(row["file_path"])
+            assert "开箱展示" in str(fp)
+            assert fp.exists()
 
-    for old_fp in file_paths:
-        assert not Path(old_fp).exists()
+        for old_fp in file_paths:
+            assert not Path(old_fp).exists()
 
 
 # ── GET /api/assets/categories endpoint tests ──
@@ -368,15 +368,15 @@ class TestGetCategoriesEndpoint:
                 },
             },
         )
-        client = _make_client(tmp_path)
-        resp = client.get("/api/assets/categories")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data) == 2
-        assert data[0]["id"] == "unboxing"
-        assert data[0]["name"] == "开箱展示"
-        assert data[0]["description"] == "开箱"
-        assert data[1]["id"] == "tasting"
+        with _make_client(tmp_path) as client:
+            resp = client.get("/api/assets/categories")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert len(data) == 2
+            assert data[0]["id"] == "unboxing"
+            assert data[0]["name"] == "开箱展示"
+            assert data[0]["description"] == "开箱"
+            assert data[1]["id"] == "tasting"
 
     def test_fallback_to_instance_level(self, tmp_path: Path) -> None:
         """产品未配置 categories 时回退到 asset_library.categories。"""
@@ -395,13 +395,13 @@ class TestGetCategoriesEndpoint:
                 },
             },
         )
-        client = _make_client(tmp_path)
-        resp = client.get("/api/assets/categories")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data) == 2
-        assert data[0]["id"] == "origin"
-        assert data[1]["id"] == "sorting"
+        with _make_client(tmp_path) as client:
+            resp = client.get("/api/assets/categories")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert len(data) == 2
+            assert data[0]["id"] == "origin"
+            assert data[1]["id"] == "sorting"
 
     def test_fallback_to_defaults(self, tmp_path: Path) -> None:
         """产品和 asset_library 均未配置 categories 时返回默认分类。"""
@@ -414,16 +414,16 @@ class TestGetCategoriesEndpoint:
                 "active_product_id": "prod-c",
             },
         )
-        client = _make_client(tmp_path)
-        resp = client.get("/api/assets/categories")
-        assert resp.status_code == 200
-        data = resp.json()
-        # 默认 food categories 有 10 个
-        assert len(data) == 10
-        default_ids = [c["id"] for c in data]
-        assert "origin" in default_ids
-        assert "stir_fry" in default_ids
-        assert "finished" in default_ids
+        with _make_client(tmp_path) as client:
+            resp = client.get("/api/assets/categories")
+            assert resp.status_code == 200
+            data = resp.json()
+            # 默认 food categories 有 10 个
+            assert len(data) == 10
+            default_ids = [c["id"] for c in data]
+            assert "origin" in default_ids
+            assert "stir_fry" in default_ids
+            assert "finished" in default_ids
 
     def test_empty_product_categories_falls_to_instance(self, tmp_path: Path) -> None:
         """产品显式设置空 categories 列表时回退到 asset_library。"""
@@ -441,12 +441,12 @@ class TestGetCategoriesEndpoint:
                 },
             },
         )
-        client = _make_client(tmp_path)
-        resp = client.get("/api/assets/categories")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data) == 1
-        assert data[0]["id"] == "macro"
+        with _make_client(tmp_path) as client:
+            resp = client.get("/api/assets/categories")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert len(data) == 1
+            assert data[0]["id"] == "macro"
 
     def test_both_empty_returns_defaults(self, tmp_path: Path) -> None:
         """产品和 asset_library 均为空 categories 时返回默认分类。"""
@@ -460,8 +460,8 @@ class TestGetCategoriesEndpoint:
                 "asset_library": {"categories": []},
             },
         )
-        client = _make_client(tmp_path)
-        resp = client.get("/api/assets/categories")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data) == 10  # 默认 food categories
+        with _make_client(tmp_path) as client:
+            resp = client.get("/api/assets/categories")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert len(data) == 10  # 默认 food categories

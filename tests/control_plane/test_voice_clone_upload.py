@@ -8,7 +8,8 @@ from apps.control_plane.app import create_app
 @pytest.fixture
 def client(tmp_path):
     app = create_app(root_dir=tmp_path)
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 def test_upload_voice_clone_sample_mp3(client, tmp_path):

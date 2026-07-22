@@ -27,6 +27,9 @@ from packages.pipeline_services.segment_export import (
 )
 
 
+pytestmark = [pytest.mark.slow, pytest.mark.media_integration]
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

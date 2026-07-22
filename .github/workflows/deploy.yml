@@ -1,0 +1,25 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-test:
+    runs-on: windows-test
+    timeout-minutes: 30
+    steps:
+      - name: Deploy
+        shell: cmd
+        run: call packaging\windows\deploy.bat
+
+  deploy-prod:
+    runs-on: windows-prod
+    timeout-minutes: 30
+    steps:
+      - name: Deploy
+        shell: cmd
+        env:
+          https_proxy: http://127.0.0.1:7897
+          http_proxy: http://127.0.0.1:7897
+        run: call packaging\windows\deploy.bat

@@ -437,7 +437,8 @@ def api_client(populated_db_dir: Path) -> object:
     from apps.control_plane.app import create_app
 
     app = create_app(root_dir=populated_db_dir)
-    return TestClient(app)
+    with TestClient(app) as client:
+        yield client
 
 
 class TestSuggestEndpoint:
@@ -507,18 +508,17 @@ class TestSuggestEndpoint:
         from apps.control_plane.app import create_app
 
         app = create_app(root_dir=empty_db_dir)
-        client = TestClient(app)
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/assets/categories/suggest",
+                json={"sample_size": 10},
+            )
 
-        response = client.post(
-            "/api/assets/categories/suggest",
-            json={"sample_size": 10},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["suggestions"] == []
-        assert data["sampled_assets"] == 0
-        assert len(data["errors"]) > 0
+            assert response.status_code == 200
+            data = response.json()
+            assert data["suggestions"] == []
+            assert data["sampled_assets"] == 0
+            assert len(data["errors"]) > 0
 
     def test_suggest_rejects_invalid_body(self, api_client: object) -> None:
         """POST with invalid body should return 422."""

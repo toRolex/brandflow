@@ -34,10 +34,10 @@ def _mock_vision_config_ok(monkeypatch) -> None:
 def test_index_uses_explicit_product_param(tmp_path: Path, monkeypatch) -> None:
     """参数显式传入 product="零食测试" 时，AssetIndexer 使用该值。"""
     _mock_vision_config_ok(monkeypatch)
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
-    captured_product: list[str] = []
+        captured_product: list[str] = []
 
     def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
         captured_product.append(self.product)
@@ -59,10 +59,10 @@ def test_index_uses_explicit_product_param(tmp_path: Path, monkeypatch) -> None:
 def test_index_falls_back_to_active_product(tmp_path: Path, monkeypatch) -> None:
     """未传 product 时，从 ConfigReader 活跃产品名读取。"""
     _mock_vision_config_ok(monkeypatch)
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
-    captured_product: list[str] = []
+        captured_product: list[str] = []
 
     def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
         captured_product.append(self.product)
@@ -91,10 +91,10 @@ def test_index_falls_back_to_active_product(tmp_path: Path, monkeypatch) -> None
 def test_index_explicit_product_wins_over_config(tmp_path: Path, monkeypatch) -> None:
     """显式传入 product 时，忽略 ConfigReader 的值。"""
     _mock_vision_config_ok(monkeypatch)
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
-    captured_product: list[str] = []
+        captured_product: list[str] = []
 
     def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
         captured_product.append(self.product)
@@ -127,8 +127,8 @@ def test_indexed_asset_has_non_empty_product(tmp_path: Path, monkeypatch) -> Non
     _mock_vision_config_ok(monkeypatch)
     from packages.pipeline_services.asset_library.repository import AssetRepository
 
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
     def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
         from datetime import datetime, timezone
@@ -175,10 +175,10 @@ def test_indexed_asset_has_non_empty_product(tmp_path: Path, monkeypatch) -> Non
 def test_index_uses_resolve_product_name(tmp_path: Path, monkeypatch) -> None:
     """api_assets 应使用 resolve_product_name 做产品名解析。"""
     _mock_vision_config_ok(monkeypatch)
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
-    captured_product: list[str] = []
+        captured_product: list[str] = []
 
     def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
         captured_product.append(self.product)
@@ -208,10 +208,10 @@ def test_index_uses_resolve_product_name(tmp_path: Path, monkeypatch) -> None:
 def test_index_falls_back_to_default_name(tmp_path: Path, monkeypatch) -> None:
     """name 为空但 default_name 有值时，素材入库应使用 default_name。"""
     _mock_vision_config_ok(monkeypatch)
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
-    captured_product: list[str] = []
+        captured_product: list[str] = []
 
     def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
         captured_product.append(self.product)
@@ -240,10 +240,10 @@ def test_index_falls_back_to_default_name(tmp_path: Path, monkeypatch) -> None:
 def test_index_falls_back_to_id(tmp_path: Path, monkeypatch) -> None:
     """name 和 default_name 都为空时，素材入库应使用 product id。"""
     _mock_vision_config_ok(monkeypatch)
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
-    captured_product: list[str] = []
+        captured_product: list[str] = []
 
     def _fake_ingest_one(self, video_path: Path, output_base: Path, log_callback=None):
         captured_product.append(self.product)
@@ -273,11 +273,11 @@ def test_index_falls_back_to_id(tmp_path: Path, monkeypatch) -> None:
 
 def test_sync_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> None:
     """同步路径应调用 resolve_vision_config()，传入 category_names 给 AssetIndexer。"""
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
-    resolve_called: list[dict] = []
-    category_names_captured: list[list[str] | None] = []
+        resolve_called: list[dict] = []
+        category_names_captured: list[list[str] | None] = []
 
     def _fake_resolve(providers_payload, secrets=None, reader=None):
         resolve_called.append({"secrets": secrets, "reader": reader})
@@ -333,11 +333,11 @@ def test_async_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> 
     """异步路径 _run_index_task 应调用 resolve_vision_config() 并传入 category_names。"""
     import asyncio
 
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
-    resolve_called: list[bool] = []
-    category_names_captured: list[list[str] | None] = []
+        resolve_called: list[bool] = []
+        category_names_captured: list[list[str] | None] = []
 
     def _fake_resolve(providers_payload, secrets=None, reader=None):
         resolve_called.append(True)
@@ -398,8 +398,8 @@ def test_async_index_uses_resolve_vision_config(tmp_path: Path, monkeypatch) -> 
 
 def test_sync_index_fails_on_invalid_vision_config(tmp_path, monkeypatch):
     """同步路径：Vision api_key 已设但其他字段缺失时索引任务应失败。"""
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
     def _fake_resolve(providers_payload, secrets=None, reader=None):
         return {
@@ -430,8 +430,8 @@ def test_async_index_task_fails_on_invalid_vision_config(tmp_path, monkeypatch):
     """异步路径：Vision api_key 已设但其他字段缺失时后台任务应标记为 FAILED。"""
     import asyncio
 
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
     def _fake_resolve(providers_payload, secrets=None, reader=None):
         return {
@@ -468,8 +468,8 @@ def test_async_index_task_fails_on_invalid_vision_config(tmp_path, monkeypatch):
 
 def test_sync_index_fails_when_vision_not_configured(tmp_path, monkeypatch):
     """同步路径：Vision 完全未配置时索引任务应直接 422。"""
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
     def _fake_resolve(providers_payload, secrets=None, reader=None):
         return {
@@ -499,8 +499,8 @@ def test_async_index_fails_when_vision_not_configured(tmp_path, monkeypatch):
     """异步路径：Vision 完全未配置时后台任务应标记为 FAILED。"""
     import asyncio
 
-    client = _client(tmp_path)
-    _setup_source_videos(tmp_path)
+    with _client(tmp_path) as client:
+        _setup_source_videos(tmp_path)
 
     def _fake_resolve(providers_payload, secrets=None, reader=None):
         return {
@@ -543,187 +543,195 @@ def test_batch_update_categories(tmp_path: Path) -> None:
     db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    client = _client(tmp_path)
-    AssetRepository(db_path)  # Initialize tables
+    with _client(tmp_path) as client:
+        AssetRepository(db_path)  # Initialize tables
 
-    conn = sqlite3.connect(str(db_path))
-    now = "2025-01-01T00:00:00"
-    test_assets = [
-        (
-            "a1",
-            "/path/to/a1.mp4",
-            "旧分类",
-            "龙井茶",
-            0.9,
-            5.0,
-            "available",
-            0,
-            "v1.mp4",
-        ),
-        (
-            "a2",
-            "/path/to/a2.mp4",
-            "旧分类",
-            "龙井茶",
-            0.85,
-            3.0,
-            "available",
-            0,
-            "v1.mp4",
-        ),
-        ("a3", "/path/to/a3.mp4", "冲泡", "龙井茶", 0.8, 7.0, "available", 0, "v2.mp4"),
-    ]
-    for asset in test_assets:
-        conn.execute(
-            """INSERT INTO assets
-               (asset_id, file_path, category, product, confidence, duration_seconds,
-                status, usage_count, source_video, created_at, last_used_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (*asset, now, now),
+        conn = sqlite3.connect(str(db_path))
+        now = "2025-01-01T00:00:00"
+        test_assets = [
+            (
+                "a1",
+                "/path/to/a1.mp4",
+                "旧分类",
+                "龙井茶",
+                0.9,
+                5.0,
+                "available",
+                0,
+                "v1.mp4",
+            ),
+            (
+                "a2",
+                "/path/to/a2.mp4",
+                "旧分类",
+                "龙井茶",
+                0.85,
+                3.0,
+                "available",
+                0,
+                "v1.mp4",
+            ),
+            (
+                "a3",
+                "/path/to/a3.mp4",
+                "冲泡",
+                "龙井茶",
+                0.8,
+                7.0,
+                "available",
+                0,
+                "v2.mp4",
+            ),
+        ]
+        for asset in test_assets:
+            conn.execute(
+                """INSERT INTO assets
+                   (asset_id, file_path, category, product, confidence, duration_seconds,
+                    status, usage_count, source_video, created_at, last_used_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (*asset, now, now),
+            )
+        conn.commit()
+        conn.close()
+
+        # Call the endpoint
+        resp = client.patch(
+            "/api/assets/categories",
+            json={"asset_ids": ["a1", "a2"], "category": "产品特写"},
         )
-    conn.commit()
-    conn.close()
+        assert resp.status_code == 200
+        assert resp.json() == {"updated": 2}
 
-    # Call the endpoint
-    resp = client.patch(
-        "/api/assets/categories",
-        json={"asset_ids": ["a1", "a2"], "category": "产品特写"},
-    )
-    assert resp.status_code == 200
-    assert resp.json() == {"updated": 2}
-
-    # Verify in DB
-    conn = sqlite3.connect(str(db_path))
-    rows = conn.execute(
-        "SELECT asset_id, category FROM assets ORDER BY asset_id"
-    ).fetchall()
-    conn.close()
-    assert dict(rows) == {"a1": "产品特写", "a2": "产品特写", "a3": "冲泡"}
+        # Verify in DB
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute(
+            "SELECT asset_id, category FROM assets ORDER BY asset_id"
+        ).fetchall()
+        conn.close()
+        assert dict(rows) == {"a1": "产品特写", "a2": "产品特写", "a3": "冲泡"}
 
 
 def test_batch_update_categories_idempotent(tmp_path: Path) -> None:
     """相同请求重复执行返回相同 updated 计数。"""
     from packages.pipeline_services.asset_library.repository import AssetRepository
 
-    client = _client(tmp_path)
-    db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    AssetRepository(db_path)
+    with _client(tmp_path) as client:
+        db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        AssetRepository(db_path)
 
-    conn = sqlite3.connect(str(db_path))
-    now = "2025-01-01T00:00:00"
-    conn.execute(
-        """INSERT INTO assets
-           (asset_id, file_path, category, product, confidence, duration_seconds,
-            status, usage_count, source_video, tags, created_at, last_used_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            "a1",
-            "/p.mp4",
-            "旧分类",
-            "测试",
-            0.9,
-            5.0,
-            "available",
-            0,
-            "v.mp4",
-            "[]",
-            now,
-            now,
-        ),
-    )
-    conn.commit()
-    conn.close()
+        conn = sqlite3.connect(str(db_path))
+        now = "2025-01-01T00:00:00"
+        conn.execute(
+            """INSERT INTO assets
+               (asset_id, file_path, category, product, confidence, duration_seconds,
+                status, usage_count, source_video, tags, created_at, last_used_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "a1",
+                "/p.mp4",
+                "旧分类",
+                "测试",
+                0.9,
+                5.0,
+                "available",
+                0,
+                "v.mp4",
+                "[]",
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+        conn.close()
 
-    # First call
-    resp1 = client.patch(
-        "/api/assets/categories",
-        json={"asset_ids": ["a1"], "category": "新分类"},
-    )
-    assert resp1.status_code == 200
-    assert resp1.json() == {"updated": 1}
+        # First call
+        resp1 = client.patch(
+            "/api/assets/categories",
+            json={"asset_ids": ["a1"], "category": "新分类"},
+        )
+        assert resp1.status_code == 200
+        assert resp1.json() == {"updated": 1}
 
-    # Second call — same request, same result
-    resp2 = client.patch(
-        "/api/assets/categories",
-        json={"asset_ids": ["a1"], "category": "新分类"},
-    )
-    assert resp2.status_code == 200
-    assert resp2.json() == {"updated": 1}
+        # Second call — same request, same result
+        resp2 = client.patch(
+            "/api/assets/categories",
+            json={"asset_ids": ["a1"], "category": "新分类"},
+        )
+        assert resp2.status_code == 200
+        assert resp2.json() == {"updated": 1}
 
 
 def test_batch_update_categories_ignores_nonexistent(tmp_path: Path) -> None:
     """不存在的 asset_id 被静默忽略。"""
     from packages.pipeline_services.asset_library.repository import AssetRepository
 
-    client = _client(tmp_path)
-    db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    AssetRepository(db_path)
+    with _client(tmp_path) as client:
+        db_path = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        AssetRepository(db_path)
 
-    conn = sqlite3.connect(str(db_path))
-    now = "2025-01-01T00:00:00"
-    conn.execute(
-        """INSERT INTO assets
-           (asset_id, file_path, category, product, confidence, duration_seconds,
-            status, usage_count, source_video, tags, created_at, last_used_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            "a1",
-            "/p.mp4",
-            "旧分类",
-            "测试",
-            0.9,
-            5.0,
-            "available",
-            0,
-            "v.mp4",
-            "[]",
-            now,
-            now,
-        ),
-    )
-    conn.commit()
-    conn.close()
+        conn = sqlite3.connect(str(db_path))
+        now = "2025-01-01T00:00:00"
+        conn.execute(
+            """INSERT INTO assets
+               (asset_id, file_path, category, product, confidence, duration_seconds,
+                status, usage_count, source_video, tags, created_at, last_used_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "a1",
+                "/p.mp4",
+                "旧分类",
+                "测试",
+                0.9,
+                5.0,
+                "available",
+                0,
+                "v.mp4",
+                "[]",
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+        conn.close()
 
-    resp = client.patch(
-        "/api/assets/categories",
-        json={"asset_ids": ["a1", "nonexistent"], "category": "新分类"},
-    )
-    assert resp.status_code == 200
-    # a1 is updated, nonexistent is silently skipped
-    assert resp.json() == {"updated": 1}
+        resp = client.patch(
+            "/api/assets/categories",
+            json={"asset_ids": ["a1", "nonexistent"], "category": "新分类"},
+        )
+        assert resp.status_code == 200
+        # a1 is updated, nonexistent is silently skipped
+        assert resp.json() == {"updated": 1}
 
 
 def test_batch_update_categories_validates_asset_ids(tmp_path: Path) -> None:
     """asset_ids 为空或非法时返回 400。"""
-    client = _client(tmp_path)
+    with _client(tmp_path) as client:
+        resp = client.patch(
+            "/api/assets/categories",
+            json={"asset_ids": [], "category": "产品特写"},
+        )
+        assert resp.status_code == 400
 
-    resp = client.patch(
-        "/api/assets/categories",
-        json={"asset_ids": [], "category": "产品特写"},
-    )
-    assert resp.status_code == 400
-
-    resp = client.patch(
-        "/api/assets/categories",
-        json={"asset_ids": "not_a_list", "category": "产品特写"},
-    )
-    assert resp.status_code == 400
+        resp = client.patch(
+            "/api/assets/categories",
+            json={"asset_ids": "not_a_list", "category": "产品特写"},
+        )
+        assert resp.status_code == 400
 
 
 def test_batch_update_categories_validates_category(tmp_path: Path) -> None:
     """category 为空时返回 400。"""
-    client = _client(tmp_path)
+    with _client(tmp_path) as client:
+        resp = client.patch(
+            "/api/assets/categories",
+            json={"asset_ids": ["a1"], "category": ""},
+        )
+        assert resp.status_code == 400
 
-    resp = client.patch(
-        "/api/assets/categories",
-        json={"asset_ids": ["a1"], "category": ""},
-    )
-    assert resp.status_code == 400
-
-    resp = client.patch(
-        "/api/assets/categories",
-        json={"asset_ids": ["a1"]},  # missing category
-    )
-    assert resp.status_code == 400
+        resp = client.patch(
+            "/api/assets/categories",
+            json={"asset_ids": ["a1"]},  # missing category
+        )
+        assert resp.status_code == 400

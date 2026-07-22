@@ -27,8 +27,8 @@ def suggest_client() -> tuple[TestClient, Mock]:
     target = "apps.control_plane.routes.category_suggestion.suggest_categories"
     with patch(target) as mock:
         app = create_app(root_dir=Path.cwd())
-        client = TestClient(app)
-        yield client, mock
+        with TestClient(app) as client:
+            yield client, mock
 
 
 # ---------------------------------------------------------------------------

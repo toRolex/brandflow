@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import TypedDict
 
-from packages.pipeline_services.media_utils import get_ffprobe_path
+from packages.pipeline_services.media_utils import get_ffmpeg_path, get_ffprobe_path
 
 
 class MediaInfo(TypedDict):
@@ -61,3 +61,33 @@ def probe_media(path: Path) -> MediaInfo:
         }
     except (OSError, ValueError, json.JSONDecodeError, subprocess.SubprocessError):
         return {"duration": None, "video_codec": None, "audio_codec": None}
+
+
+def is_decodable_video(path: Path) -> bool:
+    """Return whether FFmpeg can decode the complete primary video stream."""
+    try:
+        subprocess.run(
+            [
+                get_ffmpeg_path(),
+                "-v",
+                "error",
+                "-xerror",
+                "-i",
+                str(path),
+                "-map",
+                "0:v:0",
+                "-f",
+                "null",
+                "-",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=300,
+        )
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False

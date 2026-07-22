@@ -973,6 +973,41 @@ class TestRunVideo:
         assert timeline["duration_ms"] == 1500
 
 
+class TestFinalRendering:
+    def test_unplayable_final_video_produces_no_artifact(
+        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+    ) -> None:
+        """A corrupt final.mp4 must keep the job out of the completed path."""
+        job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+        job_dir.mkdir(parents=True)
+        (job_dir / "base.mp4").write_bytes(b"base")
+        (job_dir / "audio.mp3").write_bytes(b"audio")
+        (job_dir / "subtitles.srt").write_text("subtitle", encoding="utf-8")
+
+        def write_corrupt_final(*_args, **_kwargs) -> None:
+            (job_dir / "final.mp4").write_bytes(b"not a video")
+
+        orchestrator._video_svc.burn_final_video.side_effect = write_corrupt_final
+
+        with (
+            patch(
+                "packages.pipeline_services.phases.final_rendering.probe_media",
+                return_value={
+                    "duration": 1.0,
+                    "video_codec": "h264",
+                    "audio_codec": None,
+                },
+            ),
+            patch(
+                "packages.pipeline_services.phases.final_rendering.is_decodable_video",
+                return_value=False,
+            ),
+        ):
+            artifacts = orchestrator.run_phase("final_rendering", ctx)
+
+        assert artifacts == []
+
+
 class TestMontageAssembling:
     """montage_assembling builds the independent Montage Segment from the reviewed snapshot."""
 

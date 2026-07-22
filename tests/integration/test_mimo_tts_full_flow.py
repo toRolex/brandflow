@@ -19,7 +19,8 @@ from packages.pipeline_services.tts_provider import MiMoTTSProvider
 @pytest.fixture
 def client(tmp_path):
     app = create_app(root_dir=tmp_path)
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 @pytest.fixture

@@ -28,8 +28,6 @@ class CoverTitleRequest(BaseModel):
 
 
 class CreateJobRequest(BaseModel):
-    product: str
-    brand: str = ""
     platforms: list[str]
     mode: ProductionMode = "generate"
     asset: str | None = None
@@ -45,7 +43,6 @@ class CreateJobRequest(BaseModel):
     music_volume: int = 80
     tts_model: str = ""
     tts_voice: str = ""
-    scene_folder_ids: list[str] = []
 
 
 class BatchJobItem(BaseModel):
@@ -60,12 +57,9 @@ class BatchJobItem(BaseModel):
     music_volume: int = 80
     tts_model: str = ""
     tts_voice: str = ""
-    scene_folder_ids: list[str] = []
 
 
 class BatchCreateRequest(BaseModel):
-    product: str
-    brand: str = ""
     platforms: list[str]
     mode: ProductionMode = "generate"
     auto_approve: bool = False

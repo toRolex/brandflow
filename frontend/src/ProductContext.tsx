@@ -7,6 +7,7 @@ import {
 	useState,
 } from "react";
 import { api } from "./api/client";
+import type { ProductConfig } from "./types/product";
 
 interface ProductSummary {
 	id: string;
@@ -17,6 +18,7 @@ interface ProductContextValue {
 	products: ProductSummary[];
 	activeProductId: string;
 	activeProductName: string;
+	activeProductConfig: ProductConfig | null;
 	loading: boolean;
 	switchProduct: (productId: string) => Promise<void>;
 	refreshProducts: () => Promise<void>;
@@ -29,6 +31,7 @@ const ProductContext = createContext<ProductContextValue>({
 	products: [],
 	activeProductId: "",
 	activeProductName: "",
+	activeProductConfig: null,
 	loading: false,
 	switchProduct: async () => {},
 	refreshProducts: async () => {},
@@ -41,6 +44,8 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 	const [products, setProducts] = useState<ProductSummary[]>([]);
 	const [activeProductId, setActiveProductId] = useState("");
 	const [activeProductName, setActiveProductName] = useState("");
+	const [activeProductConfig, setActiveProductConfig] =
+		useState<ProductConfig | null>(null);
 	const [loading] = useState(false);
 
 	const refreshProducts = useCallback(async () => {
@@ -53,6 +58,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 			const activeId =
 				((activeConfig as Record<string, unknown>).id as string) || "";
 			setActiveProductId(activeId);
+			setActiveProductConfig(activeConfig as ProductConfig);
 			const p = list.find((x) => x.id === activeId);
 			setActiveProductName(
 				p?.name ||
@@ -64,6 +70,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 			setProducts([]);
 			setActiveProductId("");
 			setActiveProductName("");
+			setActiveProductConfig(null);
 		}
 	}, []);
 
@@ -109,6 +116,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
 				products,
 				activeProductId,
 				activeProductName,
+				activeProductConfig,
 				loading,
 				switchProduct,
 				refreshProducts,

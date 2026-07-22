@@ -117,14 +117,14 @@ class TestBatchReclassifyEmptyInput:
     """Seam 1: Empty or invalid asset_ids -> 400."""
 
     def test_empty_array(self, tmp_path) -> None:
-        client = _make_client(tmp_path)
-        resp = _batch_reclassify(client, [])
-        assert resp.status_code == 400
+        with _make_client(tmp_path) as client:
+            resp = _batch_reclassify(client, [])
+            assert resp.status_code == 400
 
     def test_missing_field(self, tmp_path) -> None:
-        client = _make_client(tmp_path)
-        resp = client.post("/api/assets/batch/reclassify", json={})
-        assert resp.status_code == 400
+        with _make_client(tmp_path) as client:
+            resp = client.post("/api/assets/batch/reclassify", json={})
+            assert resp.status_code == 400
 
 
 # ── Seam 2: All asset_ids don't exist ────────────────────────────────────────
@@ -135,12 +135,12 @@ class TestBatchReclassifyAllNonExistent:
 
     def test_all_nonexistent(self, tmp_path, monkeypatch) -> None:
         _mock_validate_vision_config_ok(monkeypatch)
-        client = _make_client(tmp_path)
-        # Ensure DB exists by setting up an asset, then query nonexistent IDs
-        _setup_asset(tmp_path, "dummy_asset")
+        with _make_client(tmp_path) as client:
+            # Ensure DB exists by setting up an asset, then query nonexistent IDs
+            _setup_asset(tmp_path, "dummy_asset")
 
-        resp = _batch_reclassify(client, ["no_such_1", "no_such_2"])
-        assert resp.status_code == 400
+            resp = _batch_reclassify(client, ["no_such_1", "no_such_2"])
+            assert resp.status_code == 400
 
 
 # ── Seam 3: Vision config invalid ──────────────────────────────────────────
@@ -158,12 +158,12 @@ class TestBatchReclassifyVisionConfigInvalid:
             _raise,
         )
 
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path, "asset_001")
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path, "asset_001")
 
-        resp = _batch_reclassify(client, ["asset_001"])
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "vision_config_invalid"
+            resp = _batch_reclassify(client, ["asset_001"])
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "vision_config_invalid"
 
 
 # ── Seam 4: Single asset via batch ─────────────────────────────────────────
@@ -177,34 +177,34 @@ class TestBatchReclassifySingle:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "烹饪翻炒", 0.92)
 
-        client = _make_client(tmp_path)
-        db_path, asset_id = _setup_asset(tmp_path, "asset_single")
+        with _make_client(tmp_path) as client:
+            db_path, asset_id = _setup_asset(tmp_path, "asset_single")
 
-        resp = _batch_reclassify(client, [asset_id])
+            resp = _batch_reclassify(client, [asset_id])
 
-        assert resp.status_code == 200
-        results = resp.json()["results"]
-        assert len(results) == 1
-        assert results[0]["asset_id"] == asset_id
-        assert results[0]["category"] == "烹饪翻炒"
-        assert results[0]["confidence"] == 0.92
-        assert results[0]["status"] == "available"
+            assert resp.status_code == 200
+            results = resp.json()["results"]
+            assert len(results) == 1
+            assert results[0]["asset_id"] == asset_id
+            assert results[0]["category"] == "烹饪翻炒"
+            assert results[0]["confidence"] == 0.92
+            assert results[0]["status"] == "available"
 
-        # No API key leak
-        body = json.dumps(resp.json(), ensure_ascii=False).lower()
-        assert "api_key" not in body
+            # No API key leak
+            body = json.dumps(resp.json(), ensure_ascii=False).lower()
+            assert "api_key" not in body
 
-        # Verify DB updated
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT category, confidence, status FROM assets WHERE asset_id = ?",
-            (asset_id,),
-        ).fetchone()
-        conn.close()
-        assert row["category"] == "烹饪翻炒"
-        assert row["confidence"] == 0.92
-        assert row["status"] == "available"
+            # Verify DB updated
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT category, confidence, status FROM assets WHERE asset_id = ?",
+                (asset_id,),
+            ).fetchone()
+            conn.close()
+            assert row["category"] == "烹饪翻炒"
+            assert row["confidence"] == 0.92
+            assert row["status"] == "available"
 
 
 # ── Seam 5: Multiple assets, all succeed ───────────────────────────────────
@@ -218,29 +218,29 @@ class TestBatchReclassifyMultipleSuccess:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "成品展示", 0.95)
 
-        client = _make_client(tmp_path)
-        db_path, id1 = _setup_asset(tmp_path, "asset_m1")
-        _, id2 = _setup_asset(tmp_path, "asset_m2")
+        with _make_client(tmp_path) as client:
+            db_path, id1 = _setup_asset(tmp_path, "asset_m1")
+            _, id2 = _setup_asset(tmp_path, "asset_m2")
 
-        resp = _batch_reclassify(client, [id1, id2])
+            resp = _batch_reclassify(client, [id1, id2])
 
-        assert resp.status_code == 200
-        results = resp.json()["results"]
-        assert len(results) == 2
-        assert results[0]["asset_id"] == id1
-        assert results[0]["status"] == "available"
-        assert results[1]["asset_id"] == id2
-        assert results[1]["status"] == "available"
+            assert resp.status_code == 200
+            results = resp.json()["results"]
+            assert len(results) == 2
+            assert results[0]["asset_id"] == id1
+            assert results[0]["status"] == "available"
+            assert results[1]["asset_id"] == id2
+            assert results[1]["status"] == "available"
 
-        # Both assets updated in DB
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        for aid in (id1, id2):
-            row = conn.execute(
-                "SELECT status FROM assets WHERE asset_id = ?", (aid,)
-            ).fetchone()
-            assert row["status"] == "available"
-        conn.close()
+            # Both assets updated in DB
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            for aid in (id1, id2):
+                row = conn.execute(
+                    "SELECT status FROM assets WHERE asset_id = ?", (aid,)
+                ).fetchone()
+                assert row["status"] == "available"
+            conn.close()
 
 
 # ── Seam 6: Partial failures ───────────────────────────────────────────────
@@ -254,32 +254,32 @@ class TestBatchReclassifyPartialFailure:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "烹饪翻炒", 0.92)
 
-        client = _make_client(tmp_path)
-        db_path, existing_id = _setup_asset(tmp_path, "existing_asset")
+        with _make_client(tmp_path) as client:
+            db_path, existing_id = _setup_asset(tmp_path, "existing_asset")
 
-        resp = _batch_reclassify(client, [existing_id, "nonexistent_id"])
+            resp = _batch_reclassify(client, [existing_id, "nonexistent_id"])
 
-        assert resp.status_code == 200
-        results = resp.json()["results"]
-        assert len(results) == 2
+            assert resp.status_code == 200
+            results = resp.json()["results"]
+            assert len(results) == 2
 
-        # Existing asset succeeded
-        assert results[0]["asset_id"] == existing_id
-        assert results[0]["status"] == "available"
+            # Existing asset succeeded
+            assert results[0]["asset_id"] == existing_id
+            assert results[0]["status"] == "available"
 
-        # Nonexistent has error
-        assert results[1]["asset_id"] == "nonexistent_id"
-        assert "error" in results[1]
-        assert "not found" in results[1]["error"].lower()
+            # Nonexistent has error
+            assert results[1]["asset_id"] == "nonexistent_id"
+            assert "error" in results[1]
+            assert "not found" in results[1]["error"].lower()
 
-        # DB only updated for existing asset
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT status FROM assets WHERE asset_id = ?", (existing_id,)
-        ).fetchone()
-        assert row["status"] == "available"
-        conn.close()
+            # DB only updated for existing asset
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT status FROM assets WHERE asset_id = ?", (existing_id,)
+            ).fetchone()
+            assert row["status"] == "available"
+            conn.close()
 
     def test_partial_zero_confidence(self, tmp_path, monkeypatch) -> None:
         """One asset gets zero confidence while another succeeds."""
@@ -301,36 +301,36 @@ class TestBatchReclassifyPartialFailure:
             _classify,
         )
 
-        client = _make_client(tmp_path)
-        db_path, id_ok = _setup_asset(tmp_path, "asset_ok")
-        _, id_zero = _setup_asset(tmp_path, "asset_zero")
+        with _make_client(tmp_path) as client:
+            db_path, id_ok = _setup_asset(tmp_path, "asset_ok")
+            _, id_zero = _setup_asset(tmp_path, "asset_zero")
 
-        resp = _batch_reclassify(client, [id_ok, id_zero])
+            resp = _batch_reclassify(client, [id_ok, id_zero])
 
-        assert resp.status_code == 200
-        results = resp.json()["results"]
-        assert len(results) == 2
+            assert resp.status_code == 200
+            results = resp.json()["results"]
+            assert len(results) == 2
 
-        # First asset succeeded
-        assert results[0]["asset_id"] == id_ok
-        assert results[0]["status"] == "available"
+            # First asset succeeded
+            assert results[0]["asset_id"] == id_ok
+            assert results[0]["status"] == "available"
 
-        # Second asset has zero_confidence error
-        assert results[1]["asset_id"] == id_zero
-        assert "error" in results[1]
+            # Second asset has zero_confidence error
+            assert results[1]["asset_id"] == id_zero
+            assert "error" in results[1]
 
-        # Only first asset updated in DB
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row_ok = conn.execute(
-            "SELECT status FROM assets WHERE asset_id = ?", (id_ok,)
-        ).fetchone()
-        assert row_ok["status"] == "available"
-        row_zero = conn.execute(
-            "SELECT status FROM assets WHERE asset_id = ?", (id_zero,)
-        ).fetchone()
-        assert row_zero["status"] == "classification_failed"
-        conn.close()
+            # Only first asset updated in DB
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row_ok = conn.execute(
+                "SELECT status FROM assets WHERE asset_id = ?", (id_ok,)
+            ).fetchone()
+            assert row_ok["status"] == "available"
+            row_zero = conn.execute(
+                "SELECT status FROM assets WHERE asset_id = ?", (id_zero,)
+            ).fetchone()
+            assert row_zero["status"] == "classification_failed"
+            conn.close()
 
     def test_video_file_missing(self, tmp_path, monkeypatch) -> None:
         """Asset record exists but video file on disk is gone."""
@@ -338,23 +338,23 @@ class TestBatchReclassifyPartialFailure:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "烹饪翻炒", 0.92)
 
-        client = _make_client(tmp_path)
-        db_path, asset_id = _setup_asset(tmp_path, "asset_gone")
+        with _make_client(tmp_path) as client:
+            db_path, asset_id = _setup_asset(tmp_path, "asset_gone")
 
-        # Delete the video file
-        cat_dir = (
-            tmp_path
-            / "workspace"
-            / "shared_assets"
-            / "indexed"
-            / "test-product"
-            / "产品特写"
-        )
-        (cat_dir / "test_clip.mp4").unlink()
+            # Delete the video file
+            cat_dir = (
+                tmp_path
+                / "workspace"
+                / "shared_assets"
+                / "indexed"
+                / "test-product"
+                / "产品特写"
+            )
+            (cat_dir / "test_clip.mp4").unlink()
 
-        resp = _batch_reclassify(client, [asset_id])
+            resp = _batch_reclassify(client, [asset_id])
 
-        assert resp.status_code == 200
-        results = resp.json()["results"]
-        assert len(results) == 1
-        assert "error" in results[0]
+            assert resp.status_code == 200
+            results = resp.json()["results"]
+            assert len(results) == 1
+            assert "error" in results[0]

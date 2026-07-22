@@ -24,7 +24,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DEV_AUTO_TICK", "0")
     monkeypatch.setenv("EXPORT_SYNC", "1")
     app = create_app(root_dir=tmp_path)
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 def _setup_completed_job(client: TestClient, project_id: str, job_id: str) -> Path:
