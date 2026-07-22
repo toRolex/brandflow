@@ -129,9 +129,9 @@ AI 能力的供应商。LLM 支持 deepseek（默认 `deepseek-v4-pro`）/ kimi 
 
 TTS 默认配置的唯一权威来源是 `config_constants.DEFAULTS["tts"]`——TTS 配置页与流水线 `tts_generating` 阶段共用该基线，页面所见即流水线所用。TTS 配置按 product 作用域绑定（每个 product 可有独立音色）：配置页编辑当前激活 product 的配置，Job 运行时使用其创建时记录的 product 配置，二者在界面上均显式标注所属 product 以避免歧义。
 
-## 架构状态（v0.7.14）
+## 架构状态（v0.7.16）
 
-v0.7.14 已完成控制面 + 执行器 + pipeline service 的分层重构，配置体系由 `ConfigReader` / `ProductStore` / `SecretStore` / `DEFAULTS` 接管，`PhaseOrchestrator` 统一调度 10 个 phase handler。
+v0.7.16 已完成控制面 + 执行器 + pipeline service 的分层重构，配置体系由 `ConfigReader` / `ProductStore` / `SecretStore` / `DEFAULTS` 接管，`PhaseOrchestrator` 统一调度 10 个 phase handler。
 
 ### 路由与 phase handler 拆分（近期重构）
 
