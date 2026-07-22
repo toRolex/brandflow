@@ -309,6 +309,32 @@ def test_merge_multiple_configs() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Regression: merge edge cases (空 string / 空 list / None)
+# ---------------------------------------------------------------------------
+
+
+def test_merge_empty_string_does_not_override() -> None:
+    base = TTSConfig(voice_design_prompt="original")
+    override = TTSConfig(voice_design_prompt="")
+    merged = TTSConfigManager._merge_configs(base, override)
+    assert merged.voice_design_prompt == "original"
+
+
+def test_merge_empty_list_does_not_override() -> None:
+    base = TTSConfig(random_voices=["A", "B"])
+    override = TTSConfig(random_voices=[])
+    merged = TTSConfigManager._merge_configs(base, override)
+    assert merged.random_voices == ["A", "B"]
+
+
+def test_merge_none_does_not_override() -> None:
+    base = TTSConfig(style_prompt="sp")
+    override = TTSConfig(style_prompt=None)
+    merged = TTSConfigManager._merge_configs(base, override)
+    assert merged.style_prompt == "sp"
+
+
+# ---------------------------------------------------------------------------
 # TTSConfigManager delegates to ConfigReader / save_config
 # ---------------------------------------------------------------------------
 
@@ -419,3 +445,79 @@ def test_factory_default_model_is_valid() -> None:
         f"Default TTS model '{model}' is not recognised by MODEL_TO_PROVIDER. "
         f"Valid models: {list(MODEL_TO_PROVIDER)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# DEFAULTS constant validity
+# ---------------------------------------------------------------------------
+
+
+def test_app_config_defaults_audio_format() -> None:
+    """ConfigReader DEFAULTS 中 tts 音频格式应为 wav"""
+    from packages.provider_config.config_constants import DEFAULTS
+
+    assert DEFAULTS["tts"]["audio_format"] == "wav"
+
+
+# ---------------------------------------------------------------------------
+# optimize_text_preview 配置字段
+# ---------------------------------------------------------------------------
+
+
+def test_tts_config_has_optimize_text_preview() -> None:
+    config = TTSConfig()
+    assert hasattr(config, "optimize_text_preview")
+
+
+def test_optimize_text_preview_default_false() -> None:
+    config = TTSConfig()
+    assert config.optimize_text_preview is False
+
+
+def test_optimize_text_preview_to_dict() -> None:
+    config = TTSConfig(optimize_text_preview=True)
+    config_dict = config.to_dict()
+    assert config_dict["optimize_text_preview"] is True
+
+
+def test_optimize_text_preview_from_dict() -> None:
+    data = {"optimize_text_preview": True}
+    config = TTSConfig.from_dict(data)
+    assert config.optimize_text_preview is True
+
+
+# ---------------------------------------------------------------------------
+# voiceclone 配置字段
+# ---------------------------------------------------------------------------
+
+
+def test_tts_config_has_voiceclone_fields() -> None:
+    config = TTSConfig()
+    assert hasattr(config, "voice_clone_sample_path")
+    assert hasattr(config, "voice_clone_mime_type")
+
+
+def test_tts_config_voiceclone_defaults() -> None:
+    config = TTSConfig()
+    assert config.voice_clone_sample_path is None
+    assert config.voice_clone_mime_type is None
+
+
+def test_tts_config_voiceclone_to_dict() -> None:
+    config = TTSConfig(
+        voice_clone_sample_path="voice_clone_sample.mp3",
+        voice_clone_mime_type="audio/mpeg",
+    )
+    config_dict = config.to_dict()
+    assert config_dict["voice_clone_sample_path"] == "voice_clone_sample.mp3"
+    assert config_dict["voice_clone_mime_type"] == "audio/mpeg"
+
+
+def test_tts_config_voiceclone_from_dict() -> None:
+    data = {
+        "voice_clone_sample_path": "voice_clone_sample.mp3",
+        "voice_clone_mime_type": "audio/wav",
+    }
+    config = TTSConfig.from_dict(data)
+    assert config.voice_clone_sample_path == "voice_clone_sample.mp3"
+    assert config.voice_clone_mime_type == "audio/wav"
