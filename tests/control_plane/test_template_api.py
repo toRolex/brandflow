@@ -226,6 +226,13 @@ class TestScriptTemplateJobIntegration:
             assert project_resp.status_code == 200
             project_id = project_resp.json()["id"]
 
+            # 3.5 设置 product config — 必须在 _configure_scene_folders 之后（后者会覆写 app_config.json）
+            resp = client.put(
+                "/api/config/product",
+                json={"default_name": "羊肚菌", "default_brand": "菌王山珍"},
+            )
+            assert resp.status_code == 200
+
             # 4. 使用渲染后的 manual_script 创建 Import 模式 Job
             job_resp = client.post(
                 f"/api/projects/{project_id}/jobs",

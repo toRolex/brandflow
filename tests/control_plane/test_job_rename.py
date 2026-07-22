@@ -25,10 +25,14 @@ def test_rename_job_returns_404_for_missing_job(client):
 
 def test_create_job_accepts_name(client):
     """创建 job 时应接受并返回 name 字段。"""
+    # 设置 product config 以满足后端校验
+    client.put(
+        "/api/config/product",
+        json={"default_name": "荔枝菌", "default_brand": "test_brand"},
+    )
     response = client.post(
         "/api/projects/test-proj/jobs",
         json={
-            "product": "荔枝菌",
             "platforms": ["抖音"],
             "name": "我的自定义名称",
         },

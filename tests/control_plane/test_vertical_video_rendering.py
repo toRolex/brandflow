@@ -125,7 +125,12 @@ def test_final_rendering_allows_missing_srt_when_skip_subtitle_is_enabled(
             captured["music_path"] = music_path
             captured["music_volume"] = music_volume
             assert final_video_path is not None
-            final_video_path.write_bytes(b"final")
+            import subprocess
+            subprocess.run(
+                ["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1",
+                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", str(final_video_path)],
+                check=True, capture_output=True, text=True,
+            )
 
     class StubScheduleStore:
         def __init__(self, _root_dir: Path) -> None:
