@@ -5,9 +5,6 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import InlineBanner from "../components/InlineBanner";
 import Modal from "../components/Modal";
 import type { Project } from "../types";
-import ConfirmDialog from "../components/ConfirmDialog";
-import InlineBanner from "../components/InlineBanner";
-import Modal from "../components/Modal";
 
 export default function ProjectList() {
 	const [projects, setProjects] = useState<Project[]>([]);

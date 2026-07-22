@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 import { checkVersion } from "../api/version";
 import { useTheme } from "../context/ThemeContext";
 import ProductSelector from "./ProductSelector";
-import { checkVersion } from "../api/version";
 
 /* ------------------------------------------------------------------ */
 /*  SVG Icons — 18x18, currentColor, stroke-width 1.5, round caps     */
