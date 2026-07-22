@@ -14,3 +14,16 @@ export async function checkVersion(): Promise<VersionCheckResult> {
 	}
 	return resp.json();
 }
+
+export interface TriggerUpdateResult {
+	status: "started" | "in_progress";
+	log?: string;
+}
+
+/** Trigger a one-click update on the control-plane. */
+export async function triggerUpdate(): Promise<TriggerUpdateResult> {
+	const resp = await fetch("/api/update", { method: "POST" });
+	if (resp.status === 409) return { status: "in_progress" };
+	if (!resp.ok) throw new Error(`update failed: ${resp.status}`);
+	return resp.json();
+}
