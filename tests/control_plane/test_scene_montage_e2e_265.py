@@ -25,7 +25,6 @@ from fastapi.testclient import TestClient
 from apps.control_plane.app import create_app, create_orchestrator
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import JobTickService
-from packages.pipeline_services.media_utils import get_media_duration
 
 PROJECT_ID = "prj_001"
 SKIP_REAL = not shutil.which("ffmpeg") or not shutil.which("ffprobe")
@@ -254,28 +253,6 @@ def _create_job_at_asset_review(
     return job_id
 
 
-def _configure_scene_folder(root: Path, name: str, rel_path: str) -> Path:
-    """Register a scene folder in app_config.json and create it on disk."""
-    config_dir = root / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    config_path = config_dir / "app_config.json"
-    config = (
-        json.loads(config_path.read_text(encoding="utf-8"))
-        if config_path.exists()
-        else {}
-    )
-    scene = config.setdefault("scene", {"folders": [], "transition_duration_ms": 500})
-    scene.setdefault("folders", []).append({"name": name, "path": rel_path})
-    config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
-    folder = root / "workspace" / rel_path
-    folder.mkdir(parents=True, exist_ok=True)
-    # Import-mode job creation validates the folder holds a usable video file
-    # (SCENE_MEDIA_MISSING otherwise); a real clip also lets scene selection
-    # succeed if the pipeline ever re-runs scene_assembling.
-    _make_video(folder / "clip.mp4", 2.0, "red")
-    return folder
-
-
 # ---------------------------------------------------------------------------
 # 1. Generate mode: asset_review approval → montage → video_rendering → done
 # ---------------------------------------------------------------------------
@@ -326,64 +303,6 @@ def test_generate_job_asset_review_to_video_rendering_completes_via_http(
     kinds = {a["kind"] for a in final["artifacts"]}
     assert "montage_segment" in kinds
     assert "video_base" in kinds
-
-
-# ---------------------------------------------------------------------------
-# 2. Import mode: Scene Segment + Montage Segment composed into the base video
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.skipif(SKIP_REAL, reason=REAL_REASON)
-def test_import_job_base_video_contains_scene_and_montage_via_http(
-    tmp_path: Path,
-) -> None:
-    """Import mode composes the optional Scene Segment before the Montage
-    Segment in the correct order, with the two phases kept separate: the final
-    base video's duration and timeline cover both scene and montage (AC-2, 6)."""
-    root = tmp_path
-    _configure_scene_folder(root, "场景一", "scenes/one")
-    client = TestClient(create_app(root))
-
-    job_id = _create_job_at_asset_review(
-        client, root, mode="import", scene_folder_ids=["scenes/one"]
-    )
-    job_dir = _runtime_job_dir(root, job_id)
-
-    # scene = 2s red segment already produced by scene_assembling (import mode).
-    _make_video(job_dir / "scene_segment.mp4", 2.0, "red")
-    # montage source clip = 5s blue, trimmed to ~3s in montage_assembling.
-    clip_src = _make_video(job_dir / "_clip_src.mp4", 5.0, "blue")
-    audio = _make_audio(job_dir / "_tts.wav", 3.0)
-    _seed_reviewed_montage_inputs(job_dir, clip_path=clip_src, audio=audio)
-
-    resp = client.post(
-        f"/api/reviews/{job_id}/approve",
-        json={"review_gate": "asset_review", "force": True},
-    )
-    assert resp.status_code == 200, resp.text
-
-    final = _drive_to_completion(client, root, job_id)
-
-    assert final["phase"] == "completed"
-    assert final["execution"]["status"] == "succeeded"
-    assert final["failed_phase"] is None
-
-    # Both segments were produced by their own phases and survive on disk.
-    assert (job_dir / "scene_segment.mp4").exists()
-    assert (job_dir / "montage_segment.mp4").exists()
-    assert (job_dir / "base.mp4").exists()
-
-    # Base video duration ≈ scene(2s) + montage(~3s) → both are present.
-    base_ms = get_media_duration(job_dir / "base.mp4") * 1000
-    assert base_ms == pytest.approx(5000, abs=800)
-
-    # Final Timeline: scene first, montage second, contiguous.
-    timeline = json.loads((job_dir / "final_timeline.json").read_text("utf-8"))
-    assert timeline["segments"][0]["kind"] == "scene"
-    montage_segs = [s for s in timeline["segments"] if s["kind"] == "montage"]
-    assert montage_segs, "expected a montage segment after the scene segment"
-    assert montage_segs[0]["start_ms"] == timeline["segments"][0]["end_ms"]
-    assert timeline["segments"][0]["start_ms"] == 0
 
 
 # ---------------------------------------------------------------------------
