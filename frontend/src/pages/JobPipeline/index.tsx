@@ -311,6 +311,33 @@ export default function JobPipeline() {
 		}
 	};
 
+	const handlePause = async () => {
+		try {
+			await api.pauseJob(job.job_id);
+			await load();
+		} catch (e) {
+			setError(getApiErrorDetail(e) || "暂停请求失败");
+		}
+	};
+
+	const handleResume = async () => {
+		try {
+			await api.resumeJob(job.job_id);
+			await load();
+		} catch (e) {
+			setError(getApiErrorDetail(e) || "继续任务失败");
+		}
+	};
+
+	const handleCancel = async () => {
+		try {
+			await api.cancelJob(job.job_id);
+			await load();
+		} catch (e) {
+			setError(getApiErrorDetail(e) || "取消请求失败");
+		}
+	};
+
 	const handleMigrateScenes = async () => {
 		if (!job) return;
 		try {
@@ -712,7 +739,9 @@ export default function JobPipeline() {
 								: job.job_id
 					}
 					mode={job.mode}
-					onPause={() => api.pauseJob(job.job_id)}
+					onPause={handlePause}
+					onResume={handleResume}
+					onCancel={handleCancel}
 					onRetry={handleRetry}
 					onViewLogs={async () => {
 						try {

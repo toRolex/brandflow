@@ -178,6 +178,13 @@ class JobRecord(BaseModel):
     mode: ProductionMode = "generate"
     phase: Phase
     failed_phase: Phase | None = None
+    # Lifecycle requests are kept separately from ``phase``.  A running
+    # handler may finish its current unit of work, but must not advance once a
+    # request has been recorded.
+    pause_requested: bool = False
+    paused_from_phase: Phase | None = None
+    paused_at: str = ""
+    cancellation_requested: bool = False
     review_status: ReviewStatus
     active_attempt_id: str = ""
     active_versions: dict[str, str] = Field(default_factory=dict)

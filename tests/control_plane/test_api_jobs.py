@@ -1146,6 +1146,19 @@ def test_delete_job_success(tmp_path: Path) -> None:
         jobs = client.get("/api/projects/prj_001").json().get("jobs", [])
         assert len(jobs) == 1
         job_id = jobs[0]["job_id"]
+        # Move the job to a deletable terminal state.
+        job_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_001"
+            / "control"
+            / "jobs"
+            / f"{job_id}.json"
+        )
+        raw = json.loads(job_path.read_text(encoding="utf-8"))
+        raw["phase"] = "completed"
+        job_path.write_text(json.dumps(raw), encoding="utf-8")
 
         resp = client.delete(f"/api/jobs/{job_id}")
         assert resp.status_code == 200
@@ -1162,6 +1175,57 @@ def test_delete_job_not_found(tmp_path: Path) -> None:
         resp = client.delete("/api/jobs/nonexistent_job")
         assert resp.status_code == 404
         assert resp.json() == {"detail": "job not found"}
+
+
+def test_active_job_cannot_be_deleted_and_can_request_cancellation(tmp_path: Path) -> None:
+    """Active jobs keep their record and runtime directory until cancelled."""
+    client = _make_client(tmp_path)
+    _setup_product_config(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs", json={"platforms": ["douyin"]}
+    ).json()
+    job_id = created["job_id"]
+
+    delete_response = client.delete(f"/api/jobs/{job_id}")
+    assert delete_response.status_code == 409
+    assert delete_response.json()["detail"]["code"] == "JOB_DELETE_NOT_ALLOWED"
+
+    cancel_response = client.post(f"/api/jobs/{job_id}/cancel")
+    assert cancel_response.status_code == 202
+    assert cancel_response.json()["status"] == "cancellation_requested"
+
+    repeated_cancel = client.post(f"/api/jobs/{job_id}/cancel")
+    assert repeated_cancel.status_code == 202
+    assert repeated_cancel.json()["status"] == "cancellation_requested"
+
+
+def test_pause_is_requested_then_resume_clears_paused_metadata(tmp_path: Path) -> None:
+    """Pause does not falsely report an in-flight phase as immediately stopped."""
+    client = _make_client(tmp_path)
+    _setup_product_config(tmp_path)
+    created = client.post(
+        "/api/projects/prj_001/jobs", json={"platforms": ["douyin"]}
+    ).json()
+    job_id = created["job_id"]
+
+    pause_response = client.post(f"/api/jobs/{job_id}/pause")
+    assert pause_response.status_code == 202
+    assert pause_response.json()["status"] == "pause_requested"
+    assert client.get(f"/api/jobs/{job_id}").json()["phase"] == "queued"
+
+    job_path = (
+        tmp_path / "workspace" / "projects" / "prj_001" / "control" / "jobs" / f"{job_id}.json"
+    )
+    raw = json.loads(job_path.read_text(encoding="utf-8"))
+    raw.update({"phase": "paused", "paused_from_phase": "tts_generating"})
+    job_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    resume_response = client.post(f"/api/jobs/{job_id}/resume")
+    assert resume_response.status_code == 200
+    assert resume_response.json()["phase"] == "tts_generating"
+    saved = json.loads(job_path.read_text(encoding="utf-8"))
+    assert saved["pause_requested"] is False
+    assert saved["paused_from_phase"] is None
 
 
 # ── import 模式场景文件夹验证 ──────────────────────────────────────

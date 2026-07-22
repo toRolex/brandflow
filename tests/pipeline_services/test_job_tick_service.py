@@ -70,6 +70,8 @@ def make_record(
     manual_script: str = "",
     execution: PhaseExecutionState | None = None,
     artifacts: list[ArtifactPointer] | None = None,
+    pause_requested: bool = False,
+    cancellation_requested: bool = False,
 ) -> JobRecord:
     """Factory for concise test construction."""
     return JobRecord(
@@ -84,6 +86,8 @@ def make_record(
         manual_script=manual_script,
         execution=execution if execution is not None else PhaseExecutionState(),
         artifacts=artifacts if artifacts is not None else [],
+        pause_requested=pause_requested,
+        cancellation_requested=cancellation_requested,
     )
 
 
@@ -122,6 +126,24 @@ class TestQueued:
         assert action.handler_phase == "script_generating"
         assert action.new_phase is None
         assert action.new_review_status is None
+
+    def test_pause_request_stops_at_the_safe_transition_boundary(self) -> None:
+        action = _compute_transition(
+            make_record(phase="tts_generating", pause_requested=True), ()
+        )
+        assert action.new_phase == "paused"
+        assert action.run_handler is False
+
+    def test_cancellation_request_wins_over_pause_request(self) -> None:
+        action = _compute_transition(
+            make_record(
+                phase="tts_generating",
+                pause_requested=True,
+                cancellation_requested=True,
+            ),
+            (),
+        )
+        assert action.new_phase == "cancelled"
 
 
 # ---------------------------------------------------------------------------

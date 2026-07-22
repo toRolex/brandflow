@@ -14,6 +14,9 @@ export interface JobSummary {
 	name?: string;
 	phase: Phase;
 	failed_phase?: Phase | null;
+	pause_requested?: boolean;
+	paused_from_phase?: Phase | null;
+	cancellation_requested?: boolean;
 	review_status: ReviewStatus;
 	execution?: PhaseExecutionState;
 	phase_index: number;
@@ -38,6 +41,9 @@ export interface JobDetail {
 	platforms: string[];
 	phase: Phase;
 	failed_phase?: Phase | null;
+	pause_requested?: boolean;
+	paused_from_phase?: Phase | null;
+	cancellation_requested?: boolean;
 	review_status: ReviewStatus;
 	execution: PhaseExecutionState;
 	artifacts: Artifact[];

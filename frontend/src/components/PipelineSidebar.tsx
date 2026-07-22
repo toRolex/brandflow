@@ -9,6 +9,8 @@ interface Props {
 	jobInfo?: string;
 	mode?: ProductionMode;
 	onPause?: () => void;
+	onResume?: () => void;
+	onCancel?: () => void;
 	onRetry?: () => void;
 	onViewLogs?: () => void;
 }
@@ -29,6 +31,8 @@ export default function PipelineSidebar({
 	jobInfo,
 	mode,
 	onPause,
+	onResume,
+	onCancel,
 	onRetry,
 	onViewLogs,
 }: Props) {
@@ -56,6 +60,9 @@ export default function PipelineSidebar({
 		}
 		return true;
 	});
+	const isActive =
+		!terminalPhases.has(currentPhase) && currentPhase !== "migration_required";
+	const canRetry = currentPhase === "failed";
 
 	return (
 		<div className="w-52 bg-[var(--bg-page)] border-r border-[var(--border-default)] p-3 flex-shrink-0 overflow-y-auto">
@@ -123,16 +130,28 @@ export default function PipelineSidebar({
 			<div className="mt-4 pt-3 border-t border-gray-200">
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md mb-1 transition-colors"
-					onClick={onPause}
+					onClick={
+						isActive ? onPause : currentPhase === "paused" ? onResume : undefined
+					}
+					disabled={!isActive && currentPhase !== "paused"}
 				>
-					{"⏸"} 暂停
+					{currentPhase === "paused" ? "继续" : "暂停"}
 				</button>
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md mb-1 transition-colors"
-					onClick={onRetry}
+					onClick={canRetry ? onRetry : undefined}
+					disabled={!canRetry}
 				>
-					{"↻"} 重试当前
+					重试失败阶段
 				</button>
+				{(isActive || currentPhase === "paused") && (
+					<button
+						className="w-full text-left px-2 py-1.5 text-xs text-red-600 hover:bg-gray-100 rounded-md mb-1 transition-colors"
+						onClick={onCancel}
+					>
+						取消
+					</button>
+				)}
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
 					onClick={onViewLogs}

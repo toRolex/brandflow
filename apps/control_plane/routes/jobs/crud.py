@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -21,6 +22,30 @@ from packages.domain_core.models import JobRecord
 from packages.file_store.repository import FileStoreRepository
 
 router = APIRouter(tags=["api-jobs"])
+
+
+_DELETE_ALLOWED_PHASES = frozenset({"paused", "failed", "cancelled", "completed"})
+_ACTIVE_PHASES = frozenset(
+    {
+        "queued",
+        "script_generating",
+        "script_review",
+        "scene_assembling",
+        "tts_generating",
+        "tts_review",
+        "subtitle_generating",
+        "montage_assembling",
+        "asset_retrieving",
+        "asset_review",
+        "video_rendering",
+        "final_rendering",
+        "final_review",
+    }
+)
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 @router.post("/projects/{project_id}/jobs")
@@ -172,15 +197,96 @@ def get_job(request: Request, job_id: str):
     raise HTTPException(status_code=404, detail="job not found")
 
 
-@router.post("/jobs/{job_id}/pause")
+@router.post("/jobs/{job_id}/pause", status_code=202)
 def pause_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _find_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
-    repo.save_job(project_id, record.model_copy(update={"phase": "paused"}))
-    return {"status": "paused", "job_id": job_id}
+    if record.phase not in _ACTIVE_PHASES:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "JOB_PAUSE_NOT_ALLOWED",
+                "message": f"cannot pause a job in {record.phase}",
+                "retryable": False,
+            },
+        )
+    if not record.pause_requested:
+        repo.save_job(
+            project_id,
+            record.model_copy(
+                update={"pause_requested": True, "paused_at": _utc_now()}
+            ),
+        )
+    return {"status": "pause_requested", "job_id": job_id}
+
+
+@router.post("/jobs/{job_id}/resume")
+def resume_job(request: Request, job_id: str):
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+    record = repo.load_job(project_id, job_id)
+    if record.phase != "paused" or record.paused_from_phase is None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "JOB_RESUME_NOT_ALLOWED",
+                "message": "job is not paused at a resumable phase",
+                "retryable": False,
+            },
+        )
+    resumed = record.model_copy(
+        update={
+            "phase": record.paused_from_phase,
+            "pause_requested": False,
+            "paused_from_phase": None,
+            "paused_at": "",
+        }
+    )
+    repo.save_job(project_id, resumed)
+    return {"status": "resumed", "job_id": job_id, "phase": resumed.phase}
+
+
+@router.post("/jobs/{job_id}/cancel", status_code=202)
+def cancel_job(request: Request, job_id: str):
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+    record = repo.load_job(project_id, job_id)
+    if record.phase == "cancelled":
+        return {"status": "cancelled", "job_id": job_id}
+    if record.phase == "paused":
+        repo.save_job(
+            project_id,
+            record.model_copy(
+                update={
+                    "phase": "cancelled",
+                    "pause_requested": False,
+                    "cancellation_requested": False,
+                }
+            ),
+        )
+        return {"status": "cancelled", "job_id": job_id}
+    if record.phase not in _ACTIVE_PHASES:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "JOB_CANCEL_NOT_ALLOWED",
+                "message": f"cannot cancel a job in {record.phase}",
+                "retryable": False,
+            },
+        )
+    if not record.cancellation_requested:
+        repo.save_job(
+            project_id,
+            record.model_copy(update={"cancellation_requested": True}),
+        )
+    return {"status": "cancellation_requested", "job_id": job_id}
 
 
 @router.delete("/jobs/{job_id}")
@@ -189,6 +295,16 @@ def delete_job(request: Request, job_id: str):
     project_id = _find_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
+    record = repo.load_job(project_id, job_id)
+    if record.phase not in _DELETE_ALLOWED_PHASES:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "JOB_DELETE_NOT_ALLOWED",
+                "message": f"cancel the active job before deleting it ({record.phase})",
+                "retryable": False,
+            },
+        )
     repo.delete_job(project_id, job_id)
     return {"status": "deleted", "job_id": job_id}
 

@@ -237,6 +237,14 @@ def _compute_transition(
     """
     phase = record.phase
 
+    # Lifecycle requests take effect only at this safe transition boundary.
+    # The current handler is never force-cancelled; once it returns, Tick
+    # persists this terminal/paused state instead of entering another phase.
+    if record.cancellation_requested:
+        return TickAction(new_phase="cancelled", message="cancellation requested")
+    if record.pause_requested:
+        return TickAction(new_phase="paused", message="pause requested")
+
     # ------------------------------------------------------------------
     # 1. Terminal states — nothing to do
     # ------------------------------------------------------------------
@@ -893,10 +901,31 @@ class JobTickService:
             except FileNotFoundError:
                 pass
 
+        # A lifecycle request can arrive while a handler is running.  Preserve
+        # its completed artifacts, but consume the request before applying the
+        # handler's next-phase transition.
+        if handler_ran and action.new_phase not in {"paused", "cancelled"}:
+            latest = self._repo.load_job(project_id, job_id)
+            if latest.cancellation_requested or latest.pause_requested:
+                record = record.model_copy(
+                    update={
+                        "pause_requested": latest.pause_requested,
+                        "cancellation_requested": latest.cancellation_requested,
+                        "paused_at": latest.paused_at,
+                    }
+                )
+                action = _compute_transition(record, ())
+
         # 5. Apply phase / review_status changes
         update: dict[str, Any] = {}
         if action.new_phase is not None:
             update["phase"] = action.new_phase
+            if action.new_phase == "paused":
+                update["paused_from_phase"] = record.phase
+                update["pause_requested"] = False
+            elif action.new_phase == "cancelled":
+                update["cancellation_requested"] = False
+                update["pause_requested"] = False
         if action.new_review_status is not None:
             update["review_status"] = action.new_review_status
 
