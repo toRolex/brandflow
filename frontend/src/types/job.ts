@@ -4,6 +4,7 @@ import type {
 	Phase,
 	PhaseExecutionState,
 	ProductionMode,
+	ReviewStrategy,
 	ReviewStatus,
 } from "./core";
 
@@ -14,6 +15,9 @@ export interface JobSummary {
 	name?: string;
 	phase: Phase;
 	failed_phase?: Phase | null;
+	pause_requested?: boolean;
+	paused_from_phase?: Phase | null;
+	cancellation_requested?: boolean;
 	review_status: ReviewStatus;
 	execution?: PhaseExecutionState;
 	phase_index: number;
@@ -25,6 +29,7 @@ export interface JobSummary {
 	display_index?: string;
 	skip_subtitle?: boolean;
 	auto_approve?: boolean;
+	review_strategy?: ReviewStrategy;
 	mode?: ProductionMode;
 	artifacts?: Artifact[];
 }
@@ -38,6 +43,9 @@ export interface JobDetail {
 	platforms: string[];
 	phase: Phase;
 	failed_phase?: Phase | null;
+	pause_requested?: boolean;
+	paused_from_phase?: Phase | null;
+	cancellation_requested?: boolean;
 	review_status: ReviewStatus;
 	execution: PhaseExecutionState;
 	artifacts: Artifact[];
@@ -48,6 +56,7 @@ export interface JobDetail {
 	audio_source?: string;
 	cover_title?: CoverTitle | null;
 	mode?: ProductionMode;
+	review_strategy?: ReviewStrategy;
 	tts_model?: string;
 	tts_voice?: string;
 }
@@ -66,14 +75,14 @@ export interface BatchJobItem {
 
 export interface BatchCreateRequest {
 	platforms: string[];
-	auto_approve?: boolean;
+	review_strategy?: ReviewStrategy;
 	jobs: BatchJobItem[];
 }
 
 export interface BatchCreateResponse {
 	product: string;
 	platforms: string[];
-	auto_approve: boolean;
+	review_strategy: ReviewStrategy;
 	count: number;
 	results: Array<{
 		job_id: string;
@@ -82,7 +91,8 @@ export interface BatchCreateResponse {
 		name: string;
 		phase: string;
 		skip_subtitle: boolean;
-		auto_approve: boolean;
+		mode?: ProductionMode;
+		review_strategy?: ReviewStrategy;
 	}>;
 }
 

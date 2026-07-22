@@ -68,7 +68,7 @@ export default function SceneAssemblyPanel({ job, onRetry }: PanelProps) {
 							</>
 						)}
 					</div>
-					{job.execution?.error?.retryable && (
+					{job.phase === "failed" && job.execution?.error?.retryable && (
 						<button
 							className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
 							onClick={onRetry}

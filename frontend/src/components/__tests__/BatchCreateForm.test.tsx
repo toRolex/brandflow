@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import BatchCreateForm from "../BatchCreateForm";
 
 const defaultProps = (overrides: Record<string, unknown> = {}) => ({
+	productName: "测试产品",
+	product: "",
+	setProduct: vi.fn(),
+	brand: "",
+	setBrand: vi.fn(),
 	platforms: [] as string[],
 	togglePlatform: vi.fn(),
 	musicTracks: [],
@@ -35,6 +40,23 @@ describe("BatchCreateForm", () => {
 	it("should not have TTS voice selector", () => {
 		render(<BatchCreateForm {...defaultProps()} />);
 		expect(screen.queryByLabelText("TTS 音色")).toBeNull();
+	});
+
+	it("should call onBatchCreate without ttsModel/ttsVoice", async () => {
+		const onBatchCreate = vi.fn().mockResolvedValue(undefined);
+		render(<BatchCreateForm {...defaultProps({ onBatchCreate })} />);
+
+		// Click submit
+		const submitBtn = screen.getByText(/批量创建 2 个 Job/);
+		fireEvent.click(submitBtn);
+
+		await waitFor(() => {
+			expect(onBatchCreate).toHaveBeenCalledTimes(1);
+		});
+
+		const payload = onBatchCreate.mock.calls[0][0];
+		expect(payload.ttsModel).toBeUndefined();
+		expect(payload.ttsVoice).toBeUndefined();
 	});
 
 	it("generate 模式下 scriptMode 为 manual 时渲染脚本输入框", async () => {
@@ -75,4 +97,31 @@ describe("BatchCreateForm", () => {
 			).toHaveLength(2);
 		});
 	});
+
+	it("generate 模式下批量提交也保留 manual_script", async () => {
+		const onBatchCreate = vi.fn().mockResolvedValue(undefined);
+		render(<BatchCreateForm {...defaultProps({ onBatchCreate })} />);
+
+		uploadTextFile("第一段文案。\n\n第二段文案。");
+
+		await waitFor(() => {
+			expect(
+				screen.getAllByPlaceholderText("请输入文案内容（150-200字）..."),
+			).toHaveLength(2);
+		});
+
+		const submitBtn = screen.getByText(/批量创建 2 个 Job/);
+		fireEvent.click(submitBtn);
+
+		await waitFor(() => {
+			expect(onBatchCreate).toHaveBeenCalledTimes(1);
+		});
+
+		const payload = onBatchCreate.mock.calls[0][0];
+		expect(payload.jobs).toHaveLength(2);
+		expect(payload.jobs[0].productionMode).toBe("generate");
+		expect(payload.jobs[0].manualScript).toBe("第一段文案。");
+		expect(payload.jobs[1].manualScript).toBe("第二段文案。");
+	});
+
 });

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from packages.domain_core.models import (
     AudioSource,
@@ -10,6 +10,7 @@ from packages.domain_core.models import (
     CoverTitleStyle,
     Language,
     ProductionMode,
+    ReviewStrategy,
 )
 
 
@@ -35,7 +36,7 @@ class CreateJobRequest(BaseModel):
     uploaded_audio_path: str = ""
     name: str = ""
     skip_subtitle: bool = False
-    auto_approve: bool = False
+    review_strategy: ReviewStrategy = "review_each"
     audio_source: AudioSource = "tts"
     language: Language = "mandarin"
     cover_title: CoverTitleRequest | None = None
@@ -43,6 +44,13 @@ class CreateJobRequest(BaseModel):
     music_volume: int = 80
     tts_model: str = ""
     tts_voice: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_legacy_auto_approve(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "auto_approve" in data:
+            raise ValueError("auto_approve is no longer accepted; use review_strategy")
+        return data
 
 
 class BatchJobItem(BaseModel):
@@ -62,8 +70,15 @@ class BatchJobItem(BaseModel):
 class BatchCreateRequest(BaseModel):
     platforms: list[str]
     mode: ProductionMode = "generate"
-    auto_approve: bool = False
+    review_strategy: ReviewStrategy = "review_each"
     jobs: list[BatchJobItem]
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_legacy_auto_approve(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "auto_approve" in data:
+            raise ValueError("auto_approve is no longer accepted; use review_strategy")
+        return data
 
 
 class MigrateScenesRequest(BaseModel):

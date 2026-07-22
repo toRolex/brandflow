@@ -37,6 +37,7 @@ function defaultMockProducts() {
 		products: [{ id: "test", name: "Test Product" }],
 		activeProductId: "test",
 		activeProductName: "Test Product",
+		activeProductConfig: null,
 		loading: false,
 		switchProduct: vi.fn(),
 		refreshProducts: vi.fn(),

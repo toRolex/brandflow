@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { ApiError } from "../api/core";
 import { PLATFORMS } from "../constants/platforms";
 import type { MusicTrack } from "../types";
+import type { ReviewStrategy } from "../types/core";
 import {
 	type BatchConfig,
 	defaultBatchConfig,
@@ -15,7 +17,7 @@ interface BatchCreateFormProps {
 	musicTracks: MusicTrack[];
 	onBatchCreate: (payload: {
 		platforms: string[];
-		autoApprove: boolean;
+		reviewStrategy: ReviewStrategy;
 		jobs: BatchConfig[];
 	}) => Promise<void>;
 	onError: (msg: string) => void;
@@ -35,13 +37,11 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 	const [batchConfigs, setBatchConfigs] = useState<BatchConfig[]>(() =>
 		Array.from({ length: 2 }, () => defaultBatchConfig()),
 	);
-	const [autoApprove, setAutoApprove] = useState(false);
+	const [reviewStrategy, setReviewStrategy] =
+		useState<ReviewStrategy>("review_each");
 	const [batchLanguage, setBatchLanguage] = useState(false);
 	const [batchSkipSubtitle, setBatchSkipSubtitle] = useState(false);
 	const [batchCreating, setBatchCreating] = useState(false);
-	const [batchCoverCooldown, setBatchCoverCooldown] = useState<Set<number>>(
-		new Set(),
-	);
 
 	useEffect(() => {
 		setBatchConfigs((prev) => {
@@ -79,7 +79,7 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 		try {
 			await onBatchCreate({
 				platforms,
-				autoApprove,
+			reviewStrategy,
 				jobs: batchConfigs,
 			});
 		} finally {
@@ -156,15 +156,6 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 					updateConfig={(partial) => updateBatchConfig(i, partial)}
 					productName={productName}
 					musicTracks={musicTracks}
-					coverCooldown={batchCoverCooldown.has(i)}
-					setCoverCooldown={(v) => {
-						setBatchCoverCooldown((prev) => {
-							const next = new Set(prev);
-							if (v) next.add(i);
-							else next.delete(i);
-							return next;
-						});
-					}}
 					onError={onError}
 				/>
 			))}
@@ -177,10 +168,12 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 				>
 					<input
 						type="checkbox"
-						checked={autoApprove}
-						onChange={(e) => setAutoApprove(e.target.checked)}
+						checked={reviewStrategy === "fast_output"}
+						onChange={(e) =>
+							setReviewStrategy(e.target.checked ? "fast_output" : "review_each")
+						}
 					/>
-					全自动（跳过审核）
+					快速产出（仅自动通过脚本与 TTS 审核）
 				</label>
 				<label
 					className="flex items-center gap-1.5 text-sm cursor-pointer"
@@ -249,8 +242,6 @@ interface BatchJobCardProps {
 	updateConfig: (partial: Partial<BatchConfig>) => void;
 	productName: string;
 	musicTracks: MusicTrack[];
-	coverCooldown: boolean;
-	setCoverCooldown: (v: boolean) => void;
 	onError: (msg: string) => void;
 }
 
@@ -260,26 +251,37 @@ function BatchJobCard({
 	updateConfig,
 	productName,
 	musicTracks,
-	coverCooldown,
-	setCoverCooldown,
 	onError,
 }: BatchJobCardProps) {
 	const [showAdvanced, setShowAdvanced] = useState(false);
+	const [coverGenerating, setCoverGenerating] = useState(false);
+	const [coverRetryAfter, setCoverRetryAfter] = useState(0);
 	const isImport = config.productionMode === "import";
 	const showScriptInput = config.scriptMode === "manual";
+	const hasManualScript = config.manualScript.trim().length > 0;
 	const coverBtnDisabled =
-		config.productionMode === "generate" || coverCooldown;
-	const coverBtnTitle = coverCooldown
-		? "冷却中，请等待 5 秒"
-		: config.productionMode === "generate"
-			? "智能生成模式下由 LLM 自动生成封面标题，无需手动生成"
-			: "";
+		!hasManualScript || coverGenerating || coverRetryAfter > 0;
+	const coverBtnTitle = !hasManualScript
+		? "输入或生成文案后可生成标题"
+		: coverGenerating
+			? "正在生成标题…"
+			: coverRetryAfter > 0
+				? `服务限流，请在 ${coverRetryAfter} 秒后重试`
+				: "";
+
+	useEffect(() => {
+		if (coverRetryAfter <= 0) return;
+		const timer = window.setInterval(() => {
+			setCoverRetryAfter((seconds) => Math.max(0, seconds - 1));
+		}, 1000);
+		return () => window.clearInterval(timer);
+	}, [coverRetryAfter]);
 
 	const handleGenerateCoverTitle = async () => {
-		if (coverCooldown) return;
-		const text = isImport ? config.manualScript : "";
+		if (coverBtnDisabled) return;
+		const text = config.manualScript;
 		if (!text.trim()) return;
-		setCoverCooldown(true);
+		setCoverGenerating(true);
 		try {
 			const res = await api.generateCoverTitle({
 				script_text: text,
@@ -289,10 +291,14 @@ function BatchJobCard({
 				coverTitleText: res.text,
 				coverHighlightWords: res.highlight_words.join("，"),
 			});
-		} catch {
-			onError("生成封面标题失败，请稍后重试");
+		} catch (error) {
+			if (error instanceof ApiError && error.status === 429) {
+				setCoverRetryAfter(error.retryAfterSeconds ?? 1);
+			} else {
+				onError("生成封面标题失败，请稍后重试");
+			}
 		} finally {
-			setTimeout(() => setCoverCooldown(false), 5000);
+			setCoverGenerating(false);
 		}
 	};
 
@@ -457,57 +463,10 @@ function BatchJobCard({
 					>
 						音频来源
 					</span>
-					<label
-						className="flex items-center gap-1.5 text-sm cursor-pointer"
-						style={{ color: "var(--text-primary)" }}
-					>
-						<input
-							type="radio"
-							name={`batchAudioMode-${index}`}
-							checked={config.audioMode === "tts"}
-							onChange={() => updateConfig({ audioMode: "tts" })}
-						/>
+					<span className="text-sm" style={{ color: "var(--text-primary)" }}>
 						TTS 生成
-					</label>
-					<label
-						className="flex items-center gap-1.5 text-sm cursor-pointer"
-						style={{ color: "var(--text-primary)" }}
-					>
-						<input
-							type="radio"
-							name={`batchAudioMode-${index}`}
-							checked={config.audioMode === "upload"}
-							onChange={() => updateConfig({ audioMode: "upload" })}
-						/>
-						上传音频
-					</label>
+					</span>
 				</div>
-				{config.audioMode === "upload" && (
-					<div className="mb-3 flex flex-wrap items-center gap-3">
-						<label
-							className="border-2 border-dashed rounded-lg px-6 py-3 text-sm cursor-pointer"
-							style={{
-								borderColor: "var(--border-default)",
-								color: "var(--text-secondary)",
-							}}
-						>
-							<input
-								type="file"
-								accept="audio/*"
-								className="hidden"
-								onChange={(e) =>
-									updateConfig({ audioFile: e.target.files?.[0] || null })
-								}
-							/>
-							{config.audioFile ? config.audioFile.name : "点击选择音频文件"}
-						</label>
-						{config.audioFile && (
-							<span className="text-xs" style={{ color: "var(--success)" }}>
-								&#10003; 已选择
-							</span>
-						)}
-					</div>
-				)}
 
 				{/* Cover Title */}
 				<div className="mb-3 mt-3 flex flex-wrap items-center gap-4">
@@ -528,10 +487,10 @@ function BatchJobCard({
 						title={coverBtnTitle}
 						onClick={handleGenerateCoverTitle}
 					>
-						{coverCooldown
-							? "冷却中（5s）..."
-							: config.productionMode === "generate"
-								? "需先输入文案才能生成"
+						{coverGenerating
+							? "正在生成标题…"
+							: coverRetryAfter > 0
+								? `${coverRetryAfter} 秒后重试`
 								: "自动生成标题"}
 					</button>
 				</div>

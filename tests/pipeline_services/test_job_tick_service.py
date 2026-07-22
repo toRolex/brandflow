@@ -66,10 +66,13 @@ def make_record(
     review_status: str = "none",
     skip_subtitle: bool = False,
     auto_approve: bool = False,
+    review_strategy: str = "review_each",
     mode: str = "generate",
     manual_script: str = "",
     execution: PhaseExecutionState | None = None,
     artifacts: list[ArtifactPointer] | None = None,
+    pause_requested: bool = False,
+    cancellation_requested: bool = False,
 ) -> JobRecord:
     """Factory for concise test construction."""
     return JobRecord(
@@ -81,9 +84,12 @@ def make_record(
         review_status=review_status,  # type: ignore[arg-type]
         skip_subtitle=skip_subtitle,
         auto_approve=auto_approve,
+        review_strategy=review_strategy,  # type: ignore[arg-type]
         manual_script=manual_script,
         execution=execution if execution is not None else PhaseExecutionState(),
         artifacts=artifacts if artifacts is not None else [],
+        pause_requested=pause_requested,
+        cancellation_requested=cancellation_requested,
     )
 
 
@@ -122,6 +128,24 @@ class TestQueued:
         assert action.handler_phase == "script_generating"
         assert action.new_phase is None
         assert action.new_review_status is None
+
+    def test_pause_request_stops_at_the_safe_transition_boundary(self) -> None:
+        action = _compute_transition(
+            make_record(phase="tts_generating", pause_requested=True), ()
+        )
+        assert action.new_phase == "paused"
+        assert action.run_handler is False
+
+    def test_cancellation_request_wins_over_pause_request(self) -> None:
+        action = _compute_transition(
+            make_record(
+                phase="tts_generating",
+                pause_requested=True,
+                cancellation_requested=True,
+            ),
+            (),
+        )
+        assert action.new_phase == "cancelled"
 
 
 # ---------------------------------------------------------------------------
@@ -173,32 +197,31 @@ class TestReviewPending:
         assert action.new_review_status is None
 
 
-class TestReviewAutoApprove:
-    """auto_approve=True + not yet approved → auto-advance."""
+class TestReviewStrategy:
+    """fast_output bypasses only the script and TTS review gates."""
 
-    def test_auto_approve_no_handler_advances(self) -> None:
-        """script_review and asset_review have no handler → direct advance."""
+    def test_fast_output_advances_script_review(self) -> None:
         action = _compute_transition(
-            make_record(phase="script_review", auto_approve=True),
+            make_record(phase="script_review", review_strategy="fast_output"),
             (),
         )
         assert action.new_phase == _next("script_review")
         assert action.new_review_status == "approved"
         assert action.run_handler is False
 
-    def test_auto_approve_no_handler_asset_review(self) -> None:
+    def test_fast_output_waits_at_asset_review(self) -> None:
         action = _compute_transition(
-            make_record(phase="asset_review", auto_approve=True),
+            make_record(phase="asset_review", review_strategy="fast_output"),
             (),
         )
-        assert action.new_phase == _next("asset_review")
-        assert action.new_review_status == "approved"
+        assert action.new_phase is None
+        assert action.new_review_status is None
         assert action.run_handler is False
 
-    def test_auto_approve_with_handler_tts_review(self) -> None:
+    def test_fast_output_auto_approves_tts_review(self) -> None:
         """tts_review and final_review have handlers → run_handler=True."""
         action = _compute_transition(
-            make_record(phase="tts_review", auto_approve=True),
+            make_record(phase="tts_review", review_strategy="fast_output"),
             (),
         )
         assert action.run_handler is True
@@ -207,21 +230,20 @@ class TestReviewAutoApprove:
         assert action.new_review_status == "approved"
         assert action.review_event == {"event": "auto_approve"}
 
-    def test_auto_approve_no_handler_final_review(self) -> None:
-        """final_review is no longer a handled phase → auto-approve just advances."""
+    def test_fast_output_waits_at_final_review(self) -> None:
         action = _compute_transition(
-            make_record(phase="final_review", auto_approve=True),
+            make_record(phase="final_review", review_strategy="fast_output"),
             (),
         )
         assert action.run_handler is False
-        assert action.new_phase == _next("final_review")  # "completed"
-        assert action.new_review_status == "approved"
+        assert action.new_phase is None
+        assert action.new_review_status is None
 
-    def test_auto_approve_with_approved_does_not_reapprove(self) -> None:
+    def test_fast_output_with_approved_does_not_reapprove(self) -> None:
         """Already-approved reviews should advance, not re-auto-approve."""
         action = _compute_transition(
             make_record(
-                phase="script_review", review_status="approved", auto_approve=True
+                phase="script_review", review_status="approved", review_strategy="fast_output"
             ),
             (),
         )
@@ -230,43 +252,40 @@ class TestReviewAutoApprove:
         assert action.new_review_status == "none"
         assert action.run_handler is False
 
-    def test_auto_approve_with_pending_does_not_reapprove(self) -> None:
+    def test_fast_output_with_pending_does_not_reapprove(self) -> None:
         """Already-pending reviews should wait, not auto-approve."""
         action = _compute_transition(
             make_record(
-                phase="script_review", review_status="pending", auto_approve=True
+                phase="script_review", review_status="pending", review_strategy="fast_output"
             ),
             (),
         )
         assert action.run_handler is False
         assert action.new_phase is None
 
-    def test_auto_approve_with_skip_subtitle_chains_past_subtitle(self) -> None:
+    def test_fast_output_with_skip_subtitle_chains_past_subtitle(self) -> None:
         """auto_approve + skip_subtitle should skip over subtitle_generating."""
         # tts_review → normally → subtitle_generating, but with skip_subtitle
         # should go directly to asset_retrieving
         action = _compute_transition(
-            make_record(phase="tts_review", auto_approve=True, skip_subtitle=True),
+            make_record(phase="tts_review", review_strategy="fast_output", skip_subtitle=True),
             (),
         )
         assert action.new_phase == "asset_retrieving"  # skips subtitle_generating
         assert action.new_review_status == "approved"
 
-    def test_auto_approve_skip_subtitle_no_handler(self) -> None:
-        """auto_approve + skip_subtitle on a no-handler review still chains."""
-        # asset_review has no handler, now advances to montage_assembling
-        # (montage_assembling is now between asset_review and video_rendering).
+    def test_fast_output_skip_subtitle_still_waits_at_asset_review(self) -> None:
         action = _compute_transition(
-            make_record(phase="asset_review", auto_approve=True, skip_subtitle=True),
+            make_record(phase="asset_review", review_strategy="fast_output", skip_subtitle=True),
             (),
         )
-        assert action.new_phase == "montage_assembling"
-        assert action.new_review_status == "approved"
+        assert action.new_phase is None
+        assert action.new_review_status is None
 
-    def test_auto_approve_no_skip_subtitle_goes_to_subtitle(self) -> None:
+    def test_fast_output_no_skip_subtitle_goes_to_subtitle(self) -> None:
         """Without skip_subtitle, auto_approve should still go to subtitle."""
         action = _compute_transition(
-            make_record(phase="tts_review", auto_approve=True),
+            make_record(phase="tts_review", review_strategy="fast_output"),
             (),
         )
         assert action.new_phase == "subtitle_generating"

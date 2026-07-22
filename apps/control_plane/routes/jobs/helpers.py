@@ -19,9 +19,7 @@ def _resolve_product_from_config(root_dir: Path | str) -> tuple[str, str]:
     reader = ConfigReader(config_dir=str(Path(root_dir) / "config"))
     active_id = reader.active_product_id
     cfg = (
-        reader.get_product_config(product_id=active_id)
-        if active_id
-        else reader.get_product_config()
+        reader.get_product_config(product_id=active_id) if active_id else reader.get_product_config()
     )
     default_name = cfg.get("default_name", "")
     if not default_name:
@@ -114,7 +112,7 @@ def _make_job_response(
         "brand": record.brand,
         "name": record.name or record.product,
         "mode": record.mode,
-        "platforms": platforms,
+        "platforms": platforms or record.platforms,
         "phase": record.phase,
         "failed_phase": record.failed_phase,
         "review_status": record.review_status,
@@ -125,6 +123,7 @@ def _make_job_response(
         "audio_source": record.audio_source,
         "skip_subtitle": record.skip_subtitle,
         "auto_approve": record.auto_approve,
+        "review_strategy": record.review_strategy,
         "language": record.language,
         "cover_title": record.cover_title.model_dump(),
         "music_track_path": record.music_track_path,

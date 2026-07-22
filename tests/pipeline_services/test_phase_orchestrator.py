@@ -989,19 +989,12 @@ class TestFinalRendering:
 
         orchestrator._video_svc.burn_final_video.side_effect = write_corrupt_final
 
-        with (
-            patch(
-                "packages.pipeline_services.phases.final_rendering.probe_media",
-                return_value={
-                    "duration": 1.0,
-                    "video_codec": "h264",
-                    "audio_codec": None,
-                },
-            ),
-            patch(
-                "packages.pipeline_services.phases.final_rendering.is_decodable_video",
-                return_value=False,
-            ),
+        with patch(
+            "packages.pipeline_services.phases.final_rendering.probe_media",
+            return_value={"duration": 1.0, "video_codec": "h264", "audio_codec": None},
+        ), patch(
+            "packages.pipeline_services.phases.final_rendering.is_decodable_video",
+            return_value=False,
         ):
             artifacts = orchestrator.run_phase("final_rendering", ctx)
 

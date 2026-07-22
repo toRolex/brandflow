@@ -14,6 +14,7 @@ vi.mock("../../api/client", () => ({
 		batchCreateJobs: vi.fn(),
 		getSceneFolders: vi.fn(),
 		uploadJobAudio: vi.fn(),
+		enqueueJob: vi.fn(),
 	},
 }));
 
@@ -109,7 +110,7 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			fireEvent.click(screen.getByRole("button", { name: "＋ 新建 Job" }));
 
 			expect(screen.getByText("创建新 Job")).toBeInTheDocument();
-			expect(screen.getByPlaceholderText("如：龙井茶")).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("默认使用产品名")).toBeInTheDocument();
 		});
 
 		it("allows switching between single and batch creation inside modal", async () => {
@@ -121,14 +122,14 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 
 			fireEvent.click(screen.getByRole("button", { name: "＋ 新建 Job" }));
 
-			expect(screen.getByPlaceholderText("如：龙井茶")).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("默认使用产品名")).toBeInTheDocument();
 			expect(screen.queryByLabelText("创建数量")).not.toBeInTheDocument();
 
 			fireEvent.click(screen.getByLabelText("批量创建"));
 			expect(screen.getByLabelText("创建数量")).toBeInTheDocument();
 
 			fireEvent.click(screen.getByLabelText("单个创建"));
-			expect(screen.getByPlaceholderText("如：龙井茶")).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("默认使用产品名")).toBeInTheDocument();
 			expect(screen.queryByLabelText("创建数量")).not.toBeInTheDocument();
 		});
 	});
@@ -175,15 +176,12 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 
 			fireEvent.click(screen.getByRole("button", { name: "＋ 新建 Job" }));
 
-			const productInput = screen.getByPlaceholderText("如：龙井茶");
-			fireEvent.change(productInput, { target: { value: "新产品" } });
-
 			fireEvent.click(screen.getByText("创建并开始生产"));
 
 			await waitFor(() => {
 				expect(api.createJob).toHaveBeenCalledWith(
 					"p1",
-					expect.objectContaining({ product: "新产品" }),
+					expect.objectContaining({ platforms: ["douyin", "xiaohongshu"] }),
 				);
 			});
 
@@ -205,7 +203,7 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			vi.mocked(api.batchCreateJobs).mockResolvedValue({
 				product: "批量产品",
 				platforms: ["douyin"],
-				auto_approve: false,
+				review_strategy: "review_each",
 				count: 2,
 				results: [
 					{
@@ -215,7 +213,8 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 						name: "批量产品 #001",
 						phase: "queued" as const,
 						skip_subtitle: false,
-						auto_approve: false,
+						mode: "generate",
+						review_strategy: "review_each",
 					},
 					{
 						job_id: "batch-2",
@@ -224,7 +223,8 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 						name: "批量产品 #002",
 						phase: "queued" as const,
 						skip_subtitle: false,
-						auto_approve: false,
+						mode: "generate",
+						review_strategy: "review_each",
 					},
 				],
 			});
@@ -263,15 +263,12 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 
 			fireEvent.click(screen.getByLabelText("批量创建"));
 
-			const productInput = screen.getAllByPlaceholderText("如：龙井茶")[0];
-			fireEvent.change(productInput, { target: { value: "批量产品" } });
-
 			fireEvent.click(screen.getByRole("button", { name: /批量创建/ }));
 
 			await waitFor(() => {
 				expect(api.batchCreateJobs).toHaveBeenCalledWith(
 					"p1",
-					expect.objectContaining({ product: "批量产品" }),
+					expect.objectContaining({ review_strategy: "review_each" }),
 				);
 			});
 

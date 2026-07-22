@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
 import PipelineSidebar from "../../components/PipelineSidebar";
+import { getJobActionPolicy } from "../../policies/jobActionPolicy";
+import { shouldPollJob } from "../../policies/jobPollingPolicy";
 import type {
 	ExportTaskState,
 	JobDetail,
@@ -142,10 +144,10 @@ export default function JobPipeline() {
 	}, [load]);
 
 	useEffect(() => {
-		if (!id) return;
+		if (!id || !job || !shouldPollJob(job.phase)) return;
 		const t = setInterval(load, 10_000);
 		return () => clearInterval(t);
-	}, [id, load]);
+	}, [id, job, load]);
 
 	const prevPhaseRef = useRef(job?.phase);
 	useEffect(() => {
@@ -308,6 +310,33 @@ export default function JobPipeline() {
 		} catch (e) {
 			console.error("retry failed", e);
 			setError(formatRetryError(e));
+		}
+	};
+
+	const handlePause = async () => {
+		try {
+			await api.pauseJob(job.job_id);
+			await load();
+		} catch (e) {
+			setError(getApiErrorDetail(e) || "暂停请求失败");
+		}
+	};
+
+	const handleResume = async () => {
+		try {
+			await api.resumeJob(job.job_id);
+			await load();
+		} catch (e) {
+			setError(getApiErrorDetail(e) || "继续任务失败");
+		}
+	};
+
+	const handleCancel = async () => {
+		try {
+			await api.cancelJob(job.job_id);
+			await load();
+		} catch (e) {
+			setError(getApiErrorDetail(e) || "取消请求失败");
 		}
 	};
 
@@ -621,6 +650,8 @@ export default function JobPipeline() {
 				return <SceneAssemblyPanel {...panelProps} />;
 			case "migration_required":
 				return <MigrationPanel {...panelProps} />;
+			case "draft":
+				return <QueuedPanel draft />;
 			case "queued":
 				return <QueuedPanel />;
 			case "script_gen":
@@ -693,8 +724,7 @@ export default function JobPipeline() {
 
 			{job.execution?.status === "retrying" && (
 				<div className="mb-4 bg-[var(--bg-table-head)] px-4 py-3 rounded-lg text-sm">
-					正在重试，第 {job.execution.current_attempt} /{" "}
-					{job.execution.max_attempts} 次
+					正在自动重试：第 {job.execution.current_attempt} 次执行失败，系统将按退避策略继续尝试。
 				</div>
 			)}
 
@@ -712,7 +742,10 @@ export default function JobPipeline() {
 								: job.job_id
 					}
 					mode={job.mode}
-					onPause={() => api.pauseJob(job.job_id)}
+					actionPolicy={getJobActionPolicy(job)}
+					onPause={handlePause}
+					onResume={handleResume}
+					onCancel={handleCancel}
 					onRetry={handleRetry}
 					onViewLogs={async () => {
 						try {

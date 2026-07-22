@@ -93,12 +93,14 @@ export default function AssetRetrievingPanel({
 							未找到与当前文案匹配的素材。您可以修改文案后重试，或检查素材库内容。
 						</p>
 					</div>
-					<button
-						className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
-						onClick={onRetry}
-					>
-						重新检索素材
-					</button>
+					{job.phase === "failed" && job.execution?.error?.retryable && (
+						<button
+							className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
+							onClick={onRetry}
+						>
+							重新检索素材
+						</button>
+					)}
 				</div>
 			)}
 

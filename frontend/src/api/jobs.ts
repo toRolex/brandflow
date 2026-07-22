@@ -1,4 +1,4 @@
-import type { ProductionMode } from "../types/core";
+import type { ProductionMode, ReviewStrategy } from "../types/core";
 import type {
 	BatchCreateRequest,
 	BatchCreateResponse,
@@ -15,7 +15,7 @@ export const createJob = (
 		mode?: ProductionMode;
 		manual_script?: string;
 		skip_subtitle?: boolean;
-		auto_approve?: boolean;
+		review_strategy?: ReviewStrategy;
 		audio_source?: string;
 		music_track_path?: string;
 		music_volume?: number;
@@ -45,6 +45,19 @@ export const renameJob = (jobId: string, name: string) =>
 
 export const pauseJob = (jobId: string) =>
 	request<{ status: string }>(`/api/jobs/${jobId}/pause`, { method: "POST" });
+
+export const resumeJob = (jobId: string) =>
+	request<{ status: string; phase: string }>(`/api/jobs/${jobId}/resume`, {
+		method: "POST",
+	});
+
+export const cancelJob = (jobId: string) =>
+	request<{ status: string }>(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+
+export const enqueueJob = (jobId: string) =>
+	request<{ status: string; phase: string }>(`/api/jobs/${jobId}/enqueue`, {
+		method: "POST",
+	});
 
 export const retryJob = (jobId: string) =>
 	request<{ status: string }>(`/api/jobs/${jobId}/retry`, { method: "POST" });

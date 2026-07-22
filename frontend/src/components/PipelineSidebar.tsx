@@ -1,5 +1,6 @@
 import type { Phase, ProductionMode } from "../types";
 import { PIPELINE_STEPS } from "../types";
+import type { JobActionPolicy } from "../policies/jobActionPolicy";
 
 interface Props {
 	currentPhase: Phase;
@@ -9,8 +10,11 @@ interface Props {
 	jobInfo?: string;
 	mode?: ProductionMode;
 	onPause?: () => void;
+	onResume?: () => void;
+	onCancel?: () => void;
 	onRetry?: () => void;
 	onViewLogs?: () => void;
+	actionPolicy: JobActionPolicy;
 }
 
 const IMPORT_HIDE_PHASES: ReadonlySet<Phase> = new Set([
@@ -29,8 +33,11 @@ export default function PipelineSidebar({
 	jobInfo,
 	mode,
 	onPause,
+	onResume,
+	onCancel,
 	onRetry,
 	onViewLogs,
+	actionPolicy,
 }: Props) {
 	const terminalPhases: ReadonlySet<Phase> = new Set([
 		"completed",
@@ -123,16 +130,28 @@ export default function PipelineSidebar({
 			<div className="mt-4 pt-3 border-t border-gray-200">
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md mb-1 transition-colors"
-					onClick={onPause}
+					onClick={actionPolicy.canPause ? onPause : actionPolicy.canResume ? onResume : undefined}
+					disabled={!actionPolicy.canPause && !actionPolicy.canResume}
+					title={actionPolicy.pauseMessage ?? undefined}
 				>
-					{"⏸"} 暂停
+					{currentPhase === "paused" ? "继续" : "暂停"}
 				</button>
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md mb-1 transition-colors"
-					onClick={onRetry}
+					onClick={actionPolicy.canRetry ? onRetry : undefined}
+					disabled={!actionPolicy.canRetry}
+					title={actionPolicy.retryMessage ?? undefined}
 				>
-					{"↻"} 重试当前
+					重试失败阶段
 				</button>
+				{actionPolicy.canCancel && (
+					<button
+						className="w-full text-left px-2 py-1.5 text-xs text-red-600 hover:bg-gray-100 rounded-md mb-1 transition-colors"
+						onClick={onCancel}
+					>
+						取消
+					</button>
+				)}
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
 					onClick={onViewLogs}

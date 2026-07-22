@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from math import ceil
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -23,8 +24,11 @@ def generate_cover_title(payload: GenerateCoverTitleRequest, request: Request):
     now = time.monotonic()
     last = _COVER_TITLE_RATE_LIMIT.get(client_ip, 0)
     if now - last < _COVER_TITLE_COOLDOWN:
+        retry_after = max(1, ceil(_COVER_TITLE_COOLDOWN - (now - last)))
         raise HTTPException(
-            status_code=429, detail=f"请 {_COVER_TITLE_COOLDOWN} 秒后再试"
+            status_code=429,
+            detail=f"请 {retry_after} 秒后再试",
+            headers={"Retry-After": str(retry_after)},
         )
     _COVER_TITLE_RATE_LIMIT[client_ip] = now
 

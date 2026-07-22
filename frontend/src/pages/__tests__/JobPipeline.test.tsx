@@ -174,7 +174,7 @@ describe("JobPipeline execution failure workflow", () => {
 		renderPage();
 
 		expect(
-			await screen.findByText(/正在重试，第 2 \/ 3 次/),
+		await screen.findByText(/正在自动重试：第 2 次执行失败/),
 		).toBeInTheDocument();
 	});
 });
@@ -418,8 +418,8 @@ describe("JobPipeline asset phase states", () => {
 		expect(await screen.findByText("无可用素材")).toBeInTheDocument();
 		expect(screen.getByText(/未找到与当前文案匹配的素材/)).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "重新检索素材" }),
-		).toBeInTheDocument();
+			screen.queryByRole("button", { name: "重新检索素材" }),
+		).not.toBeInTheDocument();
 	});
 
 	it("shows asset_retrieving succeeded with clips artifact and asset grid", async () => {

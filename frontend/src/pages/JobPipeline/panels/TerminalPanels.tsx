@@ -18,7 +18,7 @@ export function PausedPanel() {
 				已暂停
 			</h3>
 			<p className="text-[var(--text-tertiary)] text-sm">
-				任务已暂停，可点击"重试当前"继续
+				任务已暂停，可点击“继续”恢复到暂停前的阶段
 			</p>
 		</div>
 	);
