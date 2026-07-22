@@ -19,7 +19,9 @@ def _resolve_product_from_config(root_dir: Path | str) -> tuple[str, str]:
     reader = ConfigReader(config_dir=str(Path(root_dir) / "config"))
     active_id = reader.active_product_id
     cfg = (
-        reader.get_product_config(product_id=active_id) if active_id else reader.get_product_config()
+        reader.get_product_config(product_id=active_id)
+        if active_id
+        else reader.get_product_config()
     )
     default_name = cfg.get("default_name", "")
     if not default_name:

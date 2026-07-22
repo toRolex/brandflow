@@ -191,10 +191,12 @@ def test_auto_tick_skips_subtitle_phase_when_skip_subtitle_is_enabled(
         raise asyncio.CancelledError()
 
     class _StubTTS:
-        def synthesize(self, text, config): return b"tts"
+        def synthesize(self, text, config):
+            return b"tts"
+
     monkeypatch.setattr(
         "packages.pipeline_services.phase_orchestrator._build_tts_provider_fn",
-        lambda self, cfg: _StubTTS()
+        lambda self, cfg: _StubTTS(),
     )
     monkeypatch.setattr("apps.control_plane.app.asyncio.sleep", fake_sleep)
 
@@ -203,7 +205,9 @@ def test_auto_tick_skips_subtitle_phase_when_skip_subtitle_is_enabled(
 
     data = json.loads(job_path.read_text(encoding="utf-8"))
     # subtitle was skipped (skip_subtitle=True) — tick advanced past subtitle
-    assert data["phase"] in ("asset_retrieving", "asset_review"),         f"expected asset phase after skipping subtitle, got {data['phase']}"
+    assert data["phase"] in ("asset_retrieving", "asset_review"), (
+        f"expected asset phase after skipping subtitle, got {data['phase']}"
+    )
     # review_status may become "pending" if tick reaches asset_review
 
 
@@ -243,10 +247,12 @@ def test_auto_tick_auto_approves_review_gates(monkeypatch, tmp_path: Path) -> No
         raise asyncio.CancelledError()
 
     class _StubTTS:
-        def synthesize(self, text, config): return b"tts"
+        def synthesize(self, text, config):
+            return b"tts"
+
     monkeypatch.setattr(
         "packages.pipeline_services.phase_orchestrator._build_tts_provider_fn",
-        lambda self, cfg: _StubTTS()
+        lambda self, cfg: _StubTTS(),
     )
     monkeypatch.setattr("apps.control_plane.app.asyncio.sleep", fake_sleep)
 
