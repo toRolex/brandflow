@@ -1,4 +1,4 @@
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 function PhasePlaceholder({
 	title,

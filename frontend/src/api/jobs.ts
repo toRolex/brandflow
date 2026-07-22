@@ -1,4 +1,3 @@
-import { request, uploadFile } from "./core";
 import type { ProductionMode } from "../types/core";
 import type {
 	BatchCreateRequest,
@@ -6,6 +5,7 @@ import type {
 	JobDetail,
 	SceneFolder,
 } from "../types/job";
+import { request, uploadFile } from "./core";
 
 export const createJob = (
 	projectId: string,
@@ -31,10 +31,7 @@ export const createJob = (
 		body: JSON.stringify(body),
 	});
 
-export const batchCreateJobs = (
-	projectId: string,
-	body: BatchCreateRequest,
-) =>
+export const batchCreateJobs = (projectId: string, body: BatchCreateRequest) =>
 	request<BatchCreateResponse>(`/api/projects/${projectId}/jobs/batch`, {
 		method: "POST",
 		body: JSON.stringify(body),
@@ -77,12 +74,12 @@ export const deleteJob = (jobId: string) =>
 export const getJobLogs = (jobId: string) =>
 	request<{ logs: string }>(`/api/jobs/${jobId}/logs`);
 
-export const updateJobScript = (jobId: string, manual_script: string) =>
+export const updateJobScript = (jobId: string, manualScript: string) =>
 	request<{ status: string; job_id: string; manual_script: string }>(
 		`/api/jobs/${jobId}/script`,
 		{
 			method: "POST",
-			body: JSON.stringify({ manual_script }),
+			body: JSON.stringify({ manual_script: manualScript }),
 		},
 	);
 
@@ -95,18 +92,26 @@ export const uploadJobAudio = (jobId: string, file: File) =>
 	}>(`/api/jobs/${jobId}/audio`, file);
 
 export const getJobTTSVoice = (jobId: string) =>
-	request<{ model: string; voice: string; resolved_from: string; product: string }>(
-		`/api/jobs/${jobId}/tts/voice`,
-	);
+	request<{
+		model: string;
+		voice: string;
+		resolved_from: string;
+		product: string;
+	}>(`/api/jobs/${jobId}/tts/voice`);
 
 export const updateJobTTSVoice = (
 	jobId: string,
 	body: { model?: string; voice?: string; confirm?: boolean },
 ) =>
-	request<{ model: string; voice: string; resolved_from: string; product: string }>(
-		`/api/jobs/${jobId}/tts/voice`,
-		{ method: "PUT", body: JSON.stringify(body) },
-	);
+	request<{
+		model: string;
+		voice: string;
+		resolved_from: string;
+		product: string;
+	}>(`/api/jobs/${jobId}/tts/voice`, {
+		method: "PUT",
+		body: JSON.stringify(body),
+	});
 
 export const previewJobTTS = async (jobId: string) => {
 	const res = await fetch(`/api/jobs/${jobId}/tts/preview`, {

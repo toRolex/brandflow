@@ -1,4 +1,3 @@
-import { request, uploadFile } from "./core";
 import type {
 	ImportResult,
 	MetricsOverview,
@@ -6,6 +5,7 @@ import type {
 	TopicStat,
 	VideoMetricPage,
 } from "../types/metrics";
+import { request, uploadFile } from "./core";
 
 export const uploadMetrics = (file: File) =>
 	uploadFile<ImportResult>("/api/metrics/upload", file);
@@ -15,13 +15,11 @@ export const scanMetrics = () =>
 		method: "POST",
 	});
 
-export const getMetricsOverview = (days: number = 7, platform?: string) => {
+export const getMetricsOverview = (days = 7, platform?: string) => {
 	const qs = new URLSearchParams();
 	qs.set("days", String(days));
 	if (platform) qs.set("platform", platform);
-	return request<MetricsOverview>(
-		`/api/metrics/overview?${qs.toString()}`,
-	);
+	return request<MetricsOverview>(`/api/metrics/overview?${qs.toString()}`);
 };
 
 export const getMetricsVideos = (params?: {
@@ -37,16 +35,10 @@ export const getMetricsVideos = (params?: {
 	if (params?.search) qs.set("search", params.search);
 	if (params?.page) qs.set("page", String(params.page));
 	if (params?.page_size) qs.set("page_size", String(params.page_size));
-	return request<VideoMetricPage>(
-		`/api/metrics/videos?${qs.toString()}`,
-	);
+	return request<VideoMetricPage>(`/api/metrics/videos?${qs.toString()}`);
 };
 
-export const getMetricsTopics = (
-	days: number = 30,
-	platform?: string,
-	limit: number = 10,
-) => {
+export const getMetricsTopics = (days = 30, platform?: string, limit = 10) => {
 	const qs = new URLSearchParams();
 	qs.set("days", String(days));
 	if (platform) qs.set("platform", platform);

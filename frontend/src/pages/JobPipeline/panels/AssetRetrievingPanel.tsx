@@ -1,5 +1,5 @@
 import AssetGrid from "../../../components/AssetGrid";
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function AssetRetrievingPanel({
 	job,
@@ -30,9 +30,7 @@ export default function AssetRetrievingPanel({
 
 			{execStatus === "pending" && (
 				<div className="py-4">
-					<p className="text-[var(--text-tertiary)] text-sm">
-						等待开始切配...
-					</p>
+					<p className="text-[var(--text-tertiary)] text-sm">等待开始切配...</p>
 				</div>
 			)}
 
@@ -105,9 +103,7 @@ export default function AssetRetrievingPanel({
 			)}
 
 			{!["pending", "running", "succeeded"].includes(execStatus || "") && (
-				<p className="text-[var(--text-tertiary)] text-sm">
-					等待素材检索...
-				</p>
+				<p className="text-[var(--text-tertiary)] text-sm">等待素材检索...</p>
 			)}
 		</div>
 	);

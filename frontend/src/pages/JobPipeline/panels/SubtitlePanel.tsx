@@ -1,4 +1,4 @@
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function SubtitlePanel({ findArtifact }: PanelProps) {
 	const subtitleArtifact = findArtifact("subtitle");
@@ -20,9 +20,7 @@ export default function SubtitlePanel({ findArtifact }: PanelProps) {
 					</a>
 				</div>
 			) : (
-				<p className="text-[var(--text-tertiary)] text-sm">
-					等待字幕生成...
-				</p>
+				<p className="text-[var(--text-tertiary)] text-sm">等待字幕生成...</p>
 			)}
 		</div>
 	);

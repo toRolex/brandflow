@@ -1,4 +1,11 @@
-import type { Artifact, CoverTitle, Phase, ProductionMode, ReviewStatus, PhaseExecutionState } from "./core";
+import type {
+	Artifact,
+	CoverTitle,
+	Phase,
+	PhaseExecutionState,
+	ProductionMode,
+	ReviewStatus,
+} from "./core";
 
 export interface JobSummary {
 	job_id: string;

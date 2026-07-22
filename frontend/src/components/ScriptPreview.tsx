@@ -127,12 +127,12 @@ export default function ScriptPreview({
 					</span>
 					<span
 						className={
-							!checks.has_emoji
-								? "text-[var(--color-signal-green)]"
-								: "text-[var(--color-alert-red)]"
+							checks.has_emoji
+								? "text-[var(--color-alert-red)]"
+								: "text-[var(--color-signal-green)]"
 						}
 					>
-						禁emoji: {!checks.has_emoji ? "✓" : "✗"}
+						禁emoji: {checks.has_emoji ? "✗" : "✓"}
 					</span>
 					{checks.forbidden_terms.length > 0 && (
 						<span className="text-[var(--color-alert-red)]">
@@ -177,7 +177,10 @@ export default function ScriptPreview({
 			) : (
 				<div className="flex gap-1.5 flex-wrap">
 					{!reviewEnabled && (
-						<div className="w-full text-xs mb-1" style={{ color: "var(--color-caution-amber)" }}>
+						<div
+							className="w-full text-xs mb-1"
+							style={{ color: "var(--color-caution-amber)" }}
+						>
 							当前不在该审核阶段，无法操作
 						</div>
 					)}

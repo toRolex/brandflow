@@ -1,5 +1,5 @@
-import * as assets from "./assets";
 import * as assetLibrary from "./assetLibrary";
+import * as assets from "./assets";
 import * as config from "./config";
 import * as coverTitle from "./coverTitle";
 import * as exportTask from "./export";

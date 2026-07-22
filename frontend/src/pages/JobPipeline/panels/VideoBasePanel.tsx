@@ -1,5 +1,5 @@
 import MediaPlayer from "../../../components/MediaPlayer";
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function VideoBasePanel({ findArtifact }: PanelProps) {
 	const video = findArtifact("video_base");

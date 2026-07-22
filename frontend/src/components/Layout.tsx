@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { checkVersion } from "../api/version";
 import { useTheme } from "../context/ThemeContext";
 import ProductSelector from "./ProductSelector";
 import { checkVersion } from "../api/version";
@@ -179,8 +180,8 @@ export default function Layout({ children }: { children: ReactNode }) {
 		latest: string;
 		updateAvailable: boolean;
 	} | null>(null);
-	const [bannerDismissed, setBannerDismissed] = useState(() =>
-		sessionStorage.getItem("bf-update-dismissed") === "1",
+	const [bannerDismissed, setBannerDismissed] = useState(
+		() => sessionStorage.getItem("bf-update-dismissed") === "1",
 	);
 
 	useEffect(() => {
@@ -305,18 +306,28 @@ export default function Layout({ children }: { children: ReactNode }) {
 					<div
 						className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
 						style={{
-							background: 'var(--color-caution-amber-muted, oklch(65% .14 75 / .12))',
-							borderColor: 'var(--border-default)',
-							color: 'var(--text-primary)',
+							background:
+								"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+							borderColor: "var(--border-default)",
+							color: "var(--text-primary)",
 						}}
 					>
-						<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-							<circle cx="8" cy="8" r="6.5"/>
-							<path d="M8 4.5v4M8 11v.5"/>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 16 16"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="1.5"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							style={{ flexShrink: 0 }}
+						>
+							<circle cx="8" cy="8" r="6.5" />
+							<path d="M8 4.5v4M8 11v.5" />
 						</svg>
 						<span className="flex-1">
-							<strong>新版本可用</strong>{' '}
-							v{versionInfo?.latest} 已发布
+							<strong>新版本可用</strong> v{versionInfo?.latest} 已发布
 						</span>
 						<button
 							className="text-sm font-medium hover:opacity-70 flex-shrink-0"

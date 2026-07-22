@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import ConfirmDialog from "../components/ConfirmDialog";
+import InlineBanner from "../components/InlineBanner";
+import Modal from "../components/Modal";
 import type { Project } from "../types";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InlineBanner from "../components/InlineBanner";
@@ -44,13 +47,14 @@ export default function ProjectList() {
 	}, [showCreateModal]);
 
 	// Clean up highlight timer on unmount
-	useEffect(() => {
-		return () => {
+	useEffect(
+		() => () => {
 			if (highlightTimerRef.current) {
 				clearTimeout(highlightTimerRef.current);
 			}
-		};
-	}, []);
+		},
+		[],
+	);
 
 	const validateName = (name: string): string | null => {
 		if (!name.trim()) return "项目名称不能为空";
@@ -101,7 +105,8 @@ export default function ProjectList() {
 		}
 	};
 
-	const allSelected = projects.length > 0 && selectedIds.size === projects.length;
+	const allSelected =
+		projects.length > 0 && selectedIds.size === projects.length;
 
 	const toggleSelect = (id: string) => {
 		setSelectedIds((prev) => {
@@ -467,7 +472,7 @@ export default function ProjectList() {
 						: ""
 				}
 				confirmLabel="确认删除"
-				danger
+				danger={true}
 				onConfirm={confirmDelete}
 				onCancel={() => setDeleteTarget(null)}
 			/>
@@ -478,7 +483,7 @@ export default function ProjectList() {
 				title="确认批量删除"
 				message={`确定要删除选中的 ${selectedIds.size} 个项目吗？此操作不可撤销。`}
 				confirmLabel="确认删除"
-				danger
+				danger={true}
 				onConfirm={confirmBulkDelete}
 				onCancel={() => setShowBulkDeleteModal(false)}
 			/>

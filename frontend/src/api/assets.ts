@@ -1,7 +1,6 @@
-import { request, uploadFile } from "./core";
-import type { AssetFile, AssetRecord } from "../types/asset";
-import type { AssetStats } from "../types/asset";
+import type { AssetFile, AssetRecord, AssetStats } from "../types/asset";
 import type { IndexResult } from "../types/assetIndexing";
+import { request, uploadFile } from "./core";
 
 export const uploadAsset = (projectId: string, file: File) =>
 	uploadFile<AssetFile>(`/api/projects/${projectId}/upload`, file);

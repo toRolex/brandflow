@@ -276,7 +276,9 @@ export default function ProductConfigForm() {
 			vision_prompt: catFormData.vision_prompt.trim(),
 		};
 
-		if (editingCatIndex !== null) {
+		if (editingCatIndex === null) {
+			await handleSaveCategories([...categories, newCategory]);
+		} else {
 			const existingId = categories[editingCatIndex]?.id;
 			const updated = categories.map((c, i) =>
 				i === editingCatIndex
@@ -284,8 +286,6 @@ export default function ProductConfigForm() {
 					: c,
 			);
 			await handleSaveCategories(updated);
-		} else {
-			await handleSaveCategories([...categories, newCategory]);
 		}
 
 		setShowCatForm(false);
@@ -523,7 +523,7 @@ export default function ProductConfigForm() {
 																setRenameValue("");
 															}
 														}}
-														autoFocus
+														autoFocus={true}
 													/>
 													<button
 														className="text-xs px-1 hover:brightness-90"
@@ -1025,7 +1025,7 @@ export default function ProductConfigForm() {
 									className="text-lg font-semibold mb-4"
 									style={{ color: "var(--text-primary)" }}
 								>
-									{editingCatIndex !== null ? "编辑分类" : "新增分类"}
+									{editingCatIndex === null ? "新增分类" : "编辑分类"}
 								</h3>
 								<div className="space-y-4">
 									<div>

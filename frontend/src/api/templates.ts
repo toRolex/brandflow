@@ -1,5 +1,5 @@
-import { request } from "./core";
 import type { PreviewResponse, ScriptTemplate } from "../types/template";
+import { request } from "./core";
 
 export const listTemplates = () =>
 	request<ScriptTemplate[]>("/api/config/templates");

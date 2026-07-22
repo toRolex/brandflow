@@ -1,12 +1,12 @@
-import { request, uploadFile } from "./core";
 import type {
 	AssetFile,
 	AssetRecord,
+	AssetStats,
 	CategoryItem,
 	SuggestCategory,
 } from "../types/asset";
-import type { AssetStats } from "../types/asset";
 import type { IndexResult, IndexTaskState } from "../types/assetIndexing";
+import { request, uploadFile } from "./core";
 
 export const uploadAssetShared = (file: File) =>
 	uploadFile<AssetFile>("/api/assets/upload", file);

@@ -1,5 +1,5 @@
-import { request } from "./core";
 import type { ProductConfig } from "../types/product";
+import { request } from "./core";
 
 export const getProductConfig = () =>
 	request<ProductConfig>("/api/config/product");

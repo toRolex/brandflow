@@ -106,7 +106,7 @@ export default function AssetUploadZone({
 				ref={inputRef}
 				type="file"
 				accept={accept}
-				multiple
+				multiple={true}
 				className="hidden"
 				onChange={handleFileChange}
 			/>

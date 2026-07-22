@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { useProducts } from "../ProductContext";
 
-interface TTSConfig {
+interface TtsConfig {
 	model: string;
 	voice: string;
 	fallback_voice: string;
@@ -139,7 +139,7 @@ const AUDIO_TAGS = [
 
 export default function TTSConfigPage() {
 	const { activeProductId, activeProductName } = useProducts();
-	const [config, setConfig] = useState<TTSConfig | null>(null);
+	const [config, setConfig] = useState<TtsConfig | null>(null);
 	const [previewText, setPreviewText] = useState(
 		"这是产品展示的示例语音，用于测试语音合成效果和音色表现。",
 	);
@@ -166,7 +166,7 @@ export default function TTSConfigPage() {
 
 	const loadConfig = async () => {
 		const data = await api.getTTSConfig();
-		setConfig(data as unknown as TTSConfig);
+		setConfig(data as unknown as TtsConfig);
 	};
 
 	const loadVoicesForModel = async (model: string, setDefault: boolean) => {
@@ -480,7 +480,7 @@ export default function TTSConfigPage() {
 													}}
 													value=""
 												>
-													<option value="" disabled>
+													<option value="" disabled={true}>
 														+ 添加音色
 													</option>
 													{pool
@@ -1009,8 +1009,8 @@ export default function TTSConfigPage() {
 							{previewAudioUrl && (
 								<audio
 									className="w-full"
-									controls
-									autoPlay
+									controls={true}
+									autoPlay={true}
 									src={previewAudioUrl}
 								/>
 							)}

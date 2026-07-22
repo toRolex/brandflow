@@ -8,13 +8,13 @@ describe("ConfirmDialog", () => {
 		const onCancel = vi.fn();
 		render(
 			<ConfirmDialog
-				isOpen
+				isOpen={true}
 				title="确认"
 				message="确定吗？"
 				onConfirm={onConfirm}
 				onCancel={onCancel}
 				confirmLabel="确认删除"
-				danger
+				danger={true}
 			/>,
 		);
 

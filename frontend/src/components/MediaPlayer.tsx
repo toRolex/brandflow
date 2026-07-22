@@ -24,7 +24,7 @@ export default function MediaPlayer({ src, kind }: Props) {
 	if (kind === "video") {
 		return (
 			<video
-				controls
+				controls={true}
 				className="w-full rounded-lg max-h-96"
 				onError={() => setLoadError(true)}
 			>
@@ -34,7 +34,11 @@ export default function MediaPlayer({ src, kind }: Props) {
 		);
 	}
 	return (
-		<audio controls className="w-full" onError={() => setLoadError(true)}>
+		<audio
+			controls={true}
+			className="w-full"
+			onError={() => setLoadError(true)}
+		>
 			<source src={src} />
 			您的浏览器不支持音频播放
 		</audio>

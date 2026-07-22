@@ -109,9 +109,7 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			fireEvent.click(screen.getByRole("button", { name: "＋ 新建 Job" }));
 
 			expect(screen.getByText("创建新 Job")).toBeInTheDocument();
-			expect(
-				screen.getByPlaceholderText("如：龙井茶"),
-			).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("如：龙井茶")).toBeInTheDocument();
 		});
 
 		it("allows switching between single and batch creation inside modal", async () => {
@@ -123,18 +121,14 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 
 			fireEvent.click(screen.getByRole("button", { name: "＋ 新建 Job" }));
 
-			expect(
-				screen.getByPlaceholderText("如：龙井茶"),
-			).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("如：龙井茶")).toBeInTheDocument();
 			expect(screen.queryByLabelText("创建数量")).not.toBeInTheDocument();
 
 			fireEvent.click(screen.getByLabelText("批量创建"));
 			expect(screen.getByLabelText("创建数量")).toBeInTheDocument();
 
 			fireEvent.click(screen.getByLabelText("单个创建"));
-			expect(
-				screen.getByPlaceholderText("如：龙井茶"),
-			).toBeInTheDocument();
+			expect(screen.getByPlaceholderText("如：龙井茶")).toBeInTheDocument();
 			expect(screen.queryByLabelText("创建数量")).not.toBeInTheDocument();
 		});
 	});

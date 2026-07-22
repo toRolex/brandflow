@@ -123,19 +123,17 @@ export default function TtsVoiceSelector({
 						onTtsModelChange(newModel);
 						api
 							.getTTSVoices(undefined, newModel)
-							.then(
-								(data: { preset_voices: { id: string }[] }) => {
-									if (data.preset_voices.length > 0) {
-										const isPresetModel =
-											newModel === "mimo-v2.5-tts" ||
-											newModel === "qwen3-tts-flash" ||
-											newModel === "qwen3-tts-instruct-flash";
-										if (isPresetModel) {
-											onTtsVoiceChange(data.preset_voices[0].id);
-										}
+							.then((data: { preset_voices: { id: string }[] }) => {
+								if (data.preset_voices.length > 0) {
+									const isPresetModel =
+										newModel === "mimo-v2.5-tts" ||
+										newModel === "qwen3-tts-flash" ||
+										newModel === "qwen3-tts-instruct-flash";
+									if (isPresetModel) {
+										onTtsVoiceChange(data.preset_voices[0].id);
 									}
-								},
-							)
+								}
+							})
 							.catch(() => {});
 					}}
 				>
@@ -185,9 +183,7 @@ export default function TtsVoiceSelector({
 						background: "var(--btn-primary-bg)",
 						color: "var(--btn-primary-text)",
 					}}
-					onClick={() =>
-						onApplyVoiceChange(ttsSelectedModel, ttsSelectedVoice)
-					}
+					onClick={() => onApplyVoiceChange(ttsSelectedModel, ttsSelectedVoice)}
 				>
 					应用
 				</button>

@@ -1,6 +1,6 @@
 import MediaPlayer from "../../../components/MediaPlayer";
 import TtsVoiceSelector from "../components/TtsVoiceSelector";
-import { PanelProps } from "../types";
+import type { PanelProps } from "../types";
 
 export default function TtsReviewPanel({
 	isCurrentReviewStep,
