@@ -84,42 +84,40 @@ class TestSetBlank:
     def test_set_clip_to_blank(self, tmp_path: Path) -> None:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-blank",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "set_blank"
+            assert data["clip_index"] == 0
 
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/set-blank",
-            json={"clip_index": 0},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "set_blank"
-        assert data["clip_index"] == 0
-
-        clips_path = (
-            ctx["tmp_path"]
-            / "workspace"
-            / "projects"
-            / ctx["project_id"]
-            / "runtime"
-            / "jobs"
-            / ctx["job_id"]
-            / "selected_clips.json"
-        )
-        clips = json.loads(clips_path.read_text(encoding="utf-8"))
-        assert clips[0]["visual_type"] == "blank"
-        assert clips[0]["file_path"] == ""
-        assert clips[0]["asset_id"] == ""
+            clips_path = (
+                ctx["tmp_path"]
+                / "workspace"
+                / "projects"
+                / ctx["project_id"]
+                / "runtime"
+                / "jobs"
+                / ctx["job_id"]
+                / "selected_clips.json"
+            )
+            clips = json.loads(clips_path.read_text(encoding="utf-8"))
+            assert clips[0]["visual_type"] == "blank"
+            assert clips[0]["file_path"] == ""
+            assert clips[0]["asset_id"] == ""
 
     def test_set_blank_invalid_index(self, tmp_path: Path) -> None:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/set-blank",
-            json={"clip_index": 99},
-        )
-        assert resp.status_code == 400
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-blank",
+                json={"clip_index": 99},
+            )
+            assert resp.status_code == 400
 
     def test_set_blank_on_already_blank_is_idempotent(self, tmp_path: Path) -> None:
         ctx = _setup_job(
@@ -134,13 +132,12 @@ class TestSetBlank:
             ],
         )
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/set-blank",
-            json={"clip_index": 0},
-        )
-        assert resp.status_code == 200
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-blank",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
 
 
 class TestSetAsset:
@@ -157,35 +154,34 @@ class TestSetAsset:
             ],
         )
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-asset",
+                json={
+                    "clip_index": 0,
+                    "file_path": "/data/new_clip.mp4",
+                    "asset_id": "a-new",
+                },
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "set_asset"
+            assert data["visual_type"] == "clip"
 
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/set-asset",
-            json={
-                "clip_index": 0,
-                "file_path": "/data/new_clip.mp4",
-                "asset_id": "a-new",
-            },
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "set_asset"
-        assert data["visual_type"] == "clip"
-
-        clips_path = (
-            ctx["tmp_path"]
-            / "workspace"
-            / "projects"
-            / ctx["project_id"]
-            / "runtime"
-            / "jobs"
-            / ctx["job_id"]
-            / "selected_clips.json"
-        )
-        clips = json.loads(clips_path.read_text(encoding="utf-8"))
-        assert clips[0]["visual_type"] == "clip"
-        assert clips[0]["file_path"] == "/data/new_clip.mp4"
-        assert clips[0]["asset_id"] == "a-new"
+            clips_path = (
+                ctx["tmp_path"]
+                / "workspace"
+                / "projects"
+                / ctx["project_id"]
+                / "runtime"
+                / "jobs"
+                / ctx["job_id"]
+                / "selected_clips.json"
+            )
+            clips = json.loads(clips_path.read_text(encoding="utf-8"))
+            assert clips[0]["visual_type"] == "clip"
+            assert clips[0]["file_path"] == "/data/new_clip.mp4"
+            assert clips[0]["asset_id"] == "a-new"
 
 
 class TestReSearch:
@@ -204,15 +200,14 @@ class TestReSearch:
             ],
         )
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/re-search",
-            json={"clip_index": 0},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "re_searched"
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/re-search",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "re_searched"
 
     def test_re_search_does_not_overwrite_blank(self, tmp_path: Path) -> None:
         """Re-search should not change a clip that is already explicitly set to blank."""
@@ -230,16 +225,15 @@ class TestReSearch:
             ],
         )
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/re-search",
-            json={"clip_index": 0},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "re_searched"
-        assert data["visual_type"] == "blank"  # unchanged
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/re-search",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "re_searched"
+            assert data["visual_type"] == "blank"  # unchanged
 
 
 class TestRestore:
@@ -257,51 +251,49 @@ class TestRestore:
         ]
         ctx = _setup_job(tmp_path, clips)
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
+        with TestClient(app) as client:
+            # First, set to blank
+            client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-blank", json={"clip_index": 0}
+            )
 
-        # First, set to blank
-        client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/set-blank", json={"clip_index": 0}
-        )
+            # Then restore
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/restore",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "restored"
 
-        # Then restore
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/restore",
-            json={"clip_index": 0},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "restored"
-
-        clips_path = (
-            ctx["tmp_path"]
-            / "workspace"
-            / "projects"
-            / ctx["project_id"]
-            / "runtime"
-            / "jobs"
-            / ctx["job_id"]
-            / "selected_clips.json"
-        )
-        clips = json.loads(clips_path.read_text(encoding="utf-8"))
-        assert clips[0]["visual_type"] == "clip"
-        assert clips[0]["file_path"] == "/data/original.mp4"
-        assert clips[0]["asset_id"] == "a-orig"
+            clips_path = (
+                ctx["tmp_path"]
+                / "workspace"
+                / "projects"
+                / ctx["project_id"]
+                / "runtime"
+                / "jobs"
+                / ctx["job_id"]
+                / "selected_clips.json"
+            )
+            clips = json.loads(clips_path.read_text(encoding="utf-8"))
+            assert clips[0]["visual_type"] == "clip"
+            assert clips[0]["file_path"] == "/data/original.mp4"
+            assert clips[0]["asset_id"] == "a-orig"
 
 
 class TestApprove:
     def test_approve_blocks_unresolved(self, tmp_path: Path) -> None:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)  # index 1 is unresolved
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/approve",
-            json={"review_gate": "asset_review"},
-        )
-        assert resp.status_code == 409
-        detail = resp.json()
-        assert "unresolved" in detail.get("detail", "").lower()
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/approve",
+                json={"review_gate": "asset_review"},
+            )
+            assert resp.status_code == 409
+            detail = resp.json()
+            assert "unresolved" in detail.get("detail", "").lower()
 
     def test_approve_all_blank_warns_but_allows_with_force(
         self, tmp_path: Path
@@ -314,16 +306,15 @@ class TestApprove:
             ],
         )
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        # Without force should warn
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/approve",
-            json={"review_gate": "asset_review"},
-        )
-        assert resp.status_code == 409
-        detail = resp.json()
-        assert "blank" in detail.get("detail", "").lower()
+        with TestClient(app) as client:
+            # Without force should warn
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/approve",
+                json={"review_gate": "asset_review"},
+            )
+            assert resp.status_code == 409
+            detail = resp.json()
+            assert "blank" in detail.get("detail", "").lower()
 
     def test_approve_all_blank_with_force_succeeds(self, tmp_path: Path) -> None:
         ctx = _setup_job(
@@ -334,15 +325,14 @@ class TestApprove:
             ],
         )
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/approve",
-            json={"review_gate": "asset_review", "force": True},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "approved"
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/approve",
+                json={"review_gate": "asset_review", "force": True},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "approved"
 
     def test_approve_freeze_snapshot(self, tmp_path: Path) -> None:
         """Approval writes reviewed_assets.json and preserves asset IDs."""
@@ -370,29 +360,28 @@ class TestApprove:
             ],
         )
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/approve",
+                json={"review_gate": "asset_review"},
+            )
+            assert resp.status_code == 200
 
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/approve",
-            json={"review_gate": "asset_review"},
-        )
-        assert resp.status_code == 200
-
-        clips_path = (
-            ctx["tmp_path"]
-            / "workspace"
-            / "projects"
-            / ctx["project_id"]
-            / "runtime"
-            / "jobs"
-            / ctx["job_id"]
-            / "reviewed_assets.json"
-        )
-        assert clips_path.exists()
-        snapshot = json.loads(clips_path.read_text(encoding="utf-8"))
-        assert len(snapshot) == 2
-        assert snapshot[0]["asset_id"] == "a1"
-        assert snapshot[1]["visual_type"] == "blank"
+            clips_path = (
+                ctx["tmp_path"]
+                / "workspace"
+                / "projects"
+                / ctx["project_id"]
+                / "runtime"
+                / "jobs"
+                / ctx["job_id"]
+                / "reviewed_assets.json"
+            )
+            assert clips_path.exists()
+            snapshot = json.loads(clips_path.read_text(encoding="utf-8"))
+            assert len(snapshot) == 2
+            assert snapshot[0]["asset_id"] == "a1"
+            assert snapshot[1]["visual_type"] == "blank"
 
     def test_approve_approves_clean_clip_list(self, tmp_path: Path) -> None:
         ctx = _setup_job(
@@ -415,14 +404,13 @@ class TestApprove:
             ],
         )
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/approve",
-            json={"review_gate": "asset_review"},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "approved"
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/approve",
+                json={"review_gate": "asset_review"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "approved"
 
 
 def _set_phase(tmp_path: Path, project_id: str, job_id: str, phase: str) -> None:
@@ -449,14 +437,13 @@ class TestPhaseGating:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/set-blank",
-            json={"clip_index": 0},
-        )
-        assert resp.status_code == 409
-        assert "asset_review" in resp.json()["detail"].lower()
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-blank",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 409
+            assert "asset_review" in resp.json()["detail"].lower()
 
     @pytest.mark.parametrize(
         "phase", ["queued", "script_generating", "video_rendering", "completed"]
@@ -467,14 +454,13 @@ class TestPhaseGating:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/set-asset",
-            json={"clip_index": 0, "file_path": "/data/clip.mp4", "asset_id": "a1"},
-        )
-        assert resp.status_code == 409
-        assert "asset_review" in resp.json()["detail"].lower()
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-asset",
+                json={"clip_index": 0, "file_path": "/data/clip.mp4", "asset_id": "a1"},
+            )
+            assert resp.status_code == 409
+            assert "asset_review" in resp.json()["detail"].lower()
 
     @pytest.mark.parametrize(
         "phase", ["queued", "script_generating", "video_rendering", "completed"]
@@ -485,14 +471,13 @@ class TestPhaseGating:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/re-search",
-            json={"clip_index": 0},
-        )
-        assert resp.status_code == 409
-        assert "asset_review" in resp.json()["detail"].lower()
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/re-search",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 409
+            assert "asset_review" in resp.json()["detail"].lower()
 
     @pytest.mark.parametrize(
         "phase", ["queued", "script_generating", "video_rendering", "completed"]
@@ -503,23 +488,21 @@ class TestPhaseGating:
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/restore",
-            json={"clip_index": 0},
-        )
-        assert resp.status_code == 409
-        assert "asset_review" in resp.json()["detail"].lower()
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/restore",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 409
+            assert "asset_review" in resp.json()["detail"].lower()
 
     def test_set_blank_in_asset_review_succeeds(self, tmp_path: Path) -> None:
         """Sanity check: the endpoint works normally when in the right phase."""
         ctx = _setup_job(tmp_path, CLIP_SAMPLE)
         app = create_app(root_dir=ctx["tmp_path"])
-        client = TestClient(app)
-
-        resp = client.post(
-            f"/api/reviews/{ctx['job_id']}/asset/set-blank",
-            json={"clip_index": 0},
-        )
-        assert resp.status_code == 200
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-blank",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200

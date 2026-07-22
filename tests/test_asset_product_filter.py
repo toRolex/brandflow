@@ -83,28 +83,27 @@ def test_indexed_assets_filters_by_product():
             },
         ]
         app = _build_app_with_asset_db(root, assets)
-        client = TestClient(app)
+        with TestClient(app) as client:
+            # Filter by product (use params to properly encode Chinese characters)
+            resp = client.get("/api/assets/indexed", params={"product": "龙井茶"})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert len(data["assets"]) == 2
+            returned_ids = {a["asset_id"] for a in data["assets"]}
+            assert returned_ids == {"a1", "a2"}
 
-        # Filter by product (use params to properly encode Chinese characters)
-        resp = client.get("/api/assets/indexed", params={"product": "龙井茶"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data["assets"]) == 2
-        returned_ids = {a["asset_id"] for a in data["assets"]}
-        assert returned_ids == {"a1", "a2"}
+            # Filter by other product
+            resp2 = client.get("/api/assets/indexed", params={"product": "普洱茶"})
+            assert resp2.status_code == 200
+            data2 = resp2.json()
+            assert len(data2["assets"]) == 1
+            assert data2["assets"][0]["asset_id"] == "a3"
 
-        # Filter by other product
-        resp2 = client.get("/api/assets/indexed", params={"product": "普洱茶"})
-        assert resp2.status_code == 200
-        data2 = resp2.json()
-        assert len(data2["assets"]) == 1
-        assert data2["assets"][0]["asset_id"] == "a3"
-
-        # No product filter returns all
-        resp3 = client.get("/api/assets/indexed")
-        assert resp3.status_code == 200
-        data3 = resp3.json()
-        assert len(data3["assets"]) == 3
+            # No product filter returns all
+            resp3 = client.get("/api/assets/indexed")
+            assert resp3.status_code == 200
+            data3 = resp3.json()
+            assert len(data3["assets"]) == 3
 
 
 def test_indexed_assets_product_and_category_combined():
@@ -132,15 +131,14 @@ def test_indexed_assets_product_and_category_combined():
             },
         ]
         app = _build_app_with_asset_db(root, assets)
-        client = TestClient(app)
-
-        resp = client.get(
-            "/api/assets/indexed", params={"product": "龙井茶", "category": "冲泡"}
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data["assets"]) == 1
-        assert data["assets"][0]["asset_id"] == "a1"
+        with TestClient(app) as client:
+            resp = client.get(
+                "/api/assets/indexed", params={"product": "龙井茶", "category": "冲泡"}
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert len(data["assets"]) == 1
+            assert data["assets"][0]["asset_id"] == "a1"
 
 
 def test_indexed_assets_product_no_match_returns_empty():
@@ -156,10 +154,9 @@ def test_indexed_assets_product_no_match_returns_empty():
             },
         ]
         app = _build_app_with_asset_db(root, assets)
-        client = TestClient(app)
-
-        resp = client.get("/api/assets/indexed", params={"product": "铁观音"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert len(data["assets"]) == 0
-        assert data["stats"]["total_clips"] == 0
+        with TestClient(app) as client:
+            resp = client.get("/api/assets/indexed", params={"product": "铁观音"})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert len(data["assets"]) == 0
+            assert data["stats"]["total_clips"] == 0

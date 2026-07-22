@@ -176,8 +176,8 @@ def test_migration_e2e_two_projects(tmp_path: Path) -> None:
     )
 
     # ── Act: migrate ──
-    client = TestClient(create_app(tmp_path))
-    resp = client.post("/api/assets/migrate")
+    with TestClient(create_app(tmp_path)) as client:
+        resp = client.post("/api/assets/migrate")
 
     # ── Assert response ──
     assert resp.status_code == 200

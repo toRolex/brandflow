@@ -45,7 +45,10 @@ markers = [
     "media_integration: tests that invoke real FFmpeg and may use substantial memory",
     "e2e: end-to-end tests",
 ]
-addopts = "-m 'not e2e and not slow and not media_integration'"
+addopts = "-m 'not e2e and not slow and not media_integration' -p no:cacheprovider --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
 
 [[tool.uv.index]]
 url = "http://mirrors.aliyun.com/pypi/simple/"

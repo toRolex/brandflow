@@ -97,21 +97,21 @@ def _read_job_phase(tmp_path: Path, job_id: str) -> str:
 
 
 def test_approve_review_returns_approved_status() -> None:
-    client = TestClient(create_app())
-    response = client.post(
-        "/api/reviews/j1/approve",
-        json={"review_gate": "script_review"},
-    )
-    assert response.status_code == 404
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/reviews/j1/approve",
+            json={"review_gate": "script_review"},
+        )
+        assert response.status_code == 404
 
 
 def test_reject_review_returns_rejected_status() -> None:
-    client = TestClient(create_app())
-    response = client.post(
-        "/api/reviews/j1/reject",
-        json={"review_gate": "script_review"},
-    )
-    assert response.status_code == 404
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/reviews/j1/reject",
+            json={"review_gate": "script_review"},
+        )
+        assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -124,31 +124,29 @@ class TestApproveNonReviewPhase:
     def test_returns_409_phase_info(self, tmp_path: Path, phase: str) -> None:
         _create_job(tmp_path, "j-app", phase, review_status="pending")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/api/reviews/j-app/approve",
-            json={"review_gate": phase},
-        )
-        assert resp.status_code == 409
-        detail = resp.json()["detail"]
-        assert "not in a review phase" in detail.lower()
-        assert phase in detail
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/reviews/j-app/approve",
+                json={"review_gate": phase},
+            )
+            assert resp.status_code == 409
+            detail = resp.json()["detail"]
+            assert "not in a review phase" in detail.lower()
+            assert phase in detail
 
     @pytest.mark.parametrize("phase", NON_REVIEW_PHASES + TERMINAL_NON_REVIEW)
     def test_does_not_modify_job_on_409(self, tmp_path: Path, phase: str) -> None:
         """A 409 approve must leave the phase and review_status unchanged."""
         _create_job(tmp_path, "j-imm", phase, review_status="pending")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
+        with TestClient(app) as client:
+            client.post(
+                "/api/reviews/j-imm/approve",
+                json={"review_gate": phase},
+            )
 
-        client.post(
-            "/api/reviews/j-imm/approve",
-            json={"review_gate": phase},
-        )
-
-        persisted_phase = _read_job_phase(tmp_path, "j-imm")
-        assert persisted_phase == phase
+            persisted_phase = _read_job_phase(tmp_path, "j-imm")
+            assert persisted_phase == phase
 
 
 # ---------------------------------------------------------------------------
@@ -161,31 +159,29 @@ class TestRejectNonReviewPhase:
     def test_returns_409_phase_info(self, tmp_path: Path, phase: str) -> None:
         _create_job(tmp_path, "j-rej", phase, review_status="pending")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/api/reviews/j-rej/reject",
-            json={"review_gate": phase},
-        )
-        assert resp.status_code == 409
-        detail = resp.json()["detail"]
-        assert "not in a review phase" in detail.lower()
-        assert phase in detail
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/reviews/j-rej/reject",
+                json={"review_gate": phase},
+            )
+            assert resp.status_code == 409
+            detail = resp.json()["detail"]
+            assert "not in a review phase" in detail.lower()
+            assert phase in detail
 
     @pytest.mark.parametrize("phase", NON_REVIEW_PHASES + TERMINAL_NON_REVIEW)
     def test_does_not_modify_job_on_409(self, tmp_path: Path, phase: str) -> None:
         """A 409 reject must leave the phase unchanged."""
         _create_job(tmp_path, "j-imm2", phase, review_status="pending")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
+        with TestClient(app) as client:
+            client.post(
+                "/api/reviews/j-imm2/reject",
+                json={"review_gate": phase},
+            )
 
-        client.post(
-            "/api/reviews/j-imm2/reject",
-            json={"review_gate": phase},
-        )
-
-        persisted_phase = _read_job_phase(tmp_path, "j-imm2")
-        assert persisted_phase == phase
+            persisted_phase = _read_job_phase(tmp_path, "j-imm2")
+            assert persisted_phase == phase
 
 
 # ---------------------------------------------------------------------------
@@ -197,26 +193,24 @@ class TestCompletedPhase:
     def test_approve_from_completed_returns_409(self, tmp_path: Path) -> None:
         _create_job(tmp_path, "j-done", "completed", review_status="approved")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/api/reviews/j-done/approve",
-            json={"review_gate": "completed"},
-        )
-        assert resp.status_code == 409
-        assert "not in a review phase" in resp.json()["detail"].lower()
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/reviews/j-done/approve",
+                json={"review_gate": "completed"},
+            )
+            assert resp.status_code == 409
+            assert "not in a review phase" in resp.json()["detail"].lower()
 
     def test_reject_from_completed_returns_409(self, tmp_path: Path) -> None:
         _create_job(tmp_path, "j-done2", "completed", review_status="approved")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/api/reviews/j-done2/reject",
-            json={"review_gate": "completed"},
-        )
-        assert resp.status_code == 409
-        assert "not in a review phase" in resp.json()["detail"].lower()
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/reviews/j-done2/reject",
+                json={"review_gate": "completed"},
+            )
+            assert resp.status_code == 409
+            assert "not in a review phase" in resp.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -228,45 +222,42 @@ class TestGateMismatch:
     def test_approve_gate_mismatch_returns_409(self, tmp_path: Path) -> None:
         _create_job(tmp_path, "j-mm", "script_review", review_status="pending")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/api/reviews/j-mm/approve",
-            json={"review_gate": "tts_review"},
-        )
-        assert resp.status_code == 409
-        detail = resp.json()["detail"]
-        assert "gate mismatch" in detail.lower()
-        assert "script_review" in detail
-        assert "tts_review" in detail
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/reviews/j-mm/approve",
+                json={"review_gate": "tts_review"},
+            )
+            assert resp.status_code == 409
+            detail = resp.json()["detail"]
+            assert "gate mismatch" in detail.lower()
+            assert "script_review" in detail
+            assert "tts_review" in detail
 
     def test_reject_gate_mismatch_returns_409(self, tmp_path: Path) -> None:
         _create_job(tmp_path, "j-mm2", "asset_review", review_status="pending")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/api/reviews/j-mm2/reject",
-            json={"review_gate": "final_review"},
-        )
-        assert resp.status_code == 409
-        detail = resp.json()["detail"]
-        assert "gate mismatch" in detail.lower()
-        assert "asset_review" in detail
-        assert "final_review" in detail
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/reviews/j-mm2/reject",
+                json={"review_gate": "final_review"},
+            )
+            assert resp.status_code == 409
+            detail = resp.json()["detail"]
+            assert "gate mismatch" in detail.lower()
+            assert "asset_review" in detail
+            assert "final_review" in detail
 
     def test_gate_mismatch_does_not_modify_job(self, tmp_path: Path) -> None:
         _create_job(tmp_path, "j-mm3", "script_review", review_status="pending")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
+        with TestClient(app) as client:
+            client.post(
+                "/api/reviews/j-mm3/approve",
+                json={"review_gate": "tts_review"},
+            )
 
-        client.post(
-            "/api/reviews/j-mm3/approve",
-            json={"review_gate": "tts_review"},
-        )
-
-        persisted_phase = _read_job_phase(tmp_path, "j-mm3")
-        assert persisted_phase == "script_review"
+            persisted_phase = _read_job_phase(tmp_path, "j-mm3")
+            assert persisted_phase == "script_review"
 
 
 # ---------------------------------------------------------------------------
@@ -292,20 +283,19 @@ class TestApproveSuccess:
         if phase == "asset_review":
             _create_runtime_job_dir(tmp_path, ctx["project_id"], f"j-ok-{phase}")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/j-ok-{phase}/approve",
+                json={"review_gate": phase},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "approved"
+            assert data["next_phase"] == expected_next
 
-        resp = client.post(
-            f"/api/reviews/j-ok-{phase}/approve",
-            json={"review_gate": phase},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "approved"
-        assert data["next_phase"] == expected_next
-
-        # Verify the job was actually advanced on disk
-        persisted_phase = _read_job_phase(tmp_path, f"j-ok-{phase}")
-        assert persisted_phase == expected_next
+            # Verify the job was actually advanced on disk
+            persisted_phase = _read_job_phase(tmp_path, f"j-ok-{phase}")
+            assert persisted_phase == expected_next
 
 
 # ---------------------------------------------------------------------------
@@ -328,20 +318,19 @@ class TestRejectSuccess:
     ) -> None:
         _create_job(tmp_path, f"j-rj-{phase}", phase, review_status="pending")
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/j-rj-{phase}/reject",
+                json={"review_gate": phase},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "rejected"
+            assert data["next_phase"] == expected_reject_target
 
-        resp = client.post(
-            f"/api/reviews/j-rj-{phase}/reject",
-            json={"review_gate": phase},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "rejected"
-        assert data["next_phase"] == expected_reject_target
-
-        # Verify the job was actually reverted on disk
-        persisted_phase = _read_job_phase(tmp_path, f"j-rj-{phase}")
-        assert persisted_phase == expected_reject_target
+            # Verify the job was actually reverted on disk
+            persisted_phase = _read_job_phase(tmp_path, f"j-rj-{phase}")
+            assert persisted_phase == expected_reject_target
 
 
 # ---------------------------------------------------------------------------
@@ -361,16 +350,15 @@ class TestImportMode:
             mode="import",
         )
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/api/reviews/j-imp/approve",
-            json={"review_gate": "script_review"},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "approved"
-        assert data["next_phase"] == "tts_generating"
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/reviews/j-imp/approve",
+                json={"review_gate": "script_review"},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "approved"
+            assert data["next_phase"] == "tts_generating"
 
     def test_reject_import_script_review_succeeds(self, tmp_path: Path) -> None:
         _create_job(
@@ -381,15 +369,14 @@ class TestImportMode:
             mode="import",
         )
         app = create_app(root_dir=tmp_path)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/api/reviews/j-imp2/reject",
-            json={"review_gate": "script_review"},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "rejected"
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/reviews/j-imp2/reject",
+                json={"review_gate": "script_review"},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "rejected"
 
 
 # ---------------------------------------------------------------------------

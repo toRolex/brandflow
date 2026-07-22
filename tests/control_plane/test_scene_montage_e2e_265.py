@@ -269,42 +269,41 @@ def test_generate_job_asset_review_to_video_rendering_completes_via_http(
     enters and completes video_rendering, and reaches completed — never
     ``asset_review → montage_assembling → failed`` (AC-1, 3, 5, 8)."""
     root = tmp_path
-    client = TestClient(create_app(root))
+    with TestClient(create_app(root)) as client:
+        job_id = _create_job_at_asset_review(client, root, mode="generate")
+        job_dir = _runtime_job_dir(root, job_id)
+        audio = _make_audio(job_dir / "_tts.wav", 3.0)
+        # Blank montage segment — generate mode needs no Scene Segment.
+        _seed_reviewed_montage_inputs(job_dir, clip_path=None, audio=audio)
 
-    job_id = _create_job_at_asset_review(client, root, mode="generate")
-    job_dir = _runtime_job_dir(root, job_id)
-    audio = _make_audio(job_dir / "_tts.wav", 3.0)
-    # Blank montage segment — generate mode needs no Scene Segment.
-    _seed_reviewed_montage_inputs(job_dir, clip_path=None, audio=audio)
+        # Approve the asset_review gate over HTTP — this freezes reviewed_assets.json.
+        resp = client.post(
+            f"/api/reviews/{job_id}/approve",
+            json={"review_gate": "asset_review", "force": True},
+        )
+        assert resp.status_code == 200, resp.text
+        assert (job_dir / "reviewed_assets.json").exists()
 
-    # Approve the asset_review gate over HTTP — this freezes reviewed_assets.json.
-    resp = client.post(
-        f"/api/reviews/{job_id}/approve",
-        json={"review_gate": "asset_review", "force": True},
-    )
-    assert resp.status_code == 200, resp.text
-    assert (job_dir / "reviewed_assets.json").exists()
+        final = _drive_to_completion(client, root, job_id)
 
-    final = _drive_to_completion(client, root, job_id)
+        # Persisted phase / execution / failed_phase (AC-7).
+        assert final["phase"] == "completed"
+        assert final["execution"]["status"] == "succeeded"
+        assert final["failed_phase"] is None
 
-    # Persisted phase / execution / failed_phase (AC-7).
-    assert final["phase"] == "completed"
-    assert final["execution"]["status"] == "succeeded"
-    assert final["failed_phase"] is None
+        # Runtime artifacts: montage segment was built, base video composed from it.
+        assert (job_dir / "montage_segment.mp4").exists()
+        assert (job_dir / "base.mp4").exists()
 
-    # Runtime artifacts: montage segment was built, base video composed from it.
-    assert (job_dir / "montage_segment.mp4").exists()
-    assert (job_dir / "base.mp4").exists()
+        # No Scene Segment in generate mode → base equals the montage layout.
+        assert not (job_dir / "scene_segment.mp4").exists()
+        timeline = json.loads((job_dir / "final_timeline.json").read_text("utf-8"))
+        assert all(seg["kind"] != "scene" for seg in timeline["segments"])
+        assert timeline["segments"][0]["start_ms"] == 0
 
-    # No Scene Segment in generate mode → base equals the montage layout.
-    assert not (job_dir / "scene_segment.mp4").exists()
-    timeline = json.loads((job_dir / "final_timeline.json").read_text("utf-8"))
-    assert all(seg["kind"] != "scene" for seg in timeline["segments"])
-    assert timeline["segments"][0]["start_ms"] == 0
-
-    kinds = {a["kind"] for a in final["artifacts"]}
-    assert "montage_segment" in kinds
-    assert "video_base" in kinds
+        kinds = {a["kind"] for a in final["artifacts"]}
+        assert "montage_segment" in kinds
+        assert "video_base" in kinds
 
 
 # ---------------------------------------------------------------------------
@@ -318,43 +317,42 @@ def test_video_rendering_without_montage_segment_reports_structured_failure_via_
     """A missing prior Montage Segment yields an explicit structured failure —
     never a silent degrade to an empty base video (AC-4)."""
     root = tmp_path
-    client = TestClient(create_app(root))
-
-    resp = client.post(
-        f"/api/projects/{PROJECT_ID}/jobs",
-        json={"product": "test", "platforms": ["douyin"], "mode": "generate"},
-    )
-    assert resp.status_code == 200, resp.text
-    job_id = resp.json()["job_id"]
-
-    # Move the job directly to video_rendering with no montage_segment.mp4.
-    data = _load_control_job(root, job_id)
-    data["phase"] = "video_rendering"
-    data["review_status"] = "none"
-    _write_control_job(root, job_id, data)
-    job_dir = _runtime_job_dir(root, job_id)
-    job_dir.mkdir(parents=True, exist_ok=True)
-
-    svc = _make_tick_service(client, root)
-    project_dir = root / "workspace" / "projects" / PROJECT_ID
-    # Tick enough times to exhaust retries and reach the terminal failure.
-    for _ in range(5):
-        current = _load_control_job(root, job_id)
-        if current["phase"] == "failed":
-            break
-        svc.tick(
-            PROJECT_ID,
-            job_id,
-            "test",
-            root_dir=root,
-            project_dir=project_dir,
+    with TestClient(create_app(root)) as client:
+        resp = client.post(
+            f"/api/projects/{PROJECT_ID}/jobs",
+            json={"product": "test", "platforms": ["douyin"], "mode": "generate"},
         )
+        assert resp.status_code == 200, resp.text
+        job_id = resp.json()["job_id"]
 
-    final = _load_control_job(root, job_id)
-    assert final["phase"] == "failed"
-    assert final["failed_phase"] == "video_rendering"
-    assert final["execution"]["status"] == "failed"
-    assert final["execution"]["error"]["code"] == "VIDEO_MONTAGE_SEGMENT_MISSING"
+        # Move the job directly to video_rendering with no montage_segment.mp4.
+        data = _load_control_job(root, job_id)
+        data["phase"] = "video_rendering"
+        data["review_status"] = "none"
+        _write_control_job(root, job_id, data)
+        job_dir = _runtime_job_dir(root, job_id)
+        job_dir.mkdir(parents=True, exist_ok=True)
 
-    # No silent empty video was produced.
-    assert not (job_dir / "base.mp4").exists()
+        svc = _make_tick_service(client, root)
+        project_dir = root / "workspace" / "projects" / PROJECT_ID
+        # Tick enough times to exhaust retries and reach the terminal failure.
+        for _ in range(5):
+            current = _load_control_job(root, job_id)
+            if current["phase"] == "failed":
+                break
+            svc.tick(
+                PROJECT_ID,
+                job_id,
+                "test",
+                root_dir=root,
+                project_dir=project_dir,
+            )
+
+        final = _load_control_job(root, job_id)
+        assert final["phase"] == "failed"
+        assert final["failed_phase"] == "video_rendering"
+        assert final["execution"]["status"] == "failed"
+        assert final["execution"]["error"]["code"] == "VIDEO_MONTAGE_SEGMENT_MISSING"
+
+        # No silent empty video was produced.
+        assert not (job_dir / "base.mp4").exists()

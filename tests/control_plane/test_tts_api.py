@@ -29,7 +29,8 @@ def _cleanup_tts_config():
 @pytest.fixture
 def client():
     app = create_app()
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 class TestTTSConfigAPI:
@@ -360,7 +361,8 @@ class TestTTSConfigNewFieldsRoundTrip:
     @pytest.fixture
     def client(self):
         app = create_app()
-        return TestClient(app)
+        with TestClient(app) as c:
+            yield c
 
     def _mock_manager(self):
         """Return a dict-based manager mock: get returns stored config, save stores it."""
@@ -500,7 +502,8 @@ class TestTTSPreviewResponse:
     @pytest.fixture
     def client(self):
         app = create_app()
-        return TestClient(app)
+        with TestClient(app) as c:
+            yield c
 
     def test_preview_response_wav_content_type(
         self, client, wav_bytes: Callable[..., bytes]

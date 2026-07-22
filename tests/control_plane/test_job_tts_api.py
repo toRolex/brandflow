@@ -14,7 +14,8 @@ from packages.file_store.repository import FileStoreRepository
 @pytest.fixture
 def client():
     app = create_app()
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 def _create_job(client: TestClient, project_id: str, **overrides) -> dict:

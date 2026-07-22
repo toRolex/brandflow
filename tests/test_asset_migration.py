@@ -108,24 +108,24 @@ def test_migrate_source_videos_direct_transfer(tmp_path: Path) -> None:
         ],
     )
 
-    client = TestClient(create_app(tmp_path))
-    resp = client.post("/api/assets/migrate")
+    with TestClient(create_app(tmp_path)) as client:
+        resp = client.post("/api/assets/migrate")
 
-    assert resp.status_code == 200
-    assert resp.json()["migrated_projects"] == 1
-    assert resp.json()["migrated_clips"] == 2
+        assert resp.status_code == 200
+        assert resp.json()["migrated_projects"] == 1
+        assert resp.json()["migrated_clips"] == 2
 
-    # Verify source_videos table in global DB
-    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
-    conn = sqlite3.connect(str(global_db))
-    rows = conn.execute(
-        "SELECT source_path FROM source_videos ORDER BY source_path"
-    ).fetchall()
-    conn.close()
-    paths = [r[0] for r in rows]
-    assert "/videos/cut.mp4" in paths
-    assert "/videos/stir.mp4" in paths
-    assert len(paths) == 2
+        # Verify source_videos table in global DB
+        global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
+        conn = sqlite3.connect(str(global_db))
+        rows = conn.execute(
+            "SELECT source_path FROM source_videos ORDER BY source_path"
+        ).fetchall()
+        conn.close()
+        paths = [r[0] for r in rows]
+        assert "/videos/cut.mp4" in paths
+        assert "/videos/stir.mp4" in paths
+        assert len(paths) == 2
 
 
 def test_migrate_source_videos_multi_project(tmp_path: Path) -> None:
@@ -151,22 +151,22 @@ def test_migrate_source_videos_multi_project(tmp_path: Path) -> None:
             ],
         )
 
-    client = TestClient(create_app(tmp_path))
-    resp = client.post("/api/assets/migrate")
+    with TestClient(create_app(tmp_path)) as client:
+        resp = client.post("/api/assets/migrate")
 
-    assert resp.status_code == 200
-    assert resp.json()["migrated_projects"] == 2
+        assert resp.status_code == 200
+        assert resp.json()["migrated_projects"] == 2
 
-    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
-    conn = sqlite3.connect(str(global_db))
-    rows = conn.execute(
-        "SELECT source_path FROM source_videos ORDER BY source_path"
-    ).fetchall()
-    conn.close()
-    paths = [r[0] for r in rows]
-    assert "/videos/prj_a_1.mp4" in paths
-    assert "/videos/prj_b_1.mp4" in paths
-    assert len(paths) == 2
+        global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
+        conn = sqlite3.connect(str(global_db))
+        rows = conn.execute(
+            "SELECT source_path FROM source_videos ORDER BY source_path"
+        ).fetchall()
+        conn.close()
+        paths = [r[0] for r in rows]
+        assert "/videos/prj_a_1.mp4" in paths
+        assert "/videos/prj_b_1.mp4" in paths
+        assert len(paths) == 2
 
 
 def test_migrate_source_videos_backfill_conflict(tmp_path: Path) -> None:
@@ -191,8 +191,8 @@ def test_migrate_source_videos_backfill_conflict(tmp_path: Path) -> None:
     )
 
     # Migrate project A
-    client = TestClient(create_app(tmp_path))
-    client.post("/api/assets/migrate")
+    with TestClient(create_app(tmp_path)) as client:
+        client.post("/api/assets/migrate")
 
     # Now simulate Project B with SAME asset_id but DIFFERENT source_video
     prj_b = tmp_path / "workspace" / "projects" / "prj_b"
@@ -212,28 +212,30 @@ def test_migrate_source_videos_backfill_conflict(tmp_path: Path) -> None:
     )
 
     # Re-create app to pick up project_b (tmp_path is shared)
-    client2 = TestClient(create_app(tmp_path))
-    resp2 = client2.post("/api/assets/migrate")
+    with TestClient(create_app(tmp_path)) as client2:
+        resp2 = client2.post("/api/assets/migrate")
 
-    assert resp2.status_code == 200
+        assert resp2.status_code == 200
 
-    # Assets table should still have only one record (shared_a1 from project A)
-    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
-    conn = sqlite3.connect(str(global_db))
-    asset_count = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
-    assert asset_count == 1, "Only 1 asset should exist (the 2nd was INSERT OR IGNORE)"
+        # Assets table should still have only one record (shared_a1 from project A)
+        global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
+        conn = sqlite3.connect(str(global_db))
+        asset_count = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
+        assert asset_count == 1, (
+            "Only 1 asset should exist (the 2nd was INSERT OR IGNORE)"
+        )
 
-    # But source_videos should have BOTH entries
-    rows = conn.execute(
-        "SELECT source_path FROM source_videos ORDER BY source_path"
-    ).fetchall()
-    conn.close()
-    paths = [r[0] for r in rows]
-    assert "/videos/cut.mp4" in paths, "Project A's source_video should exist"
-    assert "/videos/stir.mp4" in paths, (
-        "Project B's source_video should also exist despite asset conflict"
-    )
-    assert len(paths) == 2
+        # But source_videos should have BOTH entries
+        rows = conn.execute(
+            "SELECT source_path FROM source_videos ORDER BY source_path"
+        ).fetchall()
+        conn.close()
+        paths = [r[0] for r in rows]
+        assert "/videos/cut.mp4" in paths, "Project A's source_video should exist"
+        assert "/videos/stir.mp4" in paths, (
+            "Project B's source_video should also exist despite asset conflict"
+        )
+        assert len(paths) == 2
 
 
 def test_migrate_source_videos_parity_with_old_project(tmp_path: Path) -> None:
@@ -269,23 +271,23 @@ def test_migrate_source_videos_parity_with_old_project(tmp_path: Path) -> None:
         source_videos=old_source_videos,
     )
 
-    client = TestClient(create_app(tmp_path))
-    client.post("/api/assets/migrate")
+    with TestClient(create_app(tmp_path)) as client:
+        client.post("/api/assets/migrate")
 
-    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
-    conn = sqlite3.connect(str(global_db))
-    rows = conn.execute(
-        "SELECT source_path, indexed_at FROM source_videos ORDER BY source_path"
-    ).fetchall()
-    conn.close()
+        global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
+        conn = sqlite3.connect(str(global_db))
+        rows = conn.execute(
+            "SELECT source_path, indexed_at FROM source_videos ORDER BY source_path"
+        ).fetchall()
+        conn.close()
 
-    migrated = {r[0]: r[1] for r in rows}
-    assert len(migrated) == 3
-    for sv in old_source_videos:
-        assert sv["source_path"] in migrated
-        assert migrated[sv["source_path"]] == sv["indexed_at"], (
-            "indexed_at timestamp should be preserved"
-        )
+        migrated = {r[0]: r[1] for r in rows}
+        assert len(migrated) == 3
+        for sv in old_source_videos:
+            assert sv["source_path"] in migrated
+            assert migrated[sv["source_path"]] == sv["indexed_at"], (
+                "indexed_at timestamp should be preserved"
+            )
 
 
 def test_migrate_source_videos_empty_old_table(tmp_path: Path) -> None:
@@ -328,20 +330,20 @@ def test_migrate_source_videos_empty_old_table(tmp_path: Path) -> None:
     conn.commit()
     conn.close()
 
-    client = TestClient(create_app(tmp_path))
-    resp = client.post("/api/assets/migrate")
+    with TestClient(create_app(tmp_path)) as client:
+        resp = client.post("/api/assets/migrate")
 
-    assert resp.status_code == 200
-    assert resp.json()["migrated_projects"] == 1
+        assert resp.status_code == 200
+        assert resp.json()["migrated_projects"] == 1
 
-    global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
-    conn = sqlite3.connect(str(global_db))
-    rows = conn.execute("SELECT source_path FROM source_videos").fetchall()
-    conn.close()
-    paths = [r[0] for r in rows]
-    assert "/videos/cut.mp4" in paths, (
-        "source_video from assets.source_video should be backfilled"
-    )
+        global_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
+        conn = sqlite3.connect(str(global_db))
+        rows = conn.execute("SELECT source_path FROM source_videos").fetchall()
+        conn.close()
+        paths = [r[0] for r in rows]
+        assert "/videos/cut.mp4" in paths, (
+            "source_video from assets.source_video should be backfilled"
+        )
 
 
 def test_migrate_source_videos_response_count(tmp_path: Path) -> None:
@@ -364,12 +366,12 @@ def test_migrate_source_videos_response_count(tmp_path: Path) -> None:
         source_videos=[{"source_path": "/videos/cut.mp4"}],
     )
 
-    client = TestClient(create_app(tmp_path))
-    resp = client.post("/api/assets/migrate")
+    with TestClient(create_app(tmp_path)) as client:
+        resp = client.post("/api/assets/migrate")
 
-    data = resp.json()
-    assert "migrated_video_source_records" in data
-    assert data["migrated_video_source_records"] >= 1
+        data = resp.json()
+        assert "migrated_video_source_records" in data
+        assert data["migrated_video_source_records"] >= 1
 
 
 def test_migrate_conflict_tracking_and_skipped_ids(tmp_path: Path) -> None:
@@ -401,14 +403,14 @@ def test_migrate_conflict_tracking_and_skipped_ids(tmp_path: Path) -> None:
     )
 
     # First migration: both succeed
-    client = TestClient(create_app(tmp_path))
-    resp1 = client.post("/api/assets/migrate")
-    assert resp1.status_code == 200
-    data1 = resp1.json()
-    assert data1["migrated_clips"] == 2
-    assert data1["conflicts"] == 0
-    assert data1["skipped_ids"] == []
-    assert "verification" in data1
+    with TestClient(create_app(tmp_path)) as client:
+        resp1 = client.post("/api/assets/migrate")
+        assert resp1.status_code == 200
+        data1 = resp1.json()
+        assert data1["migrated_clips"] == 2
+        assert data1["conflicts"] == 0
+        assert data1["skipped_ids"] == []
+        assert "verification" in data1
 
     # Project B: 1 new asset + 1 conflicting (shared_001)
     prj_b = tmp_path / "workspace" / "projects" / "prj_b"
@@ -435,18 +437,18 @@ def test_migrate_conflict_tracking_and_skipped_ids(tmp_path: Path) -> None:
     )
 
     # Second migration: prj_a re-processed (2 conflicts) + prj_b (1 conflict, 1 new)
-    client2 = TestClient(create_app(tmp_path))
-    resp2 = client2.post("/api/assets/migrate")
-    assert resp2.status_code == 200
-    data2 = resp2.json()
+    with TestClient(create_app(tmp_path)) as client2:
+        resp2 = client2.post("/api/assets/migrate")
+        assert resp2.status_code == 200
+        data2 = resp2.json()
 
-    # Only the truly new asset should count
-    assert data2["migrated_clips"] == 1
-    # Conflicts: prj_a 2 + prj_b 1 = 3
-    assert data2["conflicts"] == 3
-    assert "shared_001" in data2["skipped_ids"]
-    assert "shared_002" in data2["skipped_ids"]
-    assert len(data2["skipped_ids"]) == 3
+        # Only the truly new asset should count
+        assert data2["migrated_clips"] == 1
+        # Conflicts: prj_a 2 + prj_b 1 = 3
+        assert data2["conflicts"] == 3
+        assert "shared_001" in data2["skipped_ids"]
+        assert "shared_002" in data2["skipped_ids"]
+        assert len(data2["skipped_ids"]) == 3
 
 
 def test_migrate_verification_block(tmp_path: Path) -> None:
@@ -477,23 +479,23 @@ def test_migrate_verification_block(tmp_path: Path) -> None:
         source_videos=[],
     )
 
-    client = TestClient(create_app(tmp_path))
-    resp = client.post("/api/assets/migrate")
-    assert resp.status_code == 200
-    data = resp.json()
+    with TestClient(create_app(tmp_path)) as client:
+        resp = client.post("/api/assets/migrate")
+        assert resp.status_code == 200
+        data = resp.json()
 
-    assert "verification" in data
-    v = data["verification"]
-    assert "old_count" in v
-    assert "new_count" in v
-    assert "diff" in v
+        assert "verification" in data
+        v = data["verification"]
+        assert "old_count" in v
+        assert "new_count" in v
+        assert "diff" in v
 
-    # old_count should be total rows across all project DBs
-    assert v["old_count"] == 2
-    # new_count should be rows in shared DB after migration
-    assert v["new_count"] == 2
-    # diff = new_count - old_count
-    assert v["diff"] == 0
+        # old_count should be total rows across all project DBs
+        assert v["old_count"] == 2
+        # new_count should be rows in shared DB after migration
+        assert v["new_count"] == 2
+        # diff = new_count - old_count
+        assert v["diff"] == 0
 
 
 def test_migrate_verification_shows_loss_on_conflict(tmp_path: Path) -> None:
@@ -517,11 +519,11 @@ def test_migrate_verification_shows_loss_on_conflict(tmp_path: Path) -> None:
     )
 
     # First migration — 1 asset
-    client = TestClient(create_app(tmp_path))
-    resp1 = client.post("/api/assets/migrate")
-    assert resp1.status_code == 200
-    assert resp1.json()["verification"]["diff"] == 0
-    assert resp1.json()["verification"]["new_count"] == 1
+    with TestClient(create_app(tmp_path)) as client:
+        resp1 = client.post("/api/assets/migrate")
+        assert resp1.status_code == 200
+        assert resp1.json()["verification"]["diff"] == 0
+        assert resp1.json()["verification"]["new_count"] == 1
 
     # Second project with same asset_id
     prj_b = tmp_path / "workspace" / "projects" / "prj_b"
@@ -541,30 +543,30 @@ def test_migrate_verification_shows_loss_on_conflict(tmp_path: Path) -> None:
     )
 
     # Second migration: prj_a re-processed (1 conflict) + prj_b (1 conflict) = 2 conflicts
-    client2 = TestClient(create_app(tmp_path))
-    resp2 = client2.post("/api/assets/migrate")
-    assert resp2.status_code == 200
-    data2 = resp2.json()
-    # migrated_clips = 0 (nothing new)
-    assert data2["migrated_clips"] == 0
-    # old_count = 2 (prj_a has 1, prj_b has 1)
-    assert data2["verification"]["old_count"] == 2
-    # new_count = 1 (still only loss_001)
-    assert data2["verification"]["new_count"] == 1
-    # diff = 1 - 2 = -1
-    assert data2["verification"]["diff"] == -1
+    with TestClient(create_app(tmp_path)) as client2:
+        resp2 = client2.post("/api/assets/migrate")
+        assert resp2.status_code == 200
+        data2 = resp2.json()
+        # migrated_clips = 0 (nothing new)
+        assert data2["migrated_clips"] == 0
+        # old_count = 2 (prj_a has 1, prj_b has 1)
+        assert data2["verification"]["old_count"] == 2
+        # new_count = 1 (still only loss_001)
+        assert data2["verification"]["new_count"] == 1
+        # diff = 1 - 2 = -1
+        assert data2["verification"]["diff"] == -1
 
 
 def test_migrate_no_conflicts_no_verification_fields_defaults(tmp_path: Path) -> None:
     """无项目时新字段应返回合理默认值。"""
     # No projects at all
-    client = TestClient(create_app(tmp_path))
-    resp = client.post("/api/assets/migrate")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["conflicts"] == 0
-    assert data["skipped_ids"] == []
-    assert "verification" in data
-    assert data["verification"]["old_count"] == 0
-    assert data["verification"]["new_count"] == 0
-    assert data["verification"]["diff"] == 0
+    with TestClient(create_app(tmp_path)) as client:
+        resp = client.post("/api/assets/migrate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["conflicts"] == 0
+        assert data["skipped_ids"] == []
+        assert "verification" in data
+        assert data["verification"]["old_count"] == 0
+        assert data["verification"]["new_count"] == 0
+        assert data["verification"]["diff"] == 0

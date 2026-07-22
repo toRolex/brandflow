@@ -10,16 +10,16 @@ from apps.control_plane.app import create_app
 
 def test_check_version_returns_expected_shape() -> None:
     """GET /api/check-version 返回 {current, latest, update_available} 结构。"""
-    client = TestClient(create_app())
-    resp = client.get("/api/check-version")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "current" in data
-    assert "latest" in data
-    assert "update_available" in data
-    assert isinstance(data["current"], str)
-    assert isinstance(data["latest"], str)
-    assert isinstance(data["update_available"], bool)
+    with TestClient(create_app()) as client:
+        resp = client.get("/api/check-version")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "current" in data
+        assert "latest" in data
+        assert "update_available" in data
+        assert isinstance(data["current"], str)
+        assert isinstance(data["latest"], str)
+        assert isinstance(data["update_available"], bool)
 
 
 def test_check_version_detects_new_version() -> None:
@@ -28,9 +28,9 @@ def test_check_version_detects_new_version() -> None:
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = [{"name": "v9.9.9"}]
 
-        client = TestClient(create_app())
-        resp = client.get("/api/check-version")
-        data = resp.json()
+        with TestClient(create_app()) as client:
+            resp = client.get("/api/check-version")
+            data = resp.json()
 
     assert data["current"] == get_version()
     assert data["latest"] == "9.9.9"
@@ -44,9 +44,9 @@ def test_check_version_silent_on_github_failure() -> None:
 
         mock_get.side_effect = ConnectionError("mock network error")
 
-        client = TestClient(create_app())
-        resp = client.get("/api/check-version")
-        data = resp.json()
+        with TestClient(create_app()) as client:
+            resp = client.get("/api/check-version")
+            data = resp.json()
 
     assert data["latest"] == ""
     assert data["update_available"] is False
@@ -59,9 +59,9 @@ def test_check_version_no_update_when_same() -> None:
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = [{"name": f"v{current}"}]
 
-        client = TestClient(create_app())
-        resp = client.get("/api/check-version")
-        data = resp.json()
+        with TestClient(create_app()) as client:
+            resp = client.get("/api/check-version")
+            data = resp.json()
 
     assert data["latest"] == current
     assert data["update_available"] is False

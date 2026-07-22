@@ -12,7 +12,8 @@ from apps.control_plane.app import create_app
 @pytest.fixture
 def client():
     app = create_app()
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 @pytest.fixture(autouse=True)
@@ -146,13 +147,12 @@ class TestConfigPersistence:
 
     def test_config_survives_new_client(self):
         app1 = create_app()
-        client1 = TestClient(app1)
-        client1.put("/api/tts/config", json={"model": "survived-model"})
+        with TestClient(app1) as client1:
+            client1.put("/api/tts/config", json={"model": "survived-model"})
 
         app2 = create_app()
-        client2 = TestClient(app2)
-
-        response = client2.get("/api/tts/config")
+        with TestClient(app2) as client2:
+            response = client2.get("/api/tts/config")
         assert response.status_code == 200
         assert response.json()["model"] == "survived-model"
 

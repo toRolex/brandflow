@@ -109,12 +109,12 @@ class TestReclassifyAssetNotFound:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "烹饪翻炒", 0.92)
 
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path)
 
-        resp = client.post("/api/assets/does_not_exist/reclassify")
-        assert resp.status_code == 404
-        assert "not found" in resp.json()["detail"].lower()
+            resp = client.post("/api/assets/does_not_exist/reclassify")
+            assert resp.status_code == 404
+            assert "not found" in resp.json()["detail"].lower()
 
 
 # ── Seam 2: Vision config invalid ───────────────────────────────────────
@@ -132,12 +132,12 @@ class TestReclassifyVisionConfigInvalid:
             _raise,
         )
 
-        client = _make_client(tmp_path)
-        db_path, asset_id, _ = _setup_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            db_path, asset_id, _ = _setup_asset(tmp_path)
 
-        resp = client.post(f"/api/assets/{asset_id}/reclassify")
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "vision_config_invalid"
+            resp = client.post(f"/api/assets/{asset_id}/reclassify")
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "vision_config_invalid"
 
     def test_empty_config(self, tmp_path, monkeypatch) -> None:
         def _raise(*a, **kw):
@@ -148,13 +148,13 @@ class TestReclassifyVisionConfigInvalid:
             _raise,
         )
 
-        client = _make_client(tmp_path)
-        db_path, asset_id, _ = _setup_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            db_path, asset_id, _ = _setup_asset(tmp_path)
 
-        resp = client.post(f"/api/assets/{asset_id}/reclassify")
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "vision_config_invalid"
-        assert "provider" in resp.json()["detail"]["message"]
+            resp = client.post(f"/api/assets/{asset_id}/reclassify")
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "vision_config_invalid"
+            assert "provider" in resp.json()["detail"]["message"]
 
 
 # ── Seam 3: Zero confidence ─────────────────────────────────────────────
@@ -168,12 +168,12 @@ class TestReclassifyZeroConfidence:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "产品特写", 0.0)
 
-        client = _make_client(tmp_path)
-        db_path, asset_id, _ = _setup_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            db_path, asset_id, _ = _setup_asset(tmp_path)
 
-        resp = client.post(f"/api/assets/{asset_id}/reclassify")
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "zero_confidence"
+            resp = client.post(f"/api/assets/{asset_id}/reclassify")
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "zero_confidence"
 
 
 # ── Seam 4: Success path ────────────────────────────────────────────────
@@ -189,34 +189,34 @@ class TestReclassifySuccess:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "烹饪翻炒", 0.92)
 
-        client = _make_client(tmp_path)
-        db_path, asset_id, _ = _setup_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            db_path, asset_id, _ = _setup_asset(tmp_path)
 
-        resp = client.post(f"/api/assets/{asset_id}/reclassify")
+            resp = client.post(f"/api/assets/{asset_id}/reclassify")
 
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["asset_id"] == asset_id
-        assert data["category"] == "烹饪翻炒"
-        assert data["confidence"] == 0.92
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["asset_id"] == asset_id
+            assert data["category"] == "烹饪翻炒"
+            assert data["confidence"] == 0.92
 
-        # No API key leak in response
-        assert "api_key" not in json.dumps(data, ensure_ascii=False).lower()
-        assert "secret" not in json.dumps(data, ensure_ascii=False).lower()
-        assert "test-key" not in json.dumps(data, ensure_ascii=False).lower()
+            # No API key leak in response
+            assert "api_key" not in json.dumps(data, ensure_ascii=False).lower()
+            assert "secret" not in json.dumps(data, ensure_ascii=False).lower()
+            assert "test-key" not in json.dumps(data, ensure_ascii=False).lower()
 
-        # Verify DB was updated
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT category, confidence, status FROM assets WHERE asset_id = ?",
-            (asset_id,),
-        ).fetchone()
-        conn.close()
-        assert row is not None
-        assert row["category"] == "烹饪翻炒"
-        assert row["confidence"] == 0.92
-        assert row["status"] == "available"
+            # Verify DB was updated
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT category, confidence, status FROM assets WHERE asset_id = ?",
+                (asset_id,),
+            ).fetchone()
+            conn.close()
+            assert row is not None
+            assert row["category"] == "烹饪翻炒"
+            assert row["confidence"] == 0.92
+            assert row["status"] == "available"
 
     def test_updates_with_high_confidence(self, tmp_path, monkeypatch) -> None:
         """High confidence values are persisted correctly."""
@@ -224,17 +224,17 @@ class TestReclassifySuccess:
         _mock_thumbnail_generate(monkeypatch)
         _mock_classify_frame(monkeypatch, "成品展示", 0.99)
 
-        client = _make_client(tmp_path)
-        db_path, asset_id, _ = _setup_asset(tmp_path)
+        with _make_client(tmp_path) as client:
+            db_path, asset_id, _ = _setup_asset(tmp_path)
 
-        resp = client.post(f"/api/assets/{asset_id}/reclassify")
-        assert resp.status_code == 200
-        assert resp.json()["confidence"] == 0.99
+            resp = client.post(f"/api/assets/{asset_id}/reclassify")
+            assert resp.status_code == 200
+            assert resp.json()["confidence"] == 0.99
 
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT confidence FROM assets WHERE asset_id = ?", (asset_id,)
-        ).fetchone()
-        conn.close()
-        assert row["confidence"] == 0.99
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT confidence FROM assets WHERE asset_id = ?", (asset_id,)
+            ).fetchone()
+            conn.close()
+            assert row["confidence"] == 0.99

@@ -103,13 +103,13 @@ class TestReclassifyVisionKeyInvalid:
             _classify_raises(401),
         )
 
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path)
-        asset_id = "asset_001"
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path)
+            asset_id = "asset_001"
 
-        resp = client.post(f"/api/assets/{asset_id}/reclassify")
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "vision_key_invalid"
+            resp = client.post(f"/api/assets/{asset_id}/reclassify")
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "vision_key_invalid"
 
     def test_403_returns_vision_key_invalid(self, tmp_path, monkeypatch) -> None:
         _mock_validate_vision_config_ok(monkeypatch)
@@ -119,13 +119,13 @@ class TestReclassifyVisionKeyInvalid:
             _classify_raises(403),
         )
 
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path)
-        asset_id = "asset_001"
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path)
+            asset_id = "asset_001"
 
-        resp = client.post(f"/api/assets/{asset_id}/reclassify")
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "vision_key_invalid"
+            resp = client.post(f"/api/assets/{asset_id}/reclassify")
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "vision_key_invalid"
 
 
 class TestEnableAutoReclassifyVisionKeyInvalid:
@@ -139,12 +139,12 @@ class TestEnableAutoReclassifyVisionKeyInvalid:
             _classify_raises(401),
         )
 
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path, status="classification_failed")
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path, status="classification_failed")
 
-        resp = client.patch("/api/assets/asset_001", json={"status": "available"})
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "vision_key_invalid"
+            resp = client.patch("/api/assets/asset_001", json={"status": "available"})
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "vision_key_invalid"
 
 
 class TestBatchEnableVisionKeyInvalid:
@@ -158,15 +158,15 @@ class TestBatchEnableVisionKeyInvalid:
             _classify_raises(401),
         )
 
-        client = _make_client(tmp_path)
-        _setup_asset(tmp_path, status="classification_failed")
+        with _make_client(tmp_path) as client:
+            _setup_asset(tmp_path, status="classification_failed")
 
-        resp = client.patch(
-            "/api/assets/batch",
-            json={"asset_ids": ["asset_001"], "status": "available"},
-        )
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["code"] == "vision_key_invalid"
+            resp = client.patch(
+                "/api/assets/batch",
+                json={"asset_ids": ["asset_001"], "status": "available"},
+            )
+            assert resp.status_code == 422
+            assert resp.json()["detail"]["code"] == "vision_key_invalid"
 
 
 class TestBatchReclassifyVisionKeyInvalid:
@@ -180,24 +180,24 @@ class TestBatchReclassifyVisionKeyInvalid:
             _classify_raises(401),
         )
 
-        client = _make_client(tmp_path)
-        db_path = _setup_asset(tmp_path, "asset_001")
-        asset_id = "asset_001"
+        with _make_client(tmp_path) as client:
+            db_path = _setup_asset(tmp_path, "asset_001")
+            asset_id = "asset_001"
 
-        resp = client.post(
-            "/api/assets/batch/reclassify",
-            json={"asset_ids": [asset_id]},
-        )
-        assert resp.status_code == 200
-        results = resp.json()["results"]
-        assert len(results) == 1
-        assert results[0]["asset_id"] == asset_id
-        assert results[0]["error"] == "vision_key_invalid"
+            resp = client.post(
+                "/api/assets/batch/reclassify",
+                json={"asset_ids": [asset_id]},
+            )
+            assert resp.status_code == 200
+            results = resp.json()["results"]
+            assert len(results) == 1
+            assert results[0]["asset_id"] == asset_id
+            assert results[0]["error"] == "vision_key_invalid"
 
-        # DB should remain unchanged
-        conn = sqlite3.connect(str(db_path))
-        row = conn.execute(
-            "SELECT status FROM assets WHERE asset_id = ?", (asset_id,)
-        ).fetchone()
-        conn.close()
-        assert row[0] == "classification_failed"
+            # DB should remain unchanged
+            conn = sqlite3.connect(str(db_path))
+            row = conn.execute(
+                "SELECT status FROM assets WHERE asset_id = ?", (asset_id,)
+            ).fetchone()
+            conn.close()
+            assert row[0] == "classification_failed"
