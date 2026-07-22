@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -24,7 +25,9 @@ from packages.file_store.repository import FileStoreRepository
 router = APIRouter(tags=["api-jobs"])
 
 
-_DELETE_ALLOWED_PHASES = frozenset({"paused", "failed", "cancelled", "completed"})
+_DELETE_ALLOWED_PHASES = frozenset(
+    {"draft", "paused", "failed", "cancelled", "completed"}
+)
 _ACTIVE_PHASES = frozenset(
     {
         "queued",
@@ -46,6 +49,38 @@ _ACTIVE_PHASES = frozenset(
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _enqueue_validation_error(
+    record: JobRecord, root_dir: Path
+) -> dict[str, object] | None:
+    if not record.platforms:
+        return {
+            "code": "PLATFORM_REQUIRED",
+            "message": "select at least one target platform before enqueueing",
+            "retryable": False,
+        }
+    if record.mode == "import" and not record.manual_script.strip():
+        return {
+            "code": "IMPORT_SCRIPT_REQUIRED",
+            "message": "import jobs require a script before enqueueing",
+            "retryable": False,
+        }
+    if record.audio_source == "upload":
+        if not record.uploaded_audio_path:
+            return {
+                "code": "UPLOADED_AUDIO_REQUIRED",
+                "message": "upload an audio file before enqueueing",
+                "retryable": False,
+            }
+        audio_path = root_dir / record.uploaded_audio_path
+        if not audio_path.is_file():
+            return {
+                "code": "UPLOADED_AUDIO_NOT_FOUND",
+                "message": "the uploaded audio file is no longer available",
+                "retryable": False,
+            }
+    return None
 
 
 @router.post("/projects/{project_id}/jobs")
@@ -70,15 +105,17 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         project_id=project_id,
         product=product,
         brand=brand,
+        platforms=payload.platforms,
         name=payload.name or product,
         mode=payload.mode,
-        phase="queued",
+        phase="draft" if payload.audio_source == "upload" else "queued",
         review_status="none",
         manual_script=payload.manual_script,
         uploaded_audio_path=payload.uploaded_audio_path,
         audio_source=payload.audio_source,
         skip_subtitle=payload.skip_subtitle,
-        auto_approve=payload.auto_approve,
+        auto_approve=False,
+        review_strategy=payload.review_strategy,
         language=payload.language,
         cover_title=_cover_title_from_request(payload.cover_title),
         music_track_path=payload.music_track_path,
@@ -86,6 +123,10 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         tts_model=payload.tts_model,
         tts_voice=payload.tts_voice,
     )
+    if record.phase == "queued":
+        validation_error = _enqueue_validation_error(record, request.app.state.root_dir)
+        if validation_error is not None:
+            raise HTTPException(status_code=422, detail=validation_error)
     repo.save_job(project_id, record)
 
     # 计算 display_index：当前已有 job 数 + 1
@@ -104,6 +145,46 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
     # Phase 1: Validate all items before persisting any.
     validation_errors: list[dict[str, object]] = []
     for i, item in enumerate(payload.jobs):
+        item_name = item.name or f"#{i + 1}"
+        if not payload.platforms:
+            validation_errors.append(
+                {
+                    "index": i,
+                    "item_name": item_name,
+                    "error": {
+                        "code": "PLATFORM_REQUIRED",
+                        "message": "select at least one target platform before enqueueing",
+                        "retryable": False,
+                    },
+                }
+            )
+            continue
+        if item.mode == "import" and not item.manual_script.strip():
+            validation_errors.append(
+                {
+                    "index": i,
+                    "item_name": item_name,
+                    "error": {
+                        "code": "IMPORT_SCRIPT_REQUIRED",
+                        "message": "import jobs require a script before enqueueing",
+                        "retryable": False,
+                    },
+                }
+            )
+            continue
+        if item.audio_source != "tts":
+            validation_errors.append(
+                {
+                    "index": i,
+                    "item_name": item_name,
+                    "error": {
+                        "code": "BATCH_AUDIO_SOURCE_UNSUPPORTED",
+                        "message": "batch creation currently supports TTS audio only",
+                        "retryable": False,
+                    },
+                }
+            )
+            continue
         validation_error = _validate_tts_model_voice(
             item.tts_model,
             item.tts_voice,
@@ -150,6 +231,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             project_id=project_id,
             product=product,
             brand=brand,
+            platforms=payload.platforms,
             name=item.name or f"{product} #{i + 1:03d}",
             mode=item.mode,
             phase="queued",
@@ -158,7 +240,8 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             uploaded_audio_path="",
             audio_source=item.audio_source,
             skip_subtitle=item.skip_subtitle,
-            auto_approve=payload.auto_approve,
+            auto_approve=False,
+            review_strategy=payload.review_strategy,
             language=item.language,
             cover_title=cover_title,
             music_track_path=item.music_track_path,
@@ -173,11 +256,34 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
     return {
         "product": product,
         "platforms": payload.platforms,
-        "mode": payload.mode,
-        "auto_approve": payload.auto_approve,
+        "review_strategy": payload.review_strategy,
         "count": len(results),
         "results": results,
     }
+
+
+@router.post("/jobs/{job_id}/enqueue")
+def enqueue_job(request: Request, job_id: str):
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+    record = repo.load_job(project_id, job_id)
+    if record.phase != "draft":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "JOB_ENQUEUE_NOT_ALLOWED",
+                "message": f"cannot enqueue a job in {record.phase}",
+                "retryable": False,
+            },
+        )
+    validation_error = _enqueue_validation_error(record, request.app.state.root_dir)
+    if validation_error is not None:
+        raise HTTPException(status_code=422, detail=validation_error)
+    queued = record.model_copy(update={"phase": "queued"})
+    repo.save_job(project_id, queued)
+    return {"status": "queued", "job_id": job_id, "phase": queued.phase}
 
 
 @router.get("/jobs/{job_id}")

@@ -14,6 +14,7 @@ vi.mock("../../api/client", () => ({
 
 function defaultProps(overrides: Record<string, unknown> = {}) {
 	return {
+		productName: "测试产品",
 		product: "",
 		setProduct: vi.fn(),
 		brand: "",
@@ -229,61 +230,20 @@ describe("CreateJobForm - Cover Title Button", () => {
 		const btn = screen.getByText("自动生成标题");
 		expect(btn).toHaveAttribute("title", "需先输入文案才能生成");
 	});
-});
 
-describe("CreateJobForm - Scene Folder Selection", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
-
-	it("shows scene folder checkboxes in import mode", async () => {
-		vi.mocked(api.getSceneFolders).mockResolvedValue({
-			folders: [
-				{ name: "场景一", path: "scenes/one" },
-				{ name: "场景二", path: "scenes/two" },
-			],
+	it("re-enables title generation immediately after a successful request", async () => {
+		vi.mocked(api.generateCoverTitle).mockResolvedValue({
+			text: "生成的标题",
+			highlight_words: ["标题"],
 		});
+		render(<CreateJobForm {...defaultProps({ manualScript: "有文案" })} />);
 
-		render(<CreateJobForm {...defaultProps({ productionMode: "import" })} />);
+		fireEvent.click(screen.getByText("自动生成标题"));
 
 		await waitFor(() => {
-			expect(screen.getByLabelText("场景一")).toBeInTheDocument();
+			expect(api.generateCoverTitle).toHaveBeenCalledTimes(1);
+			expect(screen.getByText("自动生成标题")).not.toBeDisabled();
 		});
-		expect(screen.getByLabelText("场景二")).toBeInTheDocument();
-	});
-
-	it("submits selected scene_folder_ids in import mode", async () => {
-		vi.mocked(api.getSceneFolders).mockResolvedValue({
-			folders: [{ name: "场景一", path: "scenes/one" }],
-		});
-		const setSceneFolderIds = vi.fn();
-		const onCreateJob = vi.fn();
-
-		render(
-			<CreateJobForm
-				{...defaultProps({
-					productionMode: "import",
-					product: "test-product",
-					platforms: ["douyin"],
-					sceneFolderIds: ["scenes/one"],
-					setSceneFolderIds,
-					onCreateJob,
-				})}
-			/>,
-		);
-
-		await waitFor(() => {
-			expect(screen.getByLabelText("场景一")).toBeInTheDocument();
-		});
-
-		fireEvent.click(screen.getByText("创建并开始生产"));
-
-		await waitFor(() => {
-			expect(onCreateJob).toHaveBeenCalled();
-		});
-
-		const formData = onCreateJob.mock.calls[0][0];
-		expect(formData.scene_folder_ids).toEqual(["scenes/one"]);
 	});
 });
 

@@ -58,10 +58,23 @@ HANDLED_PHASES: frozenset[str] = frozenset(
 )
 
 _TERMINAL_PHASES: frozenset[str] = frozenset(
-    {"completed", "failed", "cancelled", "paused", "migration_required"}
+    {"draft", "completed", "failed", "cancelled", "paused", "migration_required"}
 )
 
 _BACKOFF_DELAYS: tuple[float, ...] = (2.0, 4.0, 8.0)
+_FAST_OUTPUT_REVIEW_PHASES: frozenset[str] = frozenset(
+    {"script_review", "tts_review"}
+)
+
+
+def _review_requires_human(record: JobRecord, phase: str) -> bool:
+    """Return whether *phase* must stop for a human under this Job's policy.
+
+    ``auto_approve`` is retained for old persisted records; its compatible
+    meaning is the new, deliberately narrower ``fast_output`` strategy.
+    """
+    strategy = "fast_output" if record.auto_approve else record.review_strategy
+    return not (strategy == "fast_output" and phase in _FAST_OUTPUT_REVIEW_PHASES)
 
 
 def _retry_delay(current_attempt: int) -> float:
@@ -295,7 +308,10 @@ def _compute_transition(
             )
 
         # 2b. Auto-approve — approve without waiting for human
-        if record.auto_approve and record.review_status not in ("approved", "pending"):
+        if (
+            not _review_requires_human(record, phase)
+            and record.review_status not in ("approved", "pending")
+        ):
             next_p = _safe_next(phase)
             # Chain through subtitle_generating in the same tick to close
             # the race window where a worker could grab the job before
@@ -396,7 +412,9 @@ def _transition_after_artifacts(
     if artifacts:
         next_p = _safe_next(effective_phase)
         if next_p in REVIEW_PHASES:
-            review_status = "none" if record.auto_approve else "pending"
+            review_status = (
+                "pending" if _review_requires_human(record, next_p) else "none"
+            )
             return TickAction(
                 new_phase=next_p,
                 new_review_status=review_status,
@@ -652,7 +670,7 @@ class JobTickService:
                 return summary
             if (
                 record.phase in REVIEW_PHASES
-                and not record.auto_approve
+                and _review_requires_human(record, record.phase)
                 and record.review_status not in ("approved",)
             ):
                 return summary

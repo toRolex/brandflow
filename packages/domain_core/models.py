@@ -42,6 +42,7 @@ def rewind_from_phase(start_phase: str) -> list[str]:
 
 
 Phase = Literal[
+    "draft",
     "queued",
     "script_generating",
     "script_review",
@@ -63,6 +64,7 @@ Phase = Literal[
 ]
 
 ProductionMode = Literal["import", "generate"]
+ReviewStrategy = Literal["review_each", "fast_output"]
 ReviewStatus = Literal["none", "pending", "approved", "rejected", "overridden"]
 VisualType = Literal["clip", "blank", "unresolved"]
 
@@ -174,6 +176,7 @@ class JobRecord(BaseModel):
     project_id: str = ""
     product: str = ""
     brand: str = ""
+    platforms: list[str] = Field(default_factory=list)
     name: str = ""  # 用户自定义名称，空则回退到 product
     mode: ProductionMode = "generate"
     phase: Phase
@@ -196,6 +199,7 @@ class JobRecord(BaseModel):
     audio_source: AudioSource = "tts"  # tts / upload / library
     skip_subtitle: bool = False
     auto_approve: bool = False
+    review_strategy: ReviewStrategy = "review_each"
     language: Language = "mandarin"
     cover_title: CoverTitle = Field(default_factory=CoverTitle)
     music_track_path: str = ""

@@ -1,5 +1,6 @@
 import type { Phase, ProductionMode } from "../types";
 import { PIPELINE_STEPS } from "../types";
+import type { JobActionPolicy } from "../policies/jobActionPolicy";
 
 interface Props {
 	currentPhase: Phase;
@@ -13,6 +14,7 @@ interface Props {
 	onCancel?: () => void;
 	onRetry?: () => void;
 	onViewLogs?: () => void;
+	actionPolicy: JobActionPolicy;
 }
 
 const IMPORT_HIDE_PHASES: ReadonlySet<Phase> = new Set([
@@ -35,6 +37,7 @@ export default function PipelineSidebar({
 	onCancel,
 	onRetry,
 	onViewLogs,
+	actionPolicy,
 }: Props) {
 	const terminalPhases: ReadonlySet<Phase> = new Set([
 		"completed",
@@ -60,9 +63,6 @@ export default function PipelineSidebar({
 		}
 		return true;
 	});
-	const isActive =
-		!terminalPhases.has(currentPhase) && currentPhase !== "migration_required";
-	const canRetry = currentPhase === "failed";
 
 	return (
 		<div className="w-52 bg-[var(--bg-page)] border-r border-[var(--border-default)] p-3 flex-shrink-0 overflow-y-auto">
@@ -130,21 +130,21 @@ export default function PipelineSidebar({
 			<div className="mt-4 pt-3 border-t border-gray-200">
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md mb-1 transition-colors"
-					onClick={
-						isActive ? onPause : currentPhase === "paused" ? onResume : undefined
-					}
-					disabled={!isActive && currentPhase !== "paused"}
+					onClick={actionPolicy.canPause ? onPause : actionPolicy.canResume ? onResume : undefined}
+					disabled={!actionPolicy.canPause && !actionPolicy.canResume}
+					title={actionPolicy.pauseMessage ?? undefined}
 				>
 					{currentPhase === "paused" ? "继续" : "暂停"}
 				</button>
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md mb-1 transition-colors"
-					onClick={canRetry ? onRetry : undefined}
-					disabled={!canRetry}
+					onClick={actionPolicy.canRetry ? onRetry : undefined}
+					disabled={!actionPolicy.canRetry}
+					title={actionPolicy.retryMessage ?? undefined}
 				>
 					重试失败阶段
 				</button>
-				{(isActive || currentPhase === "paused") && (
+				{actionPolicy.canCancel && (
 					<button
 						className="w-full text-left px-2 py-1.5 text-xs text-red-600 hover:bg-gray-100 rounded-md mb-1 transition-colors"
 						onClick={onCancel}

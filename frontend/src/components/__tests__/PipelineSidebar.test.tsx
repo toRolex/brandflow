@@ -7,6 +7,14 @@ const defaultProps = {
 	completedPhases: [],
 	onStepClick: vi.fn(),
 	activeStepKey: "",
+	actionPolicy: {
+		canPause: true,
+		canResume: false,
+		canCancel: true,
+		canRetry: false,
+		pauseMessage: null,
+		retryMessage: "仅失败的 Job 可以重新执行失败阶段。",
+	},
 };
 
 describe("PipelineSidebar mode-specific phases (#262 follow-up)", () => {
@@ -23,7 +31,7 @@ describe("PipelineSidebar mode-specific phases (#262 follow-up)", () => {
 		const scriptStep = screen.getByRole("button", { name: /生成脚本/ });
 		expect(scriptStep).toHaveAttribute("aria-current", "step");
 		const scriptReviewStep = screen.getByRole("button", { name: /脚本审核/ });
-		expect(within(scriptReviewStep).getByText("3")).toBeInTheDocument();
+		expect(within(scriptReviewStep).getByText("4")).toBeInTheDocument();
 		expect(
 			screen.queryByRole("button", { name: /场景拼接/ }),
 		).not.toBeInTheDocument();

@@ -1,6 +1,8 @@
 export type ProductionMode = "import" | "generate";
+export type ReviewStrategy = "review_each" | "fast_output";
 
 export const KNOWN_PHASES = [
+	"draft",
 	"queued",
 	"script_generating",
 	"script_review",
@@ -69,6 +71,7 @@ export interface PipelineStep {
 }
 
 export const PIPELINE_STEPS: PipelineStep[] = [
+	{ key: "draft", phase: "draft", label: "草稿", isReview: false },
 	{ key: "queued", phase: "queued", label: "排队中", isReview: false },
 	{
 		key: "scene_assemble",

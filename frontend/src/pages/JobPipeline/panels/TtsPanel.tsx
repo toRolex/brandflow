@@ -124,7 +124,7 @@ export default function TtsPanel(props: PanelProps) {
 							</p>
 						)}
 					</div>
-					{execError.retryable && (
+					{job.phase === "failed" && execError.retryable && (
 						<button
 							className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all"
 							onClick={onRetry}

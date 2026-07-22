@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { ApiError } from "../api/core";
 import { PLATFORMS } from "../constants/platforms";
 import type { MusicTrack, ProductionMode, ScriptTemplate } from "../types";
 
@@ -99,9 +100,18 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 		onError,
 	} = props;
 
-	const [coverTitleCooldown, setCoverTitleCooldown] = useState(false);
+	const [coverTitleGenerating, setCoverTitleGenerating] = useState(false);
+	const [coverTitleRetryAfter, setCoverTitleRetryAfter] = useState(0);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const isImport = productionMode === "import";
+
+	useEffect(() => {
+		if (coverTitleRetryAfter <= 0) return;
+		const timer = window.setInterval(() => {
+			setCoverTitleRetryAfter((seconds) => Math.max(0, seconds - 1));
+		}, 1000);
+		return () => window.clearInterval(timer);
+	}, [coverTitleRetryAfter]);
 
 	const handleApplyTemplate = async () => {
 		if (!selectedTemplateId) return;
@@ -125,9 +135,9 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 	};
 
 	const handleGenerateCoverTitle = async () => {
-		if (coverTitleCooldown) return;
+		if (coverTitleGenerating || coverTitleRetryAfter > 0) return;
 		if (!manualScript.trim()) return;
-		setCoverTitleCooldown(true);
+		setCoverTitleGenerating(true);
 		try {
 			const res = await api.generateCoverTitle({
 				script_text: manualScript,
@@ -135,14 +145,22 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 			});
 			setCoverTitleText(res.text);
 			setCoverHighlightWords(res.highlight_words.join("，"));
-		} catch {
-			onError("生成封面标题失败，请稍后重试");
+		} catch (error) {
+			if (error instanceof ApiError && error.status === 429) {
+				setCoverTitleRetryAfter(error.retryAfterSeconds ?? 1);
+			} else {
+				onError("生成封面标题失败，请稍后重试");
+			}
 		} finally {
-			setTimeout(() => setCoverTitleCooldown(false), 5000);
+			setCoverTitleGenerating(false);
 		}
 	};
 
 	const handleSubmit = async () => {
+		if (audioMode === "upload" && !audioFile) {
+			onError("上传音频模式需要先选择音频文件");
+			return;
+		}
 		await onCreateJob({
 			platforms,
 			name: jobName || undefined,
@@ -160,7 +178,8 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 	};
 
 	const hasManualScript = manualScript.trim().length > 0;
-	const canGenerateCover = !coverTitleCooldown && hasManualScript;
+	const canGenerateCover =
+		hasManualScript && !coverTitleGenerating && coverTitleRetryAfter === 0;
 
 	return (
 		<>
@@ -594,13 +613,19 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 							title={
 								canGenerateCover
 									? ""
-									: coverTitleCooldown
-										? "冷却中，请等待 5 秒"
+									: coverTitleGenerating
+										? "正在生成标题…"
+										: coverTitleRetryAfter > 0
+											? `服务限流，请在 ${coverTitleRetryAfter} 秒后重试`
 										: "需先输入文案才能生成"
 							}
 							onClick={handleGenerateCoverTitle}
 						>
-							{coverTitleCooldown ? "冷却中（5s）..." : "自动生成标题"}
+						{coverTitleGenerating
+							? "正在生成标题…"
+							: coverTitleRetryAfter > 0
+								? `${coverTitleRetryAfter} 秒后重试`
+								: "自动生成标题"}
 						</button>
 					</div>
 					<div className="flex items-center gap-3 flex-wrap">

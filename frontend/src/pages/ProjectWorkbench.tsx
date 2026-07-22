@@ -11,12 +11,15 @@ import ProjectTabs from "../components/ProjectTabs";
 import WorkbenchShell from "../components/WorkbenchShell";
 import { useProducts } from "../ProductContext";
 import type {
+	BatchCreateResponse,
 	JobSummary,
 	MusicTrack,
 	ProductionMode,
 	ScriptTemplate,
 } from "../types";
 import type { BatchConfig } from "../utils/batchScriptSplit";
+import type { ReviewStrategy } from "../types/core";
+import { shouldPollJob } from "../policies/jobPollingPolicy";
 
 type TabKey = "jobs";
 
@@ -98,6 +101,9 @@ export default function ProjectWorkbench() {
 		type: "success" | "error";
 		message: string;
 	} | null>(null);
+	const [batchSummary, setBatchSummary] = useState<BatchCreateResponse | null>(
+		null,
+	);
 
 	/* ── 数据加载 ── */
 	const load = useCallback(async () => {
@@ -118,8 +124,7 @@ export default function ProjectWorkbench() {
 	}, [load]);
 
 	useEffect(() => {
-		const terminal = new Set(["completed", "failed", "cancelled", "paused"]);
-		if (jobs.length === 0 || jobs.every((j) => terminal.has(j.phase))) return;
+		if (jobs.length === 0 || !jobs.some((job) => shouldPollJob(job.phase))) return;
 		const timer = setInterval(load, 5000);
 		return () => clearInterval(timer);
 	}, [jobs, load]);
@@ -210,12 +215,12 @@ export default function ProjectWorkbench() {
 						}
 					: undefined,
 			});
-			if (form.audio_source === "upload" && form.audioFile) {
-				try {
-					await api.uploadJobAudio(job.job_id, form.audioFile);
-				} catch {
-					setError("音频上传失败");
+			if (form.audio_source === "upload") {
+				if (!form.audioFile) {
+					throw new Error("上传音频模式需要先选择音频文件");
 				}
+				await api.uploadJobAudio(job.job_id, form.audioFile);
+				await api.enqueueJob(job.job_id);
 			}
 			setIsOpen(false);
 			load();
@@ -232,20 +237,20 @@ export default function ProjectWorkbench() {
 	/* ── 批量创建 ── */
 	const handleBatchCreate = async (payload: {
 		platforms: string[];
-		autoApprove: boolean;
+		reviewStrategy: ReviewStrategy;
 		jobs: BatchConfig[];
 	}) => {
 		if (!id) return;
 		try {
-			await api.batchCreateJobs(id, {
+			const result = await api.batchCreateJobs(id, {
 				platforms: payload.platforms,
-				auto_approve: payload.autoApprove,
+				review_strategy: payload.reviewStrategy,
 				jobs: payload.jobs.map((c, i) => ({
 					name: c.name || `${productName} #${String(i + 1).padStart(3, "0")}`,
 					mode: c.productionMode,
 					manual_script: c.manualScript,
 					skip_subtitle: c.skipSubtitle,
-					audio_source: c.audioMode,
+					audio_source: "tts",
 					music_track_path: c.musicPath,
 					music_volume: c.musicVolume,
 					language: c.language,
@@ -259,6 +264,11 @@ export default function ProjectWorkbench() {
 							}
 						: undefined,
 				})),
+			});
+			setBatchSummary(result);
+			setBanner({
+				type: "success",
+				message: `已创建 ${result.count} 个 Job；${result.review_strategy === "fast_output" ? "脚本与 TTS 自动审核，素材和最终成片仍需人工审核。" : "每个审核关卡都需要人工确认。"}`,
 			});
 			load();
 		} catch (e) {
@@ -318,6 +328,25 @@ export default function ProjectWorkbench() {
 					message={banner.message}
 					onClose={() => setBanner(null)}
 				/>
+			)}
+			{batchSummary && (
+				<section className="mb-4 rounded-lg border p-4 text-sm" style={{ borderColor: "var(--border-default)" }}>
+					<div className="font-semibold mb-2">本批创建结果：{batchSummary.count} 个 Job</div>
+					<div className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
+						{batchSummary.review_strategy === "fast_output"
+							? "脚本与 TTS 自动通过；将在素材审核和最终审核停留。"
+							: "每个适用审核关卡都会停留，等待人工确认。"}
+					</div>
+					<ul className="space-y-1">
+						{batchSummary.results.map((job) => (
+							<li key={job.job_id}>
+								<button className="text-[var(--text-link)] hover:underline" onClick={() => navigate(`/jobs/${job.job_id}`)}>
+									{job.display_index} · {job.name}（{job.mode === "import" ? "导入" : "智能生成"}）
+								</button>
+							</li>
+						))}
+					</ul>
+				</section>
 			)}
 
 			{/* ── Header ── */}

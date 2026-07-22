@@ -297,13 +297,17 @@ function NameRow({
 						查看 &rarr;
 					</button>
 				)}
-				<button
-					className="hover:underline text-xs"
-					style={{ color: "var(--danger)" }}
-					onClick={() => onDelete(job.job_id)}
-				>
-					删除
-				</button>
+				{["draft", "paused", "failed", "cancelled", "completed"].includes(
+					job.phase,
+				) && (
+					<button
+						className="hover:underline text-xs"
+						style={{ color: "var(--danger)" }}
+						onClick={() => onDelete(job.job_id)}
+					>
+						删除
+					</button>
+				)}
 			</td>
 		</tr>
 	);
