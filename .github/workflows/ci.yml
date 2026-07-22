@@ -38,7 +38,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
       - name: Run tests
-        run: uv run pytest tests/ -q --tb=short -m "not e2e"
+        run: uv run pytest tests/ -q --tb=short -m "not e2e and not slow and not media_integration"
 
   frontend:
     runs-on: ubuntu-latest

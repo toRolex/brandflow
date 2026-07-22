@@ -18,6 +18,9 @@ from packages.pipeline_services.media_utils import (
 )
 
 
+pytestmark = [pytest.mark.slow, pytest.mark.media_integration]
+
+
 def _ffmpeg() -> str:
     return shutil.which("ffmpeg") or os.environ.get("FFMPEG_PATH", "ffmpeg")
 

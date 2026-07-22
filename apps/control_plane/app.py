@@ -3,7 +3,7 @@ import json
 import os
 import time
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -141,9 +141,24 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     dev_mode = os.environ.get("DEV_AUTO_TICK", "1") == "1"
+    auto_tick_task: asyncio.Task[None] | None = None
     if dev_mode:
-        asyncio.create_task(_auto_tick(app.state.root_dir, app.state.config_reader))
-    yield
+        auto_tick_task = asyncio.create_task(
+            _auto_tick(app.state.root_dir, app.state.config_reader),
+            name="brandflow-auto-tick",
+        )
+        app.state.auto_tick_task = auto_tick_task
+    try:
+        yield
+    finally:
+        if auto_tick_task is not None:
+            auto_tick_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await auto_tick_task
+
+        shutdown = getattr(app.state.export_executor, "shutdown", None)
+        if shutdown is not None:
+            shutdown(wait=False, cancel_futures=True)
 
 
 def create_app(root_dir: Path | None = None) -> FastAPI:

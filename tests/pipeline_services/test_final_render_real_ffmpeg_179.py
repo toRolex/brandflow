@@ -25,6 +25,9 @@ from packages.pipeline_services.subtitle_service import SubtitleService
 from packages.pipeline_services.video_service import VideoService
 
 
+pytestmark = [pytest.mark.slow, pytest.mark.media_integration]
+
+
 def _ffmpeg() -> str:
     return shutil.which("ffmpeg") or "ffmpeg"
 

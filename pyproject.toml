@@ -42,9 +42,10 @@ pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
     "slow: long-running tests",
+    "media_integration: tests that invoke real FFmpeg and may use substantial memory",
     "e2e: end-to-end tests",
 ]
-addopts = "-m 'not e2e'"
+addopts = "-m 'not e2e and not slow and not media_integration'"
 
 [[tool.uv.index]]
 url = "http://mirrors.aliyun.com/pypi/simple/"

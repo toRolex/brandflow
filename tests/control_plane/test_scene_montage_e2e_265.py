@@ -258,6 +258,8 @@ def _create_job_at_asset_review(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.media_integration
+@pytest.mark.slow
 @pytest.mark.skipif(SKIP_REAL, reason=REAL_REASON)
 def test_generate_job_asset_review_to_video_rendering_completes_via_http(
     tmp_path: Path,

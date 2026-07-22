@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 
 # ponytail: 全局屏蔽 ThreadPoolExecutor 与后台 auto_tick，
 # 单进程 RSS 从 ~20GB 压到 ~200MB。
-os.environ.setdefault("EXPORT_SYNC", "1")
-os.environ.setdefault("DEV_AUTO_TICK", "0")
+os.environ["EXPORT_SYNC"] = "1"
+os.environ["DEV_AUTO_TICK"] = "0"
 
 from apps.control_plane.app import create_app  # noqa: E402
 
