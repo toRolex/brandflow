@@ -1,9 +1,13 @@
-"""GET /api/check-version — compare current version against latest GitHub tag."""
+"""GET /api/check-version and POST /api/update endpoints."""
+
+import subprocess
+import sys
 
 import requests
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
+from pathlib import Path
 
 from apps.control_plane._version import get_version
 
@@ -11,6 +15,13 @@ router = APIRouter(tags=["version"])
 
 _GITHUB_TAGS_URL = "https://api.github.com/repos/toRolex/brandflow/tags"
 _TIMEOUT = 5  # seconds
+
+# ponytail: global lock, per-account locks if throughput matters
+_update_in_progress: bool = False
+
+
+def _is_windows() -> bool:
+    return sys.platform == "win32"
 
 
 def _parse_version(v: str) -> tuple[int, ...]:
@@ -46,4 +57,39 @@ async def check_version() -> JSONResponse:
             "update_available": update_available,
         },
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@router.post("/api/update")
+async def trigger_update() -> JSONResponse:
+    global _update_in_progress
+
+    if _update_in_progress:
+        return JSONResponse(
+            content={"status": "in_progress"},
+            status_code=409,
+        )
+
+    if not _is_windows():
+        return JSONResponse(
+            content={"status": "error", "message": "更新仅支持 Windows 平台"},
+            status_code=400,
+        )
+
+    _update_in_progress = True
+
+    root = Path(__file__).resolve().parent.parent.parent.parent
+    bat_path = root / "packaging/windows/update.bat"
+    log_path = root / "packaging/windows/update.log"
+
+    with open(log_path, "a") as log:
+        subprocess.Popen(
+            [str(bat_path)],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            cwd=str(root),
+        )
+
+    return JSONResponse(
+        content={"status": "started", "log": "packaging/windows/update.log"}
     )
