@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync code to production directory and deploy
+      - name: Deploy
         shell: cmd
         run: |
           xcopy /y /e /q "%CD%\*" "D:\brandflow\" >nul

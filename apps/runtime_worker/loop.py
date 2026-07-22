@@ -9,6 +9,7 @@ share identical pipeline logic.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -42,7 +43,12 @@ class WorkerLoop:
     def run_forever(self) -> None:
         """Poll 任务，根据 handler_phase 执行单个 phase，report 后继续轮询。"""
         while True:
-            command = self.api.poll()
+            try:
+                command = self.api.poll()
+            except Exception as exc:
+                logging.warning("Control plane not ready, retrying in 5s: %s", exc)
+                time.sleep(5)
+                continue
             if command["command"] == "idle":
                 time.sleep(5)
                 continue
