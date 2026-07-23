@@ -521,8 +521,17 @@ def _transition_after_artifacts(
 
 
 def _attempts_so_far(execution: PhaseExecutionState) -> int:
-    """Attempts already consumed by the current phase (0 unless retrying)."""
-    return execution.current_attempt if execution.status == "retrying" else 0
+    """Attempts already consumed by the current phase (0 unless retrying/running).
+
+    A ``retrying`` state carries the count from the previous attempt; a
+    ``running`` state already incremented it for the current attempt so we
+    subtract one to get the prior total.
+    """
+    if execution.status == "retrying":
+        return execution.current_attempt
+    if execution.status == "running":
+        return max(0, execution.current_attempt - 1)
+    return 0
 
 
 def _compute_failure_transition(

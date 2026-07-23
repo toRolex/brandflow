@@ -14,11 +14,14 @@ import pytest
 # 正常单文件测试峰值 < 500MB（含 pipeline services < 1.5GB），
 # 3GB 远高于正常峰值但能卡住泄漏（2GB+/进程持续增长）。
 # 配合 -n 2 worker：2×3GB + 系统开销 ≈ 8GB，24GB 机器安全。
+#
+# 注意：macOS 上进程 VSZ 因系统框架映射已 ~400GB，setrlimit 设 3GB 会被内核拒绝。
+# 此保护在 Linux CI 环境中生效（VSZ ≈ RSS），macOS 本地不生效，保留作 CI 兼容。
 _LIMIT = 3 * 1024 * 1024 * 1024  # 3 GB
 try:
     resource.setrlimit(resource.RLIMIT_AS, (_LIMIT, _LIMIT))
 except ValueError:
-    pass  # macOS 上部分环境下 setrlimit 可能被父进程锁住
+    pass
 
 # Aggressive GC: lower thresholds trigger collection sooner,
 # preventing unbounded accumulation across long test sessions.
@@ -39,6 +42,8 @@ from apps.control_plane.app import create_app  # noqa: E402
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_teardown(item, nextitem):
     yield
+    gc.collect()
+    gc.collect()
     gc.collect()
 
 
