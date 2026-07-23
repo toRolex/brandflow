@@ -380,7 +380,7 @@ class TestOverviewEndpoint:
         # Seed data into the DB used by the client
         db_path = tmp_path / "project_root" / "data" / "metrics.db"
         store = MetricsStore(db_path=str(db_path))
-        _seed_store(store, count=2, base_date="2026-06-22")
+        _seed_store(store, count=2, base_date="2026-06-24")
 
         resp = client.get("/api/metrics/overview?days=30")
         assert resp.status_code == 200

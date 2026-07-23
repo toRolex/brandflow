@@ -178,7 +178,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 ├── apps/
 │   ├── control_plane/       # FastAPI 控制面（Web + API + 任务调度）
 │   │   ├── routes/           # API 路由聚合层与子路由包
-│   │   │   ├── api_jobs.py   # Job 路由聚合层，include routes/jobs/*
+│   │   │   ├── api_jobs.py   # Job 路由聚合层（crud / tts / export / migration / content / cover_title）
 │   │   │   ├── api_assets.py # Asset 路由聚合层，include routes/assets/*
 │   │   │   ├── jobs/         # Job 子路由（crud / tts / export / content / metadata / migration / cover_title）
 │   │   │   ├── assets/       # Asset 子路由（query / index / reclassify / thumbnails / status / ...）

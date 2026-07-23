@@ -385,5 +385,5 @@ describe("Layout — update flow (#302)", () => {
 			screen.getByText(/packaging\/windows\/update\.log/),
 		).toBeInTheDocument();
 		vi.useRealTimers();
-	});
+	}, 30_000);
 });

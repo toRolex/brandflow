@@ -70,7 +70,7 @@ jobs:
         working-directory: frontend
 
       - name: Biome lint
-        run: pnpm biome lint src/
+        run: pnpm biome lint src/ --diagnostic-level=error
         working-directory: frontend
 
       - name: Biome format check
