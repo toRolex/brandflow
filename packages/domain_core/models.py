@@ -66,7 +66,9 @@ Phase = Literal[
 ProductionMode = Literal["import", "generate"]
 ReviewStrategy = Literal["review_each", "fast_output"]
 ReviewStatus = Literal["none", "pending", "approved", "rejected", "overridden"]
-AssetCollectionStatus = Literal["not_started", "collecting", "complete", "complete_empty"]
+AssetCollectionStatus = Literal[
+    "not_started", "collecting", "complete", "complete_empty"
+]
 VisualType = Literal["clip", "blank", "unresolved"]
 
 AudioSource = Literal["tts", "upload", "library"]

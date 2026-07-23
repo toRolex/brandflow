@@ -1,6 +1,6 @@
 import ScriptPreview from "../../../components/ScriptPreview";
-import PhaseStatusNotice from "./PhaseStatusNotice";
 import type { PanelProps } from "../types";
+import PhaseStatusNotice from "./PhaseStatusNotice";
 
 export default function ScriptPanel({
 	job,

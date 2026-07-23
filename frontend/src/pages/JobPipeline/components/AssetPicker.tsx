@@ -21,9 +21,7 @@ export default function AssetPicker({
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [selectedId, setSelectedId] = useState<string | null>(null);
-	const [categoryFilter, setCategoryFilter] = useState(
-		preferredCategory ?? "",
-	);
+	const [categoryFilter, setCategoryFilter] = useState(preferredCategory ?? "");
 
 	useEffect(() => {
 		setLoading(true);

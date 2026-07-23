@@ -17,7 +17,13 @@ describe("presentPhaseStatus", () => {
 	it("distinguishes a successful zero-match search from a missing search result", () => {
 		const zeroMatch = presentPhaseStatus({
 			...base,
-			artifacts: [{ kind: "selected_clips", relative_path: "clips.json", url: "/clips.json" }],
+			artifacts: [
+				{
+					kind: "selected_clips",
+					relative_path: "clips.json",
+					url: "/clips.json",
+				},
+			],
 			assetDecisions: { total: 3, clip: 0, unresolved: 3, blank: 0 },
 		});
 		const missingResult = presentPhaseStatus({ ...base });
@@ -35,7 +41,11 @@ describe("presentPhaseStatus", () => {
 				status: "retrying",
 				current_attempt: 2,
 				max_attempts: 3,
-				error: { code: "ASSET_SEARCH_TIMEOUT", message: "Timed out", retryable: true },
+				error: {
+					code: "ASSET_SEARCH_TIMEOUT",
+					message: "Timed out",
+					retryable: true,
+				},
 			},
 		});
 
@@ -71,7 +81,11 @@ describe("presentPhaseStatus", () => {
 				max_attempts: 3,
 				error:
 					executionStatus === "retrying" || executionStatus === "failed"
-						? { code: "TRANSIENT", message: "Temporary failure", retryable: true }
+						? {
+								code: "TRANSIENT",
+								message: "Temporary failure",
+								retryable: true,
+							}
 						: null,
 			},
 		});
@@ -87,14 +101,17 @@ describe("presentPhaseStatus", () => {
 		["video_rendering", "video_base"],
 		["final_review", "final_video"],
 		["completed", "final_video"],
-	] as const)("requires %s output before presenting %s as complete", (phase, artifact) => {
-		const status = presentPhaseStatus({
-			...base,
-			phase,
-			execution: { ...base.execution, status: "succeeded" },
-		});
+	] as const)(
+		"requires %s output before presenting %s as complete",
+		(phase, artifact) => {
+			const status = presentPhaseStatus({
+				...base,
+				phase,
+				execution: { ...base.execution, status: "succeeded" },
+			});
 
-		expect(status.kind).toBe("integrity_error");
-		expect(status.detail).toContain(artifact);
-	});
+			expect(status.kind).toBe("integrity_error");
+			expect(status.detail).toContain(artifact);
+		},
+	);
 });

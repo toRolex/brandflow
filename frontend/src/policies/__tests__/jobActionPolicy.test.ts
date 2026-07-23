@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-
-import { getJobActionPolicy } from "../jobActionPolicy";
 import type { JobDetail } from "../../types";
+import { getJobActionPolicy } from "../jobActionPolicy";
 
 function job(overrides: Partial<JobDetail>): JobDetail {
 	return {

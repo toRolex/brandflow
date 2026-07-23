@@ -1,6 +1,6 @@
 import type { Phase } from "../../../types";
-import PhaseStatusNotice from "./PhaseStatusNotice";
 import type { PanelProps } from "../types";
+import PhaseStatusNotice from "./PhaseStatusNotice";
 
 function ExecutionPanel({
 	job,
@@ -23,7 +23,9 @@ function ExecutionPanel({
 			<h3 className="mb-3 text-sm font-semibold">{title}</h3>
 			<PhaseStatusNotice presentation={presentation} />
 			{presentation.kind === "completed" && (
-				<p className="text-sm text-[var(--text-tertiary)]">{completedMessage}</p>
+				<p className="text-sm text-[var(--text-tertiary)]">
+					{completedMessage}
+				</p>
 			)}
 			{canRetry && (
 				<button

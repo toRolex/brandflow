@@ -929,15 +929,11 @@ class JobTickService:
                 )
                 if clips_path.exists():
                     try:
-                        clips_data = json.loads(
-                            clips_path.read_text(encoding="utf-8")
-                        )
+                        clips_data = json.loads(clips_path.read_text(encoding="utf-8"))
                         has_clips = any(
                             c.get("visual_type") == "clip" for c in clips_data
                         )
-                        new_status: str = (
-                            "complete" if has_clips else "complete_empty"
-                        )
+                        new_status: str = "complete" if has_clips else "complete_empty"
                         if new_status != record.asset_collection_status:
                             record = record.model_copy(
                                 update={"asset_collection_status": new_status}
@@ -966,15 +962,11 @@ class JobTickService:
                 clips_path = job_dir / "selected_clips.json"
                 if clips_path.exists():
                     try:
-                        clips_data = json.loads(
-                            clips_path.read_text(encoding="utf-8")
-                        )
+                        clips_data = json.loads(clips_path.read_text(encoding="utf-8"))
                         has_clips = any(
                             c.get("visual_type") == "clip" for c in clips_data
                         )
-                        resolved: str = (
-                            "complete" if has_clips else "complete_empty"
-                        )
+                        resolved: str = "complete" if has_clips else "complete_empty"
                         record = record.model_copy(
                             update={"asset_collection_status": resolved}
                         )
@@ -1002,9 +994,7 @@ class JobTickService:
                         f"auto-approve blocked: asset collection"
                         f" {record.asset_collection_status}"
                     )
-                    record = record.model_copy(
-                        update={"review_status": "pending"}
-                    )
+                    record = record.model_copy(update={"review_status": "pending"})
                     self._repo.save_job(project_id, record)
                     return record, _build_tick_summary(initial_phase, action)
 
@@ -1020,12 +1010,9 @@ class JobTickService:
                 action.new_phase = None
                 action.new_review_status = None
                 action.message = (
-                    "auto-approve blocked: no clips collected, "
-                    "requires human review"
+                    "auto-approve blocked: no clips collected, requires human review"
                 )
-                record = record.model_copy(
-                    update={"review_status": "pending"}
-                )
+                record = record.model_copy(update={"review_status": "pending"})
                 self._repo.save_job(project_id, record)
                 return record, _build_tick_summary(initial_phase, action)
 
@@ -1064,16 +1051,11 @@ class JobTickService:
                     action.new_phase = None
                     action.new_review_status = None
                     action.message = (
-                        "auto-approve blocked: selected_clips.json"
-                        " unexpectedly missing"
+                        "auto-approve blocked: selected_clips.json unexpectedly missing"
                     )
-                    record = record.model_copy(
-                        update={"review_status": "pending"}
-                    )
+                    record = record.model_copy(update={"review_status": "pending"})
                     self._repo.save_job(project_id, record)
-                    return record, _build_tick_summary(
-                        initial_phase, action
-                    )
+                    return record, _build_tick_summary(initial_phase, action)
 
         # A lifecycle request can arrive while a handler is running.  Preserve
         # its completed artifacts, but consume the request before applying the

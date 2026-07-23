@@ -87,7 +87,10 @@ def _enqueue_validation_error(
 def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     product, brand = _resolve_product_from_config(request.app.state.root_dir)
     if not product.strip():
-        raise HTTPException(status_code=400, detail="product is required — set default_name in product config")
+        raise HTTPException(
+            status_code=400,
+            detail="product is required — set default_name in product config",
+        )
 
     tts_validation_error = _validate_tts_model_voice(
         payload.tts_model,
@@ -140,7 +143,10 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
 def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateRequest):
     product, brand = _resolve_product_from_config(request.app.state.root_dir)
     if not product.strip():
-        raise HTTPException(status_code=400, detail="product is required — set default_name in product config")
+        raise HTTPException(
+            status_code=400,
+            detail="product is required — set default_name in product config",
+        )
 
     # Phase 1: Validate all items before persisting any.
     validation_errors: list[dict[str, object]] = []

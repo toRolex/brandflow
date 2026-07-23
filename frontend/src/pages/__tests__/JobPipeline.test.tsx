@@ -172,7 +172,7 @@ describe("JobPipeline execution failure workflow", () => {
 		renderPage();
 
 		expect(
-		await screen.findByText(/正在自动重试：第 2 次执行失败/),
+			await screen.findByText(/正在自动重试：第 2 次执行失败/),
 		).toBeInTheDocument();
 	});
 });
@@ -340,7 +340,9 @@ describe("JobPipeline asset phase states", () => {
 		renderAssetPage();
 
 		expect(await screen.findByText("阶段记录不完整")).toBeInTheDocument();
-		expect(screen.getByText(/缺少必要产物：selected_clips/)).toBeInTheDocument();
+		expect(
+			screen.getByText(/缺少必要产物：selected_clips/),
+		).toBeInTheDocument();
 		expect(
 			screen.queryByRole("button", { name: "重新检索素材" }),
 		).not.toBeInTheDocument();
@@ -392,9 +394,7 @@ describe("JobPipeline asset phase states", () => {
 
 		renderAssetPage();
 
-		expect(
-			await screen.findByText("素材检索失败"),
-		).toBeInTheDocument();
+		expect(await screen.findByText("素材检索失败")).toBeInTheDocument();
 		expect(screen.getByText("ASSET_SEARCH_FAILED")).toBeInTheDocument();
 		expect(
 			screen.getByRole("button", { name: "重试失败阶段" }),
@@ -420,9 +420,7 @@ describe("JobPipeline asset phase states", () => {
 
 		renderAssetPage();
 
-		expect(
-			await screen.findByText("素材检索失败"),
-		).toBeInTheDocument();
+		expect(await screen.findByText("素材检索失败")).toBeInTheDocument();
 		expect(screen.getByText("ASSET_LIBRARY_EMPTY")).toBeInTheDocument();
 		expect(
 			screen.queryByRole("button", { name: "重试失败阶段" }),
@@ -941,9 +939,7 @@ describe("JobPipeline new phase rendering (#262)", () => {
 	it("shows an integrity error when final rendering succeeds without its video", async () => {
 		renderPhaseJob("final_rendering");
 
-		expect(
-			await screen.findByText("阶段记录不完整"),
-		).toBeInTheDocument();
+		expect(await screen.findByText("阶段记录不完整")).toBeInTheDocument();
 		expect(screen.getByText(/缺少必要产物：final_video/)).toBeInTheDocument();
 	});
 

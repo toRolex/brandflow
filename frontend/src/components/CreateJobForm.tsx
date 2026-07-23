@@ -617,15 +617,15 @@ export default function CreateJobForm(props: CreateJobFormProps) {
 										? "正在生成标题…"
 										: coverTitleRetryAfter > 0
 											? `服务限流，请在 ${coverTitleRetryAfter} 秒后重试`
-										: "需先输入文案才能生成"
+											: "需先输入文案才能生成"
 							}
 							onClick={handleGenerateCoverTitle}
 						>
-						{coverTitleGenerating
-							? "正在生成标题…"
-							: coverTitleRetryAfter > 0
-								? `${coverTitleRetryAfter} 秒后重试`
-								: "自动生成标题"}
+							{coverTitleGenerating
+								? "正在生成标题…"
+								: coverTitleRetryAfter > 0
+									? `${coverTitleRetryAfter} 秒后重试`
+									: "自动生成标题"}
 						</button>
 					</div>
 					<div className="flex items-center gap-3 flex-wrap">

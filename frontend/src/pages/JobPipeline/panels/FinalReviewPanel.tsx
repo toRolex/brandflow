@@ -1,6 +1,6 @@
 import MediaPlayer from "../../../components/MediaPlayer";
-import PhaseStatusNotice from "./PhaseStatusNotice";
 import type { PanelProps } from "../types";
+import PhaseStatusNotice from "./PhaseStatusNotice";
 
 export default function FinalReviewPanel({
 	isCurrentReviewStep,

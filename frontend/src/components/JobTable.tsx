@@ -277,7 +277,10 @@ function NameRow({
 				<StatusBadge phase={job.phase} />
 				{job.phase === "asset_review" &&
 					job.asset_review_unresolved_count != null && (
-						<div className="text-xs mt-1" style={{ color: "var(--color-caution-amber)" }}>
+						<div
+							className="text-xs mt-1"
+							style={{ color: "var(--color-caution-amber)" }}
+						>
 							待处理素材：{job.asset_review_unresolved_count} 条
 						</div>
 					)}

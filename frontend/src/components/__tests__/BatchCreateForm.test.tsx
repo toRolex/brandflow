@@ -123,5 +123,4 @@ describe("BatchCreateForm", () => {
 		expect(payload.jobs[0].manualScript).toBe("第一段文案。");
 		expect(payload.jobs[1].manualScript).toBe("第二段文案。");
 	});
-
 });

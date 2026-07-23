@@ -294,6 +294,7 @@ class TestApproveSuccess:
                 }
             ]
             import json as _json
+
             (job_dir / "selected_clips.json").write_text(
                 _json.dumps(clips, ensure_ascii=False, indent=2),
                 encoding="utf-8",

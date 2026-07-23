@@ -1,7 +1,7 @@
 import MediaPlayer from "../../../components/MediaPlayer";
 import TtsVoiceSelector from "../components/TtsVoiceSelector";
-import PhaseStatusNotice from "./PhaseStatusNotice";
 import type { PanelProps } from "../types";
+import PhaseStatusNotice from "./PhaseStatusNotice";
 
 export default function TtsReviewPanel({
 	isCurrentReviewStep,
@@ -21,7 +21,10 @@ export default function TtsReviewPanel({
 			</p>
 			<TtsVoiceSelector {...props} />
 			{!hasIntegrityError && (
-				<MediaPlayer src={audio?.url || props.ttsPreviewUrl || ""} kind="audio" />
+				<MediaPlayer
+					src={audio?.url || props.ttsPreviewUrl || ""}
+					kind="audio"
+				/>
 			)}
 			{!isCurrentReviewStep && (
 				<div

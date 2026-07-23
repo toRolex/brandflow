@@ -247,7 +247,9 @@ class TestReviewStrategy:
         """Already-approved reviews should advance, not re-auto-approve."""
         action = _compute_transition(
             make_record(
-                phase="script_review", review_status="approved", review_strategy="fast_output"
+                phase="script_review",
+                review_status="approved",
+                review_strategy="fast_output",
             ),
             (),
         )
@@ -260,7 +262,9 @@ class TestReviewStrategy:
         """Already-pending reviews should wait, not auto-approve."""
         action = _compute_transition(
             make_record(
-                phase="script_review", review_status="pending", review_strategy="fast_output"
+                phase="script_review",
+                review_status="pending",
+                review_strategy="fast_output",
             ),
             (),
         )
@@ -272,7 +276,9 @@ class TestReviewStrategy:
         # tts_review → normally → subtitle_generating, but with skip_subtitle
         # should go directly to asset_retrieving
         action = _compute_transition(
-            make_record(phase="tts_review", review_strategy="fast_output", skip_subtitle=True),
+            make_record(
+                phase="tts_review", review_strategy="fast_output", skip_subtitle=True
+            ),
             (),
         )
         assert action.new_phase == "asset_retrieving"  # skips subtitle_generating
@@ -280,7 +286,9 @@ class TestReviewStrategy:
 
     def test_fast_output_skip_subtitle_auto_approves_asset_review(self) -> None:
         action = _compute_transition(
-            make_record(phase="asset_review", review_strategy="fast_output", skip_subtitle=True),
+            make_record(
+                phase="asset_review", review_strategy="fast_output", skip_subtitle=True
+            ),
             (),
         )
         assert action.new_phase == _next("asset_review")
@@ -1283,7 +1291,11 @@ class TestImportSceneFolderFallback:
 
         # Job advances past queued; must NOT go to migration_required or scene_assembling.
         assert summary.action == "advanced"
-        assert summary.to_phase not in ("migration_required", "scene_assembling", "queued")
+        assert summary.to_phase not in (
+            "migration_required",
+            "scene_assembling",
+            "queued",
+        )
 
     def test_tick_import_empty_folders_no_scene_config_skips_scene_assembling(
         self,
@@ -1316,7 +1328,11 @@ class TestImportSceneFolderFallback:
 
         # Job advances past queued; must NOT go to migration_required or scene_assembling.
         assert summary.action == "advanced"
-        assert summary.to_phase not in ("migration_required", "scene_assembling", "queued")
+        assert summary.to_phase not in (
+            "migration_required",
+            "scene_assembling",
+            "queued",
+        )
 
     def test_tick_import_with_existing_folders_unaffected(self) -> None:
         """import + existing scene_folder_ids → behavior unchanged, no config fallback."""
@@ -1326,7 +1342,9 @@ class TestImportSceneFolderFallback:
         mock_orch = Mock()
         mock_orch.execute_phases_parallel.return_value = {
             "scene_assembling": PhaseExecutionSuccess(
-                artifacts=[ArtifactPointer(kind="scene_segment", relative_path="scene.mp4")]
+                artifacts=[
+                    ArtifactPointer(kind="scene_segment", relative_path="scene.mp4")
+                ]
             ),
             "tts_generating": PhaseExecutionSuccess(artifacts=[]),
         }
@@ -1335,7 +1353,10 @@ class TestImportSceneFolderFallback:
         )
         mock_orch.run_phase.return_value = []
         mock_config = Mock()
-        mock_config.get_scene_config.return_value = {"folders": [], "transition_duration_ms": 500}
+        mock_config.get_scene_config.return_value = {
+            "folders": [],
+            "transition_duration_ms": 500,
+        }
 
         svc = JobTickService(
             orchestrator=mock_orch,
@@ -1824,9 +1845,7 @@ class TestAutoApproveAssetReviewIntegrity:
             phase="asset_review", auto_approve=True, review_status="none"
         )
         record.job_id = job_id
-        record = record.model_copy(
-            update={"asset_collection_status": "complete"}
-        )
+        record = record.model_copy(update={"asset_collection_status": "complete"})
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -1875,9 +1894,7 @@ class TestAutoApproveAssetReviewIntegrity:
             phase="asset_review", auto_approve=True, review_status="none"
         )
         record.job_id = job_id
-        record = record.model_copy(
-            update={"asset_collection_status": "complete"}
-        )
+        record = record.model_copy(update={"asset_collection_status": "complete"})
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -1938,9 +1955,7 @@ class TestAutoApproveAssetReviewIntegrity:
             phase="asset_review", auto_approve=True, review_status="none"
         )
         record.job_id = job_id
-        record = record.model_copy(
-            update={"asset_collection_status": "complete"}
-        )
+        record = record.model_copy(update={"asset_collection_status": "complete"})
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -1969,7 +1984,6 @@ class TestAutoApproveCollectionStatus:
 
     def test_blocked_when_collection_not_started(self, tmp_path: Path) -> None:
         """asset_collection_status='not_started' → blocked, stays in asset_review."""
-        import json as _json
 
         job_id = "test-cs-not-started"
         root_dir = tmp_path
@@ -1985,9 +1999,7 @@ class TestAutoApproveCollectionStatus:
         )
         record.job_id = job_id
         # Explicitly set to not_started (same as default, but explicit for clarity)
-        record = record.model_copy(
-            update={"asset_collection_status": "not_started"}
-        )
+        record = record.model_copy(update={"asset_collection_status": "not_started"})
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -2024,9 +2036,7 @@ class TestAutoApproveCollectionStatus:
             review_status="none",
         )
         record.job_id = job_id
-        record = record.model_copy(
-            update={"asset_collection_status": "collecting"}
-        )
+        record = record.model_copy(update={"asset_collection_status": "collecting"})
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -2050,7 +2060,6 @@ class TestAutoApproveCollectionStatus:
 
     def test_blocked_when_collection_empty(self, tmp_path: Path) -> None:
         """asset_collection_status='complete_empty' → blocked, requires human."""
-        import json as _json
 
         job_id = "test-cs-empty"
         root_dir = tmp_path
@@ -2067,9 +2076,7 @@ class TestAutoApproveCollectionStatus:
             review_status="none",
         )
         record.job_id = job_id
-        record = record.model_copy(
-            update={"asset_collection_status": "complete_empty"}
-        )
+        record = record.model_copy(update={"asset_collection_status": "complete_empty"})
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -2123,9 +2130,7 @@ class TestAutoApproveCollectionStatus:
             review_status="none",
         )
         record.job_id = job_id
-        record = record.model_copy(
-            update={"asset_collection_status": "complete"}
-        )
+        record = record.model_copy(update={"asset_collection_status": "complete"})
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -2147,7 +2152,9 @@ class TestAutoApproveCollectionStatus:
         snapshot_path = job_dir / "reviewed_assets.json"
         assert snapshot_path.exists(), "reviewed_assets.json should be written"
 
-    def test_proceeds_when_missing_file_but_status_complete(self, tmp_path: Path) -> None:
+    def test_proceeds_when_missing_file_but_status_complete(
+        self, tmp_path: Path
+    ) -> None:
         """Status='complete' trusts the handler: proceeds even if file is missing
         (supports mock tests and async-worker scenarios)."""
         job_id = "test-cs-missing-file"
@@ -2163,9 +2170,7 @@ class TestAutoApproveCollectionStatus:
             review_status="none",
         )
         record.job_id = job_id
-        record = record.model_copy(
-            update={"asset_collection_status": "complete"}
-        )
+        record = record.model_copy(update={"asset_collection_status": "complete"})
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -2396,7 +2401,9 @@ class TestChainAdvancement:
     def test_tick_chains_past_auto_approve_review_gate(self) -> None:
         """auto_approve=True chains through review gates instead of stopping."""
         record = make_record(
-            phase="queued", mode="generate", auto_approve=True,
+            phase="queued",
+            mode="generate",
+            auto_approve=True,
             asset_collection_status="complete",
         )
         repo = self._make_persistent_repo(record)

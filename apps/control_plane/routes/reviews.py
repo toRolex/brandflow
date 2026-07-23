@@ -8,7 +8,6 @@ from pydantic import BaseModel
 
 from packages.domain_core.models import REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
-from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
     validate_assets,

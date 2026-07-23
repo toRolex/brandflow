@@ -1,7 +1,10 @@
 import type { PanelProps } from "../types";
 import PhaseStatusNotice from "./PhaseStatusNotice";
 
-export default function SubtitlePanel({ findArtifact, getPhasePresentation }: PanelProps) {
+export default function SubtitlePanel({
+	findArtifact,
+	getPhasePresentation,
+}: PanelProps) {
 	const subtitleArtifact = findArtifact("subtitle");
 	const presentation = getPhasePresentation("subtitle_generating");
 	return (
