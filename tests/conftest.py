@@ -10,9 +10,11 @@ from collections.abc import Iterator
 
 import pytest
 
-# ponytail: 单进程地址空间硬限制 8GB — 超过即 crash（MemoryError），
-# 防止 pytest worker 无限制膨胀撑爆整机。  8GB 足够跑完任何单文件测试。
-_LIMIT = 8 * 1024 * 1024 * 1024  # 8 GB
+# ponytail: 单进程地址空间硬限制 3GB — 超过即 crash（MemoryError）。
+# 正常单文件测试峰值 < 500MB（含 pipeline services < 1.5GB），
+# 3GB 远高于正常峰值但能卡住泄漏（2GB+/进程持续增长）。
+# 配合 -n 2 worker：2×3GB + 系统开销 ≈ 8GB，24GB 机器安全。
+_LIMIT = 3 * 1024 * 1024 * 1024  # 3 GB
 try:
     resource.setrlimit(resource.RLIMIT_AS, (_LIMIT, _LIMIT))
 except ValueError:
