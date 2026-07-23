@@ -20,7 +20,6 @@ export const KNOWN_PHASES = [
 	"failed",
 	"cancelled",
 	"paused",
-	"migration_required",
 ] as const;
 
 export type Phase = (typeof KNOWN_PHASES)[number];
@@ -77,12 +76,6 @@ export const PIPELINE_STEPS: PipelineStep[] = [
 		key: "scene_assemble",
 		phase: "scene_assembling",
 		label: "场景拼接",
-		isReview: false,
-	},
-	{
-		key: "migration_required",
-		phase: "migration_required",
-		label: "需补充场景",
 		isReview: false,
 	},
 	{

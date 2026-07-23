@@ -3,7 +3,6 @@ import type {
 	BatchCreateRequest,
 	BatchCreateResponse,
 	JobDetail,
-	SceneFolder,
 } from "../types/job";
 import { request, uploadFile } from "./core";
 
@@ -61,20 +60,6 @@ export const enqueueJob = (jobId: string) =>
 
 export const retryJob = (jobId: string) =>
 	request<{ status: string }>(`/api/jobs/${jobId}/retry`, { method: "POST" });
-
-export const migrateScenes = (jobId: string, sceneFolderIds: string[]) =>
-	request<{ status: string; phase: string; job_id: string }>(
-		`/api/jobs/${jobId}/migrate-scenes`,
-		{
-			method: "POST",
-			body: JSON.stringify({ scene_folder_ids: sceneFolderIds }),
-		},
-	);
-
-export const getSceneFolders = (product?: string) =>
-	request<{ folders: SceneFolder[] }>(
-		`/api/scene-folders${product ? `?product=${encodeURIComponent(product)}` : ""}`,
-	);
 
 export const deleteJob = (jobId: string) =>
 	request<{ status: string; job_id: string }>(`/api/jobs/${jobId}`, {

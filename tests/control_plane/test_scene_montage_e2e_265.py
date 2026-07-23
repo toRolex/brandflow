@@ -138,7 +138,7 @@ def _drive_to_completion(
     """
     svc = _make_tick_service(client, root)
     project_dir = root / "workspace" / "projects" / PROJECT_ID
-    terminal = {"completed", "failed", "cancelled", "migration_required"}
+    terminal = {"completed", "failed", "cancelled"}
 
     for _ in range(max_ticks):
         data = _load_control_job(root, job_id)

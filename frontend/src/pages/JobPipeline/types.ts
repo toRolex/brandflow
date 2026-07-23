@@ -2,7 +2,6 @@ import type {
 	ExportTaskState,
 	JobDetail,
 	Phase,
-	SceneFolder,
 } from "../../types";
 import type {
 	PhasePresentation,
@@ -31,8 +30,6 @@ export interface PanelProps {
 	selectedClipsLoadState: "idle" | "loading" | "ready" | "failed";
 	rejectedClips: Set<number>;
 	showAllBlankConfirm: boolean;
-	sceneFolders: SceneFolder[];
-	selectedSceneFolders: string[];
 	ttsVoices: TTSVoice[];
 	ttsVoiceInfo: TTSVoiceInfo | null;
 	ttsSelectedModel: string;
@@ -51,10 +48,8 @@ export interface PanelProps {
 	onRetry: () => void;
 	onEditScript: (script: string) => void;
 	onRegenerateWithPrompt: (prompt: string) => void;
-	onMigrateScenes: () => void;
 	onCreateExport: () => void;
 	onDownloadExport: () => void;
-	onSceneFolderToggle: (path: string, checked: boolean) => void;
 	onTtsModelChange: (model: string) => void;
 	onTtsVoiceChange: (voice: string) => void;
 	onTtsPreview: () => void;
@@ -81,4 +76,4 @@ export interface PanelProps {
 	) => PhasePresentation;
 }
 
-export type { JobDetail, Phase, SceneFolder };
+export type { JobDetail, Phase };

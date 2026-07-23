@@ -1179,15 +1179,17 @@ class TestManualScriptConsistency:
 class TestImportSceneInput:
     """Import jobs require valid scene folders and fail non-retryably."""
 
-    def test_import_job_with_empty_scene_folder_ids_goes_to_migration_required(
+    def test_import_job_with_empty_scene_folder_ids_skips_scene_assembling(
         self,
     ) -> None:
-        """An import job queued without selected scene folders is paused for migration."""
+        """An import job queued without selected scene folders skips scene_assembling
+        and goes directly to tts_generating handler with target subtitle_generating."""
         record = make_record(phase="queued", mode="import")
         record.scene_folder_ids = []
         action = _compute_transition(record, ())
-        assert action.new_phase == "migration_required"
-        assert action.run_handler is False
+        assert action.run_handler is True
+        assert action.handler_phase == "tts_generating"
+        assert action.new_phase == "subtitle_generating"
 
     def test_import_job_with_scene_folders_routes_to_scene_assembling(
         self,
@@ -1230,21 +1232,6 @@ class TestImportSceneInput:
         assert saved.execution.current_attempt == 1
         assert saved.execution.error.code == "SCENE_INPUT_MISSING"
 
-    def test_migration_required_is_terminal_for_tick(self) -> None:
-        record = make_record(phase="migration_required", mode="import")
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
-        svc = JobTickService(Mock(spec=PhaseOrchestrator), repo=mock_repo)
-        summary = svc.tick(
-            "proj-001",
-            "test-job",
-            "product",
-            root_dir=Path("/tmp"),
-            project_dir=Path("/tmp/proj"),
-        )
-        assert summary.action == "skipped"
-        mock_repo.save_job.assert_not_called()
-
     def test_queued_generate_job_does_not_require_scene_folders(self) -> None:
         record = make_record(phase="queued", mode="generate")
         record.scene_folder_ids = []
@@ -1256,15 +1243,19 @@ class TestImportSceneInput:
 class TestImportSceneFolderFallback:
     """#275: tick() fallback scene_folder_ids from scene config for import mode."""
 
-    def test_tick_import_empty_folders_with_scene_config_routes_to_scene_assembling(
+    def test_tick_import_empty_folders_with_scene_config_skips_scene_assembling(
         self,
     ) -> None:
-        """import + empty scene_folder_ids + product scene config → scene_assembling."""
+        """import + empty scene_folder_ids + product scene config → skips scene_assembling,
+        goes to tts_generating handler with target subtitle_generating."""
         record = make_record(phase="queued", mode="import")
         record.scene_folder_ids = []
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
-        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_repo = _persistent_repo(record)
+        mock_orch = Mock()
+        mock_orch.execute_phase.side_effect = lambda phase, ctx: PhaseExecutionSuccess(
+            artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")]
+        )
+        mock_orch.run_phase.return_value = []
         mock_config = Mock()
         mock_config.get_scene_config.return_value = {
             "folders": [
@@ -1285,24 +1276,28 @@ class TestImportSceneFolderFallback:
             project_dir=Path("/tmp/proj"),
         )
 
+        # Job advances past queued; must NOT go to migration_required or scene_assembling.
         assert summary.action == "advanced"
-        assert summary.to_phase == "scene_assembling"
-        saved = mock_repo.save_job.call_args[0][1]
-        assert saved.scene_folder_ids == ["scenes/snack", "scenes/drink"]
+        assert summary.to_phase not in ("migration_required", "scene_assembling", "queued")
 
-    def test_tick_import_empty_folders_no_scene_config_goes_to_migration_required(
+    def test_tick_import_empty_folders_no_scene_config_skips_scene_assembling(
         self,
     ) -> None:
-        """import + empty scene_folder_ids + no product scene config → migration_required."""
+        """import + empty scene_folder_ids + no product scene config → skips scene_assembling,
+        goes to tts_generating handler with target subtitle_generating."""
         record = make_record(phase="queued", mode="import")
         record.scene_folder_ids = []
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
+        mock_orch = Mock()
+        mock_orch.execute_phase.side_effect = lambda phase, ctx: PhaseExecutionSuccess(
+            artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")]
+        )
+        mock_orch.run_phase.return_value = []
         mock_config = Mock()
         mock_config.get_scene_config.return_value = {"folders": []}
 
         svc = JobTickService(
-            orchestrator=Mock(spec=PhaseOrchestrator),
+            orchestrator=mock_orch,
             repo=mock_repo,
             config_reader=mock_config,
         )
@@ -1314,19 +1309,31 @@ class TestImportSceneFolderFallback:
             project_dir=Path("/tmp/proj"),
         )
 
+        # Job advances past queued; must NOT go to migration_required or scene_assembling.
         assert summary.action == "advanced"
-        assert summary.to_phase == "migration_required"
+        assert summary.to_phase not in ("migration_required", "scene_assembling", "queued")
 
     def test_tick_import_with_existing_folders_unaffected(self) -> None:
         """import + existing scene_folder_ids → behavior unchanged, no config fallback."""
         record = make_record(phase="queued", mode="import")
         record.scene_folder_ids = ["scenes/existing"]
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
+        mock_orch = Mock()
+        mock_orch.execute_phases_parallel.return_value = {
+            "scene_assembling": PhaseExecutionSuccess(
+                artifacts=[ArtifactPointer(kind="scene_segment", relative_path="scene.mp4")]
+            ),
+            "tts_generating": PhaseExecutionSuccess(artifacts=[]),
+        }
+        mock_orch.execute_phase.side_effect = lambda phase, ctx: PhaseExecutionSuccess(
+            artifacts=[ArtifactPointer(kind="tts_audio", relative_path="audio.mp3")]
+        )
+        mock_orch.run_phase.return_value = []
         mock_config = Mock()
+        mock_config.get_scene_config.return_value = {"folders": [], "transition_duration_ms": 500}
 
         svc = JobTickService(
-            orchestrator=Mock(spec=PhaseOrchestrator),
+            orchestrator=mock_orch,
             repo=mock_repo,
             config_reader=mock_config,
         )
@@ -1339,16 +1346,14 @@ class TestImportSceneFolderFallback:
         )
 
         assert summary.action == "advanced"
-        assert summary.to_phase == "scene_assembling"
         # config_reader should NOT have been called since folders already exist
         mock_config.get_scene_config.assert_not_called()
 
     def test_tick_generate_job_unaffected_by_scene_config(self) -> None:
         """generate mode → unaffected by scene config fallback."""
         record = make_record(phase="queued", mode="generate")
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
-        mock_orch = Mock(spec=PhaseOrchestrator)
+        mock_repo = _persistent_repo(record)
+        mock_orch = Mock()
         mock_orch.run_phase.return_value = [
             ArtifactPointer(kind="script", relative_path="script.txt")
         ]

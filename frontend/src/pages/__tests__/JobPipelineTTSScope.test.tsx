@@ -11,14 +11,15 @@ vi.mock("../../api/client", () => ({
 		retryJob: vi.fn(),
 		pauseJob: vi.fn(),
 		getJobLogs: vi.fn(),
-		migrateScenes: vi.fn(),
-		getSceneFolders: vi.fn(),
 		getTTSVoices: vi.fn(),
 		getJobTTSVoice: vi.fn(),
 		updateJobTTSVoice: vi.fn(),
 		previewJobTTS: vi.fn(),
 		approveReview: vi.fn(),
 		rejectReview: vi.fn(),
+		createExport: vi.fn(),
+		getExportStatus: vi.fn(),
+		downloadExport: vi.fn(),
 	},
 }));
 

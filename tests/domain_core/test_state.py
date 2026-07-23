@@ -78,6 +78,7 @@ def test_worker_lease_tracks_current_phase() -> None:
 
 
 def test_job_record_accepts_migration_required_phase() -> None:
+    """migration_required is deprecated but kept for backward compat with existing records."""
     record = JobRecord(
         job_id="job-1",
         phase="migration_required",

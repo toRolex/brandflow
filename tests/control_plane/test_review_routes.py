@@ -27,7 +27,6 @@ TERMINAL_NON_REVIEW = [
     "failed",
     "cancelled",
     "paused",
-    "migration_required",
 ]
 
 REVIEW_PHASES_LIST = ["script_review", "tts_review", "asset_review", "final_review"]

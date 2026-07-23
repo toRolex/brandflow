@@ -12,7 +12,6 @@ vi.mock("../../api/client", () => ({
 		listTemplates: vi.fn(),
 		createJob: vi.fn(),
 		batchCreateJobs: vi.fn(),
-		getSceneFolders: vi.fn(),
 		uploadJobAudio: vi.fn(),
 		enqueueJob: vi.fn(),
 	},
@@ -69,7 +68,6 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 		vi.mocked(api.getProject).mockResolvedValue(MOCK_PROJECT);
 		vi.mocked(api.listMusic).mockResolvedValue({ tracks: [] });
 		vi.mocked(api.listTemplates).mockResolvedValue([]);
-		vi.mocked(api.getSceneFolders).mockResolvedValue({ folders: [] });
 	});
 
 	describe("default view", () => {

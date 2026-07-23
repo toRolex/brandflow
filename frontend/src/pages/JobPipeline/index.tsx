@@ -8,7 +8,6 @@ import type {
 	ExportTaskState,
 	JobDetail,
 	Phase,
-	SceneFolder,
 } from "../../types";
 import { PIPELINE_STEPS } from "../../types";
 import AssetRetrievingPanel from "./panels/AssetRetrievingPanel";
@@ -17,7 +16,6 @@ import CompletedPanel from "./panels/CompletedPanel";
 import { FinalRenderPanel, MontagePanel } from "./panels/ExecutionPanels";
 import FailedPanel from "./panels/FailedPanel";
 import FinalReviewPanel from "./panels/FinalReviewPanel";
-import MigrationPanel from "./panels/MigrationPanel";
 import QueuedPanel from "./panels/QueuedPanel";
 import SceneAssemblyPanel from "./panels/SceneAssemblyPanel";
 import ScriptPanel from "./panels/ScriptPanel";
@@ -96,10 +94,6 @@ export default function JobPipeline() {
 	>("idle");
 	const [rejectedClips, setRejectedClips] = useState<Set<number>>(new Set());
 	const [showAllBlankConfirm, setShowAllBlankConfirm] = useState(false);
-	const [sceneFolders, setSceneFolders] = useState<SceneFolder[]>([]);
-	const [selectedSceneFolders, setSelectedSceneFolders] = useState<string[]>(
-		[],
-	);
 	const initialLoad = useRef(true);
 
 	const [ttsVoices, setTtsVoices] = useState<
@@ -197,14 +191,6 @@ export default function JobPipeline() {
 			setSelectedClipsLoadState("idle");
 		}
 	}, [job, job?.artifacts]);
-
-	useEffect(() => {
-		if (!job || job.phase !== "migration_required") return;
-		api
-			.getSceneFolders(job.product)
-			.then((data) => setSceneFolders(data.folders))
-			.catch(() => setError("加载场景文件夹失败"));
-	}, [job?.phase, job?.product]);
 
 	useEffect(() => {
 		if (!job || !id) return;
@@ -349,22 +335,6 @@ export default function JobPipeline() {
 			await load();
 		} catch (e) {
 			setError(getApiErrorDetail(e) || "取消请求失败");
-		}
-	};
-
-	const handleMigrateScenes = async () => {
-		if (!job) return;
-		try {
-			await api.migrateScenes(job.job_id, selectedSceneFolders);
-			setSelectedSceneFolders([]);
-			await load();
-		} catch (e) {
-			console.error("migrate scenes failed", e);
-			if (e instanceof Error) {
-				setError(e.message);
-			} else {
-				setError("场景迁移失败");
-			}
 		}
 	};
 
@@ -563,13 +533,6 @@ export default function JobPipeline() {
 			...options,
 		});
 
-	const handleSceneFolderToggle = (path: string, checked: boolean) => {
-		if (checked) {
-			setSelectedSceneFolders([...selectedSceneFolders, path]);
-		} else {
-			setSelectedSceneFolders(selectedSceneFolders.filter((id) => id !== path));
-		}
-	};
 
 	const handleTtsModelChange = (model: string) => {
 		setTtsSelectedModel(model);
@@ -659,8 +622,6 @@ export default function JobPipeline() {
 		selectedClipsLoadState,
 		rejectedClips,
 		showAllBlankConfirm,
-		sceneFolders,
-		selectedSceneFolders,
 		ttsVoices,
 		ttsVoiceInfo,
 		ttsSelectedModel,
@@ -678,11 +639,8 @@ export default function JobPipeline() {
 		onReject: handleReject,
 		onRetry: handleRetry,
 		onEditScript: handleEditScript,
-		onRegenerateWithPrompt: handleRegenerateWithPrompt,
-		onMigrateScenes: handleMigrateScenes,
 		onCreateExport: handleCreateExport,
 		onDownloadExport: handleDownloadExport,
-		onSceneFolderToggle: handleSceneFolderToggle,
 		onTtsModelChange: handleTtsModelChange,
 		onTtsVoiceChange: handleTtsVoiceSelectChange,
 		onTtsPreview: handleTtsPreview,
@@ -704,8 +662,6 @@ export default function JobPipeline() {
 		switch (activeStepKey) {
 			case "scene_assemble":
 				return <SceneAssemblyPanel {...panelProps} />;
-			case "migration_required":
-				return <MigrationPanel {...panelProps} />;
 			case "draft":
 				return <QueuedPanel draft />;
 			case "queued":

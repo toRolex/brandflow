@@ -20,7 +20,6 @@ describe("shouldPollJob", () => {
 		"failed",
 		"cancelled",
 		"completed",
-		"migration_required",
 	] as const)("stops polling a stable %s job", (phase) => {
 		expect(shouldPollJob(phase)).toBe(false);
 	});

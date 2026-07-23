@@ -8,9 +8,4 @@ describe("StatusBadge (#262)", () => {
 		render(<StatusBadge phase="final_rendering" />);
 		expect(screen.getByText("终审·合成")).toBeInTheDocument();
 	});
-
-	it("renders '需补充场景' for migration_required phase", () => {
-		render(<StatusBadge phase="migration_required" />);
-		expect(screen.getByText("需补充场景")).toBeInTheDocument();
-	});
 });

@@ -58,7 +58,7 @@ HANDLED_PHASES: frozenset[str] = frozenset(
 )
 
 _TERMINAL_PHASES: frozenset[str] = frozenset(
-    {"draft", "completed", "failed", "cancelled", "paused", "migration_required"}
+    {"draft", "completed", "failed", "cancelled", "paused"}
 )
 
 _BACKOFF_DELAYS: tuple[float, ...] = (2.0, 4.0, 8.0)
@@ -347,18 +347,51 @@ def _compute_transition(
         )
 
     # ------------------------------------------------------------------
-    # 4. Queued → route to script_generating handler
+    # 3.5. Recovery: legacy migration_required jobs → auto-recover into pipeline
+    # ------------------------------------------------------------------
+    if phase == "migration_required":
+        if record.mode == "import":
+            has_tts_audio = any(a.kind == "tts_audio" for a in record.artifacts)
+            if has_tts_audio:
+                return TickAction(
+                    new_phase="subtitle_generating",
+                    message="migration_required → subtitle_generating (auto-recovery, tts_audio present)",
+                )
+            return TickAction(
+                run_handler=True,
+                handler_phase="tts_generating",
+                new_phase="subtitle_generating",
+                message="migration_required → tts_generating (auto-recovery, no scene folders)",
+            )
+        return TickAction(
+            new_phase="queued",
+            message="migration_required → queued (recovery, unknown mode)",
+        )
+
+    # ------------------------------------------------------------------
+    # 4. Queued → route to script_generating or import pipeline
     # ------------------------------------------------------------------
     if phase == "queued":
         if record.mode == "import":
             if not record.scene_folder_ids:
+                # No scene folders configured → skip scene_assembling entirely.
+                # video_rendering will use montage_segment.mp4 directly as base.mp4
+                # when scene_segment.mp4 is absent.
+                has_tts_audio = any(a.kind == "tts_audio" for a in record.artifacts)
+                if has_tts_audio:
+                    return TickAction(
+                        new_phase="subtitle_generating",
+                        message="queued → subtitle_generating (import, no scene folders, tts_audio present)",
+                    )
                 return TickAction(
-                    new_phase="migration_required",
-                    message="import job missing scene folders → migration_required",
+                    run_handler=True,
+                    handler_phase="tts_generating",
+                    new_phase="subtitle_generating",
+                    message="queued → tts_generating (import, no scene folders → skip scene_assembling)",
                 )
             return TickAction(
                 new_phase="scene_assembling",
-                message="queued → scene_assembling (import mode, no handler yet)",
+                message="queued → scene_assembling (import mode)",
             )
         return TickAction(
             run_handler=True,
@@ -611,25 +644,6 @@ class JobTickService:
             When a phase handler raises an unexpected exception.
         """
         record = self._repo.load_job(project_id, job_id)
-
-        # 1b. Fallback: populate scene_folder_ids from scene config for import
-        # mode when the record has no explicit folders.  This lets upgraded
-        # jobs (pre-selection) and newly-created import jobs without manual
-        # folder selection proceed past the queued → migration_required gate.
-        if record.mode == "import" and not record.scene_folder_ids:
-            if self._config is not None:
-                scene_cfg = self._config.get_scene_config(product_id=product)
-            else:
-                from packages.provider_config.config_reader import ConfigReader
-
-                scene_cfg = ConfigReader().get_scene_config(product_id=product)
-            folders = [
-                entry.get("path", "")
-                for entry in scene_cfg.get("folders", [])
-                if entry.get("path")
-            ]
-            if folders:
-                record = record.model_copy(update={"scene_folder_ids": folders})
 
         initial_phase = record.phase
         first = True

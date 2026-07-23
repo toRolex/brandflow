@@ -81,10 +81,6 @@ class BatchCreateRequest(BaseModel):
         return data
 
 
-class MigrateScenesRequest(BaseModel):
-    scene_folder_ids: list[str]
-
-
 class RenameJobRequest(BaseModel):
     name: str
 
