@@ -191,14 +191,10 @@ def _render_cover_title_png(
 def _format_ass_path_for_ffmpeg(ass_path: Path) -> str:
     """Normalize path for FFmpeg subtitles filter (used inside single quotes).
 
-    Strip Windows drive letter prefix (``D:``) — its colon is parsed as a
-    key-value separator by the subtitles filter.  The worker subprocess runs
-    on the same drive, so ``/absolute/path`` resolves correctly.
+    Escape colons (``\\\\:``) so the Windows drive letter (``D:``) is not parsed
+    as a key-value separator by the subtitles filter options parser.
     """
-    path = str(ass_path).replace("\\", "/")
-    if len(path) > 1 and path[1] == ":":
-        path = path[2:]
-    return path
+    return str(ass_path).replace("\\", "/").replace(":", "\\:")
 
 
 def _make_music_mix_filter(

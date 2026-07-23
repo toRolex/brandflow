@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from packages.domain_core.models import REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
+from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
     validate_assets,
@@ -461,9 +462,21 @@ def asset_set_blank(job_id: str, payload: AssetIndexRequest, request: Request) -
 
 @router.post("/{job_id}/asset/set-asset")
 def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> dict:
-    """Manually assign a specific asset to a clip position."""
+    """Manually assign a specific asset to a clip position.
+
+    The client sends only the asset identifier; the server resolves and validates
+    the asset metadata against the shared asset index.
+    """
     root_dir, _, job_dir = _resolve_job_context(request, job_id)
     _check_asset_review_phase(root_dir, job_id)
+
+    repo = FileStoreRepository(root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+    record = repo.load_job(project_id, job_id)
+    job_product = record.product or ""
+
     clips = _load_clips(job_dir, payload.clip_index)
     repo = FileStoreRepository(root_dir)
     project_id = _find_job_project(repo, job_id)
@@ -484,8 +497,32 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
     if asset.product != product:
         raise HTTPException(status_code=409, detail="asset is outside the job product")
 
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    arepo = AssetRepository(db_path)
+    asset = arepo.query_one(payload.asset_id)
+    if asset is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"asset {payload.asset_id} not found in index",
+        )
+    if asset.status == "disabled":
+        raise HTTPException(
+            status_code=409,
+            detail=f"asset {payload.asset_id} is disabled",
+        )
+    if job_product and asset.product and job_product != asset.product:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"asset product '{asset.product}' does not match "
+                f"job product '{job_product}'"
+            ),
+        )
+
     _ensure_original(clips, payload.clip_index)
-    clips[payload.clip_index].update(
+    entry = clips[payload.clip_index]
+    entry.update(
         {
             "file_path": asset.file_path,
             "asset_id": asset.asset_id,
@@ -495,9 +532,11 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
             "visual_type": "clip",
         }
     )
+    # Preserve business fields that are not part of the asset metadata.
+    entry.setdefault("requested_category", entry.get("category", ""))
     _save_clips(job_dir, clips)
     logger.info(
-        f"[AssetReview] set-asset: job={job_id}, index={payload.clip_index}, asset={payload.asset_id}"
+        f"[AssetReview] set-asset: job={job_id}, index={payload.clip_index}, asset={asset.asset_id}"
     )
     return {
         "status": "set_asset",
