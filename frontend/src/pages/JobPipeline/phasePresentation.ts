@@ -51,7 +51,14 @@ export interface PhasePresentation {
 
 function missingArtifacts(input: PhasePresentationInput): string[] {
 	const defaults: Partial<Record<Phase, string[]>> = {
+		script_review: ["script"],
+		tts_review: ["tts_audio"],
+		subtitle_generating: ["subtitle"],
 		asset_retrieving: ["selected_clips"],
+		asset_review: ["selected_clips"],
+		video_rendering: ["video_base"],
+		final_rendering: ["final_video"],
+		final_review: ["final_video"],
 		completed: ["final_video"],
 	};
 	return (input.requiredArtifacts ?? defaults[input.phase] ?? []).filter(

@@ -4,6 +4,10 @@ import type {
 	Phase,
 	SceneFolder,
 } from "../../types";
+import type {
+	PhasePresentation,
+	PhasePresentationInput,
+} from "./phasePresentation";
 
 export interface TTSVoice {
 	id: string;
@@ -67,6 +71,13 @@ export interface PanelProps {
 	findArtifact: (
 		kind: string,
 	) => { kind: string; relative_path: string; url: string } | undefined;
+	getPhasePresentation: (
+		phase: Phase,
+		options?: Pick<
+			PhasePresentationInput,
+			"requiredArtifacts" | "artifactLoadState"
+		>,
+	) => PhasePresentation;
 }
 
 export type { JobDetail, Phase, SceneFolder };
