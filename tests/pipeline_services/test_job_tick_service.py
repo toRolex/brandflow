@@ -1140,7 +1140,7 @@ class TestManualScriptConsistency:
         assert txt_path.read_text(encoding="utf-8") == manual_text
 
         # --- seam B: _discover_script reads it back ---
-        discovered = PhaseOrchestrator._discover_script(job_dir)
+        discovered = orch._discover_script(job_dir)
         assert discovered == manual_text
 
         # --- seam C: _run_tts passes the exact script text to the SentenceTTSService ---
@@ -1351,8 +1351,12 @@ class TestImportSceneFolderFallback:
         )
 
         assert summary.action == "advanced"
-        # config_reader should NOT have been called since folders already exist
-        mock_config.get_scene_config.assert_not_called()
+        # get_scene_config is called by _build_phase_context for import jobs
+        # (transition_duration_ms + fallback folder list), but the existing
+        # scene_folder_ids on the record take precedence.
+        # _build_phase_context rebuilds ctx for each handler attempt (once per
+        # phase step in the chain — scene_assembling, subtitle_generating, …).
+        assert mock_config.get_scene_config.call_count == 3
 
     def test_tick_generate_job_unaffected_by_scene_config(self) -> None:
         """generate mode → unaffected by scene config fallback."""
@@ -2454,7 +2458,9 @@ class TestChainAdvancement:
         record_cancelled = make_record(phase="cancelled", mode="generate")
 
         repo = Mock(spec=FileStoreRepository)
-        repo.load_job.side_effect = [record_queued, record_cancelled]
+        # Three calls: (1) tick entry, (2) lifecycle check inside _tick_step,
+        # (3) loop reload between chain steps.
+        repo.load_job.side_effect = [record_queued, record_queued, record_cancelled]
         repo.save_job.return_value = None
 
         orch = self._make_success_orch()
