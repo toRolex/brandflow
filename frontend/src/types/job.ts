@@ -33,6 +33,7 @@ export interface JobSummary {
 	review_strategy?: ReviewStrategy;
 	mode?: ProductionMode;
 	artifacts?: Artifact[];
+	pending_unresolved_count?: number;
 }
 
 export interface JobDetail {

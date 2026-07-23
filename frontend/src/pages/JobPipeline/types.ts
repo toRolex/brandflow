@@ -65,6 +65,7 @@ export interface PanelProps {
 	onSelectAsset: (index: number, assetId: string) => void;
 	onToggleBlank: (index: number) => void;
 	onRestoreClip: (index: number) => void;
+	onSetAsset?: (index: number) => void;
 	onAssetApprove: () => void;
 	onForceApprove: () => void;
 	onDismissAllBlankConfirm: () => void;
