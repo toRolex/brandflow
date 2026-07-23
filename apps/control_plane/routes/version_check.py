@@ -1,10 +1,9 @@
 """GET /api/check-version and POST /api/update endpoints."""
 
+import re
 import subprocess
 import sys
 from pathlib import Path
-
-import requests
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -13,8 +12,7 @@ from apps.control_plane._version import get_version
 
 router = APIRouter(tags=["version"])
 
-_GITHUB_TAGS_URL = "https://api.github.com/repos/toRolex/brandflow/tags"
-_TIMEOUT = 5  # seconds
+_GIT_REMOTE = "origin"
 
 # ponytail: global lock, per-account locks if throughput matters
 _update_in_progress: bool = False
@@ -30,20 +28,36 @@ def _parse_version(v: str) -> tuple[int, ...]:
     return tuple(int(p) for p in v.strip().lstrip("v").split("."))
 
 
-def _latest_github_tag() -> str:
-    """Fetch newest tag name from GitHub, stripped of leading 'v'."""
-    resp = requests.get(_GITHUB_TAGS_URL, timeout=_TIMEOUT)
-    resp.raise_for_status()
-    tags = resp.json()
-    # ponytail: first tag from the list is most recent (GitHub returns sorted)
-    return tags[0]["name"].lstrip("v") if tags else ""
+def _latest_git_tag(project_root: Path | None = None) -> str:
+    """Return the newest semver tag from the git remote, stripped of leading 'v'.
+
+    Uses ``git ls-remote --tags`` instead of the GitHub REST API to avoid
+    unauthenticated rate limiting when the service runs behind a shared
+    proxy (e.g. Clash on the production Windows machine).
+    """
+    cwd = project_root or Path(__file__).resolve().parent.parent.parent.parent
+    result = subprocess.run(
+        ["git", "ls-remote", "--tags", _GIT_REMOTE],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        cwd=str(cwd),
+    )
+    result.check_returncode()
+    # Extract tag names, strip leading 'v', pick the highest semver.
+    tags: list[tuple[int, ...]] = []
+    for line in result.stdout.splitlines():
+        m = re.search(r"refs/tags/(v?\d+\.\d+\.\d+)(\^\{\})?$", line)
+        if m:
+            tags.append(_parse_version(m.group(1)))
+    return ".".join(str(p) for p in max(tags)) if tags else ""
 
 
 @router.get("/api/check-version")
 async def check_version() -> JSONResponse:
     current = get_version()
     try:
-        latest = _latest_github_tag()
+        latest = _latest_git_tag()
         update_available = bool(latest) and _parse_version(latest) > _parse_version(
             current
         )
