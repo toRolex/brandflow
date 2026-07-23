@@ -751,6 +751,9 @@ class JobTickService:
         # Forward audio_source so the TTS handler can skip synthesis for
         # upload / library audio jobs (#249).
         merged_options["audio_source"] = record.audio_source
+        # Forward language for TTS phase bridge (#325)
+        if record.language:
+            merged_options["language"] = record.language
 
         return PhaseContext(
             job_id=job_id,
