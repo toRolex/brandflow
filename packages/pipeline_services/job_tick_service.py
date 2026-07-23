@@ -796,6 +796,7 @@ class JobTickService:
                     update={
                         "status": "running",
                         "current_attempt": _attempts_so_far(record.execution) + 1,
+                        "error": None,
                     }
                 )
                 record_update: dict[str, Any] = {"execution": running_execution}
