@@ -60,7 +60,7 @@ Phase = Literal[
     "failed",
     "cancelled",
     "paused",
-    "migration_required",
+    "migration_required",  # deprecated — kept for backward compat with existing records
 ]
 
 ProductionMode = Literal["import", "generate"]

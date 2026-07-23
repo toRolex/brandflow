@@ -1629,10 +1629,11 @@ def test_create_generate_job_ignores_scene_folder_ids(tmp_path: Path) -> None:
         },
     )
     assert resp.status_code == 200
-def test_old_incomplete_import_job_moves_to_migration_required(
+def test_old_incomplete_import_job_skips_to_tts_generating(
     tmp_path: Path,
 ) -> None:
-    """存量未完成 import Job（无 scene_folder_ids）被 tick 进入 migration_required。"""
+    """存量未完成 import Job（无 scene_folder_ids）直接进入 tts_generating，
+    跳过 scene_assembling。"""
     _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
     client = _make_client(tmp_path)
     _setup_product_config(client)
@@ -1660,7 +1661,7 @@ def test_old_incomplete_import_job_moves_to_migration_required(
         raw.pop("scene_folder_ids", None)
         job_path.write_text(json.dumps(raw), encoding="utf-8")
 
-        # Directly invoke the tick service to observe migration_required transition
+        # Directly invoke the tick service to observe the skip-to-tts behavior
         from packages.file_store.repository import FileStoreRepository
         from packages.pipeline_services.job_tick_service import JobTickService
         from apps.control_plane.app import create_orchestrator
@@ -1677,173 +1678,15 @@ def test_old_incomplete_import_job_moves_to_migration_required(
         root_dir=tmp_path,
         project_dir=tmp_path / "workspace" / "projects" / "prj_001",
     )
-    # scene_assembling may fail due to fake video, but the key assertion
-    # is that the tick recognized the legacy state and routed to migration_required.
-    # Verify scene_folder_ids were restored (the migration worked).
+    # The legacy job skips scene_assembling and goes directly to tts_generating
+    # → subtitle_generating.  It should NOT be stuck in migration_required.
     detail = client.get(f"/api/jobs/{job_id}").json()
-    assert detail.get("scene_folder_ids") == ["scenes/one"], "migration must restore scene_folder_ids"
-
-
-# ── 存量 Job 场景迁移 ──────────────────────────────────────────────
-
-
-def test_migrate_scenes_endpoint_rejects_invalid_folders(tmp_path: Path) -> None:
-    """迁移端点拒绝无效的场景文件夹。"""
-    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
-    client = _make_client(tmp_path)
-    _setup_product_config(client)
-    created = client.post(
-        "/api/projects/prj_001/jobs",
-        json={
-            "platforms": ["douyin"],
-            "mode": "import",
-            "manual_script": "文案"
-        },
-    ).json()
-    job_id = created["job_id"]
-
-        # Force migration_required state
-        job_path = (
-            tmp_path
-            / "workspace"
-            / "projects"
-            / "prj_001"
-            / "control"
-            / "jobs"
-            / f"{job_id}.json"
-        )
-        raw = json.loads(job_path.read_text(encoding="utf-8"))
-        raw["phase"] = "migration_required"
-        job_path.write_text(json.dumps(raw), encoding="utf-8")
-
-    resp = client.post(
-        f"/api/jobs/{job_id}/migrate-scenes",
-        json={"scene_folder_ids": ["scenes/missing"]},
+    assert detail["phase"] != "migration_required", (
+        "legacy import job must not enter migration_required"
     )
-    assert resp.status_code == 400
-    detail = resp.json()["detail"]
-    assert detail["code"] in {
-        "SCENE_FOLDER_NOT_FOUND",
-        "SCENE_FOLDER_NOT_CONFIGURED"
-    }
-
-
-def test_migrate_scenes_endpoint_preserves_config_and_resets_to_queued(
-    tmp_path: Path,
-) -> None:
-    """补选场景后保留文案等配置，清理旧产物，phase 回到 queued。"""
-    _configure_scene_folders(
-        tmp_path, [("场景一", "scenes/one"), ("场景二", "scenes/two")]
+    assert detail["phase"] in ("tts_generating", "subtitle_generating", "tts_review"), (
+        f"expected tts_generating/subtitle_generating/tts_review, got {detail['phase']}"
     )
-    client = _make_client(tmp_path)
-    _setup_product_config(client)
-    created = client.post(
-        "/api/projects/prj_001/jobs",
-        json={
-            "platforms": ["douyin"],
-            "mode": "import",
-            "manual_script": "保留文案",
-            "tts_voice": "Cherry",
-            "language": "cantonese"
-        },
-    ).json()
-    job_id = created["job_id"]
-
-    job_path = (
-        tmp_path
-        / "workspace"
-        / "projects"
-        / "prj_001"
-        / "control"
-        / "jobs"
-        / f"{job_id}.json"
-    )
-    raw = json.loads(job_path.read_text(encoding="utf-8"))
-    raw["phase"] = "migration_required"
-    raw["execution"] = {
-        "status": "failed",
-        "current_attempt": 1,
-        "max_attempts": 3,
-        "error": {
-            "code": "SCENE_INPUT_MISSING",
-            "message": "missing",
-            "retryable": False
-        }
-    }
-    raw["artifacts"] = [
-        {"kind": "old", "relative_path": "old.mp4", "url": "", "active": False}
-    ]
-    job_path.write_text(json.dumps(raw), encoding="utf-8")
-
-        runtime_dir = (
-            tmp_path
-            / "workspace"
-            / "projects"
-            / "prj_001"
-            / "runtime"
-            / "jobs"
-            / job_id
-        )
-        runtime_dir.mkdir(parents=True)
-        (runtime_dir / "old.mp4").write_bytes(b"old artifact")
-
-        resp = client.post(
-            f"/api/jobs/{job_id}/migrate-scenes",
-            json={"scene_folder_ids": ["scenes/two"]},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "migrated"
-        assert resp.json()["phase"] == "queued"
-
-        saved = json.loads(job_path.read_text(encoding="utf-8"))
-        assert saved["phase"] == "queued"
-        assert saved["scene_folder_ids"] == ["scenes/two"]
-        assert saved["manual_script"] == "保留文案"
-        assert saved["tts_voice"] == "Cherry"
-        assert saved["language"] == "cantonese"
-        assert saved["artifacts"] == []
-        assert saved["execution"]["status"] == "pending"
-        assert not (runtime_dir / "old.mp4").exists()
-
-
-def test_migrate_scenes_endpoint_rejects_non_migration_job(
-    tmp_path: Path,
-) -> None:
-    """只有处于 migration_required 的 Job 才能调用迁移端点。"""
-    _configure_scene_folders(tmp_path, [("场景一", "scenes/one")])
-    client = _make_client(tmp_path)
-    _setup_product_config(client)
-    created = client.post(
-        "/api/projects/prj_001/jobs",
-        json={
-            "platforms": ["douyin"],
-            "mode": "import",
-            "manual_script": "文案"
-        },
-    ).json()
-    job_id = created["job_id"]
-
-        resp = client.post(
-            f"/api/jobs/{job_id}/migrate-scenes",
-            json={"scene_folder_ids": ["scenes/one"]},
-        )
-        assert resp.status_code == 409
-
-
-def test_list_scene_folders_returns_configured_folders(tmp_path: Path) -> None:
-    """GET /api/scene-folders 返回配置的场景文件夹列表。"""
-    _configure_scene_folders(
-        tmp_path, [("场景一", "scenes/one"), ("场景二", "scenes/two")]
-    )
-    client = _make_client(tmp_path)
-    _setup_product_config(client)
-    resp = client.get("/api/scene-folders")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["folders"] == [
-        {"name": "场景一", "path": "scenes/one"},
-        {"name": "场景二", "path": "scenes/two"}
-    ]
 
 
 # ── 批量创建预校验 ────────────────────────────────────────────────

@@ -98,7 +98,3 @@ export interface BatchCreateResponse {
 	}>;
 }
 
-export interface SceneFolder {
-	name: string;
-	path: string;
-}

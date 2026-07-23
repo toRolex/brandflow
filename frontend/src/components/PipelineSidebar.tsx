@@ -49,12 +49,6 @@ export default function PipelineSidebar({
 		if (terminalPhases.has(step.phase) && step.phase !== currentPhase) {
 			return false;
 		}
-		if (
-			step.phase === "migration_required" &&
-			currentPhase !== "migration_required"
-		) {
-			return false;
-		}
 		if (mode === "import" && IMPORT_HIDE_PHASES.has(step.phase)) {
 			return false;
 		}

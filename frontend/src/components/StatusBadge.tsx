@@ -13,7 +13,6 @@ const VARIANT_MAP: Record<string, BadgeVariant> = {
 	scene_assembling: "default",
 	montage_assembling: "default",
 	final_rendering: "default",
-	migration_required: "default",
 	// warning (caution-amber-muted / caution-amber)
 	script_review: "warning",
 	asset_review: "warning",

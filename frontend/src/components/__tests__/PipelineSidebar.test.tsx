@@ -66,20 +66,4 @@ describe("PipelineSidebar mode-specific phases (#262 follow-up)", () => {
 			screen.queryByRole("button", { name: /需补充场景/ }),
 		).not.toBeInTheDocument();
 	});
-
-	it("shows migration guidance only while migration is required", () => {
-		render(
-			<PipelineSidebar
-				{...defaultProps}
-				currentPhase="migration_required"
-				activeStepKey="migration_required"
-				mode="import"
-			/>,
-		);
-
-		expect(screen.getByRole("button", { name: /需补充场景/ })).toHaveAttribute(
-			"aria-current",
-			"step",
-		);
-	});
 });

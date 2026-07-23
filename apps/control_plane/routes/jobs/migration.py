@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-import shutil
 
 from fastapi import APIRouter, HTTPException, Request
 
 from apps.control_plane.routes.jobs.helpers import (
     _find_job_project,
-    _validate_import_scene_folders,
 )
-from apps.control_plane.routes.jobs.models import MigrateScenesRequest
 from packages.domain_core.models import PhaseExecutionState
 from packages.file_store.repository import FileStoreRepository
 
@@ -97,65 +94,3 @@ def retry_job(request: Request, job_id: str):
         ),
     )
     return {"status": "phase_queued_for_retry", "job_id": job_id}
-
-
-@router.post("/jobs/{job_id}/migrate-scenes")
-def migrate_scenes(request: Request, job_id: str, payload: MigrateScenesRequest):
-    """Migrate an import job that lacks valid scene input to use new folders.
-
-    Preserves user-level configuration (manual script, TTS/language settings,
-    uploaded audio, cover title, music), clears stale artifacts/runtime files,
-    validates the new scene folder selection, and resets the job to ``queued``.
-    """
-    repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
-
-    record = repo.load_job(project_id, job_id)
-    if record.phase != "migration_required":
-        raise HTTPException(
-            status_code=409, detail="job does not require scene migration"
-        )
-
-    validation_error = _validate_import_scene_folders(
-        Path(request.app.state.root_dir),
-        record.product,
-        record.mode,
-        payload.scene_folder_ids,
-    )
-    if validation_error is not None:
-        raise HTTPException(status_code=400, detail=validation_error.model_dump())
-
-    # Clear runtime artifacts so the job restarts with clean state.
-    job_runtime_dir = (
-        Path(request.app.state.root_dir)
-        / "workspace"
-        / "projects"
-        / project_id
-        / "runtime"
-        / "jobs"
-        / job_id
-    )
-    if job_runtime_dir.exists():
-        shutil.rmtree(job_runtime_dir)
-
-    reset_record = record.model_copy(
-        update={
-            "phase": "queued",
-            "review_status": "none",
-            "failed_phase": None,
-            "scene_folder_ids": payload.scene_folder_ids,
-            "artifacts": [],
-            "execution": PhaseExecutionState(
-                max_attempts=record.execution.max_attempts
-            ),
-        }
-    )
-    repo.save_job(project_id, reset_record)
-    return {
-        "status": "migrated",
-        "job_id": job_id,
-        "phase": "queued",
-        "scene_folder_ids": payload.scene_folder_ids,
-    }

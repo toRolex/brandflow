@@ -8,7 +8,6 @@ vi.mock("../../api/client", () => ({
 	api: {
 		previewTemplate: vi.fn(),
 		generateCoverTitle: vi.fn(),
-		getSceneFolders: vi.fn(() => Promise.resolve({ folders: [] })),
 	},
 }));
 

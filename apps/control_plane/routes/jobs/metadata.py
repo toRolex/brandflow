@@ -23,20 +23,3 @@ def get_job_logs(request: Request, job_id: str):
 def list_music(request: Request):
     lib = MusicLibrary(request.app.state.root_dir)
     return {"tracks": lib.tracks}
-
-
-@router.get("/scene-folders")
-def list_scene_folders(request: Request, product: str = ""):
-    """Return configured scene folders for the active or requested product."""
-    config_reader = request.app.state.config_reader
-    scene_config = config_reader.get_scene_config(product_id=product)
-    return {
-        "folders": [
-            {
-                "name": entry.get("name", ""),
-                "path": entry.get("path", ""),
-            }
-            for entry in scene_config.get("folders", [])
-            if entry.get("path")
-        ]
-    }

@@ -12,8 +12,6 @@ vi.mock("../../api/client", () => ({
 		retryJob: vi.fn(),
 		pauseJob: vi.fn(),
 		getJobLogs: vi.fn(),
-		migrateScenes: vi.fn(),
-		getSceneFolders: vi.fn(),
 		getTTSVoices: vi.fn(),
 		getJobTTSVoice: vi.fn(),
 		updateJobTTSVoice: vi.fn(),
@@ -90,7 +88,7 @@ describe("JobPipeline execution failure workflow", () => {
 
 		renderPage();
 
-		expect(await screen.findByText("未知阶段")).toBeInTheDocument();
+		expect(await screen.findByText("未知阶段失败")).toBeInTheDocument();
 		expect(screen.queryByText("legacy_phase")).not.toBeInTheDocument();
 	});
 
@@ -175,80 +173,6 @@ describe("JobPipeline execution failure workflow", () => {
 
 		expect(
 		await screen.findByText(/正在自动重试：第 2 次执行失败/),
-		).toBeInTheDocument();
-	});
-});
-
-describe("JobPipeline migration_required workflow", () => {
-	const migrationJob = {
-		job_id: "job-migration",
-		project_id: "project-1",
-		product: "product",
-		platforms: ["douyin"],
-		phase: "migration_required" as const,
-		failed_phase: null,
-		review_status: "none" as const,
-		artifacts: [],
-		execution: {
-			status: "failed" as const,
-			current_attempt: 1,
-			max_attempts: 3,
-			error: {
-				code: "SCENE_INPUT_MISSING",
-				message: "missing scene input",
-				retryable: false as const,
-			},
-		},
-	};
-
-	function renderMigrationPage() {
-		return render(
-			<MemoryRouter initialEntries={["/jobs/job-migration"]}>
-				<Routes>
-					<Route path="/jobs/:id" element={<JobPipeline />} />
-				</Routes>
-			</MemoryRouter>,
-		);
-	}
-
-	beforeEach(() => {
-		vi.clearAllMocks();
-		vi.mocked(api.getJob).mockResolvedValue(migrationJob);
-		vi.mocked(api.migrateScenes).mockResolvedValue({
-			status: "migrated",
-			phase: "queued",
-			job_id: "job-migration",
-		});
-		vi.mocked(api.getSceneFolders).mockResolvedValue({
-			folders: [{ name: "场景一", path: "scenes/one" }],
-		});
-	});
-
-	it("shows scene folder selector and allows migration", async () => {
-		renderMigrationPage();
-
-		expect(await screen.findByText("需补充场景文件夹")).toBeInTheDocument();
-		expect(await screen.findByLabelText("场景一")).toBeInTheDocument();
-
-		fireEvent.click(screen.getByLabelText("场景一"));
-		fireEvent.click(
-			screen.getByRole("button", { name: "补充场景并重新启动任务" }),
-		);
-
-		await waitFor(() => {
-			expect(api.migrateScenes).toHaveBeenCalledWith("job-migration", [
-				"scenes/one",
-			]);
-		});
-	});
-
-	it("shows explicit rebuild/migration guidance text", async () => {
-		renderMigrationPage();
-
-		expect(await screen.findByText(/历史创建/)).toBeInTheDocument();
-		expect(screen.getByText(/缺少有效的场景输入/)).toBeInTheDocument();
-		expect(
-			screen.getByText(/系统将重建任务并保留现有文案与配置/),
 		).toBeInTheDocument();
 	});
 });
@@ -469,7 +393,7 @@ describe("JobPipeline asset phase states", () => {
 		renderAssetPage();
 
 		expect(
-			await screen.findByText("素材检索失败（可重试）"),
+			await screen.findByText("素材检索失败"),
 		).toBeInTheDocument();
 		expect(screen.getByText("ASSET_SEARCH_FAILED")).toBeInTheDocument();
 		expect(
@@ -497,7 +421,7 @@ describe("JobPipeline asset phase states", () => {
 		renderAssetPage();
 
 		expect(
-			await screen.findByText("素材检索失败（已终止）"),
+			await screen.findByText("素材检索失败"),
 		).toBeInTheDocument();
 		expect(screen.getByText("ASSET_LIBRARY_EMPTY")).toBeInTheDocument();
 		expect(
