@@ -778,7 +778,11 @@ class TestRunTTSConfigBuilding:
 
         mock_tts = MagicMock()
         mock_tts.synthesize.return_value = b"\x00"
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        qwen_config = dict(_FAKE_TTS_CONFIG)
+        qwen_config["model"] = "qwen-tts"
+        orch = _make_orchestrator_with_tts_config(
+            tts_provider=mock_tts, tts_config=qwen_config
+        )
 
         orch.run_phase("tts_generating", ctx)
 

@@ -120,9 +120,11 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             if job_tts_voice:
                 tts_cfg["voice"] = job_tts_voice
 
-            # ponytail: only checks "cantonese", model-agnostic — Qwen uses
-            # language_type, MiMo ignores it, so no model gate needed (#325)
-            if ctx.options.get("language", "") == "cantonese":
+            # ponytail: qwen model uses language_type=Chinese for cantonese,
+            # MiMo ignores it, so model gate prevents pointless assignment
+            if ctx.options.get("language", "") == "cantonese" and "qwen" in tts_cfg.get(
+                "model", ""
+            ):
                 tts_cfg["language_type"] = "Chinese"
 
             tts_provider = orchestrator._build_tts_provider(tts_cfg)
