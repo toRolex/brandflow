@@ -63,7 +63,7 @@ _TERMINAL_PHASES: frozenset[str] = frozenset(
 
 _BACKOFF_DELAYS: tuple[float, ...] = (2.0, 4.0, 8.0)
 _FAST_OUTPUT_REVIEW_PHASES: frozenset[str] = frozenset(
-    {"script_review", "tts_review"}
+    {"script_review", "tts_review", "asset_review", "final_review"}
 )
 
 
@@ -308,9 +308,9 @@ def _compute_transition(
             )
 
         # 2b. Auto-approve — approve without waiting for human
-        if (
-            not _review_requires_human(record, phase)
-            and record.review_status not in ("approved", "pending")
+        if not _review_requires_human(record, phase) and record.review_status not in (
+            "approved",
+            "pending",
         ):
             next_p = _safe_next(phase)
             # Chain through subtitle_generating in the same tick to close
@@ -894,7 +894,7 @@ class JobTickService:
             action.new_phase is not None
             and action.new_review_status == "approved"
             and record.phase == "asset_review"
-            and record.auto_approve
+            and (record.auto_approve or record.review_strategy == "fast_output")
         ):
             job_dir = project_dir / "runtime" / "jobs" / job_id
             try:
