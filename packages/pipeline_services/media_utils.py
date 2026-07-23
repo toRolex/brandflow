@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import shutil
 import subprocess
@@ -245,6 +246,14 @@ def assemble_vertical_base_video(
             normalize_clip_to_vertical(ffmpeg_path, clip_path, normalized_path)
             normalized_paths.append(normalized_path)
 
+        # Extend the concat list to cover audio_duration instead of relying
+        # on -stream_loop -1, which can produce corrupt h264 NAL units at
+        # loop boundaries on Windows when clip total < audio_duration.
+        total = sum(get_media_duration(c) for c in normalized_paths)
+        if total < audio_duration:
+            repeats = math.ceil(audio_duration / total)
+            normalized_paths = normalized_paths * repeats
+
         write_concat_file(concat_file, normalized_paths)
         vf = "setsar=1"
         if recipe_filter:
@@ -258,8 +267,6 @@ def assemble_vertical_base_video(
                 "concat",
                 "-safe",
                 "0",
-                "-stream_loop",
-                "-1",
                 "-i",
                 str(concat_file),
                 "-t",
