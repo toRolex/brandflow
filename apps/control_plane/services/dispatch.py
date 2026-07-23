@@ -4,7 +4,10 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from packages.file_store.repository import FileStoreRepository
-from packages.pipeline_services.job_tick_service import _compute_transition
+from packages.pipeline_services.job_tick_service import (
+    _attempts_so_far,
+    _compute_transition,
+)
 
 
 class Dispatcher:
@@ -50,6 +53,18 @@ class Dispatcher:
                         "worker_id": worker_id,
                         "handler_phase": action.handler_phase,
                     }
+                    # Mark execution as running now that a worker has
+                    # picked up the task.
+                    running_execution = record.execution.model_copy(
+                        update={
+                            "status": "running",
+                            "current_attempt": _attempts_so_far(record.execution) + 1,
+                        }
+                    )
+                    self._repo.save_job(
+                        project_id,
+                        record.model_copy(update={"execution": running_execution}),
+                    )
                     return {
                         "command": "run_task",
                         "mode": record.mode,

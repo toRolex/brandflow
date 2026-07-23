@@ -789,16 +789,24 @@ class JobTickService:
         if action.run_handler:
             handler_phase = action.handler_phase or record.phase
 
-            # Mark asset collection as in-progress before the handler runs.
-            # This gives async workers and UI a clear signal that collection
-            # is underway (#326).
-            if handler_phase == "asset_retrieving":
-                record = record.model_copy(
-                    update={"asset_collection_status": "collecting"}
+            while True:
+                # Mark execution as running before every handler attempt
+                # (first try and retries).  The UI uses this to show "进行中".
+                running_execution = record.execution.model_copy(
+                    update={
+                        "status": "running",
+                        "current_attempt": _attempts_so_far(record.execution) + 1,
+                    }
                 )
+                record_update: dict[str, Any] = {"execution": running_execution}
+                if (
+                    handler_phase == "asset_retrieving"
+                    and record.asset_collection_status != "collecting"
+                ):
+                    record_update["asset_collection_status"] = "collecting"
+                record = record.model_copy(update=record_update)
                 self._repo.save_job(project_id, record)
 
-            while True:
                 ctx = self._build_phase_context(
                     record,
                     project_id,
