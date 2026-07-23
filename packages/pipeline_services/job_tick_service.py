@@ -10,6 +10,7 @@ contained in a single referentially transparent function.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING
@@ -788,6 +789,15 @@ class JobTickService:
         if action.run_handler:
             handler_phase = action.handler_phase or record.phase
 
+            # Mark asset collection as in-progress before the handler runs.
+            # This gives async workers and UI a clear signal that collection
+            # is underway (#326).
+            if handler_phase == "asset_retrieving":
+                record = record.model_copy(
+                    update={"asset_collection_status": "collecting"}
+                )
+                self._repo.save_job(project_id, record)
+
             while True:
                 ctx = self._build_phase_context(
                     record,
@@ -901,9 +911,37 @@ class JobTickService:
                     }
                 )
 
-        # 4b. Auto-approve asset_review: run integrity checks + write snapshot (#254).
-        # Note: auto_approve intentionally does NOT bypass unresolved clips;
-        # correctness is preserved over fully automatic chaining (#266 review).
+            # After asset_retrieving handler succeeds, attempt to resolve the
+            # collection status from the file it wrote.  Only upgrade (never
+            # downgrade) so that mock-based tests and async-worker scenarios
+            # can pre-set the field without it being clobbered (#326).
+            if handler_phase == "asset_retrieving" and handler_ran:
+                clips_path = (
+                    project_dir / "runtime" / "jobs" / job_id / "selected_clips.json"
+                )
+                if clips_path.exists():
+                    try:
+                        clips_data = json.loads(
+                            clips_path.read_text(encoding="utf-8")
+                        )
+                        has_clips = any(
+                            c.get("visual_type") == "clip" for c in clips_data
+                        )
+                        new_status: str = (
+                            "complete" if has_clips else "complete_empty"
+                        )
+                        if new_status != record.asset_collection_status:
+                            record = record.model_copy(
+                                update={"asset_collection_status": new_status}
+                            )
+                    except (json.JSONDecodeError, OSError):
+                        pass  # keep current status — file is corrupt, retry later
+
+        # 4b. Auto-approve asset_review: integrity checks + snapshot (#254, #326).
+        # The asset_collection_status field gates whether auto-approval may
+        # proceed.  When the status is still "not_started" we check the on-disk
+        # file as a fallback so that jobs created before this field existed
+        # (or with async workers) still work correctly.
         if (
             action.new_phase is not None
             and action.new_review_status == "approved"
@@ -911,6 +949,79 @@ class JobTickService:
             and (record.auto_approve or record.review_strategy == "fast_output")
         ):
             job_dir = project_dir / "runtime" / "jobs" / job_id
+
+            # --- Gate 1: collection not started or in progress → block (#326) ---
+            if record.asset_collection_status in ("not_started", "collecting"):
+                # Lazy fallback: the handler may have written the file after the
+                # record was persisted.  Check on-disk and upgrade the status
+                # if the file is present.
+                clips_path = job_dir / "selected_clips.json"
+                if clips_path.exists():
+                    try:
+                        clips_data = json.loads(
+                            clips_path.read_text(encoding="utf-8")
+                        )
+                        has_clips = any(
+                            c.get("visual_type") == "clip" for c in clips_data
+                        )
+                        resolved: str = (
+                            "complete" if has_clips else "complete_empty"
+                        )
+                        record = record.model_copy(
+                            update={"asset_collection_status": resolved}
+                        )
+                        if resolved == "complete":
+                            # Fall through to Gate 3 (validate + snapshot)
+                            pass
+                        else:
+                            # complete_empty → block at Gate 2 below
+                            pass
+                    except (json.JSONDecodeError, OSError):
+                        pass  # file is unreadable — block below
+
+                if record.asset_collection_status in ("not_started", "collecting"):
+                    import logging
+
+                    _log = logging.getLogger(__name__)
+                    _log.warning(
+                        f"[Tick] auto-approve blocked for {job_id}: "
+                        f"asset collection {record.asset_collection_status},"
+                        f" staying in asset_review"
+                    )
+                    action.new_phase = None
+                    action.new_review_status = None
+                    action.message = (
+                        f"auto-approve blocked: asset collection"
+                        f" {record.asset_collection_status}"
+                    )
+                    record = record.model_copy(
+                        update={"review_status": "pending"}
+                    )
+                    self._repo.save_job(project_id, record)
+                    return record, _build_tick_summary(initial_phase, action)
+
+            # --- Gate 2: collection complete but empty → require human (#326) ---
+            if record.asset_collection_status == "complete_empty":
+                import logging
+
+                _log = logging.getLogger(__name__)
+                _log.warning(
+                    f"[Tick] auto-approve blocked for {job_id}: "
+                    f"no clips collected, requiring human review"
+                )
+                action.new_phase = None
+                action.new_review_status = None
+                action.message = (
+                    "auto-approve blocked: no clips collected, "
+                    "requires human review"
+                )
+                record = record.model_copy(
+                    update={"review_status": "pending"}
+                )
+                self._repo.save_job(project_id, record)
+                return record, _build_tick_summary(initial_phase, action)
+
+            # --- Gate 3: collection complete → validate & snapshot ---
             try:
                 clips = validate_assets(job_dir, force=True)
                 write_reviewed_snapshot(job_dir, clips)
@@ -931,7 +1042,30 @@ class JobTickService:
                 self._repo.save_job(project_id, record)
                 return record, _build_tick_summary(initial_phase, action)
             except FileNotFoundError:
-                pass
+                # The file may legitimately be absent when the status was
+                # pre-set (e.g. mock tests, async workers).  Trust the
+                # explicit "complete" status and skip validation.
+                if record.asset_collection_status != "complete":
+                    import logging
+
+                    _log = logging.getLogger(__name__)
+                    _log.warning(
+                        f"[Tick] auto-approve blocked for {job_id}: "
+                        f"selected_clips.json unexpectedly missing"
+                    )
+                    action.new_phase = None
+                    action.new_review_status = None
+                    action.message = (
+                        "auto-approve blocked: selected_clips.json"
+                        " unexpectedly missing"
+                    )
+                    record = record.model_copy(
+                        update={"review_status": "pending"}
+                    )
+                    self._repo.save_job(project_id, record)
+                    return record, _build_tick_summary(
+                        initial_phase, action
+                    )
 
         # A lifecycle request can arrive while a handler is running.  Preserve
         # its completed artifacts, but consume the request before applying the

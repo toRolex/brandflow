@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from packages.domain_core.models import ArtifactPointer
 from packages.pipeline_services.asset_library import (
     AssetRepository,
     AssetRetriever,
@@ -34,15 +33,16 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     script_text = _discover_script(job_dir)
 
     if not script_text:
-        print("[ASSET] No script text found — emitting sentinel", flush=True)
-        return [
-            ArtifactPointer(
-                kind="asset_retrieval_done",
-                relative_path="",
-                url="",
-                size_bytes=0,
-            )
-        ]
+        clip_list_path = job_dir / "selected_clips.json"
+        clip_list_path.write_text(
+            json.dumps([], ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        print(
+            f"[ASSET] No script text — wrote empty clip list to {clip_list_path}",
+            flush=True,
+        )
+        return [_to_artifact("selected_clips", clip_list_path, workspace_dir)]
 
     db_path = ctx.root_dir / "workspace" / "shared_assets" / "asset_index.db"
 

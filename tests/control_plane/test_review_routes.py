@@ -278,9 +278,26 @@ class TestApproveSuccess:
         self, tmp_path: Path, phase: str, expected_next: str
     ) -> None:
         ctx = _create_job(tmp_path, f"j-ok-{phase}", phase, review_status="pending")
-        # asset_review needs a runtime job dir so _find_job_dir does not 404
+        # asset_review needs a runtime job dir + selected_clips.json so
+        # _find_job_dir does not 404 and the asset validation passes (#326).
         if phase == "asset_review":
-            _create_runtime_job_dir(tmp_path, ctx["project_id"], f"j-ok-{phase}")
+            job_dir = _create_runtime_job_dir(
+                tmp_path, ctx["project_id"], f"j-ok-{phase}"
+            )
+            clips = [
+                {
+                    "sentence": "测试句。",
+                    "sentence_index": 0,
+                    "visual_type": "clip",
+                    "file_path": "/tmp/test.mp4",
+                    "asset_id": "a1",
+                }
+            ]
+            import json as _json
+            (job_dir / "selected_clips.json").write_text(
+                _json.dumps(clips, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
         app = create_app(root_dir=tmp_path)
         with TestClient(app) as client:
             resp = client.post(

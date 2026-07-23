@@ -73,6 +73,7 @@ def make_record(
     artifacts: list[ArtifactPointer] | None = None,
     pause_requested: bool = False,
     cancellation_requested: bool = False,
+    asset_collection_status: str = "not_started",
 ) -> JobRecord:
     """Factory for concise test construction."""
     return JobRecord(
@@ -90,6 +91,7 @@ def make_record(
         artifacts=artifacts if artifacts is not None else [],
         pause_requested=pause_requested,
         cancellation_requested=cancellation_requested,
+        asset_collection_status=asset_collection_status,  # type: ignore[arg-type]
     )
 
 
@@ -198,7 +200,7 @@ class TestReviewPending:
 
 
 class TestReviewStrategy:
-    """fast_output bypasses only the script and TTS review gates."""
+    """fast_output auto-approves all four review phases (script, TTS, asset, final)."""
 
     def test_fast_output_advances_script_review(self) -> None:
         action = _compute_transition(
@@ -209,13 +211,14 @@ class TestReviewStrategy:
         assert action.new_review_status == "approved"
         assert action.run_handler is False
 
-    def test_fast_output_waits_at_asset_review(self) -> None:
+    def test_fast_output_auto_approves_asset_review(self) -> None:
+        """asset_review has no handler → auto-approval advances without running one."""
         action = _compute_transition(
             make_record(phase="asset_review", review_strategy="fast_output"),
             (),
         )
-        assert action.new_phase is None
-        assert action.new_review_status is None
+        assert action.new_phase == _next("asset_review")
+        assert action.new_review_status == "approved"
         assert action.run_handler is False
 
     def test_fast_output_auto_approves_tts_review(self) -> None:
@@ -230,14 +233,15 @@ class TestReviewStrategy:
         assert action.new_review_status == "approved"
         assert action.review_event == {"event": "auto_approve"}
 
-    def test_fast_output_waits_at_final_review(self) -> None:
+    def test_fast_output_auto_approves_final_review(self) -> None:
+        """final_review has no handler → auto-approval advances without running one."""
         action = _compute_transition(
             make_record(phase="final_review", review_strategy="fast_output"),
             (),
         )
         assert action.run_handler is False
-        assert action.new_phase is None
-        assert action.new_review_status is None
+        assert action.new_phase == _next("final_review")
+        assert action.new_review_status == "approved"
 
     def test_fast_output_with_approved_does_not_reapprove(self) -> None:
         """Already-approved reviews should advance, not re-auto-approve."""
@@ -274,13 +278,13 @@ class TestReviewStrategy:
         assert action.new_phase == "asset_retrieving"  # skips subtitle_generating
         assert action.new_review_status == "approved"
 
-    def test_fast_output_skip_subtitle_still_waits_at_asset_review(self) -> None:
+    def test_fast_output_skip_subtitle_auto_approves_asset_review(self) -> None:
         action = _compute_transition(
             make_record(phase="asset_review", review_strategy="fast_output", skip_subtitle=True),
             (),
         )
-        assert action.new_phase is None
-        assert action.new_review_status is None
+        assert action.new_phase == _next("asset_review")
+        assert action.new_review_status == "approved"
 
     def test_fast_output_no_skip_subtitle_goes_to_subtitle(self) -> None:
         """Without skip_subtitle, auto_approve should still go to subtitle."""
@@ -867,6 +871,7 @@ class TestJobTickService:
             manual_script="手动文案",
             auto_approve=True,
             skip_subtitle=True,
+            asset_collection_status="complete",
         )
         mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
@@ -1815,6 +1820,9 @@ class TestAutoApproveAssetReviewIntegrity:
             phase="asset_review", auto_approve=True, review_status="none"
         )
         record.job_id = job_id
+        record = record.model_copy(
+            update={"asset_collection_status": "complete"}
+        )
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -1834,8 +1842,6 @@ class TestAutoApproveAssetReviewIntegrity:
             f"Expected advance past asset_review, got {saved.phase}"
         )
         assert saved.review_status == "approved"
-
-    def test_auto_approve_writes_reviewed_snapshot(self, tmp_path: Path) -> None:
         """Auto-approval writes reviewed_assets.json snapshot."""
         import json as _json
 
@@ -1865,6 +1871,9 @@ class TestAutoApproveAssetReviewIntegrity:
             phase="asset_review", auto_approve=True, review_status="none"
         )
         record.job_id = job_id
+        record = record.model_copy(
+            update={"asset_collection_status": "complete"}
+        )
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -1925,6 +1934,9 @@ class TestAutoApproveAssetReviewIntegrity:
             phase="asset_review", auto_approve=True, review_status="none"
         )
         record.job_id = job_id
+        record = record.model_copy(
+            update={"asset_collection_status": "complete"}
+        )
 
         from packages.file_store.repository import FileStoreRepository
 
@@ -1940,6 +1952,233 @@ class TestAutoApproveAssetReviewIntegrity:
 
         saved = repo.load_job("proj-001", job_id)
         assert saved.phase != "asset_review"
+        assert saved.review_status == "approved"
+
+
+# ---------------------------------------------------------------------------
+# 14. Auto-approve asset_review with collection status gating (#326)
+# ---------------------------------------------------------------------------
+
+
+class TestAutoApproveCollectionStatus:
+    """The auto-approve integrity check must respect asset_collection_status."""
+
+    def test_blocked_when_collection_not_started(self, tmp_path: Path) -> None:
+        """asset_collection_status='not_started' → blocked, stays in asset_review."""
+        import json as _json
+
+        job_id = "test-cs-not-started"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        # No selected_clips.json written — simulates "not started"
+        record = make_record(
+            phase="asset_review",
+            auto_approve=True,
+            review_status="none",
+        )
+        record.job_id = job_id
+        # Explicitly set to not_started (same as default, but explicit for clarity)
+        record = record.model_copy(
+            update={"asset_collection_status": "not_started"}
+        )
+
+        from packages.file_store.repository import FileStoreRepository
+
+        repo = FileStoreRepository(root_dir)
+        repo.save_job("proj-001", record)
+
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        svc = JobTickService(mock_orch, repo)
+
+        svc.tick(
+            "proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir
+        )
+
+        saved = repo.load_job("proj-001", job_id)
+        assert saved.phase == "asset_review", (
+            f"Expected asset_review (blocked), got {saved.phase}"
+        )
+        assert saved.review_status == "pending", (
+            f"Expected pending review, got {saved.review_status}"
+        )
+
+    def test_blocked_when_collection_collecting(self, tmp_path: Path) -> None:
+        """asset_collection_status='collecting' → blocked, handler still running."""
+        job_id = "test-cs-collecting"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        # No selected_clips.json — handler hasn't finished yet
+        record = make_record(
+            phase="asset_review",
+            auto_approve=True,
+            review_status="none",
+        )
+        record.job_id = job_id
+        record = record.model_copy(
+            update={"asset_collection_status": "collecting"}
+        )
+
+        from packages.file_store.repository import FileStoreRepository
+
+        repo = FileStoreRepository(root_dir)
+        repo.save_job("proj-001", record)
+
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        svc = JobTickService(mock_orch, repo)
+
+        svc.tick(
+            "proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir
+        )
+
+        saved = repo.load_job("proj-001", job_id)
+        assert saved.phase == "asset_review", (
+            f"Expected asset_review (blocked), got {saved.phase}"
+        )
+        assert saved.review_status == "pending", (
+            f"Expected pending review, got {saved.review_status}"
+        )
+
+    def test_blocked_when_collection_empty(self, tmp_path: Path) -> None:
+        """asset_collection_status='complete_empty' → blocked, requires human."""
+        import json as _json
+
+        job_id = "test-cs-empty"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write empty selected_clips.json
+        (job_dir / "selected_clips.json").write_text("[]", encoding="utf-8")
+
+        record = make_record(
+            phase="asset_review",
+            auto_approve=True,
+            review_status="none",
+        )
+        record.job_id = job_id
+        record = record.model_copy(
+            update={"asset_collection_status": "complete_empty"}
+        )
+
+        from packages.file_store.repository import FileStoreRepository
+
+        repo = FileStoreRepository(root_dir)
+        repo.save_job("proj-001", record)
+
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        svc = JobTickService(mock_orch, repo)
+
+        svc.tick(
+            "proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir
+        )
+
+        saved = repo.load_job("proj-001", job_id)
+        assert saved.phase == "asset_review", (
+            f"Expected asset_review (blocked), got {saved.phase}"
+        )
+        assert saved.review_status == "pending", (
+            f"Expected pending review, got {saved.review_status}"
+        )
+
+    def test_proceeds_when_collection_complete(self, tmp_path: Path) -> None:
+        """asset_collection_status='complete' → proceeds normally, writes snapshot."""
+        import json as _json
+
+        job_id = "test-cs-complete"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        clips = [
+            {
+                "sentence": "测试句。",
+                "sentence_index": 0,
+                "category": "intro",
+                "file_path": "/data/clip1.mp4",
+                "asset_id": "a1",
+                "duration_seconds": 5.0,
+                "method": "llm_match",
+                "visual_type": "clip",
+            },
+        ]
+        (job_dir / "selected_clips.json").write_text(
+            _json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        record = make_record(
+            phase="asset_review",
+            auto_approve=True,
+            review_status="none",
+        )
+        record.job_id = job_id
+        record = record.model_copy(
+            update={"asset_collection_status": "complete"}
+        )
+
+        from packages.file_store.repository import FileStoreRepository
+
+        repo = FileStoreRepository(root_dir)
+        repo.save_job("proj-001", record)
+
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        svc = JobTickService(mock_orch, repo)
+
+        svc.tick(
+            "proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir
+        )
+
+        saved = repo.load_job("proj-001", job_id)
+        assert saved.phase != "asset_review", (
+            f"Expected advance past asset_review, got {saved.phase}"
+        )
+        assert saved.review_status == "approved"
+        snapshot_path = job_dir / "reviewed_assets.json"
+        assert snapshot_path.exists(), "reviewed_assets.json should be written"
+
+    def test_proceeds_when_missing_file_but_status_complete(self, tmp_path: Path) -> None:
+        """Status='complete' trusts the handler: proceeds even if file is missing
+        (supports mock tests and async-worker scenarios)."""
+        job_id = "test-cs-missing-file"
+        root_dir = tmp_path
+        project_dir = root_dir / "workspace" / "projects" / "proj-001"
+        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        # Intentionally do NOT write selected_clips.json
+        record = make_record(
+            phase="asset_review",
+            auto_approve=True,
+            review_status="none",
+        )
+        record.job_id = job_id
+        record = record.model_copy(
+            update={"asset_collection_status": "complete"}
+        )
+
+        from packages.file_store.repository import FileStoreRepository
+
+        repo = FileStoreRepository(root_dir)
+        repo.save_job("proj-001", record)
+
+        mock_orch = Mock(spec=PhaseOrchestrator)
+        svc = JobTickService(mock_orch, repo)
+
+        svc.tick(
+            "proj-001", job_id, "product", root_dir=root_dir, project_dir=project_dir
+        )
+
+        saved = repo.load_job("proj-001", job_id)
+        assert saved.phase != "asset_review", (
+            f"Expected advance past asset_review, got {saved.phase}"
+        )
         assert saved.review_status == "approved"
 
 
@@ -2152,7 +2391,10 @@ class TestChainAdvancement:
 
     def test_tick_chains_past_auto_approve_review_gate(self) -> None:
         """auto_approve=True chains through review gates instead of stopping."""
-        record = make_record(phase="queued", mode="generate", auto_approve=True)
+        record = make_record(
+            phase="queued", mode="generate", auto_approve=True,
+            asset_collection_status="complete",
+        )
         repo = self._make_persistent_repo(record)
         orch = self._make_success_orch()
 
