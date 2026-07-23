@@ -191,6 +191,9 @@ v0.7.25 已发布，配置体系由 `ConfigReader` / `ProductStore` / `SecretSto
 - per-project 素材端点废弃，迁移至全局 `/api/assets`
 - ProductConfigForm 新增 AI 分类建议 + vision_prompt
 - `tests/regression/` — 回归测试目录，当前包含 project delete 一致性校验
+- `tests/conftest.py` — 提供模块级 client fixture、测试后 gc.collect()、RLIMIT_AS=8GB 地址空间硬限制、gc.set_threshold(500, 5, 3) 激进 GC
+- `pytest-xdist` — CI 使用 `-n 2` 进程隔离，降低单进程内存泄漏累积
+- `pytest-memray` — 开发依赖，`--memray` 跟踪每个测试的高水位内存分配
 - `packaging/windows/start_worker.ps1` / `manage-task.ps1` — Windows worker 启动与计划任务管理脚本
 - `POST /api/update` — 一键更新端点（#301），Windows 后台执行 update.bat，带并发保护
 

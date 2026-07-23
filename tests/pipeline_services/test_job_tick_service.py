@@ -329,12 +329,12 @@ class TestHandlerExecution:
 
     @pytest.mark.parametrize(
         "phase",
-        [
+        sorted(
             p
             for p in HANDLED_PHASES
             if p not in REVIEW_PHASES
             and p not in ("video_rendering", "subtitle_generating", "asset_retrieving")
-        ],
+        ),
     )
     def test_handled_phases_return_run_handler(self, phase: str) -> None:
         action = _compute_transition(make_record(phase=phase), ())
