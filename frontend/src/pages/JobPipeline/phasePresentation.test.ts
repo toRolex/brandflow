@@ -54,4 +54,47 @@ describe("presentPhaseStatus", () => {
 
 		expect(status.kind).toBe("integrity_error");
 	});
+
+	it.each([
+		["pending", "waiting"],
+		["running", "running"],
+		["retrying", "retrying"],
+		["failed", "recoverable_error"],
+		["succeeded", "completed"],
+	] as const)("presents execution state %s as %s", (executionStatus, kind) => {
+		const status = presentPhaseStatus({
+			...base,
+			phase: "scene_assembling",
+			execution: {
+				status: executionStatus,
+				current_attempt: 2,
+				max_attempts: 3,
+				error:
+					executionStatus === "retrying" || executionStatus === "failed"
+						? { code: "TRANSIENT", message: "Temporary failure", retryable: true }
+						: null,
+			},
+		});
+
+		expect(status.kind).toBe(kind);
+	});
+
+	it.each([
+		["script_review", "script"],
+		["tts_review", "tts_audio"],
+		["subtitle_generating", "subtitle"],
+		["asset_review", "selected_clips"],
+		["video_rendering", "video_base"],
+		["final_review", "final_video"],
+		["completed", "final_video"],
+	] as const)("requires %s output before presenting %s as complete", (phase, artifact) => {
+		const status = presentPhaseStatus({
+			...base,
+			phase,
+			execution: { ...base.execution, status: "succeeded" },
+		});
+
+		expect(status.kind).toBe("integrity_error");
+		expect(status.detail).toContain(artifact);
+	});
 });

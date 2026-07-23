@@ -226,6 +226,15 @@ def _seed_reviewed_montage_inputs(
     (job_dir / "test口播文案.txt").write_text(sentence_text, encoding="utf-8")
 
 
+def _setup_product_config(client: TestClient) -> None:
+    """Set default_name in product config to pass job creation validation."""
+    resp = client.put(
+        "/api/config/product",
+        json={"default_name": "test_product", "default_brand": "test_brand"},
+    )
+    assert resp.status_code == 200, resp.text
+
+
 def _create_job_at_asset_review(
     client: TestClient,
     root: Path,
@@ -234,8 +243,9 @@ def _create_job_at_asset_review(
     scene_folder_ids: list[str] | None = None,
 ) -> str:
     """Create a job over HTTP, then move it to the asset_review gate on disk."""
+    # 设置 product config 以满足后端校验
+    _setup_product_config(client)
     body: dict = {
-        "product": "test",
         "platforms": ["douyin"],
         "mode": mode,
         "manual_script": "第一句介绍产品。",

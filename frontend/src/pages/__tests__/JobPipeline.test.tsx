@@ -1010,23 +1010,24 @@ describe("JobPipeline new phase rendering (#262)", () => {
 		renderPhaseJob("montage_assembling");
 
 		expect(
-			await screen.findByText("蒙太奇组装完成，等待下一阶段..."),
+			await screen.findByText("蒙太奇组装完成，等待下一阶段。"),
 		).toBeInTheDocument();
 	});
 
-	it("renders final_rendering job without 'unknown step' fallback", async () => {
+	it("shows an integrity error when final rendering succeeds without its video", async () => {
 		renderPhaseJob("final_rendering");
 
 		expect(
-			await screen.findByText("终审合成完成，等待下一阶段..."),
+			await screen.findByText("阶段记录不完整"),
 		).toBeInTheDocument();
+		expect(screen.getByText(/缺少必要产物：final_video/)).toBeInTheDocument();
 	});
 
 	it("renders scene_assembling job without 'unknown step' fallback", async () => {
 		renderPhaseJob("scene_assembling");
 
 		expect(
-			await screen.findByText("场景拼接完成，等待下一阶段..."),
+			await screen.findByText("场景拼接完成，等待下一阶段。"),
 		).toBeInTheDocument();
 	});
 });

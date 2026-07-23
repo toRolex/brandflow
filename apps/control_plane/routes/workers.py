@@ -52,12 +52,9 @@ def report_task(
         if project_id and job_id:
             try:
                 repo = FileStoreRepository(request.app.state.root_dir)
-                orchestrator = getattr(request.app.state, "orchestrator", None)
-                if orchestrator is None:
-                    raise RuntimeError(
-                        "orchestrator not available on app.state — "
-                        "cannot advance job after worker report"
-                    )
+                from apps.control_plane.app import _get_orchestrator
+
+                orchestrator = _get_orchestrator(request.app)
 
                 tick_svc = JobTickService(orchestrator=orchestrator, repo=repo)
                 manifest_files = list(

@@ -26,6 +26,7 @@ import { CancelledPanel, PausedPanel } from "./panels/TerminalPanels";
 import TtsPanel from "./panels/TtsPanel";
 import TtsReviewPanel from "./panels/TtsReviewPanel";
 import VideoBasePanel from "./panels/VideoBasePanel";
+import { presentPhaseStatus } from "./phasePresentation";
 
 const EXPORT_POLL_INTERVAL_MS = 2000;
 
@@ -530,6 +531,37 @@ export default function JobPipeline() {
 
 	const findArtifact = (kind: string) =>
 		job.artifacts?.find((a) => a.kind === kind);
+	const executionPhase = job.phase === "failed" ? job.failed_phase : job.phase;
+	const executionPhaseIndex = PIPELINE_STEPS.findIndex(
+		(step) => step.phase === executionPhase,
+	);
+
+	const getPhasePresentation = (
+		phase: Phase,
+		options: {
+			requiredArtifacts?: string[];
+			artifactLoadState?: "idle" | "loading" | "ready" | "failed";
+		} = {},
+	) =>
+		presentPhaseStatus({
+			phase,
+			execution:
+				executionPhase === phase
+					? job.execution
+					: {
+						status:
+							PIPELINE_STEPS.findIndex((step) => step.phase === phase) >
+							executionPhaseIndex
+								? "pending"
+								: "succeeded",
+						current_attempt: 0,
+						max_attempts: 0,
+						error: null,
+					},
+			reviewStatus: job.phase === phase ? job.review_status : "none",
+			artifacts: job.artifacts,
+			...options,
+		});
 
 	const handleSceneFolderToggle = (path: string, checked: boolean) => {
 		if (checked) {
@@ -665,6 +697,7 @@ export default function JobPipeline() {
 		onForceApprove: handleForceApprove,
 		onDismissAllBlankConfirm: () => setShowAllBlankConfirm(false),
 		findArtifact,
+		getPhasePresentation,
 	};
 
 	const renderDetail = () => {
