@@ -18,53 +18,6 @@ if TYPE_CHECKING:
     )
 
 
-class _TTSConfigShim:
-    """Duck-type config object built from the TTS config dict.
-
-    Preserves the interface expected by ``tts_provider.synthesize()``.
-    """
-
-    def __init__(self, cfg: dict[str, Any]) -> None:
-        defaults = DEFAULTS["tts"]
-        director = defaults.get("director", {})
-        audio_tags = defaults.get("audio_tags", {})
-
-        self.model: str = cfg.get("model", defaults["model"])
-        self.voice: str = cfg.get("voice", defaults["voice"])
-        self.instructions: str = cfg.get("instructions", defaults["instructions"])
-        self.language_type: str = cfg.get("language_type", defaults["language_type"])
-        self.optimize_instructions: bool = cfg.get("optimize_instructions", False)
-        self.fallback_voice: str = cfg.get("fallback_voice", defaults["fallback_voice"])
-        self.randomize_voice: bool = cfg.get(
-            "randomize_voice", defaults["randomize_voice"]
-        )
-        self.random_voices: list[str] = cfg.get(
-            "random_voices", defaults["random_voices"]
-        )
-        self.style_control_mode: str = cfg.get(
-            "style_control_mode", defaults["style_control_mode"]
-        )
-        self.style_prompt: str = cfg.get("style_prompt", defaults["style_prompt"])
-        self.voice_design_prompt: str = cfg.get(
-            "voice_design_prompt", defaults.get("voice_design_prompt", "")
-        )
-        self.audio_format: str = cfg.get("audio_format", defaults["audio_format"])
-        self.audio_tags_enabled: bool = cfg.get(
-            "audio_tags_enabled", audio_tags.get("enabled", False)
-        )
-        self.audio_tags: str = cfg.get("audio_tags", audio_tags.get("tags", ""))
-        self.voice_clone_sample_path: str = cfg.get("voice_clone_sample_path", "")
-        self.voice_clone_mime_type: str = cfg.get("voice_clone_mime_type", "")
-        self.optimize_text_preview: bool = cfg.get("optimize_text_preview", False)
-        self.director_character: str = cfg.get(
-            "director_character", director.get("character", "")
-        )
-        self.director_scene: str = cfg.get("director_scene", director.get("scene", ""))
-        self.director_guidance: str = cfg.get(
-            "director_guidance", director.get("guidance", "")
-        )
-
-
 def _resolve_tts_config(
     orchestrator: PhaseOrchestrator, ctx: PhaseContext
 ) -> dict[str, Any]:
