@@ -167,6 +167,36 @@ def test_list_jobs_empty_project_returns_empty_list(tmp_path: Path) -> None:
     assert result == []
 
 
+def test_list_jobs_includes_asset_review_unresolved_count(tmp_path: Path) -> None:
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+    repo.save_job(
+        "project-001",
+        JobRecord(job_id="job-assets", phase="asset_review", review_status="pending"),
+    )
+    clips_path = (
+        tmp_path
+        / "workspace"
+        / "projects"
+        / "project-001"
+        / "runtime"
+        / "jobs"
+        / "job-assets"
+        / "selected_clips.json"
+    )
+    clips_path.parent.mkdir(parents=True)
+    clips_path.write_text(
+        json.dumps(
+            [{"visual_type": "unresolved"}, {"visual_type": "blank"}, {"visual_type": "unresolved"}]
+        ),
+        encoding="utf-8",
+    )
+
+    result = repo.list_jobs("project-001")
+
+    assert result[0]["asset_review_unresolved_count"] == 2
+
+
 def test_list_jobs_returns_sorted_by_mtime_with_display_index(tmp_path: Path) -> None:
     """按 mtime 升序返回，并分配 001/002 三位数 display_index。"""
     import time

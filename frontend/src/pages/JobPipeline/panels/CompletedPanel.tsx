@@ -1,5 +1,6 @@
 import ExportTaskControls from "../../../components/ExportTaskControls";
 import MediaPlayer from "../../../components/MediaPlayer";
+import PhaseStatusNotice from "./PhaseStatusNotice";
 import type { PanelProps } from "../types";
 
 export default function CompletedPanel({
@@ -9,8 +10,18 @@ export default function CompletedPanel({
 	onCreateExport,
 	onDownloadExport,
 	findArtifact,
+	getPhasePresentation,
 }: PanelProps) {
 	const finalVideo = findArtifact("final_video");
+	const presentation = getPhasePresentation("completed");
+	if (presentation.kind === "integrity_error") {
+		return (
+			<div className="py-12">
+				<h3 className="mb-2 text-lg font-semibold text-[var(--alert-red)]">完成记录不完整</h3>
+				<PhaseStatusNotice presentation={presentation} />
+			</div>
+		);
+	}
 	return (
 		<div className="text-center py-12">
 			<div className="text-[var(--color-signal-green)] text-5xl mb-4">

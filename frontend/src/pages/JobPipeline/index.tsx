@@ -26,6 +26,7 @@ import { CancelledPanel, PausedPanel } from "./panels/TerminalPanels";
 import TtsPanel from "./panels/TtsPanel";
 import TtsReviewPanel from "./panels/TtsReviewPanel";
 import VideoBasePanel from "./panels/VideoBasePanel";
+import { presentPhaseStatus } from "./phasePresentation";
 
 const EXPORT_POLL_INTERVAL_MS = 2000;
 
@@ -90,6 +91,9 @@ export default function JobPipeline() {
 	const [selectedClips, setSelectedClips] = useState<Record<string, unknown>[]>(
 		[],
 	);
+	const [selectedClipsLoadState, setSelectedClipsLoadState] = useState<
+		"idle" | "loading" | "ready" | "failed"
+	>("idle");
 	const [rejectedClips, setRejectedClips] = useState<Set<number>>(new Set());
 	const [showAllBlankConfirm, setShowAllBlankConfirm] = useState(false);
 	const [sceneFolders, setSceneFolders] = useState<SceneFolder[]>([]);
@@ -177,12 +181,20 @@ export default function JobPipeline() {
 			(a) => a.kind === "selected_clips",
 		);
 		if (clipsArtifact?.url) {
+			setSelectedClipsLoadState("loading");
 			fetch(clipsArtifact.url)
 				.then((r) => r.json())
-				.then((data) => setSelectedClips(Array.isArray(data) ? data : []))
-				.catch(() => setSelectedClips([]));
+				.then((data) => {
+					setSelectedClips(Array.isArray(data) ? data : []);
+					setSelectedClipsLoadState("ready");
+				})
+				.catch(() => {
+					setSelectedClips([]);
+					setSelectedClipsLoadState("failed");
+				});
 		} else {
 			setSelectedClips([]);
+			setSelectedClipsLoadState("idle");
 		}
 	}, [job, job?.artifacts]);
 
@@ -519,6 +531,37 @@ export default function JobPipeline() {
 
 	const findArtifact = (kind: string) =>
 		job.artifacts?.find((a) => a.kind === kind);
+	const executionPhase = job.phase === "failed" ? job.failed_phase : job.phase;
+	const executionPhaseIndex = PIPELINE_STEPS.findIndex(
+		(step) => step.phase === executionPhase,
+	);
+
+	const getPhasePresentation = (
+		phase: Phase,
+		options: {
+			requiredArtifacts?: string[];
+			artifactLoadState?: "idle" | "loading" | "ready" | "failed";
+		} = {},
+	) =>
+		presentPhaseStatus({
+			phase,
+			execution:
+				executionPhase === phase
+					? job.execution
+					: {
+						status:
+							PIPELINE_STEPS.findIndex((step) => step.phase === phase) >
+							executionPhaseIndex
+								? "pending"
+								: "succeeded",
+						current_attempt: 0,
+						max_attempts: 0,
+						error: null,
+					},
+			reviewStatus: job.phase === phase ? job.review_status : "none",
+			artifacts: job.artifacts,
+			...options,
+		});
 
 	const handleSceneFolderToggle = (path: string, checked: boolean) => {
 		if (checked) {
@@ -576,6 +619,16 @@ export default function JobPipeline() {
 		}
 	};
 
+	const handleSelectAsset = async (clipIndex: number, assetId: string) => {
+		try {
+			await api.assetSetAsset(job.job_id, clipIndex, assetId, job.project_id);
+			load();
+		} catch (e) {
+			console.error("select asset failed", e);
+			setError("选择素材失败");
+		}
+	};
+
 	const handleAssetApprove = () => {
 		const allBlank =
 			selectedClips.length > 0 &&
@@ -603,6 +656,7 @@ export default function JobPipeline() {
 		activeStepKey,
 		scriptContent,
 		selectedClips,
+		selectedClipsLoadState,
 		rejectedClips,
 		showAllBlankConfirm,
 		sceneFolders,
@@ -638,10 +692,12 @@ export default function JobPipeline() {
 		onRejectClip: handleRejectClip,
 		onToggleBlank: handleToggleBlank,
 		onRestoreClip: handleRestoreClip,
+		onSelectAsset: handleSelectAsset,
 		onAssetApprove: handleAssetApprove,
 		onForceApprove: handleForceApprove,
 		onDismissAllBlankConfirm: () => setShowAllBlankConfirm(false),
 		findArtifact,
+		getPhasePresentation,
 	};
 
 	const renderDetail = () => {

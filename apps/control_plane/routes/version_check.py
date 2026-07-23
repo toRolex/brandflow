@@ -1,4 +1,8 @@
-"""GET /api/check-version — compare current version against latest GitHub tag."""
+"""GET /api/check-version and POST /api/update endpoints."""
+
+import subprocess
+import sys
+from pathlib import Path
 
 import requests
 
@@ -11,6 +15,14 @@ router = APIRouter(tags=["version"])
 
 _GITHUB_TAGS_URL = "https://api.github.com/repos/toRolex/brandflow/tags"
 _TIMEOUT = 5  # seconds
+
+# ponytail: global lock, per-account locks if throughput matters
+_update_in_progress: bool = False
+_update_process: subprocess.Popen | None = None
+
+
+def _is_windows() -> bool:
+    return sys.platform == "win32"
 
 
 def _parse_version(v: str) -> tuple[int, ...]:
@@ -46,4 +58,44 @@ async def check_version() -> JSONResponse:
             "update_available": update_available,
         },
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@router.post("/api/update")
+def trigger_update() -> JSONResponse:
+    global _update_in_progress, _update_process
+
+    if _update_in_progress:
+        if _update_process is not None and _update_process.poll() is not None:
+            # previous process exited, reset and allow a new update
+            _update_in_progress = False
+            _update_process = None
+        else:
+            return JSONResponse(
+                content={"status": "in_progress"},
+                status_code=409,
+            )
+
+    if not _is_windows():
+        return JSONResponse(
+            content={"status": "error", "message": "更新仅支持 Windows 平台"},
+            status_code=400,
+        )
+
+    _update_in_progress = True
+
+    root = Path(__file__).resolve().parent.parent.parent.parent
+    bat_path = root / "packaging/windows/update.bat"
+    log_path = root / "packaging/windows/update.log"
+
+    with open(log_path, "a") as log:
+        _update_process = subprocess.Popen(
+            [str(bat_path)],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            cwd=str(root),
+        )
+
+    return JSONResponse(
+        content={"status": "started", "log": "packaging/windows/update.log"}
     )

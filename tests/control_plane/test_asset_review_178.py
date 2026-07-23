@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
+from packages.pipeline_services.asset_library import AssetRecord, AssetRepository
 
 
 def _setup_job(tmp_path: Path, clips: list[dict]) -> dict:
@@ -153,13 +154,34 @@ class TestSetAsset:
                 },
             ],
         )
+        asset_db = tmp_path / "workspace" / "shared_assets" / "asset_index.db"
+        asset_db.parent.mkdir(parents=True, exist_ok=True)
+        asset_repo = AssetRepository(asset_db)
+        asset_repo.insert(
+            AssetRecord(
+                asset_id="a-new",
+                file_path="/library/new_clip.mp4",
+                category="manual-category",
+                product=json.loads(
+                    (
+                        tmp_path
+                        / "workspace"
+                        / "projects"
+                        / ctx["project_id"]
+                        / "control"
+                        / "jobs"
+                        / f"{ctx['job_id']}.json"
+                    ).read_text(encoding="utf-8")
+                )["product"],
+                duration_seconds=7.5,
+            )
+        )
         app = create_app(root_dir=ctx["tmp_path"])
         with TestClient(app) as client:
             resp = client.post(
                 f"/api/reviews/{ctx['job_id']}/asset/set-asset",
                 json={
                     "clip_index": 0,
-                    "file_path": "/data/new_clip.mp4",
                     "asset_id": "a-new",
                 },
             )
@@ -180,8 +202,24 @@ class TestSetAsset:
             )
             clips = json.loads(clips_path.read_text(encoding="utf-8"))
             assert clips[0]["visual_type"] == "clip"
-            assert clips[0]["file_path"] == "/data/new_clip.mp4"
+            assert clips[0]["file_path"] == "/library/new_clip.mp4"
             assert clips[0]["asset_id"] == "a-new"
+            assert clips[0]["category"] == "manual-category"
+            assert clips[0]["duration_seconds"] == 7.5
+
+    def test_rejects_an_unknown_asset_id(self, tmp_path: Path) -> None:
+        ctx = _setup_job(
+            tmp_path,
+            [{"sentence": "needs a decision", "visual_type": "unresolved"}],
+        )
+        app = create_app(root_dir=ctx["tmp_path"])
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-asset",
+                json={"clip_index": 0, "asset_id": "missing-asset"},
+            )
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "asset not found"
 
 
 class TestReSearch:

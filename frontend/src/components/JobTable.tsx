@@ -275,6 +275,12 @@ function NameRow({
 			<td className="py-2.5 px-2">{job.product}</td>
 			<td className="py-2.5 px-2">
 				<StatusBadge phase={job.phase} />
+				{job.phase === "asset_review" &&
+					job.asset_review_unresolved_count != null && (
+						<div className="text-xs mt-1" style={{ color: "var(--color-caution-amber)" }}>
+							待处理素材：{job.asset_review_unresolved_count} 条
+						</div>
+					)}
 			</td>
 			<td className="py-2.5 px-2" style={{ color: "var(--text-secondary)" }}>
 				{job.phase_index > 0 ? `${job.phase_index}/${job.phase_total}` : "—"}

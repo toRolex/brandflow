@@ -116,6 +116,26 @@ class FileStoreRepository:
             display_index = f"{idx:03d}"
             try:
                 record = JobRecord.model_validate_json(f.read_text(encoding="utf-8"))
+                asset_review_unresolved_count = None
+                if record.phase == "asset_review":
+                    clips_path = (
+                        self.root
+                        / "workspace"
+                        / "projects"
+                        / project_id
+                        / "runtime"
+                        / "jobs"
+                        / record.job_id
+                        / "selected_clips.json"
+                    )
+                    try:
+                        clips = json.loads(clips_path.read_text(encoding="utf-8"))
+                        asset_review_unresolved_count = sum(
+                            clip.get("visual_type", "unresolved") == "unresolved"
+                            for clip in clips
+                        )
+                    except (OSError, ValueError):
+                        asset_review_unresolved_count = None
                 results.append(
                     {
                         "job_id": record.job_id,
@@ -127,6 +147,7 @@ class FileStoreRepository:
                         "name": record.name,
                         "skip_subtitle": record.skip_subtitle,
                         "auto_approve": record.auto_approve,
+                        "asset_review_unresolved_count": asset_review_unresolved_count,
                     }
                 )
             except Exception:

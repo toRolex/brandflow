@@ -4,6 +4,10 @@ import type {
 	Phase,
 	SceneFolder,
 } from "../../types";
+import type {
+	PhasePresentation,
+	PhasePresentationInput,
+} from "./phasePresentation";
 
 export interface TTSVoice {
 	id: string;
@@ -24,6 +28,7 @@ export interface PanelProps {
 	activeStepKey: string;
 	scriptContent: string;
 	selectedClips: Record<string, unknown>[];
+	selectedClipsLoadState: "idle" | "loading" | "ready" | "failed";
 	rejectedClips: Set<number>;
 	showAllBlankConfirm: boolean;
 	sceneFolders: SceneFolder[];
@@ -57,6 +62,7 @@ export interface PanelProps {
 	onConfirmVoiceChange: () => void;
 	onCancelVoiceChange: () => void;
 	onRejectClip: (index: number) => void;
+	onSelectAsset: (index: number, assetId: string) => void;
 	onToggleBlank: (index: number) => void;
 	onRestoreClip: (index: number) => void;
 	onAssetApprove: () => void;
@@ -65,6 +71,13 @@ export interface PanelProps {
 	findArtifact: (
 		kind: string,
 	) => { kind: string; relative_path: string; url: string } | undefined;
+	getPhasePresentation: (
+		phase: Phase,
+		options?: Pick<
+			PhasePresentationInput,
+			"requiredArtifacts" | "artifactLoadState"
+		>,
+	) => PhasePresentation;
 }
 
 export type { JobDetail, Phase, SceneFolder };

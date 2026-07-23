@@ -18,6 +18,7 @@ interface Props {
 	onReject: (index: number) => void;
 	onToggleBlank: (index: number) => void;
 	onRestore: (index: number) => void;
+	onSelectAsset: (index: number) => void;
 	rejected?: boolean;
 	readOnly?: boolean;
 }
@@ -62,6 +63,7 @@ export default function ClipReviewCard({
 	onReject,
 	onToggleBlank,
 	onRestore,
+	onSelectAsset,
 	rejected = false,
 	readOnly = false,
 }: Props) {
@@ -191,6 +193,15 @@ export default function ClipReviewCard({
 				{/* Actions */}
 				{!readOnly && (
 					<div className="flex flex-wrap gap-1.5">
+						{!isBlank && (
+							<button
+								type="button"
+								className="flex-1 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-table-head)]"
+								onClick={() => onSelectAsset(index)}
+							>
+								选择素材
+							</button>
+						)}
 						{isBlank ? (
 							<>
 								<button

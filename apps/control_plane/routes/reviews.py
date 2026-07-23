@@ -33,11 +33,7 @@ class AssetIndexRequest(BaseModel):
 
 class SetAssetRequest(BaseModel):
     clip_index: int
-    file_path: str
     asset_id: str
-    duration_seconds: float = 0.0
-    category: str = ""
-    requested_category: str = ""
 
 
 class EditScriptRequest(BaseModel):
@@ -469,16 +465,32 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
     root_dir, _, job_dir = _resolve_job_context(request, job_id)
     _check_asset_review_phase(root_dir, job_id)
     clips = _load_clips(job_dir, payload.clip_index)
+    repo = FileStoreRepository(root_dir)
+    project_id = _find_job_project(repo, job_id)
+    if not project_id:
+        raise HTTPException(status_code=404, detail="job not found")
+    product = repo.load_job(project_id, job_id).product
+
+    from packages.pipeline_services.asset_library import AssetRepository
+
+    asset_db = root_dir / "workspace" / "shared_assets" / "asset_index.db"
+    asset_db.parent.mkdir(parents=True, exist_ok=True)
+    asset_repo = AssetRepository(asset_db)
+    asset = asset_repo.query_one(payload.asset_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="asset not found")
+    if asset.status != "available":
+        raise HTTPException(status_code=409, detail="asset is not available")
+    if asset.product != product:
+        raise HTTPException(status_code=409, detail="asset is outside the job product")
 
     _ensure_original(clips, payload.clip_index)
     clips[payload.clip_index].update(
         {
-            "file_path": payload.file_path,
-            "asset_id": payload.asset_id,
-            "duration_seconds": payload.duration_seconds
-            or clips[payload.clip_index].get("duration_seconds", 0.0),
-            "category": payload.category
-            or clips[payload.clip_index].get("category", ""),
+            "file_path": asset.file_path,
+            "asset_id": asset.asset_id,
+            "duration_seconds": asset.duration_seconds,
+            "category": asset.category,
             "method": "manual",
             "visual_type": "clip",
         }

@@ -382,7 +382,7 @@ describe("JobPipeline asset phase states", () => {
 
 		renderAssetPage();
 
-		expect(await screen.findByText("等待开始切配...")).toBeInTheDocument();
+		expect(await screen.findByText("等待开始")).toBeInTheDocument();
 	});
 
 	it("shows asset_retrieving running state with attempt info", async () => {
@@ -398,11 +398,11 @@ describe("JobPipeline asset phase states", () => {
 
 		renderAssetPage();
 
-		expect(await screen.findByText("正在切配素材...")).toBeInTheDocument();
+		expect(await screen.findByText("正在执行")).toBeInTheDocument();
 		expect(screen.getByText(/1 \/ 3/)).toBeInTheDocument();
 	});
 
-	it("shows asset_retrieving no-assets state when succeeded but no clip artifact", async () => {
+	it("shows an integrity error when retrieval succeeds without a clip artifact", async () => {
 		vi.mocked(api.getJob).mockResolvedValue({
 			...assetRetrievingBase,
 			execution: {
@@ -415,14 +415,14 @@ describe("JobPipeline asset phase states", () => {
 
 		renderAssetPage();
 
-		expect(await screen.findByText("无可用素材")).toBeInTheDocument();
-		expect(screen.getByText(/未找到与当前文案匹配的素材/)).toBeInTheDocument();
+		expect(await screen.findByText("阶段记录不完整")).toBeInTheDocument();
+		expect(screen.getByText(/缺少必要产物：selected_clips/)).toBeInTheDocument();
 		expect(
 			screen.queryByRole("button", { name: "重新检索素材" }),
 		).not.toBeInTheDocument();
 	});
 
-	it("shows asset_retrieving succeeded with clips artifact and asset grid", async () => {
+	it("shows a result-load error when the clip artifact cannot be read", async () => {
 		vi.mocked(api.getJob).mockResolvedValue({
 			...assetRetrievingBase,
 			artifacts: [
@@ -442,9 +442,8 @@ describe("JobPipeline asset phase states", () => {
 
 		renderAssetPage();
 
-		// When clips artifact exists, we show "已检索到 N 个匹配素材"
-		expect(await screen.findByText(/已检索到/)).toBeInTheDocument();
-		expect(screen.getByText(/个匹配素材/)).toBeInTheDocument();
+		expect(await screen.findByText("阶段结果无法加载")).toBeInTheDocument();
+		expect(screen.getByText(/结果指针存在/)).toBeInTheDocument();
 	});
 
 	it("shows failed asset retrieval with retryable error and retry button", async () => {
@@ -1011,23 +1010,24 @@ describe("JobPipeline new phase rendering (#262)", () => {
 		renderPhaseJob("montage_assembling");
 
 		expect(
-			await screen.findByText("蒙太奇组装完成，等待下一阶段..."),
+			await screen.findByText("蒙太奇组装完成，等待下一阶段。"),
 		).toBeInTheDocument();
 	});
 
-	it("renders final_rendering job without 'unknown step' fallback", async () => {
+	it("shows an integrity error when final rendering succeeds without its video", async () => {
 		renderPhaseJob("final_rendering");
 
 		expect(
-			await screen.findByText("终审合成完成，等待下一阶段..."),
+			await screen.findByText("阶段记录不完整"),
 		).toBeInTheDocument();
+		expect(screen.getByText(/缺少必要产物：final_video/)).toBeInTheDocument();
 	});
 
 	it("renders scene_assembling job without 'unknown step' fallback", async () => {
 		renderPhaseJob("scene_assembling");
 
 		expect(
-			await screen.findByText("场景拼接完成，等待下一阶段..."),
+			await screen.findByText("场景拼接完成，等待下一阶段。"),
 		).toBeInTheDocument();
 	});
 });

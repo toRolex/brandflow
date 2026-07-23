@@ -1,6 +1,6 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { checkVersion } from "../api/version";
+import { checkVersion, triggerUpdate } from "../api/version";
 import { useTheme } from "../context/ThemeContext";
 import ProductSelector from "./ProductSelector";
 
@@ -164,6 +164,27 @@ const CONFIG_ITEMS = [
 	{ path: "/tts-config", label: "TTS 配置" },
 ];
 
+/* ------------------------------------------------------------------ */
+/*  Update state machine types + helpers                              */
+/* ------------------------------------------------------------------ */
+
+type UpdateState =
+	| { status: "idle" }
+	| { status: "available"; current: string; latest: string }
+	| { status: "in_progress" }
+	| { status: "updating" }
+	| { status: "restarting" }
+	| { status: "done"; version: string }
+	| { status: "failed"; logPath: string };
+
+const SpinnerIcon = () => (
+	<svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+		<circle cx="12" cy="12" r="10" strokeDasharray="50" strokeDashoffset="15" />
+	</svg>
+);
+
+const UPDATE_LOG_PATH = "packaging/windows/update.log";
+
 export default function Layout({ children }: { children: ReactNode }) {
 	const location = useLocation();
 	const { theme, layout, toggleTheme, toggleLayout } = useTheme();
@@ -182,27 +203,92 @@ export default function Layout({ children }: { children: ReactNode }) {
 	const [bannerDismissed, setBannerDismissed] = useState(
 		() => sessionStorage.getItem("bf-update-dismissed") === "1",
 	);
+	const [updateState, setUpdateState] = useState<UpdateState>({ status: "idle" });
+	const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const startTimeRef = useRef(0);
+	const currentVersionRef = useRef("");
 
-	useEffect(() => {
+	const stopPolling = () => {
+		if (pollingRef.current) {
+			clearInterval(pollingRef.current);
+			pollingRef.current = null;
+		}
+	};
+
+	const fetchVersion = () => {
 		checkVersion()
-			.then((v) =>
+			.then((v) => {
+				currentVersionRef.current = v.current;
 				setVersionInfo({
 					current: v.current,
 					latest: v.latest,
 					updateAvailable: v.update_available,
-				}),
-			)
+				});
+				setUpdateState((prev) => {
+					if (prev.status !== "idle" && prev.status !== "available") return prev;
+					return v.update_available
+						? { status: "available", current: v.current, latest: v.latest }
+						: { status: "idle" };
+				});
+			})
 			.catch(() => {
 				// silent — network failure is not an error to show
 			});
+	};
+	useEffect(() => {
+		fetchVersion();
 	}, []);
 
-	const showBanner = versionInfo?.updateAvailable && !bannerDismissed;
+	const startPolling = (logPath: string) => {
+		startTimeRef.current = Date.now();
+		pollingRef.current = setInterval(() => {
+			if (Date.now() - startTimeRef.current >= 300_000) {
+				stopPolling();
+				setUpdateState({ status: "failed", logPath });
+				return;
+			}
+			checkVersion()
+				.then((v) => {
+					if (v.current !== currentVersionRef.current) {
+						stopPolling();
+						setVersionInfo({
+							current: v.current,
+							latest: v.latest,
+							updateAvailable: v.update_available,
+						});
+						setUpdateState({ status: "done", version: v.current });
+					}
+				})
+				.catch(() => {
+					setUpdateState({ status: "restarting" });
+				});
+		}, 2000);
+	};
 
-	const dismissBanner = () => {
+	const handleUpdate = async () => {
+		setUpdateState({ status: "updating" });
+		try {
+			const result = await triggerUpdate();
+			if (result.status === "in_progress") {
+				setUpdateState({ status: "in_progress" });
+			}
+			startPolling(result.log || UPDATE_LOG_PATH);
+		} catch {
+			setUpdateState({ status: "failed", logPath: UPDATE_LOG_PATH });
+		}
+	};
+
+	const dismissAvailableBanner = () => {
 		setBannerDismissed(true);
 		sessionStorage.setItem("bf-update-dismissed", "1");
 	};
+
+	const dismissUpdateBanner = () => {
+		stopPolling();
+		setUpdateState({ status: "idle" });
+	};
+
+	useEffect(() => () => stopPolling(), []);
 
 	return (
 		<div
@@ -281,10 +367,42 @@ export default function Layout({ children }: { children: ReactNode }) {
 						</span>
 						{versionInfo && (
 							<span
-								className="text-xs"
+								className="text-xs inline-flex items-center gap-1"
 								style={{ color: "var(--text-tertiary)" }}
 							>
 								· v{versionInfo.current}
+								{versionInfo.updateAvailable ? (
+									<span
+										data-testid="version-update-dot"
+										className="inline-block w-2 h-2 rounded-full"
+										style={{ backgroundColor: "orange" }}
+									/>
+								) : (
+									<>
+										<span style={{ color: "green" }}>✓</span>
+										<span>最新</span>
+									</>
+								)}
+								<button
+									onClick={fetchVersion}
+									aria-label="检查更新"
+									type="button"
+									className="ml-0.5 hover:opacity-70"
+								>
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 12 12"
+										fill="none"
+										stroke="currentColor"
+										strokeWidth="1.5"
+										strokeLinecap="round"
+										strokeLinejoin="round"
+									>
+										<path d="M1.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0" />
+										<path d="M1.5 3.5V6h2.5" />
+									</svg>
+								</button>
 							</span>
 						)}
 						{inSystemConfig && (
@@ -301,43 +419,106 @@ export default function Layout({ children }: { children: ReactNode }) {
 					</div>
 				</header>
 
-				{showBanner && (
-					<div
-						className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
-						style={{
-							background:
-								"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
-							borderColor: "var(--border-default)",
-							color: "var(--text-primary)",
-						}}
-					>
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 16 16"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.5"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							style={{ flexShrink: 0 }}
-						>
-							<circle cx="8" cy="8" r="6.5" />
-							<path d="M8 4.5v4M8 11v.5" />
-						</svg>
-						<span className="flex-1">
-							<strong>新版本可用</strong> v{versionInfo?.latest} 已发布
-						</span>
-						<button
-							className="text-sm font-medium hover:opacity-70 flex-shrink-0"
-							onClick={dismissBanner}
-							aria-label="关闭"
-							type="button"
-						>
-							✕
-						</button>
-					</div>
-				)}
+				{updateState.status !== "idle" && (() => {
+					switch (updateState.status) {
+						case "available":
+							if (bannerDismissed) return null;
+							return (
+								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+									style={{
+										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+										borderColor: "var(--border-default)",
+										color: "var(--text-primary)",
+									}}
+								>
+									<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+										<circle cx="8" cy="8" r="6.5" /><path d="M8 4.5v4M8 11v.5" />
+									</svg>
+									<span className="flex-1"><strong>新版本可用</strong> v{updateState.latest} 已发布</span>
+									<button onClick={handleUpdate} type="button"
+										className="px-3 py-0.5 text-xs font-medium rounded"
+										style={{ background: "var(--color-electric-blue)", color: "#fff" }}
+									>
+										更新
+									</button>
+									<button onClick={dismissAvailableBanner} aria-label="关闭" type="button" className="text-sm font-medium hover:opacity-70 flex-shrink-0">✕</button>
+								</div>
+							);
+
+						case "in_progress":
+							return (
+								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+									style={{
+										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+										borderColor: "var(--border-default)",
+										color: "var(--text-primary)",
+									}}
+								>
+									<SpinnerIcon />
+									<span>更新正在进行</span>
+								</div>
+							);
+
+						case "updating":
+							return (
+								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+									style={{
+										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+										borderColor: "var(--border-default)",
+										color: "var(--text-primary)",
+									}}
+								>
+									<SpinnerIcon />
+									<span>正在更新（拉取代码 + 编译前端）...</span>
+								</div>
+							);
+
+						case "restarting":
+							return (
+								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+									style={{
+										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+										borderColor: "var(--border-default)",
+										color: "var(--text-primary)",
+									}}
+								>
+									<SpinnerIcon />
+									<span>服务重启中，请稍候...</span>
+								</div>
+							);
+
+						case "done":
+							return (
+								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+									style={{
+										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+										borderColor: "var(--border-default)",
+										color: "var(--text-primary)",
+									}}
+								>
+									<span>✅</span>
+									<span className="flex-1">更新完成，版本 v{updateState.version}</span>
+									<button onClick={dismissUpdateBanner} aria-label="关闭" type="button" className="text-sm font-medium hover:opacity-70 flex-shrink-0">✕</button>
+								</div>
+							);
+
+						case "failed":
+							return (
+								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+									style={{
+										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+										borderColor: "var(--border-default)",
+										color: "var(--text-primary)",
+									}}
+								>
+									<span>❌</span>
+									<span className="flex-1">更新失败，请检查服务端日志</span>
+									<code className="text-xs opacity-70">{updateState.logPath}</code>
+									<button onClick={dismissUpdateBanner} aria-label="关闭" type="button" className="text-sm font-medium hover:opacity-70 flex-shrink-0">✕</button>
+								</div>
+							);
+					}
+				})()}
 
 				{/* Content area with optional sub-nav */}
 				<div className="flex-1 flex overflow-hidden">

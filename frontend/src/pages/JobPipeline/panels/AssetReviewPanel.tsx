@@ -1,7 +1,11 @@
+import { useEffect, useState } from "react";
+import { api } from "../../../api/client";
 import ClipReviewCard from "../../../components/ClipReviewCard";
+import type { AssetRecord } from "../../../types";
 import type { PanelProps } from "../types";
 
 export default function AssetReviewPanel({
+	job,
 	selectedClips,
 	rejectedClips,
 	showAllBlankConfirm,
@@ -10,12 +14,28 @@ export default function AssetReviewPanel({
 	onRejectClip,
 	onToggleBlank,
 	onRestoreClip,
+	onSelectAsset,
 	onAssetApprove,
 	onForceApprove,
 	onDismissAllBlankConfirm,
 	findArtifact,
 }: PanelProps) {
 	const clipsArtifact = findArtifact("selected_clips");
+	const [pickerIndex, setPickerIndex] = useState<number | null>(null);
+	const [pickerAssets, setPickerAssets] = useState<AssetRecord[]>([]);
+	const [pickerLoading, setPickerLoading] = useState(false);
+
+	useEffect(() => {
+		if (pickerIndex === null) return;
+		setPickerLoading(true);
+		api
+			.listIndexedAssetsShared({ product: job.product })
+			.then((result) =>
+				setPickerAssets(result.assets.filter((asset) => asset.status === "available")),
+			)
+			.catch(() => setPickerAssets([]))
+			.finally(() => setPickerLoading(false));
+	}, [job.product, pickerIndex]);
 
 	return (
 		<div>
@@ -58,6 +78,7 @@ export default function AssetReviewPanel({
 								onReject={onRejectClip}
 								onToggleBlank={onToggleBlank}
 								onRestore={onRestoreClip}
+								onSelectAsset={setPickerIndex}
 								rejected={rejectedClips.has(index)}
 								readOnly={!isCurrentReviewStep}
 							/>
@@ -120,6 +141,37 @@ export default function AssetReviewPanel({
 				</div>
 			) : (
 				<p className="text-[var(--text-tertiary)] text-sm">等待素材加载...</p>
+			)}
+			{pickerIndex !== null && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+					<div className="w-full max-w-2xl max-h-[80vh] overflow-auto rounded-lg bg-[var(--bg-card)] p-5 shadow-xl">
+						<div className="mb-4 flex items-center justify-between">
+							<h4 className="font-semibold">选择库内素材</h4>
+							<button onClick={() => setPickerIndex(null)}>关闭</button>
+						</div>
+						{pickerLoading ? (
+							<p className="text-sm text-[var(--text-tertiary)]">加载素材中…</p>
+						) : pickerAssets.length === 0 ? (
+							<p className="text-sm text-[var(--text-tertiary)]">没有可用素材</p>
+						) : (
+							<div className="grid gap-2 sm:grid-cols-2">
+								{pickerAssets.map((asset) => (
+									<button
+										key={asset.asset_id}
+										className="rounded border p-3 text-left hover:bg-[var(--bg-table-head)]"
+										onClick={() => {
+											onSelectAsset(pickerIndex, asset.asset_id);
+											setPickerIndex(null);
+										}}
+									>
+										<div className="text-sm font-medium">{asset.file_path.split("/").pop()}</div>
+										<div className="text-xs text-[var(--text-secondary)]">{asset.category} · {asset.duration_seconds.toFixed(1)}s</div>
+									</button>
+								))}
+							</div>
+						)}
+					</div>
+				</div>
 			)}
 		</div>
 	);

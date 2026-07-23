@@ -43,10 +43,7 @@ export const assetSetBlank = (
 export const assetSetAsset = (
 	jobId: string,
 	clipIndex: number,
-	filePath: string,
 	assetId: string,
-	durationSeconds?: number,
-	category?: string,
 	projectId?: string,
 ) => {
 	const qs = projectId ? `?project_id=${projectId}` : "";
@@ -56,10 +53,7 @@ export const assetSetAsset = (
 			method: "POST",
 			body: JSON.stringify({
 				clip_index: clipIndex,
-				file_path: filePath,
 				asset_id: assetId,
-				duration_seconds: durationSeconds ?? 0,
-				category: category ?? "",
 			}),
 		},
 	);
