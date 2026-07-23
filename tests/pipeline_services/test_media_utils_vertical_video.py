@@ -10,6 +10,7 @@ from typing import cast
 import pytest
 from PIL import Image
 
+from packages.pipeline_services.media_probe import is_decodable_video
 from packages.pipeline_services.media_utils import (
     TARGET_VIDEO_HEIGHT,
     TARGET_VIDEO_WIDTH,
@@ -183,6 +184,9 @@ def test_assemble_vertical_base_video_respects_audio_duration(tmp_path: Path) ->
 
     assert output.exists()
     assert math.isclose(_probe_duration(output), audio_duration, abs_tol=0.3)
+    # Clips (2s total) < audio_duration (5s) triggers stream_loop wrapping;
+    # verify the loop boundary does not corrupt the output.
+    assert is_decodable_video(output), "looped montage must be decodable"
 
 
 @pytest.mark.slow
