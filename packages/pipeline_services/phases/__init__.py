@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from .asset import run as run_asset
 from .config import (
-    _TTSConfigShim,
     _build_tts_provider,
     _resolve_api_key,
     _resolve_api_url,
@@ -59,7 +58,6 @@ __all__ = [
     "load_montage_inputs",
     "_resolve_scene_folders",
     "_scene_candidates",
-    "_TTSConfigShim",
     "_build_tts_provider",
     "_resolve_api_key",
     "_resolve_api_url",
