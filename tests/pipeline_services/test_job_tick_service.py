@@ -593,6 +593,63 @@ class TestEdgeCases:
 
 
 # ---------------------------------------------------------------------------
+# _build_phase_context — language forwarding
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPhaseContextLanguage:
+    """_build_phase_context forwards record.language to PhaseContext.options."""
+
+    def test_forwards_cantonese_language(self) -> None:
+        """语言为 cantonese 时 PhaseContext.options 中存在 language."""
+        record = JobRecord(
+            language="cantonese",
+            job_id="test-job",
+            project_id="proj-001",
+            product="test",
+            phase="queued",
+            review_status="none",
+        )
+        svc = JobTickService(
+            orchestrator=Mock(spec=PhaseOrchestrator),
+            repo=Mock(spec=FileStoreRepository),
+        )
+        ctx = svc._build_phase_context(
+            record=record,
+            project_id="proj-001",
+            job_id="test-job",
+            product="test",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+        assert ctx.options.get("language") == "cantonese"
+
+    def test_forwards_mandarin_language(self) -> None:
+        """语言为 mandarin 时也同样转发。"""
+        record = JobRecord(
+            language="mandarin",
+            job_id="test-job",
+            project_id="proj-001",
+            product="test",
+            phase="queued",
+            review_status="none",
+        )
+        svc = JobTickService(
+            orchestrator=Mock(spec=PhaseOrchestrator),
+            repo=Mock(spec=FileStoreRepository),
+        )
+        ctx = svc._build_phase_context(
+            record=record,
+            project_id="proj-001",
+            job_id="test-job",
+            product="test",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+        assert ctx.options.get("language") == "mandarin"
+
+
+# ---------------------------------------------------------------------------
 # JobTickService integration tests
 # ---------------------------------------------------------------------------
 
