@@ -4,8 +4,8 @@ import type {
 	Phase,
 	PhaseExecutionState,
 	ProductionMode,
-	ReviewStrategy,
 	ReviewStatus,
+	ReviewStrategy,
 } from "./core";
 
 export interface JobSummary {
@@ -97,4 +97,3 @@ export interface BatchCreateResponse {
 		review_strategy?: ReviewStrategy;
 	}>;
 }
-

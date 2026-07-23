@@ -66,6 +66,9 @@ Phase = Literal[
 ProductionMode = Literal["import", "generate"]
 ReviewStrategy = Literal["review_each", "fast_output"]
 ReviewStatus = Literal["none", "pending", "approved", "rejected", "overridden"]
+AssetCollectionStatus = Literal[
+    "not_started", "collecting", "complete", "complete_empty"
+]
 VisualType = Literal["clip", "blank", "unresolved"]
 
 AudioSource = Literal["tts", "upload", "library"]
@@ -211,6 +214,7 @@ class JobRecord(BaseModel):
         ""  # job-level TTS voice override, empty = use global/product config
     )
     used_asset_ids: list[str] = []
+    asset_collection_status: AssetCollectionStatus = "not_started"
     scene_folder_ids: list[str] = Field(default_factory=list)
     transition_duration_ms: int = 500
 

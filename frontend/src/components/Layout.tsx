@@ -178,7 +178,15 @@ type UpdateState =
 	| { status: "failed"; logPath: string };
 
 const SpinnerIcon = () => (
-	<svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+	<svg
+		className="animate-spin"
+		width="16"
+		height="16"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		strokeWidth="2"
+	>
 		<circle cx="12" cy="12" r="10" strokeDasharray="50" strokeDashoffset="15" />
 	</svg>
 );
@@ -203,7 +211,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 	const [bannerDismissed, setBannerDismissed] = useState(
 		() => sessionStorage.getItem("bf-update-dismissed") === "1",
 	);
-	const [updateState, setUpdateState] = useState<UpdateState>({ status: "idle" });
+	const [updateState, setUpdateState] = useState<UpdateState>({
+		status: "idle",
+	});
 	const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const startTimeRef = useRef(0);
 	const currentVersionRef = useRef("");
@@ -225,7 +235,8 @@ export default function Layout({ children }: { children: ReactNode }) {
 					updateAvailable: v.update_available,
 				});
 				setUpdateState((prev) => {
-					if (prev.status !== "idle" && prev.status !== "available") return prev;
+					if (prev.status !== "idle" && prev.status !== "available")
+						return prev;
 					return v.update_available
 						? { status: "available", current: v.current, latest: v.latest }
 						: { status: "idle" };
@@ -419,106 +430,162 @@ export default function Layout({ children }: { children: ReactNode }) {
 					</div>
 				</header>
 
-				{updateState.status !== "idle" && (() => {
-					switch (updateState.status) {
-						case "available":
-							if (bannerDismissed) return null;
-							return (
-								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
-									style={{
-										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
-										borderColor: "var(--border-default)",
-										color: "var(--text-primary)",
-									}}
-								>
-									<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-										<circle cx="8" cy="8" r="6.5" /><path d="M8 4.5v4M8 11v.5" />
-									</svg>
-									<span className="flex-1"><strong>新版本可用</strong> v{updateState.latest} 已发布</span>
-									<button onClick={handleUpdate} type="button"
-										className="px-3 py-0.5 text-xs font-medium rounded"
-										style={{ background: "var(--color-electric-blue)", color: "#fff" }}
+				{updateState.status !== "idle" &&
+					(() => {
+						switch (updateState.status) {
+							case "available":
+								if (bannerDismissed) return null;
+								return (
+									<div
+										className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+										style={{
+											background:
+												"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+											borderColor: "var(--border-default)",
+											color: "var(--text-primary)",
+										}}
 									>
-										更新
-									</button>
-									<button onClick={dismissAvailableBanner} aria-label="关闭" type="button" className="text-sm font-medium hover:opacity-70 flex-shrink-0">✕</button>
-								</div>
-							);
+										<svg
+											width="16"
+											height="16"
+											viewBox="0 0 16 16"
+											fill="none"
+											stroke="currentColor"
+											strokeWidth="1.5"
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											style={{ flexShrink: 0 }}
+										>
+											<circle cx="8" cy="8" r="6.5" />
+											<path d="M8 4.5v4M8 11v.5" />
+										</svg>
+										<span className="flex-1">
+											<strong>新版本可用</strong> v{updateState.latest} 已发布
+										</span>
+										<button
+											onClick={handleUpdate}
+											type="button"
+											className="px-3 py-0.5 text-xs font-medium rounded"
+											style={{
+												background: "var(--color-electric-blue)",
+												color: "#fff",
+											}}
+										>
+											更新
+										</button>
+										<button
+											onClick={dismissAvailableBanner}
+											aria-label="关闭"
+											type="button"
+											className="text-sm font-medium hover:opacity-70 flex-shrink-0"
+										>
+											✕
+										</button>
+									</div>
+								);
 
-						case "in_progress":
-							return (
-								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
-									style={{
-										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
-										borderColor: "var(--border-default)",
-										color: "var(--text-primary)",
-									}}
-								>
-									<SpinnerIcon />
-									<span>更新正在进行</span>
-								</div>
-							);
+							case "in_progress":
+								return (
+									<div
+										className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+										style={{
+											background:
+												"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+											borderColor: "var(--border-default)",
+											color: "var(--text-primary)",
+										}}
+									>
+										<SpinnerIcon />
+										<span>更新正在进行</span>
+									</div>
+								);
 
-						case "updating":
-							return (
-								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
-									style={{
-										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
-										borderColor: "var(--border-default)",
-										color: "var(--text-primary)",
-									}}
-								>
-									<SpinnerIcon />
-									<span>正在更新（拉取代码 + 编译前端）...</span>
-								</div>
-							);
+							case "updating":
+								return (
+									<div
+										className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+										style={{
+											background:
+												"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+											borderColor: "var(--border-default)",
+											color: "var(--text-primary)",
+										}}
+									>
+										<SpinnerIcon />
+										<span>正在更新（拉取代码 + 编译前端）...</span>
+									</div>
+								);
 
-						case "restarting":
-							return (
-								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
-									style={{
-										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
-										borderColor: "var(--border-default)",
-										color: "var(--text-primary)",
-									}}
-								>
-									<SpinnerIcon />
-									<span>服务重启中，请稍候...</span>
-								</div>
-							);
+							case "restarting":
+								return (
+									<div
+										className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+										style={{
+											background:
+												"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+											borderColor: "var(--border-default)",
+											color: "var(--text-primary)",
+										}}
+									>
+										<SpinnerIcon />
+										<span>服务重启中，请稍候...</span>
+									</div>
+								);
 
-						case "done":
-							return (
-								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
-									style={{
-										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
-										borderColor: "var(--border-default)",
-										color: "var(--text-primary)",
-									}}
-								>
-									<span>✅</span>
-									<span className="flex-1">更新完成，版本 v{updateState.version}</span>
-									<button onClick={dismissUpdateBanner} aria-label="关闭" type="button" className="text-sm font-medium hover:opacity-70 flex-shrink-0">✕</button>
-								</div>
-							);
+							case "done":
+								return (
+									<div
+										className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+										style={{
+											background:
+												"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+											borderColor: "var(--border-default)",
+											color: "var(--text-primary)",
+										}}
+									>
+										<span>✅</span>
+										<span className="flex-1">
+											更新完成，版本 v{updateState.version}
+										</span>
+										<button
+											onClick={dismissUpdateBanner}
+											aria-label="关闭"
+											type="button"
+											className="text-sm font-medium hover:opacity-70 flex-shrink-0"
+										>
+											✕
+										</button>
+									</div>
+								);
 
-						case "failed":
-							return (
-								<div className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
-									style={{
-										background: "var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
-										borderColor: "var(--border-default)",
-										color: "var(--text-primary)",
-									}}
-								>
-									<span>❌</span>
-									<span className="flex-1">更新失败，请检查服务端日志</span>
-									<code className="text-xs opacity-70">{updateState.logPath}</code>
-									<button onClick={dismissUpdateBanner} aria-label="关闭" type="button" className="text-sm font-medium hover:opacity-70 flex-shrink-0">✕</button>
-								</div>
-							);
-					}
-				})()}
+							case "failed":
+								return (
+									<div
+										className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+										style={{
+											background:
+												"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+											borderColor: "var(--border-default)",
+											color: "var(--text-primary)",
+										}}
+									>
+										<span>❌</span>
+										<span className="flex-1">更新失败，请检查服务端日志</span>
+										<code className="text-xs opacity-70">
+											{updateState.logPath}
+										</code>
+										<button
+											onClick={dismissUpdateBanner}
+											aria-label="关闭"
+											type="button"
+											className="text-sm font-medium hover:opacity-70 flex-shrink-0"
+										>
+											✕
+										</button>
+									</div>
+								);
+						}
+					})()}
 
 				{/* Content area with optional sub-nav */}
 				<div className="flex-1 flex overflow-hidden">

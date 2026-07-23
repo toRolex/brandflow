@@ -10,6 +10,7 @@ import Modal from "../components/Modal";
 import ProjectTabs from "../components/ProjectTabs";
 import WorkbenchShell from "../components/WorkbenchShell";
 import { useProducts } from "../ProductContext";
+import { shouldPollJob } from "../policies/jobPollingPolicy";
 import type {
 	BatchCreateResponse,
 	JobSummary,
@@ -17,9 +18,8 @@ import type {
 	ProductionMode,
 	ScriptTemplate,
 } from "../types";
-import type { BatchConfig } from "../utils/batchScriptSplit";
 import type { ReviewStrategy } from "../types/core";
-import { shouldPollJob } from "../policies/jobPollingPolicy";
+import type { BatchConfig } from "../utils/batchScriptSplit";
 
 type TabKey = "jobs";
 
@@ -124,7 +124,8 @@ export default function ProjectWorkbench() {
 	}, [load]);
 
 	useEffect(() => {
-		if (jobs.length === 0 || !jobs.some((job) => shouldPollJob(job.phase))) return;
+		if (jobs.length === 0 || !jobs.some((job) => shouldPollJob(job.phase)))
+			return;
 		const timer = setInterval(load, 5000);
 		return () => clearInterval(timer);
 	}, [jobs, load]);
@@ -330,9 +331,17 @@ export default function ProjectWorkbench() {
 				/>
 			)}
 			{batchSummary && (
-				<section className="mb-4 rounded-lg border p-4 text-sm" style={{ borderColor: "var(--border-default)" }}>
-					<div className="font-semibold mb-2">本批创建结果：{batchSummary.count} 个 Job</div>
-					<div className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
+				<section
+					className="mb-4 rounded-lg border p-4 text-sm"
+					style={{ borderColor: "var(--border-default)" }}
+				>
+					<div className="font-semibold mb-2">
+						本批创建结果：{batchSummary.count} 个 Job
+					</div>
+					<div
+						className="text-xs mb-2"
+						style={{ color: "var(--text-secondary)" }}
+					>
 						{batchSummary.review_strategy === "fast_output"
 							? "脚本与 TTS 自动通过；将在素材审核和最终审核停留。"
 							: "每个适用审核关卡都会停留，等待人工确认。"}
@@ -340,8 +349,12 @@ export default function ProjectWorkbench() {
 					<ul className="space-y-1">
 						{batchSummary.results.map((job) => (
 							<li key={job.job_id}>
-								<button className="text-[var(--text-link)] hover:underline" onClick={() => navigate(`/jobs/${job.job_id}`)}>
-									{job.display_index} · {job.name}（{job.mode === "import" ? "导入" : "智能生成"}）
+								<button
+									className="text-[var(--text-link)] hover:underline"
+									onClick={() => navigate(`/jobs/${job.job_id}`)}
+								>
+									{job.display_index} · {job.name}（
+									{job.mode === "import" ? "导入" : "智能生成"}）
 								</button>
 							</li>
 						))}

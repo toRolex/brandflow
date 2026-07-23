@@ -4,11 +4,7 @@ import { api } from "../../api/client";
 import PipelineSidebar from "../../components/PipelineSidebar";
 import { getJobActionPolicy } from "../../policies/jobActionPolicy";
 import { shouldPollJob } from "../../policies/jobPollingPolicy";
-import type {
-	ExportTaskState,
-	JobDetail,
-	Phase,
-} from "../../types";
+import type { ExportTaskState, JobDetail, Phase } from "../../types";
 import { PIPELINE_STEPS } from "../../types";
 import AssetRetrievingPanel from "./panels/AssetRetrievingPanel";
 import AssetReviewPanel from "./panels/AssetReviewPanel";
@@ -519,20 +515,19 @@ export default function JobPipeline() {
 				executionPhase === phase
 					? job.execution
 					: {
-						status:
-							PIPELINE_STEPS.findIndex((step) => step.phase === phase) >
-							executionPhaseIndex
-								? "pending"
-								: "succeeded",
-						current_attempt: 0,
-						max_attempts: 0,
-						error: null,
-					},
+							status:
+								PIPELINE_STEPS.findIndex((step) => step.phase === phase) >
+								executionPhaseIndex
+									? "pending"
+									: "succeeded",
+							current_attempt: 0,
+							max_attempts: 0,
+							error: null,
+						},
 			reviewStatus: job.phase === phase ? job.review_status : "none",
 			artifacts: job.artifacts,
 			...options,
 		});
-
 
 	const handleTtsModelChange = (model: string) => {
 		setTtsSelectedModel(model);
@@ -639,6 +634,7 @@ export default function JobPipeline() {
 		onReject: handleReject,
 		onRetry: handleRetry,
 		onEditScript: handleEditScript,
+		onRegenerateWithPrompt: handleRegenerateWithPrompt,
 		onCreateExport: handleCreateExport,
 		onDownloadExport: handleDownloadExport,
 		onTtsModelChange: handleTtsModelChange,
@@ -663,7 +659,7 @@ export default function JobPipeline() {
 			case "scene_assemble":
 				return <SceneAssemblyPanel {...panelProps} />;
 			case "draft":
-				return <QueuedPanel draft />;
+				return <QueuedPanel draft={true} />;
 			case "queued":
 				return <QueuedPanel />;
 			case "script_gen":
@@ -736,7 +732,8 @@ export default function JobPipeline() {
 
 			{job.execution?.status === "retrying" && (
 				<div className="mb-4 bg-[var(--bg-table-head)] px-4 py-3 rounded-lg text-sm">
-					正在自动重试：第 {job.execution.current_attempt} 次执行失败，系统将按退避策略继续尝试。
+					正在自动重试：第 {job.execution.current_attempt}{" "}
+					次执行失败，系统将按退避策略继续尝试。
 				</div>
 			)}
 

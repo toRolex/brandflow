@@ -1,8 +1,11 @@
 import MediaPlayer from "../../../components/MediaPlayer";
-import PhaseStatusNotice from "./PhaseStatusNotice";
 import type { PanelProps } from "../types";
+import PhaseStatusNotice from "./PhaseStatusNotice";
 
-export default function VideoBasePanel({ findArtifact, getPhasePresentation }: PanelProps) {
+export default function VideoBasePanel({
+	findArtifact,
+	getPhasePresentation,
+}: PanelProps) {
 	const video = findArtifact("video_base");
 	const presentation = getPhasePresentation("video_rendering");
 	return (

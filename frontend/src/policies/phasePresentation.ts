@@ -103,7 +103,9 @@ function buildAnomalyPresentation(
 ): PhasePresentation {
 	const isGeneration = EXECUTABLE_GENERATION_PHASES.has(phase);
 	const isReview = isReviewPhase(phase);
-	const kindLabel = missingKinds.map((k) => artifactKindDisplayName(k)).join("、");
+	const kindLabel = missingKinds
+		.map((k) => artifactKindDisplayName(k))
+		.join("、");
 	const title =
 		phase === "completed"
 			? "完成记录不完整"
@@ -112,7 +114,7 @@ function buildAnomalyPresentation(
 				: `${phaseLabel}结果异常`;
 	const message =
 		phase === "completed"
-			? `最终视频产物缺失，无法导出。请检查渲染日志或联系支持。`
+			? "最终视频产物缺失，无法导出。请检查渲染日志或联系支持。"
 			: `${phaseLabel}已结束，但缺少必要产物：${kindLabel}。请尝试重新执行或查看日志。`;
 	const actions: SuggestedAction[] = [];
 	if (isGeneration) {

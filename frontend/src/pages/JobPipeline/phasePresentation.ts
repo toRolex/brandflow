@@ -72,7 +72,12 @@ export function presentPhaseStatus(
 	const { execution } = input;
 
 	if (input.phase === "cancelled") {
-		return { kind: "failed", title: "任务已取消", detail: "任务不会继续执行。", action: "none" };
+		return {
+			kind: "failed",
+			title: "任务已取消",
+			detail: "任务不会继续执行。",
+			action: "none",
+		};
 	}
 	if (input.phase === "failed" || execution.status === "failed") {
 		const retryable = execution.error?.retryable;
@@ -92,16 +97,36 @@ export function presentPhaseStatus(
 		};
 	}
 	if (execution.status === "running") {
-		return { kind: "running", title: "正在执行", detail: "系统正在处理此阶段。", action: "wait" };
+		return {
+			kind: "running",
+			title: "正在执行",
+			detail: "系统正在处理此阶段。",
+			action: "wait",
+		};
 	}
 	if (execution.status === "pending") {
-		return { kind: "waiting", title: "等待开始", detail: "等待调度执行此阶段。", action: "wait" };
+		return {
+			kind: "waiting",
+			title: "等待开始",
+			detail: "等待调度执行此阶段。",
+			action: "wait",
+		};
 	}
 	if (input.artifactLoadState === "loading") {
-		return { kind: "waiting", title: "正在加载阶段结果", detail: "结果指针已返回，正在读取内容。", action: "wait" };
+		return {
+			kind: "waiting",
+			title: "正在加载阶段结果",
+			detail: "结果指针已返回，正在读取内容。",
+			action: "wait",
+		};
 	}
 	if (input.artifactLoadState === "failed") {
-		return { kind: "integrity_error", title: "阶段结果无法加载", detail: "结果指针存在，但内容无法读取。请查看日志并重试。", action: "view_logs" };
+		return {
+			kind: "integrity_error",
+			title: "阶段结果无法加载",
+			detail: "结果指针存在，但内容无法读取。请查看日志并重试。",
+			action: "view_logs",
+		};
 	}
 
 	const missing = missingArtifacts(input);
@@ -114,7 +139,12 @@ export function presentPhaseStatus(
 		};
 	}
 	if (input.reviewStatus === "pending") {
-		return { kind: "awaiting_review", title: "等待人工审核", detail: "请作出审核决定后继续。", action: "review" };
+		return {
+			kind: "awaiting_review",
+			title: "等待人工审核",
+			detail: "请作出审核决定后继续。",
+			action: "review",
+		};
 	}
 	if (input.assetDecisions?.unresolved) {
 		return {
@@ -124,5 +154,10 @@ export function presentPhaseStatus(
 			action: "review_assets",
 		};
 	}
-	return { kind: "completed", title: "阶段已完成", detail: "结果已就绪。", action: "none" };
+	return {
+		kind: "completed",
+		title: "阶段已完成",
+		detail: "结果已就绪。",
+		action: "none",
+	};
 }

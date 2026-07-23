@@ -14,13 +14,10 @@ describe("shouldPollJob", () => {
 		expect(shouldPollJob(phase)).toBe(true);
 	});
 
-	it.each([
-		"draft",
-		"paused",
-		"failed",
-		"cancelled",
-		"completed",
-	] as const)("stops polling a stable %s job", (phase) => {
-		expect(shouldPollJob(phase)).toBe(false);
-	});
+	it.each(["draft", "paused", "failed", "cancelled", "completed"] as const)(
+		"stops polling a stable %s job",
+		(phase) => {
+			expect(shouldPollJob(phase)).toBe(false);
+		},
+	);
 });

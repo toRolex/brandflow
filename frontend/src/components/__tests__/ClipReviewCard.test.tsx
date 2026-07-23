@@ -19,7 +19,7 @@ it("opens asset selection from an unresolved clip", () => {
 			onToggleBlank={() => {}}
 			onRestore={() => {}}
 			onSelectAsset={onSelectAsset}
-		/>
+		/>,
 	);
 
 	fireEvent.click(screen.getByRole("button", { name: "选择素材" }));

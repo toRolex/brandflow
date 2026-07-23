@@ -187,7 +187,11 @@ def test_list_jobs_includes_asset_review_unresolved_count(tmp_path: Path) -> Non
     clips_path.parent.mkdir(parents=True)
     clips_path.write_text(
         json.dumps(
-            [{"visual_type": "unresolved"}, {"visual_type": "blank"}, {"visual_type": "unresolved"}]
+            [
+                {"visual_type": "unresolved"},
+                {"visual_type": "blank"},
+                {"visual_type": "unresolved"},
+            ]
         ),
         encoding="utf-8",
     )

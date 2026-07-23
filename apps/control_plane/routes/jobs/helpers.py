@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import HTTPException, Request
 
-from packages.domain_core.models import ExecutionFailure, JobRecord, ProductionMode
+from packages.domain_core.models import ExecutionFailure, JobRecord
 from packages.file_store.repository import FileStoreRepository
 from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.config_reader import ConfigReader
@@ -19,7 +19,9 @@ def _resolve_product_from_config(root_dir: Path | str) -> tuple[str, str]:
     reader = ConfigReader(config_dir=str(Path(root_dir) / "config"))
     active_id = reader.active_product_id
     cfg = (
-        reader.get_product_config(product_id=active_id) if active_id else reader.get_product_config()
+        reader.get_product_config(product_id=active_id)
+        if active_id
+        else reader.get_product_config()
     )
     default_name = cfg.get("default_name", "")
     if not default_name:

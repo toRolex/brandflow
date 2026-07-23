@@ -1,8 +1,4 @@
-import type {
-	ExportTaskState,
-	JobDetail,
-	Phase,
-} from "../../types";
+import type { ExportTaskState, JobDetail, Phase } from "../../types";
 import type {
 	PhasePresentation,
 	PhasePresentationInput,

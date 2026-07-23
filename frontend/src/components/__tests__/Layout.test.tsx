@@ -121,66 +121,62 @@ describe("Layout — version display", () => {
 	});
 
 	it("shows green checkmark and 最新 when up-to-date", async () => {
-			mockCheckVersion.mockResolvedValue({
-				current: "0.7.13",
-				latest: "0.7.13",
-				update_available: false,
-			});
-			renderWithRouter("/");
+		mockCheckVersion.mockResolvedValue({
+			current: "0.7.13",
+			latest: "0.7.13",
+			update_available: false,
+		});
+		renderWithRouter("/");
 
-			await waitFor(() => {
-				expect(screen.getByText("最新")).toBeInTheDocument();
-			});
-			expect(screen.getByText("✓")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByText("最新")).toBeInTheDocument();
+		});
+		expect(screen.getByText("✓")).toBeInTheDocument();
+	});
+
+	it("shows orange dot when update available", async () => {
+		mockCheckVersion.mockResolvedValue({
+			current: "0.7.13",
+			latest: "0.8.0",
+			update_available: true,
+		});
+		renderWithRouter("/");
+
+		await waitFor(() => {
+			expect(screen.getByTestId("version-update-dot")).toBeInTheDocument();
+		});
+	});
+
+	it("re-checks version on refresh button click", async () => {
+		mockCheckVersion.mockResolvedValue({
+			current: "0.7.13",
+			latest: "0.7.13",
+			update_available: false,
+		});
+		renderWithRouter("/");
+
+		await waitFor(() => {
+			expect(screen.getByText("最新")).toBeInTheDocument();
 		});
 
-		it("shows orange dot when update available", async () => {
-			mockCheckVersion.mockResolvedValue({
-				current: "0.7.13",
-				latest: "0.8.0",
-				update_available: true,
-			});
-			renderWithRouter("/");
-
-			await waitFor(() => {
-				expect(
-					screen.getByTestId("version-update-dot"),
-				).toBeInTheDocument();
-			});
+		// Change mock response to simulate new version found
+		mockCheckVersion.mockResolvedValue({
+			current: "0.7.13",
+			latest: "0.8.0",
+			update_available: true,
 		});
 
-		it("re-checks version on refresh button click", async () => {
-			mockCheckVersion.mockResolvedValue({
-				current: "0.7.13",
-				latest: "0.7.13",
-				update_available: false,
-			});
-			renderWithRouter("/");
-
-			await waitFor(() => {
-				expect(screen.getByText("最新")).toBeInTheDocument();
-			});
-
-			// Change mock response to simulate new version found
-			mockCheckVersion.mockResolvedValue({
-				current: "0.7.13",
-				latest: "0.8.0",
-				update_available: true,
-			});
-
-			const refreshBtn = screen.getByRole("button", {
-				name: /检查更新/,
-			});
-			refreshBtn.click();
-
-			await waitFor(() => {
-				expect(
-					screen.getByTestId("version-update-dot"),
-				).toBeInTheDocument();
-			});
+		const refreshBtn = screen.getByRole("button", {
+			name: /检查更新/,
 		});
+		refreshBtn.click();
 
-		it("silently handles check-version failure", async () => {
+		await waitFor(() => {
+			expect(screen.getByTestId("version-update-dot")).toBeInTheDocument();
+		});
+	});
+
+	it("silently handles check-version failure", async () => {
 		mockCheckVersion.mockRejectedValue(new Error("network error"));
 		renderWithRouter("/");
 
@@ -203,7 +199,9 @@ describe("Layout — update flow (#302)", () => {
 
 	it("shows update button when version is available", async () => {
 		mockCheckVersion.mockResolvedValue({
-			current: "0.7.13", latest: "0.8.0", update_available: true,
+			current: "0.7.13",
+			latest: "0.8.0",
+			update_available: true,
 		});
 		renderWithRouter("/");
 
@@ -214,9 +212,14 @@ describe("Layout — update flow (#302)", () => {
 
 	it("transitions to updating state on click", async () => {
 		mockCheckVersion.mockResolvedValue({
-			current: "0.7.13", latest: "0.8.0", update_available: true,
+			current: "0.7.13",
+			latest: "0.8.0",
+			update_available: true,
 		});
-		mockTriggerUpdate.mockResolvedValue({ status: "started", log: "packaging/windows/update.log" });
+		mockTriggerUpdate.mockResolvedValue({
+			status: "started",
+			log: "packaging/windows/update.log",
+		});
 		renderWithRouter("/");
 
 		await waitFor(() => {
@@ -232,7 +235,9 @@ describe("Layout — update flow (#302)", () => {
 
 	it("shows in_progress message on 409", async () => {
 		mockCheckVersion.mockResolvedValue({
-			current: "0.7.13", latest: "0.8.0", update_available: true,
+			current: "0.7.13",
+			latest: "0.8.0",
+			update_available: true,
 		});
 		mockTriggerUpdate.mockResolvedValue({ status: "in_progress" });
 		renderWithRouter("/");
@@ -251,17 +256,28 @@ describe("Layout — update flow (#302)", () => {
 	it("polls and transitions to done when version changes", async () => {
 		vi.useFakeTimers({ toFake: ["setInterval"] });
 		mockCheckVersion.mockResolvedValue({
-			current: "0.7.13", latest: "0.8.0", update_available: true,
+			current: "0.7.13",
+			latest: "0.8.0",
+			update_available: true,
 		});
-		mockTriggerUpdate.mockResolvedValue({ status: "started", log: "packaging/windows/update.log" });
+		mockTriggerUpdate.mockResolvedValue({
+			status: "started",
+			log: "packaging/windows/update.log",
+		});
 		renderWithRouter("/");
 
-		await waitFor(() => expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument(),
+		);
 		screen.getByRole("button", { name: "更新" }).click();
-		await waitFor(() => expect(screen.getByText(/正在更新/)).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByText(/正在更新/)).toBeInTheDocument(),
+		);
 
 		mockCheckVersion.mockResolvedValue({
-			current: "0.8.0", latest: "0.8.0", update_available: false,
+			current: "0.8.0",
+			latest: "0.8.0",
+			update_available: false,
 		});
 		vi.advanceTimersByTime(2000);
 		await act(async () => {});
@@ -274,14 +290,23 @@ describe("Layout — update flow (#302)", () => {
 	it("transitions to restarting when poll fails", async () => {
 		vi.useFakeTimers({ toFake: ["setInterval"] });
 		mockCheckVersion.mockResolvedValue({
-			current: "0.7.13", latest: "0.8.0", update_available: true,
+			current: "0.7.13",
+			latest: "0.8.0",
+			update_available: true,
 		});
-		mockTriggerUpdate.mockResolvedValue({ status: "started", log: "packaging/windows/update.log" });
+		mockTriggerUpdate.mockResolvedValue({
+			status: "started",
+			log: "packaging/windows/update.log",
+		});
 		renderWithRouter("/");
 
-		await waitFor(() => expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument(),
+		);
 		screen.getByRole("button", { name: "更新" }).click();
-		await waitFor(() => expect(screen.getByText(/正在更新/)).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByText(/正在更新/)).toBeInTheDocument(),
+		);
 
 		mockCheckVersion.mockRejectedValue(new Error("connection refused"));
 		vi.advanceTimersByTime(2000);
@@ -294,14 +319,23 @@ describe("Layout — update flow (#302)", () => {
 	it("recovers from restarting to done when version changes", async () => {
 		vi.useFakeTimers({ toFake: ["setInterval"] });
 		mockCheckVersion.mockResolvedValue({
-			current: "0.7.13", latest: "0.8.0", update_available: true,
+			current: "0.7.13",
+			latest: "0.8.0",
+			update_available: true,
 		});
-		mockTriggerUpdate.mockResolvedValue({ status: "started", log: "packaging/windows/update.log" });
+		mockTriggerUpdate.mockResolvedValue({
+			status: "started",
+			log: "packaging/windows/update.log",
+		});
 		renderWithRouter("/");
 
-		await waitFor(() => expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument(),
+		);
 		screen.getByRole("button", { name: "更新" }).click();
-		await waitFor(() => expect(screen.getByText(/正在更新/)).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByText(/正在更新/)).toBeInTheDocument(),
+		);
 
 		mockCheckVersion.mockRejectedValue(new Error("connection refused"));
 		vi.advanceTimersByTime(2000);
@@ -309,7 +343,9 @@ describe("Layout — update flow (#302)", () => {
 		expect(screen.getByText(/服务重启中/)).toBeInTheDocument();
 
 		mockCheckVersion.mockResolvedValue({
-			current: "0.8.0", latest: "0.8.0", update_available: false,
+			current: "0.8.0",
+			latest: "0.8.0",
+			update_available: false,
 		});
 		vi.advanceTimersByTime(2000);
 		await act(async () => {});
@@ -323,20 +359,31 @@ describe("Layout — update flow (#302)", () => {
 	it("transitions to failed after 5 minute timeout", async () => {
 		vi.useFakeTimers({ toFake: ["setInterval", "Date"] });
 		mockCheckVersion.mockResolvedValue({
-			current: "0.7.13", latest: "0.8.0", update_available: true,
+			current: "0.7.13",
+			latest: "0.8.0",
+			update_available: true,
 		});
-		mockTriggerUpdate.mockResolvedValue({ status: "started", log: "packaging/windows/update.log" });
+		mockTriggerUpdate.mockResolvedValue({
+			status: "started",
+			log: "packaging/windows/update.log",
+		});
 		renderWithRouter("/");
 
-		await waitFor(() => expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument(),
+		);
 		screen.getByRole("button", { name: "更新" }).click();
-		await waitFor(() => expect(screen.getByText(/正在更新/)).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByText(/正在更新/)).toBeInTheDocument(),
+		);
 
 		vi.advanceTimersByTime(302_000);
 		await act(async () => {});
 
 		expect(screen.getByText(/更新失败/)).toBeInTheDocument();
-		expect(screen.getByText(/packaging\/windows\/update\.log/)).toBeInTheDocument();
+		expect(
+			screen.getByText(/packaging\/windows\/update\.log/),
+		).toBeInTheDocument();
 		vi.useRealTimers();
 	});
 });

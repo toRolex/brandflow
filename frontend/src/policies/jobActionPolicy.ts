@@ -40,10 +40,10 @@ export function getJobActionPolicy(job: JobDetail): JobActionPolicy {
 		canRetry: job.phase === "failed" && retryable,
 		pauseMessage,
 		retryMessage:
-			job.phase !== "failed"
-				? "仅失败的 Job 可以重新执行失败阶段。"
-				: retryable
+			job.phase === "failed"
+				? retryable
 					? null
-					: "此失败不可重试；请先修复对应的配置或输入。",
+					: "此失败不可重试；请先修复对应的配置或输入。"
+				: "仅失败的 Job 可以重新执行失败阶段。",
 	};
 }

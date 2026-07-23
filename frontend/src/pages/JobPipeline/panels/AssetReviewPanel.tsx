@@ -31,7 +31,9 @@ export default function AssetReviewPanel({
 		api
 			.listIndexedAssetsShared({ product: job.product })
 			.then((result) =>
-				setPickerAssets(result.assets.filter((asset) => asset.status === "available")),
+				setPickerAssets(
+					result.assets.filter((asset) => asset.status === "available"),
+				),
 			)
 			.catch(() => setPickerAssets([]))
 			.finally(() => setPickerLoading(false));
@@ -152,7 +154,9 @@ export default function AssetReviewPanel({
 						{pickerLoading ? (
 							<p className="text-sm text-[var(--text-tertiary)]">加载素材中…</p>
 						) : pickerAssets.length === 0 ? (
-							<p className="text-sm text-[var(--text-tertiary)]">没有可用素材</p>
+							<p className="text-sm text-[var(--text-tertiary)]">
+								没有可用素材
+							</p>
 						) : (
 							<div className="grid gap-2 sm:grid-cols-2">
 								{pickerAssets.map((asset) => (
@@ -164,8 +168,12 @@ export default function AssetReviewPanel({
 											setPickerIndex(null);
 										}}
 									>
-										<div className="text-sm font-medium">{asset.file_path.split("/").pop()}</div>
-										<div className="text-xs text-[var(--text-secondary)]">{asset.category} · {asset.duration_seconds.toFixed(1)}s</div>
+										<div className="text-sm font-medium">
+											{asset.file_path.split("/").pop()}
+										</div>
+										<div className="text-xs text-[var(--text-secondary)]">
+											{asset.category} · {asset.duration_seconds.toFixed(1)}s
+										</div>
 									</button>
 								))}
 							</div>

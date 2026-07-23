@@ -1,7 +1,7 @@
 import ExportTaskControls from "../../../components/ExportTaskControls";
 import MediaPlayer from "../../../components/MediaPlayer";
-import PhaseStatusNotice from "./PhaseStatusNotice";
 import type { PanelProps } from "../types";
+import PhaseStatusNotice from "./PhaseStatusNotice";
 
 export default function CompletedPanel({
 	exportTask,
@@ -17,7 +17,9 @@ export default function CompletedPanel({
 	if (presentation.kind === "integrity_error") {
 		return (
 			<div className="py-12">
-				<h3 className="mb-2 text-lg font-semibold text-[var(--alert-red)]">完成记录不完整</h3>
+				<h3 className="mb-2 text-lg font-semibold text-[var(--alert-red)]">
+					完成记录不完整
+				</h3>
 				<PhaseStatusNotice presentation={presentation} />
 			</div>
 		);

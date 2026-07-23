@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-
-import { computePhasePresentation } from "../phasePresentation";
 import type { Artifact, Phase, PhaseExecutionState } from "../../types/core";
+import { computePhasePresentation } from "../phasePresentation";
 
-function exec(status: PhaseExecutionState["status"], overrides?: Partial<PhaseExecutionState>): PhaseExecutionState {
+function exec(
+	status: PhaseExecutionState["status"],
+	overrides?: Partial<PhaseExecutionState>,
+): PhaseExecutionState {
 	return {
 		status,
 		current_attempt: 1,
@@ -14,7 +16,11 @@ function exec(status: PhaseExecutionState["status"], overrides?: Partial<PhaseEx
 }
 
 function artifact(kind: string): Artifact {
-	return { kind, relative_path: `test/${kind}.json`, url: `/test/${kind}.json` };
+	return {
+		kind,
+		relative_path: `test/${kind}.json`,
+		url: `/test/${kind}.json`,
+	};
 }
 
 describe("computePhasePresentation", () => {
@@ -59,13 +65,7 @@ describe("computePhasePresentation", () => {
 				false,
 				false,
 			],
-			[
-				"pending",
-				{ status: "pending" },
-				"pending",
-				false,
-				false,
-			],
+			["pending", { status: "pending" }, "pending", false, false],
 		] as const)(
 			"%s -> type=%s, showRetry=%s, showApproveReject=%s",
 			(_label, execution, type, showRetry, showApproveReject) => {
@@ -207,7 +207,9 @@ describe("computePhasePresentation", () => {
 				assetRetrievalCounts: { matched: 2, unresolved: 3, blank: 1 },
 			});
 			expect(p.type).toBe("succeeded");
-			expect(p.message).toBe("检索完成，共 6 句：已匹配 2 句、未匹配 3 句、留空 1 句。");
+			expect(p.message).toBe(
+				"检索完成，共 6 句：已匹配 2 句、未匹配 3 句、留空 1 句。",
+			);
 		});
 
 		it("zero matches is a normal result that enters asset review", () => {

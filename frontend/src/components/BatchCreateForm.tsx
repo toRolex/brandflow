@@ -79,7 +79,7 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 		try {
 			await onBatchCreate({
 				platforms,
-			reviewStrategy,
+				reviewStrategy,
 				jobs: batchConfigs,
 			});
 		} finally {
@@ -170,7 +170,9 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 						type="checkbox"
 						checked={reviewStrategy === "fast_output"}
 						onChange={(e) =>
-							setReviewStrategy(e.target.checked ? "fast_output" : "review_each")
+							setReviewStrategy(
+								e.target.checked ? "fast_output" : "review_each",
+							)
 						}
 					/>
 					快速产出（仅自动通过脚本与 TTS 审核）
@@ -261,13 +263,13 @@ function BatchJobCard({
 	const hasManualScript = config.manualScript.trim().length > 0;
 	const coverBtnDisabled =
 		!hasManualScript || coverGenerating || coverRetryAfter > 0;
-	const coverBtnTitle = !hasManualScript
-		? "输入或生成文案后可生成标题"
-		: coverGenerating
+	const coverBtnTitle = hasManualScript
+		? coverGenerating
 			? "正在生成标题…"
 			: coverRetryAfter > 0
 				? `服务限流，请在 ${coverRetryAfter} 秒后重试`
-				: "";
+				: ""
+		: "输入或生成文案后可生成标题";
 
 	useEffect(() => {
 		if (coverRetryAfter <= 0) return;

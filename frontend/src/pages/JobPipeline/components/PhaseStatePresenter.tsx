@@ -80,11 +80,9 @@ export default function PhaseStatePresenter({
 				{message}
 			</p>
 			{showAttempt && (
-				<p
-					className="text-xs mt-1"
-					style={{ color: "var(--text-tertiary)" }}
-				>
-					第 {presentation.retryAttempt} / {presentation.maxRetryAttempts} 次尝试
+				<p className="text-xs mt-1" style={{ color: "var(--text-tertiary)" }}>
+					第 {presentation.retryAttempt} / {presentation.maxRetryAttempts}{" "}
+					次尝试
 				</p>
 			)}
 			{actions.length > 0 && (

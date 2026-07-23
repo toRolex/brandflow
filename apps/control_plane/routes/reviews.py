@@ -8,7 +8,6 @@ from pydantic import BaseModel
 
 from packages.domain_core.models import REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
-from packages.pipeline_services.asset_library.repository import AssetRepository
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
     validate_assets,
@@ -122,7 +121,13 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
         except AssetValidationError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.message)
         except FileNotFoundError:
-            pass  # no clips to validate — proceed normally
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "素材尚未收集完成（selected_clips.json 不存在），"
+                    "请等待素材检索完成后重试"
+                ),
+            )
 
     try:
         nxt = next_phase(record.phase)

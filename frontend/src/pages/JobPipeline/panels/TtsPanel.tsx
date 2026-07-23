@@ -1,10 +1,11 @@
 import MediaPlayer from "../../../components/MediaPlayer";
 import TtsVoiceSelector from "../components/TtsVoiceSelector";
-import PhaseStatusNotice from "./PhaseStatusNotice";
 import type { PanelProps } from "../types";
+import PhaseStatusNotice from "./PhaseStatusNotice";
 
 export default function TtsPanel(props: PanelProps) {
-	const { job, ttsPreviewUrl, onRetry, findArtifact, getPhasePresentation } = props;
+	const { job, ttsPreviewUrl, onRetry, findArtifact, getPhasePresentation } =
+		props;
 	const audio = findArtifact("tts_audio");
 	const presentation = getPhasePresentation("tts_generating", {
 		requiredArtifacts: ["tts_audio"],

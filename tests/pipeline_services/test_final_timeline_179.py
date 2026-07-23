@@ -531,9 +531,23 @@ class TestRunFinalRenderingAlignment:
     def _burn_spy(self, orchestrator: PhaseOrchestrator, job_dir: Path) -> MagicMock:
         def _burn(base, audio, srt, final, **kwargs):
             subprocess.run(
-                ["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1",
-                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", str(final)],
-                check=True, capture_output=True, text=True,
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=black:s=64x64:d=1",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-an",
+                    str(final),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
             )
 
         orchestrator._video_svc.burn_final_video.side_effect = _burn

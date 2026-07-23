@@ -1,6 +1,6 @@
+import type { JobActionPolicy } from "../policies/jobActionPolicy";
 import type { Phase, ProductionMode } from "../types";
 import { PIPELINE_STEPS } from "../types";
-import type { JobActionPolicy } from "../policies/jobActionPolicy";
 
 interface Props {
 	currentPhase: Phase;
@@ -124,7 +124,13 @@ export default function PipelineSidebar({
 			<div className="mt-4 pt-3 border-t border-gray-200">
 				<button
 					className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-md mb-1 transition-colors"
-					onClick={actionPolicy.canPause ? onPause : actionPolicy.canResume ? onResume : undefined}
+					onClick={
+						actionPolicy.canPause
+							? onPause
+							: actionPolicy.canResume
+								? onResume
+								: undefined
+					}
 					disabled={!actionPolicy.canPause && !actionPolicy.canResume}
 					title={actionPolicy.pauseMessage ?? undefined}
 				>
