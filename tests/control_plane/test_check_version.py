@@ -81,11 +81,14 @@ def test_update_normal_path() -> None:
     assert resp.status_code == 200
     assert resp.json() == {"status": "started", "log": "packaging/windows/update.log"}
     mock_popen.assert_called_once()
+    version_check._update_process = None  # cleanup mock from state
+    version_check._update_in_progress = False
 
 
 def test_update_concurrent_blocked() -> None:
     """已有更新进程时第二次请求返回 409。"""
     version_check._update_in_progress = True
+    version_check._update_process = None  # clear any stale mock from previous test
     with patch(
         "apps.control_plane.routes.version_check._is_windows", return_value=True
     ):
@@ -95,6 +98,7 @@ def test_update_concurrent_blocked() -> None:
     assert resp.status_code == 409
     assert resp.json() == {"status": "in_progress"}
     version_check._update_in_progress = False  # cleanup for subsequent tests
+    version_check._update_process = None
 
 
 def test_update_non_windows() -> None:
@@ -110,3 +114,4 @@ def test_update_non_windows() -> None:
     data = resp.json()
     assert data["status"] == "error"
     assert "Windows" in data["message"]
+    version_check._update_process = None

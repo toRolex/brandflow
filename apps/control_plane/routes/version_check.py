@@ -2,12 +2,12 @@
 
 import subprocess
 import sys
+from pathlib import Path
 
 import requests
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from pathlib import Path
 
 from apps.control_plane._version import get_version
 
@@ -18,6 +18,7 @@ _TIMEOUT = 5  # seconds
 
 # ponytail: global lock, per-account locks if throughput matters
 _update_in_progress: bool = False
+_update_process: subprocess.Popen | None = None
 
 
 def _is_windows() -> bool:
@@ -61,14 +62,19 @@ async def check_version() -> JSONResponse:
 
 
 @router.post("/api/update")
-async def trigger_update() -> JSONResponse:
-    global _update_in_progress
+def trigger_update() -> JSONResponse:
+    global _update_in_progress, _update_process
 
     if _update_in_progress:
-        return JSONResponse(
-            content={"status": "in_progress"},
-            status_code=409,
-        )
+        if _update_process is not None and _update_process.poll() is not None:
+            # previous process exited, reset and allow a new update
+            _update_in_progress = False
+            _update_process = None
+        else:
+            return JSONResponse(
+                content={"status": "in_progress"},
+                status_code=409,
+            )
 
     if not _is_windows():
         return JSONResponse(
@@ -83,7 +89,7 @@ async def trigger_update() -> JSONResponse:
     log_path = root / "packaging/windows/update.log"
 
     with open(log_path, "a") as log:
-        subprocess.Popen(
+        _update_process = subprocess.Popen(
             [str(bat_path)],
             stdout=log,
             stderr=subprocess.STDOUT,
