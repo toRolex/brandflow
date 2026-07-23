@@ -639,6 +639,7 @@ export default function JobPipeline() {
 		onReject: handleReject,
 		onRetry: handleRetry,
 		onEditScript: handleEditScript,
+		onRegenerateWithPrompt: handleRegenerateWithPrompt,
 		onCreateExport: handleCreateExport,
 		onDownloadExport: handleDownloadExport,
 		onTtsModelChange: handleTtsModelChange,
