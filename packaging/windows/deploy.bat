@@ -3,10 +3,12 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 title Brandflow — 一键部署
 
-set "PROJECT_DIR=%~dp0..\.."
-pushd "%PROJECT_DIR%"
-set "PROJECT_DIR=%CD%"
-popd
+set "PROJECT_DIR=D:\brandflow"
+if not exist "%PROJECT_DIR%" (
+    echo [错误] 项目目录 %PROJECT_DIR% 不存在
+    pause
+    exit /b 1
+)
 
 set "LOG_FILE=%PROJECT_DIR%\logs\deploy.log"
 if not exist "%PROJECT_DIR%\logs\" mkdir "%PROJECT_DIR%\logs\"
