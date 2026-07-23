@@ -217,3 +217,137 @@ describe("TTS effective config visibility (#269)", () => {
 		expect(screen.getByText("mimo-v2.5-tts / Mia")).toBeInTheDocument();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Scope #323: TTS model switch preserves voice or falls back to Cherry
+// ---------------------------------------------------------------------------
+
+describe("TTS model switch preserves voice or falls back to Cherry (#323)", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(api.getJob).mockResolvedValue({
+			...baseTtsJob,
+			tts_model: "mimo-v2.5-tts",
+			tts_voice: "Mia",
+		});
+		vi.mocked(api.getJobTTSVoice).mockResolvedValue({
+			model: "mimo-v2.5-tts",
+			voice: "Mia",
+			resolved_from: "job",
+			product: "test-product",
+		});
+		// Return different voices per model
+		vi.mocked(api.getTTSVoices).mockImplementation(
+			(_provider?: string, model?: string) => {
+				if (model?.startsWith("qwen")) {
+					return Promise.resolve({
+						preset_voices: [
+							{ id: "Cherry", label: "芊悦", note: "女声", model: "qwen3-tts-flash" },
+							{ id: "Rocky", label: "阿强", note: "粤语男声", model: "qwen3-tts-flash" },
+							{ id: "Mia", label: "乖小妹", note: "女声", model: "qwen3-tts-flash" },
+						],
+					});
+				}
+				return Promise.resolve({
+					preset_voices: [
+						{ id: "冰糖", label: "冰糖", note: "女声", model: "mimo-v2.5-tts" },
+						{ id: "Mia", label: "Mia", note: "EN-F", model: "mimo-v2.5-tts" },
+					],
+				});
+			},
+		);
+	});
+
+	it("keeps current voice when it exists in the new model preset", async () => {
+		renderWithJob({
+			...baseTtsJob,
+			tts_model: "mimo-v2.5-tts",
+			tts_voice: "Mia",
+		});
+
+		await screen.findByRole("heading", { name: /TTS/ });
+
+		// Wait for initial voice load
+		await waitFor(() => {
+			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "mimo-v2.5-tts");
+		});
+
+		const selects = screen.getAllByRole("combobox");
+		const modelSelect = selects[0];
+
+		// Change model to qwen
+		fireEvent.change(modelSelect, { target: { value: "qwen3-tts-flash" } });
+
+		// Wait for voice fetch triggered by model change
+		await waitFor(() => {
+			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "qwen3-tts-flash");
+		});
+
+		// Voice "Mia" exists in Qwen voices → preserved
+		await waitFor(() => {
+			const voiceSelect = screen.getAllByRole("combobox")[1];
+			expect(voiceSelect).toHaveValue("Mia");
+		});
+	});
+
+	it("falls back to Cherry when current voice is not in the new model preset", async () => {
+		vi.clearAllMocks();
+		vi.mocked(api.getJob).mockResolvedValue({
+			...baseTtsJob,
+			tts_model: "mimo-v2.5-tts",
+			tts_voice: "冰糖",
+		});
+		vi.mocked(api.getJobTTSVoice).mockResolvedValue({
+			model: "mimo-v2.5-tts",
+			voice: "冰糖",
+			resolved_from: "job",
+			product: "test-product",
+		});
+		vi.mocked(api.getTTSVoices).mockImplementation(
+			(_provider?: string, model?: string) => {
+				if (model?.startsWith("qwen")) {
+					return Promise.resolve({
+						preset_voices: [
+							{ id: "Cherry", label: "芊悦", note: "女声", model: "qwen3-tts-flash" },
+							{ id: "Rocky", label: "阿强", note: "粤语男声", model: "qwen3-tts-flash" },
+						],
+					});
+				}
+				return Promise.resolve({
+					preset_voices: [
+						{ id: "冰糖", label: "冰糖", note: "女声", model: "mimo-v2.5-tts" },
+						{ id: "Mia", label: "Mia", note: "EN-F", model: "mimo-v2.5-tts" },
+					],
+				});
+			},
+		);
+
+		renderWithJob({
+			...baseTtsJob,
+			tts_model: "mimo-v2.5-tts",
+			tts_voice: "冰糖",
+		});
+
+		await screen.findByRole("heading", { name: /TTS/ });
+
+		// Wait for initial voice load
+		await waitFor(() => {
+			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "mimo-v2.5-tts");
+		});
+
+		const selects = screen.getAllByRole("combobox");
+		const modelSelect = selects[0];
+
+		fireEvent.change(modelSelect, { target: { value: "qwen3-tts-flash" } });
+
+		await waitFor(() => {
+			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "qwen3-tts-flash");
+		});
+
+		// "冰糖" is not in Qwen voices → falls back to "Cherry"
+		await waitFor(() => {
+			const voiceSelect = screen.getAllByRole("combobox")[1];
+			expect(voiceSelect).toHaveValue("Cherry");
+		});
+	});
+});

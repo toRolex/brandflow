@@ -130,7 +130,12 @@ export default function TtsVoiceSelector({
 										newModel === "qwen3-tts-flash" ||
 										newModel === "qwen3-tts-instruct-flash";
 									if (isPresetModel) {
-										onTtsVoiceChange(data.preset_voices[0].id);
+										const voiceExists = data.preset_voices.some(
+											(v) => v.id === ttsSelectedVoice,
+										);
+										if (!voiceExists) {
+											onTtsVoiceChange("Cherry");
+										}
 									}
 								}
 							})
