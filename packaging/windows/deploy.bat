@@ -159,7 +159,7 @@ echo   服务已启动。
 echo [7/7] 健康检查 ...
 timeout /t 5 /nobreak >nul
 
-curl -f http://127.0.0.1:17890/api/health >nul 2>&1
+curl --noproxy "*" -f http://127.0.0.1:17890/api/health >nul 2>&1
 if %errorlevel% neq 0 (
     echo [错误] 健康检查失败，触发自动回滚 ... >> "%LOG_FILE%"
     for /f "delims=" %%t in ('git tag --sort=-creatordate ^| findstr "deploy-" ^| more +1') do (
