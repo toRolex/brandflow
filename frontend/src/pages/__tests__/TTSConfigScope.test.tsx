@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../../api/client";
@@ -24,6 +24,29 @@ const baseConfig = {
 	model: "qwen3-tts-flash",
 	voice: "Cherry",
 	fallback_voice: "Mia",
+	randomize_voice: false,
+	random_voices: [] as string[],
+	voice_design_prompt: "",
+	style_control_mode: "simple",
+	style_prompt: "",
+	director_character: "",
+	director_scene: "",
+	director_guidance: "",
+	audio_tags_enabled: false,
+	audio_tags: "",
+	audio_format: "wav",
+	instructions: "",
+	optimize_instructions: false,
+	language_type: "Chinese",
+	voice_clone_sample_path: null,
+	voice_clone_mime_type: null,
+	optimize_text_preview: false,
+};
+
+const mimoConfig = {
+	model: "mimo-v2.5-tts",
+	voice: "Mia",
+	fallback_voice: "Dean",
 	randomize_voice: false,
 	random_voices: [] as string[],
 	voice_design_prompt: "",
@@ -107,5 +130,110 @@ describe("TTSConfig product scope label", () => {
 
 		await waitFor(() => expect(api.getTTSConfig).toHaveBeenCalled());
 		expect(await screen.findByText(/全局 TTS 配置/)).toBeInTheDocument();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Scope #323: TTS model switch preserves voice or falls back to Cherry
+// ---------------------------------------------------------------------------
+
+describe("TTSConfigPage model switch preserves voice or falls back to Cherry (#323)", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("keeps current voice when it exists in the new model preset", async () => {
+		vi.mocked(api.getTTSConfig).mockResolvedValue(mimoConfig);
+		vi.mocked(api.getTTSVoices).mockImplementation(
+			(_provider?: string, model?: string) => {
+				if (model?.startsWith("qwen")) {
+					return Promise.resolve({
+						preset_voices: [
+							{ id: "Cherry", label: "芊悦", note: "女声", model: "qwen3-tts-flash" },
+							{ id: "Rocky", label: "阿强", note: "粤语男声", model: "qwen3-tts-flash" },
+							{ id: "Mia", label: "乖小妹", note: "女声", model: "qwen3-tts-flash" },
+						],
+					});
+				}
+				return Promise.resolve({
+					preset_voices: [
+						{ id: "冰糖", label: "冰糖", note: "女声", model: "mimo-v2.5-tts" },
+						{ id: "Mia", label: "Mia", note: "EN-F", model: "mimo-v2.5-tts" },
+					],
+				});
+			},
+		);
+
+		renderWithProduct();
+
+		// Wait for initial load
+		await waitFor(() => {
+			expect(api.getTTSConfig).toHaveBeenCalled();
+		});
+		await waitFor(() => {
+			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "mimo-v2.5-tts");
+		});
+
+		// Switch model to Qwen Flash by clicking the card
+		fireEvent.click(screen.getByText("Qwen Flash"));
+
+		// Wait for voices to be fetched for the new model
+		await waitFor(() => {
+			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "qwen3-tts-flash");
+		});
+
+		// Voice "Mia" exists in Qwen voices → preserved
+		await waitFor(() => {
+			const voiceSelect = screen.getAllByRole("combobox")[0];
+			expect(voiceSelect).toHaveValue("Mia");
+		});
+	});
+
+	it("falls back to Cherry when current voice is not in the new model preset", async () => {
+		const mimoBingtangConfig = {
+			...mimoConfig,
+			voice: "冰糖",
+		};
+		vi.mocked(api.getTTSConfig).mockResolvedValue(mimoBingtangConfig);
+		vi.mocked(api.getTTSVoices).mockImplementation(
+			(_provider?: string, model?: string) => {
+				if (model?.startsWith("qwen")) {
+					return Promise.resolve({
+						preset_voices: [
+							{ id: "Cherry", label: "芊悦", note: "女声", model: "qwen3-tts-flash" },
+							{ id: "Rocky", label: "阿强", note: "粤语男声", model: "qwen3-tts-flash" },
+						],
+					});
+				}
+				return Promise.resolve({
+					preset_voices: [
+						{ id: "冰糖", label: "冰糖", note: "女声", model: "mimo-v2.5-tts" },
+						{ id: "Mia", label: "Mia", note: "EN-F", model: "mimo-v2.5-tts" },
+					],
+				});
+			},
+		);
+
+		renderWithProduct();
+
+		await waitFor(() => {
+			expect(api.getTTSConfig).toHaveBeenCalled();
+		});
+		await waitFor(() => {
+			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "mimo-v2.5-tts");
+		});
+
+		// Switch model to Qwen Flash
+		fireEvent.click(screen.getByText("Qwen Flash"));
+
+		await waitFor(() => {
+			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "qwen3-tts-flash");
+		});
+
+		// "冰糖" is not in Qwen voices → falls back to "Cherry"
+		await waitFor(() => {
+			const voiceSelect = screen.getAllByRole("combobox")[0];
+			expect(voiceSelect).toHaveValue("Cherry");
+		});
 	});
 });

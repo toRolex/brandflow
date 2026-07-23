@@ -760,6 +760,89 @@ class TestRunTTSConfigBuilding:
         assert config_obj.voice == "Dean"
         assert config_obj.model == "mimo-v2-tts"
 
+    def test_cantonese_sets_language_type_to_chinese(
+        self, tmp_root: Path, project_dir: Path
+    ):
+        """language=cantonese 时 language_type 应为 Chinese. (#325)"""
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            options={"language": "cantonese"},
+        )
+        job_dir = project_dir / "runtime" / "jobs" / "job-001"
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("测试。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b"\x00"
+        qwen_config = dict(_FAKE_TTS_CONFIG)
+        qwen_config["model"] = "qwen-tts"
+        orch = _make_orchestrator_with_tts_config(
+            tts_provider=mock_tts, tts_config=qwen_config
+        )
+
+        orch.run_phase("tts_generating", ctx)
+
+        call_args = mock_tts.synthesize.call_args
+        config_obj = call_args[0][1]
+        assert config_obj.language_type == "Chinese"
+
+    def test_mandarin_does_not_force_language_type(
+        self, tmp_root: Path, project_dir: Path
+    ):
+        """language=mandarin 时不强制 language_type. (#325)"""
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            options={"language": "mandarin"},
+        )
+        job_dir = project_dir / "runtime" / "jobs" / "job-001"
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("测试。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b"\x00"
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        orch.run_phase("tts_generating", ctx)
+
+        call_args = mock_tts.synthesize.call_args
+        config_obj = call_args[0][1]
+        # _FAKE_TTS_CONFIG 中 language_type 为 ""，mandarin 不应改写
+        assert config_obj.language_type == ""
+
+    def test_no_language_does_not_force_language_type(
+        self, tmp_root: Path, project_dir: Path
+    ):
+        """options 无 language 时不强制 language_type. (#325)"""
+        ctx = PhaseContext(
+            job_id="job-001",
+            project_dir=project_dir,
+            root_dir=tmp_root,
+            product="test",
+            options={},
+        )
+        job_dir = project_dir / "runtime" / "jobs" / "job-001"
+        job_dir.mkdir(parents=True)
+        txt = job_dir / "口播文案.txt"
+        txt.write_text("测试。", encoding="utf-8")
+
+        mock_tts = MagicMock()
+        mock_tts.synthesize.return_value = b"\x00"
+        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+
+        orch.run_phase("tts_generating", ctx)
+
+        call_args = mock_tts.synthesize.call_args
+        config_obj = call_args[0][1]
+        assert config_obj.language_type == ""
+
 
 class TestRunTTSInHandlerMap:
     """tts_generating should be registered in the handler map."""

@@ -9,7 +9,7 @@ on:
 jobs:
   python:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
       - name: Run tests
-        run: uv run pytest tests/ -q --tb=short -m "not e2e and not slow and not media_integration"
+        run: uv run pytest tests/ -q --tb=short -n 2 -m "not e2e and not slow and not media_integration"
 
   frontend:
     runs-on: ubuntu-latest
@@ -70,7 +70,7 @@ jobs:
         working-directory: frontend
 
       - name: Biome lint
-        run: pnpm biome lint src/
+        run: pnpm biome lint src/ --diagnostic-level=error
         working-directory: frontend
 
       - name: Biome format check

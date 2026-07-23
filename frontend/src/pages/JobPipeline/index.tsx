@@ -531,7 +531,6 @@ export default function JobPipeline() {
 
 	const handleTtsModelChange = (model: string) => {
 		setTtsSelectedModel(model);
-		setTtsSelectedVoice("");
 		setTtsVoiceError("");
 	};
 

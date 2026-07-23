@@ -328,6 +328,7 @@ def test_video_rendering_without_montage_segment_reports_structured_failure_via_
     never a silent degrade to an empty base video (AC-4)."""
     root = tmp_path
     with TestClient(create_app(root)) as client:
+        _setup_product_config(client)
         resp = client.post(
             f"/api/projects/{PROJECT_ID}/jobs",
             json={"product": "test", "platforms": ["douyin"], "mode": "generate"},

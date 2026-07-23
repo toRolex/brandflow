@@ -25,10 +25,9 @@ def test_check_version_returns_expected_shape() -> None:
 
 def test_check_version_detects_new_version() -> None:
     """GitHub 有新版 tag 时返回 update_available: true。"""
-    with patch("apps.control_plane.routes.version_check.requests.get") as mock_get:
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = [{"name": "v9.9.9"}]
-
+    with patch(
+        "apps.control_plane.routes.version_check._latest_git_tag", return_value="9.9.9"
+    ):
         with TestClient(create_app()) as client:
             resp = client.get("/api/check-version")
             data = resp.json()
@@ -40,11 +39,10 @@ def test_check_version_detects_new_version() -> None:
 
 def test_check_version_silent_on_github_failure() -> None:
     """GitHub API 失败（网络异常/限流）时静默返回 update_available: false。"""
-    with patch("apps.control_plane.routes.version_check.requests.get") as mock_get:
-        from requests.exceptions import ConnectionError
-
-        mock_get.side_effect = ConnectionError("mock network error")
-
+    with patch(
+        "apps.control_plane.routes.version_check._latest_git_tag",
+        side_effect=Exception("network error"),
+    ):
         with TestClient(create_app()) as client:
             resp = client.get("/api/check-version")
             data = resp.json()
@@ -56,10 +54,9 @@ def test_check_version_silent_on_github_failure() -> None:
 def test_check_version_no_update_when_same() -> None:
     """当前版本与最新 tag 相同时返回 update_available: false。"""
     current = get_version()
-    with patch("apps.control_plane.routes.version_check.requests.get") as mock_get:
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = [{"name": f"v{current}"}]
-
+    with patch(
+        "apps.control_plane.routes.version_check._latest_git_tag", return_value=current
+    ):
         with TestClient(create_app()) as client:
             resp = client.get("/api/check-version")
             data = resp.json()

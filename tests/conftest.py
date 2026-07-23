@@ -3,12 +3,31 @@ from __future__ import annotations
 import gc
 import io
 import os
+import resource
 import wave
 from collections.abc import Callable
 from collections.abc import Iterator
 
 import pytest
-from fastapi.testclient import TestClient
+
+# ponytail: 单进程地址空间硬限制 3GB — 超过即 crash（MemoryError）。
+# 正常单文件测试峰值 < 500MB（含 pipeline services < 1.5GB），
+# 3GB 远高于正常峰值但能卡住泄漏（2GB+/进程持续增长）。
+# 配合 -n 2 worker：2×3GB + 系统开销 ≈ 8GB，24GB 机器安全。
+#
+# 注意：macOS 上进程 VSZ 因系统框架映射已 ~400GB，setrlimit 设 3GB 会被内核拒绝。
+# 此保护在 Linux CI 环境中生效（VSZ ≈ RSS），macOS 本地不生效，保留作 CI 兼容。
+_LIMIT = 3 * 1024 * 1024 * 1024  # 3 GB
+try:
+    resource.setrlimit(resource.RLIMIT_AS, (_LIMIT, _LIMIT))
+except ValueError:
+    pass
+
+# Aggressive GC: lower thresholds trigger collection sooner,
+# preventing unbounded accumulation across long test sessions.
+gc.set_threshold(500, 5, 3)
+
+from fastapi.testclient import TestClient  # noqa: E402
 
 # ponytail: 全局屏蔽 ThreadPoolExecutor 与后台 auto_tick，
 # 单进程 RSS 从 ~20GB 压到 ~200MB。
@@ -23,6 +42,8 @@ from apps.control_plane.app import create_app  # noqa: E402
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_teardown(item, nextitem):
     yield
+    gc.collect()
+    gc.collect()
     gc.collect()
 
 

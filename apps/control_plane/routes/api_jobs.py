@@ -8,6 +8,7 @@ from apps.control_plane.routes.jobs import (
     crud,
     export,
     metadata,
+    migration,
     tts,
 )
 
@@ -20,4 +21,5 @@ router.include_router(cover_title.router)
 router.include_router(export.router)
 router.include_router(tts.router)
 router.include_router(content.router)
+router.include_router(migration.router)
 router.include_router(crud.router)

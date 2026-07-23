@@ -129,9 +129,9 @@ AI 能力的供应商。LLM 支持 deepseek（默认 `deepseek-v4-pro`）/ kimi 
 
 TTS 默认配置的唯一权威来源是 `config_constants.DEFAULTS["tts"]`——TTS 配置页与流水线 `tts_generating` 阶段共用该基线，页面所见即流水线所用。TTS 配置按 product 作用域绑定（每个 product 可有独立音色）：配置页编辑当前激活 product 的配置，Job 运行时使用其创建时记录的 product 配置，二者在界面上均显式标注所属 product 以避免歧义。
 
-## 架构状态（v0.7.25）
+## 架构状态（v0.7.26）
 
-v0.7.25 已发布，配置体系由 `ConfigReader` / `ProductStore` / `SecretStore` / `DEFAULTS` 接管，`PhaseOrchestrator` 统一调度 10 个 phase handler。
+v0.7.26 已发布，配置体系由 `ConfigReader` / `ProductStore` / `SecretStore` / `DEFAULTS` 接管，`PhaseOrchestrator` 统一调度 10 个 phase handler。
 
 ### 路由与 phase handler 拆分（近期重构）
 
@@ -191,6 +191,9 @@ v0.7.25 已发布，配置体系由 `ConfigReader` / `ProductStore` / `SecretSto
 - per-project 素材端点废弃，迁移至全局 `/api/assets`
 - ProductConfigForm 新增 AI 分类建议 + vision_prompt
 - `tests/regression/` — 回归测试目录，当前包含 project delete 一致性校验
+- `tests/conftest.py` — 提供模块级 client fixture、测试后 gc.collect()、RLIMIT_AS=8GB 地址空间硬限制、gc.set_threshold(500, 5, 3) 激进 GC
+- `pytest-xdist` — CI 使用 `-n 2` 进程隔离，降低单进程内存泄漏累积
+- `pytest-memray` — 开发依赖，`--memray` 跟踪每个测试的高水位内存分配
 - `packaging/windows/start_worker.ps1` / `manage-task.ps1` — Windows worker 启动与计划任务管理脚本
 - `POST /api/update` — 一键更新端点（#301），Windows 后台执行 update.bat，带并发保护
 

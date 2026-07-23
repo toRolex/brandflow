@@ -30,6 +30,15 @@ def _configure_scene_folders(tmp_path: Path) -> None:
     )
 
 
+def _setup_product_config(client: TestClient) -> None:
+    """Set default_name in product config to pass job creation validation."""
+    resp = client.put(
+        "/api/config/product",
+        json={"default_name": "test_product", "default_brand": "test_brand"},
+    )
+    assert resp.status_code == 200, resp.text
+
+
 class TestScriptTemplateAPI:
     """/api/config/templates CRUD"""
 
@@ -221,6 +230,9 @@ class TestScriptTemplateJobIntegration:
             # 2.5 配置场景文件夹（import 模式要求 scene_folder_ids）
             _configure_scene_folders(tmp_path)
 
+            # 2.6 配置产品信息以满足后端校验
+            _setup_product_config(client)
+
             # 3. 创建项目
             project_resp = client.post("/api/projects", json={"name": "模板测试项目"})
             assert project_resp.status_code == 200
@@ -243,8 +255,8 @@ class TestScriptTemplateJobIntegration:
             job = job_resp.json()
             assert job["mode"] == "import"
             assert job["manual_script"] == rendered
-            assert job["product"] == "羊肚菌"
-            assert job["brand"] == "菌王山珍"
+            assert job["product"] == "test_product"
+            assert job["brand"] == "test_brand"
 
             # 5. 磁盘持久化验证
             job_path = (

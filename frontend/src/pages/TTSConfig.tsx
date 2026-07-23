@@ -180,9 +180,16 @@ export default function TTSConfigPage() {
 					model === "qwen3-tts-flash" ||
 					model === "qwen3-tts-instruct-flash";
 				if (isPresetModel) {
-					setConfig((prev) =>
-						prev ? { ...prev, voice: loadedVoices[0].id } : prev,
-					);
+					setConfig((prev) => {
+						if (!prev) return prev;
+						const voiceExists = loadedVoices.some(
+							(v) => v.id === prev.voice,
+						);
+						if (!voiceExists) {
+							return { ...prev, voice: "Cherry" };
+						}
+						return prev;
+					});
 				}
 			}
 		} catch {
