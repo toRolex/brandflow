@@ -11,6 +11,10 @@ class WorkerHttpClient:
         worker_version: str,
         capabilities: list[str],
     ) -> None:
+        self._session = requests.Session()
+        self._session.trust_env = (
+            False  # ponytail: bypass HTTP_PROXY env for internal comms
+        )
         self.base_url = base_url.rstrip("/")
         self.worker_id = worker_id
         self.worker_version = worker_version
@@ -24,7 +28,7 @@ class WorkerHttpClient:
         return f"{self.base_url}/{url}"
 
     def poll(self) -> dict:
-        response = requests.post(
+        response = self._session.post(
             f"{self.base_url}/workers/poll",
             json={
                 "worker_id": self.worker_id,
@@ -39,7 +43,7 @@ class WorkerHttpClient:
         return response.json()
 
     def download_input_bundle(self, bundle_url: str) -> dict:
-        response = requests.get(
+        response = self._session.get(
             self._absolute_url(bundle_url),
             timeout=30,
         )
@@ -47,7 +51,7 @@ class WorkerHttpClient:
         return response.json()
 
     def upload_artifacts(self, task_id: str, files: list[dict]) -> None:
-        response = requests.post(
+        response = self._session.post(
             f"{self.base_url}/workers/tasks/{task_id}/artifacts",
             json={"files": files},
             timeout=30,
@@ -55,7 +59,7 @@ class WorkerHttpClient:
         response.raise_for_status()
 
     def report(self, payload: dict) -> None:
-        response = requests.post(
+        response = self._session.post(
             f"{self.base_url}/workers/tasks/{payload['task_id']}/report",
             json=payload,
             timeout=30,
