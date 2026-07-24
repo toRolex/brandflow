@@ -19,14 +19,14 @@ echo  3. 编译前端 >> "%LOG_FILE%" 2>&1
 echo  4. 重启控制面 >> "%LOG_FILE%" 2>&1
 echo ============================================ >> "%LOG_FILE%" 2>&1
 
-:: ── 初始进度: running / git_pull / 5% ──
+:: 初始进度（后端已写入初始状态，这里覆盖第一步）
 echo {"status":"running","step":"git_pull","step_label":"拉取最新代码","percent":5,"updated_at":"%date% %time%"} > "%PROGRESS_FILE%"
 
 :: ── 1. 拉取最新代码 ──
 echo [1/4] 拉取最新代码 ... >> "%LOG_FILE%" 2>&1
 git pull >> "%LOG_FILE%" 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] git pull 失败，请检查网络或冲突 >> "%LOG_FILE%" 2>&1
+    echo [错误] git pull 失败 >> "%LOG_FILE%" 2>&1
     echo {"status":"failed","step":"git_pull","step_label":"拉取最新代码","percent":5,"error":"git pull 失败","updated_at":"%date% %time%"} > "%PROGRESS_FILE%"
     exit /b %errorlevel%
 )
@@ -65,24 +65,28 @@ popd
 
 :: ── 4. 重启控制面 ──
 echo [4/4] 重启控制面 ... >> "%LOG_FILE%" 2>&1
-set "NSSM=%~dp0..\..\tools\nssm-2.24\win64\nssm.exe"
-if not exist "%NSSM%" (
-    echo [警告] nssm 未找到，跳过控制面重启 >> "%LOG_FILE%" 2>&1
-    echo {"status":"done","step":"done","step_label":"更新完成","percent":100,"updated_at":"%date% %time%"} > "%PROGRESS_FILE%"
-    goto :done
+
+:: 检查 nssm 是否可用
+set "NSSM_CMD=nssm"
+where nssm >nul 2>&1 || (
+    if not exist "%PROJECT_DIR%\tools\nssm-2.24\win64\nssm.exe" (
+        echo [警告] nssm 未找到，跳过控制面重启 >> "%LOG_FILE%" 2>&1
+        echo {"status":"done","step":"done","step_label":"更新完成","percent":100,"updated_at":"%date% %time%"} > "%PROGRESS_FILE%"
+        goto :done
+    )
+    set "NSSM_CMD=%PROJECT_DIR%\tools\nssm-2.24\win64\nssm.exe"
 )
 
 echo {"status":"restarting","step":"restart_cp","step_label":"重启控制面","percent":95,"updated_at":"%date% %time%"} > "%PROGRESS_FILE%"
 
 :: 安全重启：延迟 3 秒后由独立进程执行 nssm restart，保证本脚本先优雅退出
-start /b cmd /c "timeout /t 3 /nobreak >nul && "%NSSM%" restart brandflow-control-plane >> "%LOG_FILE%" 2>&1"
+start /b cmd /c "timeout /t 3 /nobreak >nul && "!NSSM_CMD!" restart brandflow-control-plane >> "%LOG_FILE%" 2>&1"
 
 echo {"status":"done","step":"done","step_label":"更新完成","percent":100,"updated_at":"%date% %time%"} > "%PROGRESS_FILE%"
 
 :done
-
 echo. >> "%LOG_FILE%" 2>&1
 echo ============================================ >> "%LOG_FILE%" 2>&1
-echo  更新完成！ >> "%LOG_FILE%" 2>&1
+echo  更新完成 >> "%LOG_FILE%" 2>&1
 echo  后端: http://127.0.0.1:17890 >> "%LOG_FILE%" 2>&1
 echo ============================================ >> "%LOG_FILE%" 2>&1
