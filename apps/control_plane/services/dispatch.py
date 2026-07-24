@@ -45,6 +45,8 @@ class Dispatcher:
                     lease_expires_at = (
                         datetime.now(timezone.utc) + timedelta(minutes=3)
                     ).isoformat()
+                    if len(self.current_attempts) > 1000:
+                        self.current_attempts.pop(next(iter(self.current_attempts)))
                     self.current_attempts[task_id] = {
                         "project_id": project_id,
                         "job_id": job_id,
@@ -59,6 +61,7 @@ class Dispatcher:
                         update={
                             "status": "running",
                             "current_attempt": _attempts_so_far(record.execution) + 1,
+                            "error": None,
                         }
                     )
                     self._repo.save_job(
@@ -104,4 +107,7 @@ class Dispatcher:
         current = self.current_attempts.get(task_id)
         if current is None:
             return False
-        return current["attempt_id"] == attempt_id and current["lease_id"] == lease_id
+        if current["attempt_id"] == attempt_id and current["lease_id"] == lease_id:
+            del self.current_attempts[task_id]
+            return True
+        return False

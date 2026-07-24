@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import AsyncGenerator
 
@@ -48,12 +48,29 @@ class IndexTaskManager:
         self._log_queues[task_id] = asyncio.Queue()
         return task
 
+    def _prune(self) -> None:
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+        stale = [
+            tid
+            for tid, task in list(self._tasks.items())
+            if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED)
+            and task.completed_at is not None
+            and datetime.fromisoformat(task.completed_at) < cutoff
+        ]
+        for tid in stale:
+            del self._tasks[tid]
+            self._log_queues.pop(tid, None)
+
     def get_task(self, task_id: str) -> IndexTask | None:
+        self._prune()
         return self._tasks.get(task_id)
 
     def add_log(self, task_id: str, message: str) -> None:
         if task_id in self._tasks:
-            self._tasks[task_id].logs.append(message)
+            logs = self._tasks[task_id].logs
+            if len(logs) > 500:
+                logs.pop(0)
+            logs.append(message)
             if task_id in self._log_queues:
                 try:
                     self._log_queues[task_id].put_nowait(message)

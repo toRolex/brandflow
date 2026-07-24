@@ -294,5 +294,15 @@ _TTS_VOICE_CHANGE_CLEANUP_FILES: tuple[str, ...] = (
     "final_timeline.json",
 )
 
-_COVER_TITLE_RATE_LIMIT: dict[str, float] = {}
+
+class _RateLimitDict(dict):
+    """Dict with max 1000 entries — evicts oldest when full."""
+
+    def __setitem__(self, key, value):
+        if key not in self and len(self) >= 1000:
+            self.pop(next(iter(self)))
+        super().__setitem__(key, value)
+
+
+_COVER_TITLE_RATE_LIMIT: dict[str, float] = _RateLimitDict()
 _COVER_TITLE_COOLDOWN = 3.0  # seconds

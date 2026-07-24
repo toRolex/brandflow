@@ -869,7 +869,17 @@ class JobTickService:
                             artifacts = primary_result.artifacts
                     else:
                         primary_result = None
-                        artifacts = self._orchestrator.run_phase(handler_phase, ctx)
+                        try:
+                            artifacts = self._orchestrator.run_phase(handler_phase, ctx)
+                        except Exception as exc:
+                            primary_result = PhaseExecutionFailure(
+                                error=ExecutionFailure(
+                                    code="HANDLER_EXCEPTION",
+                                    message=f"{handler_phase} failed: {exc}",
+                                    retryable=True,
+                                )
+                            )
+                            artifacts = []
                 except Exception as e:
                     raise PhaseExecutionError(job_id, handler_phase, str(e), e) from e
 

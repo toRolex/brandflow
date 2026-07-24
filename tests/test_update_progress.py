@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app, _startup_cleanup_progress
@@ -28,20 +29,25 @@ def _write_progress(data: dict) -> None:
     _PROGRESS_PATH.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
 
+@pytest.fixture(scope="module")
+def client():
+    with TestClient(create_app()) as c:
+        yield c
+
+
 # ── GET /api/update/status ──────────────────────────────────────────
 
 
-def test_status_file_missing_returns_idle():
+def test_status_file_missing_returns_idle(client):
     """文件不存在时返回 {status: "idle"}"""
     _reset_state()
     with patch.object(version_check, "_is_windows", return_value=True):
-        with TestClient(create_app()) as client:
-            resp = client.get("/api/update/status")
+        resp = client.get("/api/update/status")
     assert resp.status_code == 200
     assert resp.json() == {"status": "idle"}
 
 
-def test_status_file_exists_returns_full_object():
+def test_status_file_exists_returns_full_object(client):
     """progress.json 存在时返回完整状态对象"""
     _reset_state()
     _write_progress(
@@ -55,8 +61,7 @@ def test_status_file_exists_returns_full_object():
     )
 
     with patch.object(version_check, "_is_windows", return_value=True):
-        with TestClient(create_app()) as client:
-            resp = client.get("/api/update/status")
+        resp = client.get("/api/update/status")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "running"
@@ -67,7 +72,7 @@ def test_status_file_exists_returns_full_object():
     assert "updated_at" in data
 
 
-def test_status_running_is_not_stalled_when_fresh():
+def test_status_running_is_not_stalled_when_fresh(client):
     """running 状态且 updated_at 在 2 分钟内 → 不返回 stalled"""
     _reset_state()
     _write_progress(
@@ -89,15 +94,14 @@ def test_status_running_is_not_stalled_when_fresh():
         patch.object(version_check, "_time") as mock_time,
     ):
         mock_time.time.return_value = fresh_now
-        with TestClient(create_app()) as client:
-            resp = client.get("/api/update/status")
+        resp = client.get("/api/update/status")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "running"
     assert not data.get("stalled")
 
 
-def test_status_running_stalled_after_2_minutes():
+def test_status_running_stalled_after_2_minutes(client):
     """running 状态超过 2 分钟无变化 → 返回 stalled: true"""
     _reset_state()
     _write_progress(
@@ -119,15 +123,14 @@ def test_status_running_stalled_after_2_minutes():
         patch.object(version_check, "_time") as mock_time,
     ):
         mock_time.time.return_value = fake_now
-        with TestClient(create_app()) as client:
-            resp = client.get("/api/update/status")
+        resp = client.get("/api/update/status")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "running"
     assert data.get("stalled") is True
 
 
-def test_status_restarting_stalled_after_2_minutes():
+def test_status_restarting_stalled_after_2_minutes(client):
     """restarting 状态超过 2 分钟 → stalled: true"""
     _reset_state()
     _write_progress(
@@ -149,15 +152,14 @@ def test_status_restarting_stalled_after_2_minutes():
         patch.object(version_check, "_time") as mock_time,
     ):
         mock_time.time.return_value = fake_now
-        with TestClient(create_app()) as client:
-            resp = client.get("/api/update/status")
+        resp = client.get("/api/update/status")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "restarting"
     assert data.get("stalled") is True
 
 
-def test_status_done_returns_full_object():
+def test_status_done_returns_full_object(client):
     """done 状态正常返回，不带 stalled"""
     _reset_state()
     _write_progress(
@@ -170,19 +172,16 @@ def test_status_done_returns_full_object():
         }
     )
 
-    # Prevent lifespan from deleting the progress.json
-    with patch("apps.control_plane.app._startup_cleanup_progress", return_value=None):
-        from datetime import datetime, timezone
+    from datetime import datetime, timezone
 
-        fake_now = datetime(2026, 7, 24, 10, 5, 0, tzinfo=timezone.utc).timestamp()
+    fake_now = datetime(2026, 7, 24, 10, 5, 0, tzinfo=timezone.utc).timestamp()
 
-        with (
-            patch.object(version_check, "_is_windows", return_value=True),
-            patch.object(version_check, "_time") as mock_time,
-        ):
-            mock_time.time.return_value = fake_now
-            with TestClient(create_app()) as client:
-                resp = client.get("/api/update/status")
+    with (
+        patch.object(version_check, "_is_windows", return_value=True),
+        patch.object(version_check, "_time") as mock_time,
+    ):
+        mock_time.time.return_value = fake_now
+        resp = client.get("/api/update/status")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "done"
@@ -192,7 +191,7 @@ def test_status_done_returns_full_object():
 # ── POST /api/update conflict detection ─────────────────────────────
 
 
-def test_post_update_rejects_running_not_stalled():
+def test_post_update_rejects_running_not_stalled(client):
     """progress.json status=running 且未超时 → 409"""
     _reset_state()
     _write_progress(
@@ -214,13 +213,12 @@ def test_post_update_rejects_running_not_stalled():
         patch.object(version_check, "_time") as mock_time,
     ):
         mock_time.time.return_value = fake_now
-        with TestClient(create_app()) as client:
-            resp = client.post("/api/update")
+        resp = client.post("/api/update")
     assert resp.status_code == 409
     assert resp.json()["status"] == "in_progress"
 
 
-def test_post_update_rejects_restarting_not_stalled():
+def test_post_update_rejects_restarting_not_stalled(client):
     """progress.json status=restarting 且未超时 → 409"""
     _reset_state()
     _write_progress(
@@ -242,12 +240,11 @@ def test_post_update_rejects_restarting_not_stalled():
         patch.object(version_check, "_time") as mock_time,
     ):
         mock_time.time.return_value = fake_now
-        with TestClient(create_app()) as client:
-            resp = client.post("/api/update")
+        resp = client.post("/api/update")
     assert resp.status_code == 409
 
 
-def test_post_update_allows_failed_retry():
+def test_post_update_allows_failed_retry(client):
     """progress.json status=failed 时允许重试，自动清理旧状态"""
     _reset_state()
     _write_progress(
@@ -264,7 +261,6 @@ def test_post_update_allows_failed_retry():
     with (
         patch.object(version_check, "_is_windows", return_value=True),
         patch("apps.control_plane.routes.version_check.subprocess.Popen"),
-        TestClient(create_app()) as client,
     ):
         resp = client.post("/api/update")
     assert resp.status_code == 200
@@ -275,7 +271,7 @@ def test_post_update_allows_failed_retry():
     _reset_state()
 
 
-def test_post_update_allows_done_retry():
+def test_post_update_allows_done_retry(client):
     """progress.json status=done 时允许重试，自动清理旧状态"""
     _reset_state()
     _write_progress(
@@ -291,7 +287,6 @@ def test_post_update_allows_done_retry():
     with (
         patch.object(version_check, "_is_windows", return_value=True),
         patch("apps.control_plane.routes.version_check.subprocess.Popen"),
-        TestClient(create_app()) as client,
     ):
         resp = client.post("/api/update")
     assert resp.status_code == 200
@@ -301,14 +296,13 @@ def test_post_update_allows_done_retry():
     _reset_state()
 
 
-def test_post_update_writes_initial_progress():
+def test_post_update_writes_initial_progress(client):
     """POST /api/update 启动 update.bat 前写入初始 progress.json"""
     _reset_state()
 
     with (
         patch.object(version_check, "_is_windows", return_value=True),
         patch("apps.control_plane.routes.version_check.subprocess.Popen"),
-        TestClient(create_app()) as client,
     ):
         resp = client.post("/api/update")
     assert resp.status_code == 200
@@ -320,25 +314,23 @@ def test_post_update_writes_initial_progress():
     _reset_state()
 
 
-def test_post_update_non_windows_unchanged():
+def test_post_update_non_windows_unchanged(client):
     """非 Windows 平台返回 400 的行为不变"""
     _reset_state()
     with patch.object(version_check, "_is_windows", return_value=False):
-        with TestClient(create_app()) as client:
-            resp = client.post("/api/update")
+        resp = client.post("/api/update")
     assert resp.status_code == 400
     data = resp.json()
     assert data["status"] == "error"
     _reset_state()
 
 
-def test_post_update_in_memory_lock_unchanged():
+def test_post_update_in_memory_lock_unchanged(client):
     """_update_in_progress 内存锁仍然生效"""
     _reset_state()
     version_check._update_in_progress = True
     with patch.object(version_check, "_is_windows", return_value=True):
-        with TestClient(create_app()) as client:
-            resp = client.post("/api/update")
+        resp = client.post("/api/update")
     assert resp.status_code == 409
     assert resp.json()["status"] == "in_progress"
     _reset_state()
