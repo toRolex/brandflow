@@ -11,6 +11,7 @@ from apps.control_plane.routes.jobs.helpers import (
     _find_job_project,
     _make_job_response,
     _resolve_product_from_config,
+    _snapshot_tts_defaults,
     _validate_tts_model_voice,
 )
 from apps.control_plane.routes.jobs.models import (
@@ -102,20 +103,11 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         raise HTTPException(status_code=422, detail=tts_validation_error.model_dump())
 
     # Snapshot product TTS config at creation time (#341)
-    tts_model = payload.tts_model
-    tts_voice = payload.tts_voice
-    if not tts_model or not tts_voice:
-        config_reader = request.app.state.config_reader
-        pid = config_reader.active_product_id or None
-        tts_cfg = (
-            config_reader.get_tts_config(product_id=pid)
-            if pid
-            else config_reader.get_tts_config()
-        )
-        if not tts_model:
-            tts_model = tts_cfg.get("model", "")
-        if not tts_voice:
-            tts_voice = tts_cfg.get("voice", "")
+    tts_model, tts_voice = _snapshot_tts_defaults(
+        request.app.state.config_reader,
+        payload.tts_model,
+        payload.tts_voice,
+    )
 
     job_id = f"job_{product}_{uuid4().hex[:8]}"
     repo = FileStoreRepository(request.app.state.root_dir)
@@ -245,23 +237,15 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
     existing_count = len(repo.list_jobs(project_id))
 
     config_reader = request.app.state.config_reader
-    pid = config_reader.active_product_id or None
 
     results: list[dict] = []
     for i, item in enumerate(payload.jobs):
         # Snapshot product TTS config at creation time (#341)
-        tts_model = item.tts_model
-        tts_voice = item.tts_voice
-        if not tts_model or not tts_voice:
-            tts_cfg = (
-                config_reader.get_tts_config(product_id=pid)
-                if pid
-                else config_reader.get_tts_config()
-            )
-            if not tts_model:
-                tts_model = tts_cfg.get("model", "")
-            if not tts_voice:
-                tts_voice = tts_cfg.get("voice", "")
+        tts_model, tts_voice = _snapshot_tts_defaults(
+            config_reader,
+            item.tts_model,
+            item.tts_voice,
+        )
 
         job_id = f"job_{product}_{uuid4().hex[:8]}"
         cover_title = _cover_title_from_request(item.cover_title)

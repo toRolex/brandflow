@@ -197,6 +197,7 @@ class TTSConfigManager:
 
     def _save_global_config(self, config: TTSConfig) -> None:
         from packages.provider_config.config_io import load_config, save_config
+        from packages.provider_config.config_constants import _set_nested
 
         config_path = self.config_dir / "app_config.json"
         raw = load_config(config_path)
@@ -205,7 +206,7 @@ class TTSConfigManager:
         for key, value in config.to_dict().items():
             if value is None:
                 continue
-            raw["tts"][key] = value
+            _set_nested(raw["tts"], self._FLAT_TO_NESTED.get(key, key), value)
         save_config(config_path, raw)
 
     def _save_product_config(self, config: TTSConfig, product_id: str) -> None:
@@ -229,33 +230,8 @@ class TTSConfigManager:
                     )
                 save_config(config_path, raw)
                 return
-        # product 不存在，创建新 product entry
-        products = raw.setdefault("products", [])
-        new_product: dict[str, Any] = {"id": product_id, "tts": {}}
-        for key, value in config.to_dict().items():
-            if value is None:
-                continue
-            _set_nested(
-                new_product["tts"],
-                self._FLAT_TO_NESTED.get(key, key),
-                value,
-            )
-        products.append(new_product)
-        save_config(config_path, raw)
-
-    @staticmethod
-    def _merge_configs(*configs: TTSConfig) -> TTSConfig:
-        if not configs:
-            return TTSConfig()
-
-        result = configs[0].to_dict()
-        for config in configs[1:]:
-            override = config.to_dict()
-            for key, value in override.items():
-                if value is not None and value != "" and value != []:
-                    result[key] = value
-
-        return TTSConfig.from_dict(result)
+        # product 不存在，报错而非隐式创建
+        raise ValueError(f"product '{product_id}' not found in app_config.json")
 
     @staticmethod
     def _flatten_tts_config(data: dict[str, Any]) -> dict[str, Any]:
