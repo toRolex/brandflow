@@ -1,16 +1,16 @@
 import { request } from "./core";
 
-export const getTTSConfig = (projectId?: string) =>
+export const getTTSConfig = (productId?: string) =>
 	request<Record<string, unknown>>(
-		`/api/tts/config${projectId ? `?project_id=${projectId}` : ""}`,
+		`/api/tts/config${productId ? `?product_id=${productId}` : ""}`,
 	);
 
 export const saveTTSConfig = (
 	config: Record<string, unknown>,
-	projectId?: string,
+	productId?: string,
 ) =>
 	request<{ success: boolean }>(
-		`/api/tts/config${projectId ? `?project_id=${projectId}` : ""}`,
+		`/api/tts/config${productId ? `?product_id=${productId}` : ""}`,
 		{
 			method: "PUT",
 			body: JSON.stringify(config),

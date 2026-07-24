@@ -165,7 +165,7 @@ export default function TTSConfigPage() {
 	}, [config?.model]);
 
 	const loadConfig = async () => {
-		const data = await api.getTTSConfig();
+		const data = await api.getTTSConfig(activeProductId);
 		setConfig(data as unknown as TtsConfig);
 	};
 
@@ -201,7 +201,7 @@ export default function TTSConfigPage() {
 		if (!config) return;
 		setLoading(true);
 		try {
-			await api.saveTTSConfig(config as unknown as Record<string, unknown>);
+			await api.saveTTSConfig(config as unknown as Record<string, unknown>, activeProductId);
 			setSaveMsg("配置已保存");
 			setTimeout(() => setSaveMsg(null), 3000);
 		} catch {
