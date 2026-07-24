@@ -289,8 +289,10 @@ class TestImportModeSkipReviews:
     def test_merges_all_results_in_job_tick_service(self) -> None:
         """JobTickService.tick with parallel_phases merges all artifacts."""
         record = make_record(phase="scene_assembling", mode="import")
+        latest: list[JobRecord] = [record]
         mock_repo = MagicMock()
-        mock_repo.load_job.return_value = record
+        mock_repo.load_job.side_effect = lambda p, j: latest[0].model_copy()
+        mock_repo.save_job.side_effect = lambda p, r: latest.__setitem__(0, r)
         mock_orch = MagicMock(spec=PhaseOrchestrator)
         mock_orch.execute_phases_parallel.return_value = {
             "scene_assembling": PhaseExecutionSuccess(
@@ -301,7 +303,7 @@ class TestImportModeSkipReviews:
             "tts_generating": PhaseExecutionSuccess(artifacts=[]),
         }
 
-        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
+        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo, sleep_fn=None)
         summary = svc.tick(
             "proj-001",
             "test-job",
