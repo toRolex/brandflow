@@ -99,18 +99,18 @@ class TestGetJobTTSVoice:
         assert data["resolved_from"] == "job"
 
     def test_returns_resolved_from_product_when_job_not_set(self, client):
-        """When job-level fields are empty, the resolved value comes from product/global config."""
+        """When job-level fields are empty at creation, values are snapshotted from product config (#341)."""
         proj_id = "proj-gv2"
         _make_project_root(client, proj_id)
         job = _create_job(client, proj_id, tts_model="", tts_voice="")
         resp = client.get(f"/api/jobs/{job['job_id']}/tts/voice")
         assert resp.status_code == 200
         data = resp.json()
-        # model and voice must be present (resolved from config)
-        assert "model" in data
-        assert "voice" in data
-        # resolved_from should be "product" or "global" (not "job")
-        assert data["resolved_from"] in ("product", "global")
+        # model and voice must be present (snapshotted from config)
+        assert data["model"] != ""
+        assert data["voice"] != ""
+        # resolved_from is "job" because values are snapshotted at creation (#341)
+        assert data["resolved_from"] == "job"
 
     def test_job_not_found_returns_404(self, client):
         resp = client.get("/api/jobs/nonexistent_job_id/tts/voice")
@@ -403,12 +403,12 @@ class TestUpdateJobTTSVoice:
         detail = resp.json().get("detail", "")
         assert "冰糖" in str(detail)
 
-        # Verify NOT persisted
+        # Verify NOT persisted (still has snapshotted defaults)
         root = Path(client.app.state.root_dir)  # type: ignore[union-attr]
         repo = FileStoreRepository(root)
         record = repo.load_job(proj_id, job_id)
-        assert record.tts_model == ""
-        assert record.tts_voice == ""
+        assert record.tts_model == "qwen3-tts-flash"
+        assert record.tts_voice == "Cherry"
 
     def test_save_valid_voice_for_model_succeeds(self, client):
         """Saving a MiMo model with a valid MiMo voice succeeds."""

@@ -745,7 +745,7 @@ def test_create_job_tts_model_and_voice(tmp_path: Path) -> None:
 
 
 def test_create_job_tts_defaults_empty(tmp_path: Path) -> None:
-    """未传 tts_model/tts_voice 时默认值为空字符串。"""
+    """未传 tts_model/tts_voice 时从产品配置继承默认值。"""
     with _make_client(tmp_path) as client:
         _setup_product_config(tmp_path)
         resp = client.post(
@@ -754,8 +754,8 @@ def test_create_job_tts_defaults_empty(tmp_path: Path) -> None:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["tts_model"] == ""
-        assert data["tts_voice"] == ""
+        assert data["tts_model"] == "qwen3-tts-flash"
+        assert data["tts_voice"] == "Cherry"
 
 
 def test_batch_create_jobs_tts_model_and_voice(tmp_path: Path) -> None:
@@ -774,10 +774,10 @@ def test_batch_create_jobs_tts_model_and_voice(tmp_path: Path) -> None:
         )
         assert resp.status_code == 200
         results = resp.json()["results"]
-        assert results[0]["tts_voice"] == ""
+        assert results[0]["tts_voice"] == "Cherry"
         assert results[1]["tts_voice"] == "Cherry"
 
-        for r, expected_voice in zip(results, ["", "Cherry"]):
+        for r, expected_voice in zip(results, ["Cherry", "Cherry"]):
             job_path = (
                 tmp_path
                 / "workspace"
@@ -864,7 +864,7 @@ def test_create_job_resolves_default_model_for_voice_validation(
 
 
 def test_create_job_skips_tts_validation_without_override(tmp_path: Path) -> None:
-    """未传 tts_model/tts_voice 时跳过校验，字段保留为空。"""
+    """未传 tts_model/tts_voice 时跳过校验，但从产品配置继承默认值。"""
     with _make_client(tmp_path) as client:
         _setup_product_config(tmp_path)
         resp = client.post(
@@ -873,8 +873,8 @@ def test_create_job_skips_tts_validation_without_override(tmp_path: Path) -> Non
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["tts_model"] == ""
-        assert data["tts_voice"] == ""
+        assert data["tts_model"] == "qwen3-tts-flash"
+        assert data["tts_voice"] == "Cherry"
 
 
 def _unused_test_batch_create_jobs_rejects_invalid_tts_combo(tmp_path: Path) -> None:
