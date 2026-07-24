@@ -27,3 +27,20 @@ export async function triggerUpdate(): Promise<TriggerUpdateResult> {
 	if (!resp.ok) throw new Error(`update failed: ${resp.status}`);
 	return resp.json();
 }
+
+export interface UpdateStatus {
+	status: "idle" | "running" | "restarting" | "done" | "failed";
+	step?: string;
+	step_label?: string;
+	percent?: number;
+	error?: string;
+	updated_at?: string;
+	stalled?: boolean;
+}
+
+/** Poll the current update progress from the control-plane. */
+export async function getUpdateStatus(): Promise<UpdateStatus> {
+	const resp = await fetch("/api/update/status", { cache: "no-store" });
+	if (!resp.ok) throw new Error(`update status failed: ${resp.status}`);
+	return resp.json();
+}
