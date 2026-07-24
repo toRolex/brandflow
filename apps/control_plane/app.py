@@ -28,6 +28,13 @@ from apps.control_plane.routes.knowledge import router as knowledge_router
 from apps.control_plane.routes.templates import router as templates_router
 from apps.control_plane.routes.products import router as products_router
 from apps.control_plane.routes.version_check import router as version_check_router
+from apps.control_plane.routes.version_check import (
+    _read_progress,
+    _cleanup_progress,
+    _reset_update_lock,
+    _is_stalled,
+    _STARTUP_RESET_SECONDS,
+)
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
@@ -138,8 +145,33 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
             traceback.print_exc()
 
 
+def _startup_cleanup_progress() -> None:
+    """On startup: clean up stale progress.json and reset the in-memory lock.
+
+    - running/restarting older than 5 min → reset _update_in_progress + delete progress.json
+    - done/failed → delete progress.json (no lock to reset)
+    """
+    progress = _read_progress()
+    if progress is None:
+        return
+
+    status = progress.get("status", "")
+    updated_at = progress.get("updated_at", "")
+
+    if status in ("running", "restarting"):
+        if _is_stalled(updated_at, _STARTUP_RESET_SECONDS):
+            _reset_update_lock()
+            _cleanup_progress()
+
+    if status in ("done", "failed"):
+        _cleanup_progress()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ── Startup: clean up stale progress.json ──
+    _startup_cleanup_progress()
+
     dev_mode = os.environ.get("DEV_AUTO_TICK", "1") == "1"
     auto_tick_task: asyncio.Task[None] | None = None
     if dev_mode:

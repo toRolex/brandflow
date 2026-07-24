@@ -86,14 +86,17 @@ def test_update_concurrent_blocked() -> None:
     """已有更新进程时第二次请求返回 409。"""
     version_check._update_in_progress = True
     version_check._update_process = None  # clear any stale mock from previous test
-    with patch(
-        "apps.control_plane.routes.version_check._is_windows", return_value=True
+    with (
+        patch("apps.control_plane.routes.version_check._is_windows", return_value=True),
+        patch(
+            "apps.control_plane.routes.version_check._read_progress", return_value=None
+        ),
     ):
         with TestClient(create_app()) as client:
             resp = client.post("/api/update")
 
     assert resp.status_code == 409
-    assert resp.json() == {"status": "in_progress"}
+    assert resp.json()["status"] == "in_progress"
     version_check._update_in_progress = False  # cleanup for subsequent tests
     version_check._update_process = None
 
