@@ -474,25 +474,23 @@ class TestTTSConfigCacheInvalidation:
         assert put_resp.status_code == 200
 
         reader = client.app.state.config_reader
-        pid = reader.active_product_id or None
-        cfg = reader.get_tts_config(product_id=pid)
+        cfg = reader.get_tts_config()  # 读顶层 tts，不再依赖 active_product_id
         assert cfg.get("language_type") == "Cantonese"
 
     def test_multiple_puts_refresh_cache_each_time(self, client):
         """多次 PUT 每次都能读到最新值（不重启应用）。"""
         reader = client.app.state.config_reader
-        pid = reader.active_product_id or None
 
         client.put(
             "/api/tts/config", json={"language_type": "Cantonese"}
         ).raise_for_status()
-        cfg1 = reader.get_tts_config(product_id=pid)
+        cfg1 = reader.get_tts_config()
         assert cfg1.get("language_type") == "Cantonese"
 
         client.put(
             "/api/tts/config", json={"language_type": "English"}
         ).raise_for_status()
-        cfg2 = reader.get_tts_config(product_id=pid)
+        cfg2 = reader.get_tts_config()
         assert cfg2.get("language_type") == "English"
 
 
