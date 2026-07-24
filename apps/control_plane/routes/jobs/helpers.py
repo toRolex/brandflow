@@ -117,6 +117,31 @@ def _run_export_task(service: Any, task_id: str) -> None:
     service.run(task_id)
 
 
+def _snapshot_tts_defaults(
+    config_reader: ConfigReader,
+    tts_model: str,
+    tts_voice: str,
+) -> tuple[str, str]:
+    """Resolve tts_model/tts_voice from product config when not provided.
+
+    Used by job creation (single and batch) to snapshot the product's
+    current TTS config into the JobRecord at creation time (#341).
+    """
+    if tts_model and tts_voice:
+        return tts_model, tts_voice
+    pid = config_reader.active_product_id or None
+    tts_cfg = (
+        config_reader.get_tts_config(product_id=pid)
+        if pid
+        else config_reader.get_tts_config()
+    )
+    if not tts_model:
+        tts_model = tts_cfg.get("model", "")
+    if not tts_voice:
+        tts_voice = tts_cfg.get("voice", "")
+    return tts_model, tts_voice
+
+
 def _resolve_tts_voice_info(record: JobRecord, config_reader: ConfigReader) -> dict:
     """Resolve effective model/voice and which level it came from.
 

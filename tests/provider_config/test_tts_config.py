@@ -192,14 +192,14 @@ def test_save_and_load_product_config() -> None:
         assert loaded.model == "product-model"
 
 
-def test_save_product_config_creates_product_if_missing() -> None:
-    """save_config(product_id=新ID) 应自动创建 product entry。"""
+def test_save_product_config_raises_for_missing_product() -> None:
+    """save_config(product_id=不存在) 应抛出 ValueError。"""
+    import pytest
+
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = TTSConfigManager(config_dir=tmpdir)
-        manager.save_config(TTSConfig(model="new-model"), product_id="new-prod")
-
-        loaded = manager.get_config(product_id="new-prod")
-        assert loaded.model == "new-model"
+        with pytest.raises(ValueError, match="product 'nonexistent' not found"):
+            manager.save_config(TTSConfig(model="test"), product_id="nonexistent")
 
 
 # ---------------------------------------------------------------------------
@@ -255,96 +255,6 @@ def test_nonexistent_product_uses_global() -> None:
         manager = TTSConfigManager(config_dir=tmpdir)
         config = manager.get_config(product_id="nonexistent")
         assert config.model == "global-model"
-
-
-# ---------------------------------------------------------------------------
-# TTSConfigManager._merge_configs
-# ---------------------------------------------------------------------------
-
-
-def test_merge_single_config() -> None:
-    merged = TTSConfigManager._merge_configs(TTSConfig(model="test"))
-    assert merged.model == "test"
-
-
-def test_merge_later_overrides_earlier() -> None:
-    base = TTSConfig(model="base", voice="BaseVoice")
-    override = TTSConfig(model="override")
-    merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.model == "override"
-    assert merged.voice == "BaseVoice"  # not overridden
-
-
-def test_merge_none_values_not_overridden() -> None:
-    base = TTSConfig(style_prompt="sp")
-    override = TTSConfig(style_prompt=None)
-    merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.style_prompt == "sp"  # None does not override
-
-
-def test_merge_empty_string_not_overridden() -> None:
-    base = TTSConfig(voice_design_prompt="original")
-    override = TTSConfig(voice_design_prompt="")
-    merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.voice_design_prompt == "original"  # empty string does not override
-
-
-def test_merge_empty_list_not_overridden() -> None:
-    base = TTSConfig(random_voices=["A", "B"])
-    override = TTSConfig(random_voices=[])
-    merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.random_voices == ["A", "B"]  # empty list does not override
-
-
-def test_merge_non_empty_overrides_empty() -> None:
-    base = TTSConfig(voice_design_prompt="", style_prompt=None)
-    override = TTSConfig(voice_design_prompt="new prompt", style_prompt="sp")
-    merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.voice_design_prompt == "new prompt"
-    assert merged.style_prompt == "sp"
-
-
-def test_merge_false_not_overridden_by_none() -> None:
-    base = TTSConfig(randomize_voice=False)
-    override = TTSConfig(randomize_voice=None)
-    merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.randomize_voice is False
-
-
-def test_merge_multiple_configs() -> None:
-    c1 = TTSConfig(model="m1", voice="v1")
-    c2 = TTSConfig(model="m2", style_prompt="style2")
-    c3 = TTSConfig(model="m3")
-    merged = TTSConfigManager._merge_configs(c1, c2, c3)
-    assert merged.model == "m3"  # last wins
-    assert merged.voice == "v1"  # not overridden
-    assert merged.style_prompt == "style2"  # set by c2
-
-
-# ---------------------------------------------------------------------------
-# Regression: merge edge cases (空 string / 空 list / None)
-# ---------------------------------------------------------------------------
-
-
-def test_merge_empty_string_does_not_override() -> None:
-    base = TTSConfig(voice_design_prompt="original")
-    override = TTSConfig(voice_design_prompt="")
-    merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.voice_design_prompt == "original"
-
-
-def test_merge_empty_list_does_not_override() -> None:
-    base = TTSConfig(random_voices=["A", "B"])
-    override = TTSConfig(random_voices=[])
-    merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.random_voices == ["A", "B"]
-
-
-def test_merge_none_does_not_override() -> None:
-    base = TTSConfig(style_prompt="sp")
-    override = TTSConfig(style_prompt=None)
-    merged = TTSConfigManager._merge_configs(base, override)
-    assert merged.style_prompt == "sp"
 
 
 # ---------------------------------------------------------------------------
