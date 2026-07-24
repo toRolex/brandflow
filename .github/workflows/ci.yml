@@ -48,30 +48,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 11
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        working-directory: frontend
 
       - name: Biome check（lint+format+organizeImports）
-        run: pnpm biome check .
-        working-directory: frontend
+        run: pnpm --filter brandflow-frontend exec biome check .
 
       - name: Test
-        run: pnpm test
-        working-directory: frontend
+        run: pnpm --filter brandflow-frontend test
 
       - name: Build
-        run: pnpm build
-        working-directory: frontend
+        run: pnpm --filter brandflow-frontend build

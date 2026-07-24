@@ -1,7 +1,7 @@
 [project]
 name = "brandflow-pipeline"
 
-version = "0.7.27"
+version = "0.7.28"
 
 description = "Local short-video automation pipeline"
 requires-python = ">=3.11"
@@ -25,7 +25,6 @@ dev = [
     "psutil>=7.2.2",
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
-    "pytest-memray>=1.9.0",
     "pytest-xdist>=3.8.0",
     "ruff>=0.15.20",
 ]

@@ -814,7 +814,7 @@ class JobTickService:
                 record_update: dict[str, Any] = {"execution": running_execution}
                 if (
                     handler_phase == "asset_retrieving"
-                    and record.asset_collection_status != "collecting"
+                    and record.asset_collection_status == "not_started"
                 ):
                     record_update["asset_collection_status"] = "collecting"
                 record = record.model_copy(update=record_update)

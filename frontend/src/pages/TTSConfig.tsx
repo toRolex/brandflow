@@ -182,9 +182,7 @@ export default function TTSConfigPage() {
 				if (isPresetModel) {
 					setConfig((prev) => {
 						if (!prev) return prev;
-						const voiceExists = loadedVoices.some(
-							(v) => v.id === prev.voice,
-						);
+						const voiceExists = loadedVoices.some((v) => v.id === prev.voice);
 						if (!voiceExists) {
 							return { ...prev, voice: "Cherry" };
 						}
@@ -201,7 +199,10 @@ export default function TTSConfigPage() {
 		if (!config) return;
 		setLoading(true);
 		try {
-			await api.saveTTSConfig(config as unknown as Record<string, unknown>, activeProductId);
+			await api.saveTTSConfig(
+				config as unknown as Record<string, unknown>,
+				activeProductId,
+			);
 			setSaveMsg("配置已保存");
 			setTimeout(() => setSaveMsg(null), 3000);
 		} catch {

@@ -19,6 +19,9 @@ class TestVideoService:
         return_value="ffmpeg",
     )
     @patch(
+        "packages.pipeline_services.media_utils.get_media_duration", return_value=10.0
+    )
+    @patch(
         "packages.pipeline_services.video_service.get_media_duration", return_value=10.0
     )
     @patch(
@@ -27,7 +30,13 @@ class TestVideoService:
     )
     @patch("packages.pipeline_services.video_service.subprocess.run")
     def test_build_base_video_calls_ffmpeg(
-        self, mock_run, mock_size, mock_duration, mock_ffmpeg, tmp_path
+        self,
+        mock_run,
+        mock_size,
+        mock_duration,
+        mock_mu_duration,
+        mock_ffmpeg,
+        tmp_path,
     ):
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
@@ -135,8 +144,18 @@ class TestVideoService:
         "packages.pipeline_services.video_service.get_ffmpeg_path",
         return_value="ffmpeg",
     )
+    @patch(
+        "packages.pipeline_services.media_utils.get_video_size",
+        return_value=(1080, 1920),
+    )
+    @patch(
+        "packages.pipeline_services.video_service.get_video_size",
+        return_value=(1080, 1920),
+    )
     @patch("packages.pipeline_services.video_service.subprocess.run")
-    def test_burn_final_video_without_cover(self, mock_run, mock_ffmpeg, tmp_path):
+    def test_burn_final_video_without_cover(
+        self, mock_run, mock_vs, mock_size, mock_ffmpeg, tmp_path
+    ):
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         base = tmp_path / "base.mp4"
@@ -160,8 +179,14 @@ class TestVideoService:
         "packages.pipeline_services.video_service.get_ffmpeg_path",
         return_value="ffmpeg",
     )
+    @patch(
+        "packages.pipeline_services.media_utils.get_video_size",
+        return_value=(1080, 1920),
+    )
     @patch("packages.pipeline_services.video_service.subprocess.run")
-    def test_burn_final_video_no_subtitles(self, mock_run, mock_ffmpeg, tmp_path):
+    def test_burn_final_video_no_subtitles(
+        self, mock_run, mock_size, mock_ffmpeg, tmp_path
+    ):
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         base = tmp_path / "base.mp4"

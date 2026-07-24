@@ -367,9 +367,7 @@ describe("Layout — update flow with progress (#330)", () => {
 		vi.advanceTimersByTime(1100);
 		await act(async () => {});
 
-		expect(
-			screen.getByText(/服务重启中，即将完成.../),
-		).toBeInTheDocument();
+		expect(screen.getByText(/服务重启中，即将完成.../)).toBeInTheDocument();
 		vi.useRealTimers();
 	});
 

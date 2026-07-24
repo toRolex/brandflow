@@ -149,9 +149,24 @@ describe("TTSConfigPage model switch preserves voice or falls back to Cherry (#3
 				if (model?.startsWith("qwen")) {
 					return Promise.resolve({
 						preset_voices: [
-							{ id: "Cherry", label: "芊悦", note: "女声", model: "qwen3-tts-flash" },
-							{ id: "Rocky", label: "阿强", note: "粤语男声", model: "qwen3-tts-flash" },
-							{ id: "Mia", label: "乖小妹", note: "女声", model: "qwen3-tts-flash" },
+							{
+								id: "Cherry",
+								label: "芊悦",
+								note: "女声",
+								model: "qwen3-tts-flash",
+							},
+							{
+								id: "Rocky",
+								label: "阿强",
+								note: "粤语男声",
+								model: "qwen3-tts-flash",
+							},
+							{
+								id: "Mia",
+								label: "乖小妹",
+								note: "女声",
+								model: "qwen3-tts-flash",
+							},
 						],
 					});
 				}
@@ -179,7 +194,10 @@ describe("TTSConfigPage model switch preserves voice or falls back to Cherry (#3
 
 		// Wait for voices to be fetched for the new model
 		await waitFor(() => {
-			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "qwen3-tts-flash");
+			expect(api.getTTSVoices).toHaveBeenCalledWith(
+				undefined,
+				"qwen3-tts-flash",
+			);
 		});
 
 		// Voice "Mia" exists in Qwen voices → preserved
@@ -200,8 +218,18 @@ describe("TTSConfigPage model switch preserves voice or falls back to Cherry (#3
 				if (model?.startsWith("qwen")) {
 					return Promise.resolve({
 						preset_voices: [
-							{ id: "Cherry", label: "芊悦", note: "女声", model: "qwen3-tts-flash" },
-							{ id: "Rocky", label: "阿强", note: "粤语男声", model: "qwen3-tts-flash" },
+							{
+								id: "Cherry",
+								label: "芊悦",
+								note: "女声",
+								model: "qwen3-tts-flash",
+							},
+							{
+								id: "Rocky",
+								label: "阿强",
+								note: "粤语男声",
+								model: "qwen3-tts-flash",
+							},
 						],
 					});
 				}
@@ -227,7 +255,10 @@ describe("TTSConfigPage model switch preserves voice or falls back to Cherry (#3
 		fireEvent.click(screen.getByText("Qwen Flash"));
 
 		await waitFor(() => {
-			expect(api.getTTSVoices).toHaveBeenCalledWith(undefined, "qwen3-tts-flash");
+			expect(api.getTTSVoices).toHaveBeenCalledWith(
+				undefined,
+				"qwen3-tts-flash",
+			);
 		});
 
 		// "冰糖" is not in Qwen voices → falls back to "Cherry"

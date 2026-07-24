@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul
-title Brandflow — 停止后台
+title Brandflow — 停止服务
 
-echo 正在停止 Brandflow 后台服务...
-powershell -ExecutionPolicy Bypass -Command "Stop-ScheduledTask -TaskName brandflow-control-plane" >nul 2>&1
+echo 正在停止 Brandflow ...
+nssm stop brandflow-control-plane
 if %errorlevel% equ 0 (
-    echo 服务已成功停止。
+    echo 服务已停止。
 ) else (
     echo 服务未运行或停止失败。
 )

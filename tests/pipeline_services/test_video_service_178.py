@@ -16,6 +16,9 @@ class TestVideoServiceBlankClip:
         return_value="ffmpeg",
     )
     @patch(
+        "packages.pipeline_services.media_utils.get_media_duration", return_value=10.0
+    )
+    @patch(
         "packages.pipeline_services.video_service.get_media_duration", return_value=10.0
     )
     @patch(
@@ -24,7 +27,13 @@ class TestVideoServiceBlankClip:
     )
     @patch("packages.pipeline_services.video_service.subprocess.run")
     def test_build_base_video_with_blank_clip(
-        self, mock_run, mock_size, mock_duration, mock_ffmpeg, tmp_path
+        self,
+        mock_run,
+        mock_size,
+        mock_duration,
+        mock_mu_duration,
+        mock_ffmpeg,
+        tmp_path,
     ):
         """Blank clip generates a black color frame instead of trimming a real file."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
@@ -65,6 +74,9 @@ class TestVideoServiceBlankClip:
         return_value="ffmpeg",
     )
     @patch(
+        "packages.pipeline_services.media_utils.get_media_duration", return_value=10.0
+    )
+    @patch(
         "packages.pipeline_services.video_service.get_media_duration", return_value=10.0
     )
     @patch(
@@ -73,7 +85,13 @@ class TestVideoServiceBlankClip:
     )
     @patch("packages.pipeline_services.video_service.subprocess.run")
     def test_build_base_video_with_mixed_blank_and_real(
-        self, mock_run, mock_size, mock_duration, mock_ffmpeg, tmp_path
+        self,
+        mock_run,
+        mock_size,
+        mock_duration,
+        mock_mu_duration,
+        mock_ffmpeg,
+        tmp_path,
     ):
         """Mixed blank + real clips: blank gets color=black, real gets trim from source."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
@@ -181,6 +199,9 @@ class TestVideoServiceBlankClip:
         return_value="ffmpeg",
     )
     @patch(
+        "packages.pipeline_services.media_utils.get_media_duration", return_value=10.0
+    )
+    @patch(
         "packages.pipeline_services.video_service.get_media_duration", return_value=10.0
     )
     @patch(
@@ -189,7 +210,13 @@ class TestVideoServiceBlankClip:
     )
     @patch("packages.pipeline_services.video_service.subprocess.run")
     def test_blank_clip_uses_sentence_timing(
-        self, mock_run, mock_size, mock_duration, mock_ffmpeg, tmp_path
+        self,
+        mock_run,
+        mock_size,
+        mock_duration,
+        mock_mu_duration,
+        mock_ffmpeg,
+        tmp_path,
     ):
         """Blank clip with sentence_timings uses per-sentence duration instead of uniform split.
 
