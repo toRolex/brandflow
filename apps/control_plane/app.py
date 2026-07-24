@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 import time
-
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
@@ -12,7 +11,6 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from apps.control_plane._version import get_version as _get_version
-
 from apps.control_plane.routes.api_assets import router as api_assets_router
 from apps.control_plane.routes.api_jobs import router as api_jobs_router
 from apps.control_plane.routes.api_projects import router as api_projects_router
@@ -20,16 +18,19 @@ from apps.control_plane.routes.category_suggestion import (
     router as category_suggestion_router,
 )
 from apps.control_plane.routes.config import router as config_router
-from apps.control_plane.routes.reviews import router as reviews_router
-from apps.control_plane.routes.workers import router as workers_router
-from apps.control_plane.routes.tts import router as tts_router
-from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.routes.knowledge import router as knowledge_router
-from apps.control_plane.routes.templates import router as templates_router
+from apps.control_plane.routes.logs import router as logs_router
+from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.routes.products import router as products_router
+from apps.control_plane.routes.reviews import router as reviews_router
+from apps.control_plane.routes.templates import router as templates_router
+from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.routes.version_check import router as version_check_router
+from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
+from packages.log_service.excepthook import install_global_excepthook
+from packages.log_service.middleware import install_log_middleware
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
     PhaseExecutionError,
@@ -37,7 +38,6 @@ from packages.pipeline_services.job_tick_service import (
 from packages.pipeline_services.phase_orchestrator import create_orchestrator
 from packages.provider_config.config_reader import ConfigReader, ProductStore
 from packages.provider_config.secret_store import SecretStore
-
 
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
 
@@ -172,7 +172,9 @@ def _get_orchestrator(app: FastAPI):
 
 
 def create_app(root_dir: Path | None = None) -> FastAPI:
+    install_global_excepthook()
     app = FastAPI(title="Brandflow Control Plane", lifespan=lifespan)
+    install_log_middleware(app)
 
     allow_origins_env = os.environ.get(
         "CORS_ALLOWED_ORIGINS",
@@ -225,6 +227,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(api_jobs_router)
     app.include_router(category_suggestion_router)
     app.include_router(config_router)
+    app.include_router(logs_router, prefix="/api/logs")
     app.include_router(workers_router)
     app.include_router(reviews_router)
     app.include_router(tts_router)
