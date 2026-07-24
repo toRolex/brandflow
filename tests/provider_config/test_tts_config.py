@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 
@@ -177,70 +176,84 @@ def test_save_and_load_config() -> None:
         assert loaded.voice == "CustomVoice"
 
 
-def test_save_and_load_project_config() -> None:
+def test_save_and_load_product_config() -> None:
+    """product_id 配置可写回读：写入 app_config.json 的 products[i].tts"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        from packages.provider_config.config_io import save_config
+
+        # 预先创建 app_config.json 确保 ConfigReader 能找到
+        config_path = Path(tmpdir) / "app_config.json"
+        save_config(config_path, {"products": [{"id": "prod-1"}]})
+
+        manager = TTSConfigManager(config_dir=tmpdir)
+        manager.save_config(TTSConfig(model="product-model"), product_id="prod-1")
+
+        loaded = manager.get_config(product_id="prod-1")
+        assert loaded.model == "product-model"
+
+
+def test_save_product_config_creates_product_if_missing() -> None:
+    """save_config(product_id=新ID) 应自动创建 product entry。"""
     with tempfile.TemporaryDirectory() as tmpdir:
         manager = TTSConfigManager(config_dir=tmpdir)
-        original = TTSConfig(model="project-model")
-        manager.save_config(original, project_id="proj-1")
+        manager.save_config(TTSConfig(model="new-model"), product_id="new-prod")
 
-        loaded = manager.get_config(project_id="proj-1")
-        assert loaded.model == "project-model"
-
-
-def test_save_creates_directory_if_needed() -> None:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        manager = TTSConfigManager(config_dir=tmpdir)
-        manager.save_config(TTSConfig(model="test"), project_id="new-project")
-
-        config_path = Path(tmpdir) / "projects" / "new-project" / "tts_config.json"
-        assert config_path.exists()
+        loaded = manager.get_config(product_id="new-prod")
+        assert loaded.model == "new-model"
 
 
 # ---------------------------------------------------------------------------
-# TTSConfigManager project config
+# TTSConfigManager product config (via app_config.json)
 # ---------------------------------------------------------------------------
 
 
-def test_project_config_without_global() -> None:
+def test_product_config_without_global() -> None:
+    """只有 product 级 tts，顶层 tts 为空 → product 配置应返回自身，defaults 填充其余"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        projects_dir = Path(tmpdir) / "projects" / "proj-1"
-        projects_dir.mkdir(parents=True)
-        (projects_dir / "tts_config.json").write_text(
-            json.dumps({"model": "project-only"})
+        from packages.provider_config.config_io import save_config
+
+        config_path = Path(tmpdir) / "app_config.json"
+        save_config(
+            config_path,
+            {"products": [{"id": "prod-1", "tts": {"model": "product-only"}}]},
         )
 
         manager = TTSConfigManager(config_dir=tmpdir)
-        config = manager.get_config(project_id="proj-1")
-        assert config.model == "project-only"
+        config = manager.get_config(product_id="prod-1")
+        assert config.model == "product-only"
         assert config.voice == "Cherry"  # default
 
 
-def test_project_overrides_global() -> None:
+def test_product_overrides_global() -> None:
+    """product 级 tts 覆盖顶层 tts"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        global_path = Path(tmpdir) / "tts_config.json"
-        global_path.write_text(
-            json.dumps({"model": "global-model", "voice": "GlobalVoice"})
-        )
+        from packages.provider_config.config_io import save_config
 
-        projects_dir = Path(tmpdir) / "projects" / "proj-1"
-        projects_dir.mkdir(parents=True)
-        (projects_dir / "tts_config.json").write_text(
-            json.dumps({"model": "project-model"})
+        config_path = Path(tmpdir) / "app_config.json"
+        save_config(
+            config_path,
+            {
+                "tts": {"model": "global-model", "voice": "GlobalVoice"},
+                "products": [{"id": "prod-1", "tts": {"model": "prod-model"}}],
+            },
         )
 
         manager = TTSConfigManager(config_dir=tmpdir)
-        config = manager.get_config(project_id="proj-1")
-        assert config.model == "project-model"  # overridden
+        config = manager.get_config(product_id="prod-1")
+        assert config.model == "prod-model"  # product overrides
         assert config.voice == "GlobalVoice"  # from global
 
 
-def test_nonexistent_project_uses_global() -> None:
+def test_nonexistent_product_uses_global() -> None:
+    """不存在的 product_id → ConfigReader 返回顶层 tts"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        global_path = Path(tmpdir) / "tts_config.json"
-        global_path.write_text(json.dumps({"model": "global-model"}))
+        from packages.provider_config.config_io import save_config
+
+        config_path = Path(tmpdir) / "app_config.json"
+        save_config(config_path, {"tts": {"model": "global-model"}})
 
         manager = TTSConfigManager(config_dir=tmpdir)
-        config = manager.get_config(project_id="nonexistent")
+        config = manager.get_config(product_id="nonexistent")
         assert config.model == "global-model"
 
 
@@ -405,13 +418,12 @@ def test_defaults_consistent_between_reader_and_manager() -> None:
         assert manager_config.model == reader_config["model"]
         assert manager_config.voice == reader_config["voice"]
 
-    # Scenario 4: active product scope override
+    # Scenario 4: product scope
     with tempfile.TemporaryDirectory() as tmpdir:
         config_path = Path(tmpdir) / "app_config.json"
         save_config(
             config_path,
             {
-                "active_product_id": "prod-1",
                 "products": [
                     {
                         "id": "prod-1",
@@ -420,11 +432,12 @@ def test_defaults_consistent_between_reader_and_manager() -> None:
                 ],
             },
         )
+        # Manager.get_config(product_id="prod-1") 获取 product 级配置
         reader = ConfigReader(config_dir=tmpdir)
         manager = TTSConfigManager(config_dir=tmpdir)
 
         reader_config = reader.get_tts_config(product_id="prod-1")
-        manager_config = manager.get_config()
+        manager_config = manager.get_config(product_id="prod-1")
 
         assert manager_config.model == reader_config["model"]
         assert manager_config.voice == reader_config["voice"]

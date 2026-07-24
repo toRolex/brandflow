@@ -68,6 +68,6 @@ def test_upload_voice_clone_sample_updates_config(client, tmp_path):
     from packages.provider_config.tts_config import TTSConfigManager
 
     config_manager = TTSConfigManager(config_dir=str(tmp_path / "config"))
-    config = config_manager.get_config("test_project")
+    config = config_manager.get_config(product_id="test_project")
     assert config.voice_clone_sample_path is not None
     assert config.voice_clone_mime_type == "audio/mpeg"
