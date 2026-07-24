@@ -361,8 +361,8 @@ INSTRUCT_UNSUPPORTED_VOICES = {"Jennifer", "Ryan", "Katerina"}
 
 
 @router.get("/config", response_model=TTSConfigResponse)
-async def get_tts_config(project_id: str | None = None):
-    config = config_manager.get_config(project_id)
+async def get_tts_config(product_id: str | None = None):
+    config = config_manager.get_config(product_id)
     return TTSConfigResponse(**config.to_dict())
 
 
@@ -370,9 +370,9 @@ async def get_tts_config(project_id: str | None = None):
 async def save_tts_config(
     req: Request,
     request: TTSConfigRequest,
-    project_id: str | None = None,
+    product_id: str | None = None,
 ):
-    current = config_manager.get_config(project_id)
+    current = config_manager.get_config(product_id)
     update_data = request.model_dump(exclude_none=True)
 
     for key, value in update_data.items():
@@ -380,14 +380,10 @@ async def save_tts_config(
 
     validate_voice_for_model(current.model, current.voice)
 
-    config_manager.save_config(current, project_id)
+    config_manager.save_config(current, product_id)
 
-    # Invalidate ConfigReader cache so pipeline phases see the newly
-    # saved values (e.g. language_type, instructions, model/voice).
-    # Per-project configs (stored under config/projects/) don't affect
-    # ConfigReader, so skip the reload when project_id is set.
-    if project_id is None:
-        req.app.state.config_reader.reload()
+    # 始终 reload，确保后续读取是最新值
+    req.app.state.config_reader.reload()
 
     return {"success": True}
 
@@ -604,10 +600,10 @@ async def upload_voice_clone_sample(
         f.write(content)
 
     # 更新配置
-    config = local_config_manager.get_config(project_id)
+    config = local_config_manager.get_config(product_id=project_id)
     config.voice_clone_sample_path = str(save_path)
     config.voice_clone_mime_type = mime_type
-    local_config_manager.save_config(config, project_id)
+    local_config_manager.save_config(config, product_id=project_id)
 
     return {
         "success": True,

@@ -24,6 +24,7 @@ class SecretStore:
         "xiaomi": "XIAOMI_VISION_API_KEY",
         "openai": "VISION_API_KEY",
         "claude": "VISION_API_KEY",
+        "custom": "CUSTOM_API_KEY",
     }
 
     API_BASE_URL_ENV_MAP = {
@@ -35,6 +36,7 @@ class SecretStore:
         "xiaomi": "XIAOMI_VISION_API_URL",
         "openai": "VISION_API_URL",
         "claude": "VISION_API_URL",
+        "custom": "CUSTOM_API_URL",
     }
 
     VISION_MODEL_ENV_MAP = {
@@ -44,7 +46,7 @@ class SecretStore:
     }
 
     _TTS_PROVIDERS = frozenset({"mimo", "minimax", "qwen"})
-    _LLM_PROVIDERS = frozenset({"deepseek", "kimi", "openai"})
+    _LLM_PROVIDERS = frozenset({"deepseek", "kimi", "openai", "custom"})
     _VISION_PROVIDERS = frozenset({"xiaomi", "claude"})
 
     def __init__(self, env: dict[str, str] | None = None) -> None:

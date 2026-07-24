@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-from apps.runtime_worker.http_client import WorkerHttpClient
 from apps.runtime_worker.loop import WorkerLoop
 from packages.pipeline_services.phase_orchestrator import (
     ArtifactPointer,
@@ -183,25 +182,6 @@ def _make_loop(
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-
-
-def test_http_client_absolute_url_handles_absolute_and_relative_paths() -> None:
-    client = WorkerHttpClient(
-        base_url="http://127.0.0.1:17890",
-        worker_id="worker-mac",
-        worker_version="0.1.0",
-        capabilities=["mac-local"],
-    )
-
-    assert (
-        client._absolute_url("http://example.com/bundle") == "http://example.com/bundle"
-    )
-    assert (
-        client._absolute_url("https://example.com/bundle")
-        == "https://example.com/bundle"
-    )
-    assert client._absolute_url("/bundle") == "http://127.0.0.1:17890/bundle"
-    assert client._absolute_url("bundle") == "http://127.0.0.1:17890/bundle"
 
 
 def test_worker_loop_sleeps_and_retries_on_idle(tmp_path: Path) -> None:

@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from packages.provider_config.config_constants import DEFAULTS
-
 if TYPE_CHECKING:
     from packages.pipeline_services.phase_orchestrator import (
         PhaseContext,
@@ -106,7 +104,7 @@ def _build_tts_provider(
         QwenTTSProvider,
     )
 
-    tts_model = tts_cfg.get("model", DEFAULTS["tts"]["model"]) or ""
+    tts_model = tts_cfg.get("model") or ""
 
     if tts_model.startswith("qwen"):
         return QwenTTSProvider(

@@ -29,12 +29,12 @@ class TestQwenMigration:
                 assert result.model == "qwen3-tts-flash"
                 assert result.voice == "Cherry"
 
-    def test_mimo_v2_migration_with_project_config(self) -> None:
-        """save_config 时 project 级别的 mimo-v2-tts 也应被迁移"""
+    def test_mimo_v2_migration_with_product_config(self) -> None:
+        """save_config 时 product 级别的 mimo-v2-tts 也应被迁移"""
         with tempfile.TemporaryDirectory() as tmpdir:
             mgr = TTSConfigManager(config_dir=tmpdir)
             config = TTSConfig(model="mimo-v2-tts", voice="old_voice")
-            mgr.save_config(config, project_id="proj-1")
-            loaded = mgr.get_config(project_id="proj-1")
+            mgr.save_config(config, product_id="prod-1")
+            loaded = mgr.get_config(product_id="prod-1")
             assert loaded.model == "qwen3-tts-flash"
             assert loaded.voice == "Rocky"

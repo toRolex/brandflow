@@ -11,6 +11,7 @@ from apps.control_plane.routes.jobs.helpers import (
     _find_job_project,
     _make_job_response,
     _resolve_product_from_config,
+    _snapshot_tts_defaults,
     _validate_tts_model_voice,
 )
 from apps.control_plane.routes.jobs.models import (
@@ -101,6 +102,13 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     if tts_validation_error is not None:
         raise HTTPException(status_code=422, detail=tts_validation_error.model_dump())
 
+    # Snapshot product TTS config at creation time (#341)
+    tts_model, tts_voice = _snapshot_tts_defaults(
+        request.app.state.config_reader,
+        payload.tts_model,
+        payload.tts_voice,
+    )
+
     job_id = f"job_{product}_{uuid4().hex[:8]}"
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
@@ -123,8 +131,8 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
         cover_title=_cover_title_from_request(payload.cover_title),
         music_track_path=payload.music_track_path,
         music_volume=payload.music_volume,
-        tts_model=payload.tts_model,
-        tts_voice=payload.tts_voice,
+        tts_model=tts_model,
+        tts_voice=tts_voice,
     )
     if record.phase == "queued":
         validation_error = _enqueue_validation_error(record, request.app.state.root_dir)
@@ -228,8 +236,17 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
     repo = FileStoreRepository(request.app.state.root_dir)
     existing_count = len(repo.list_jobs(project_id))
 
+    config_reader = request.app.state.config_reader
+
     results: list[dict] = []
     for i, item in enumerate(payload.jobs):
+        # Snapshot product TTS config at creation time (#341)
+        tts_model, tts_voice = _snapshot_tts_defaults(
+            config_reader,
+            item.tts_model,
+            item.tts_voice,
+        )
+
         job_id = f"job_{product}_{uuid4().hex[:8]}"
         cover_title = _cover_title_from_request(item.cover_title)
         record = JobRecord(
@@ -252,8 +269,8 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
             cover_title=cover_title,
             music_track_path=item.music_track_path,
             music_volume=item.music_volume,
-            tts_model=item.tts_model,
-            tts_voice=item.tts_voice,
+            tts_model=tts_model,
+            tts_voice=tts_voice,
         )
         repo.save_job(project_id, record)
         display_index = f"{existing_count + i + 1:03d}"

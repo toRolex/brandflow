@@ -1,6 +1,11 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { checkVersion, triggerUpdate } from "../api/version";
+import {
+	checkVersion,
+	getUpdateStatus,
+	triggerUpdate,
+	type UpdateStatus,
+} from "../api/version";
 import { useTheme } from "../context/ThemeContext";
 import ProductSelector from "./ProductSelector";
 
@@ -171,11 +176,11 @@ const CONFIG_ITEMS = [
 type UpdateState =
 	| { status: "idle" }
 	| { status: "available"; current: string; latest: string }
-	| { status: "in_progress" }
-	| { status: "updating" }
-	| { status: "restarting" }
+	| { status: "running"; progress: UpdateStatus | null }
+	| { status: "restarting"; message: string }
 	| { status: "done"; version: string }
-	| { status: "failed"; logPath: string };
+	| { status: "failed"; step?: string; error?: string; logPath: string }
+	| { status: "stalled"; progress: UpdateStatus };
 
 const SpinnerIcon = () => (
 	<svg
@@ -215,8 +220,8 @@ export default function Layout({ children }: { children: ReactNode }) {
 		status: "idle",
 	});
 	const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-	const startTimeRef = useRef(0);
 	const currentVersionRef = useRef("");
+	const isJoinedRef = useRef(false);
 
 	const stopPolling = () => {
 		if (pollingRef.current) {
@@ -246,44 +251,100 @@ export default function Layout({ children }: { children: ReactNode }) {
 				// silent — network failure is not an error to show
 			});
 	};
-	useEffect(() => {
-		fetchVersion();
-	}, []);
-
-	const startPolling = (logPath: string) => {
-		startTimeRef.current = Date.now();
-		pollingRef.current = setInterval(() => {
-			if (Date.now() - startTimeRef.current >= 300_000) {
-				stopPolling();
-				setUpdateState({ status: "failed", logPath });
-				return;
-			}
-			checkVersion()
-				.then((v) => {
-					if (v.current !== currentVersionRef.current) {
-						stopPolling();
-						setVersionInfo({
-							current: v.current,
-							latest: v.latest,
-							updateAvailable: v.update_available,
-						});
-						setUpdateState({ status: "done", version: v.current });
-					}
-				})
-				.catch(() => {
-					setUpdateState({ status: "restarting" });
-				});
-		}, 2000);
+	/** Poll the server-side progress endpoint every 1 s. */
+	const pollProgress = () => {
+		getUpdateStatus()
+			.then((p) => {
+				if (p.status === "idle") {
+					// progress.json was cleaned — fall back to version poll
+					return checkVersion().then((v) => {
+						if (v.current !== currentVersionRef.current) {
+							stopPolling();
+							setUpdateState({ status: "done", version: v.current });
+						}
+					});
+				}
+				if (p.stalled) {
+					stopPolling();
+					setUpdateState({ status: "stalled", progress: p });
+					return;
+				}
+				if (p.status === "restarting") {
+					setUpdateState({
+						status: "restarting",
+						message: "服务重启中，即将完成...",
+					});
+					return;
+				}
+				if (p.status === "done") {
+					stopPolling();
+					setUpdateState({ status: "done", version: p.step_label || "" });
+					return;
+				}
+				if (p.status === "failed") {
+					stopPolling();
+					setUpdateState({
+						status: "failed",
+						step: p.step,
+						error: p.error,
+						logPath: UPDATE_LOG_PATH,
+					});
+					return;
+				}
+				setUpdateState({ status: "running", progress: p });
+			})
+			.catch(() => {
+				// silent — treat as transient
+			});
 	};
 
+	const startPolling = () => {
+		stopPolling();
+		pollingRef.current = setInterval(pollProgress, 1000);
+	};
+
+	/** On mount: restore running updates (multi-user shared state). */
+	useEffect(() => {
+		fetchVersion();
+		getUpdateStatus()
+			.then((p) => {
+				if (p.status === "running" || p.status === "restarting") {
+					isJoinedRef.current = true;
+					if (p.status === "restarting") {
+						setUpdateState({
+							status: "restarting",
+							message: "服务重启中，即将完成...",
+						});
+					} else {
+						setUpdateState({ status: "running", progress: p });
+					}
+					startPolling();
+				}
+			})
+			.catch(() => {
+				// silent
+			});
+	}, []);
+
 	const handleUpdate = async () => {
-		setUpdateState({ status: "updating" });
 		try {
 			const result = await triggerUpdate();
 			if (result.status === "in_progress") {
-				setUpdateState({ status: "in_progress" });
+				// 409 — join as observer
+				isJoinedRef.current = true;
+				// fetch progress once to show current state, then start polling
+				getUpdateStatus()
+					.then((p) => {
+						if (p.status === "running") {
+							setUpdateState({ status: "running", progress: p });
+						}
+					})
+					.catch(() => {});
+				startPolling();
+			} else {
+				setUpdateState({ status: "running", progress: null });
+				startPolling();
 			}
-			startPolling(result.log || UPDATE_LOG_PATH);
 		} catch {
 			setUpdateState({ status: "failed", logPath: UPDATE_LOG_PATH });
 		}
@@ -484,10 +545,12 @@ export default function Layout({ children }: { children: ReactNode }) {
 									</div>
 								);
 
-							case "in_progress":
+							case "running": {
+								const p = updateState.progress;
 								return (
 									<div
-										className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+										data-testid="update-progress-banner"
+										className="flex items-center gap-3 px-4 py-2 text-sm border-b shrink-0"
 										style={{
 											background:
 												"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
@@ -496,25 +559,30 @@ export default function Layout({ children }: { children: ReactNode }) {
 										}}
 									>
 										<SpinnerIcon />
-										<span>更新正在进行</span>
+										<span data-testid="update-step-label">
+											{isJoinedRef.current ? "正在观察更新 — " : ""}
+											{p?.step_label || "正在准备..."}
+										</span>
+										{/* percent bar */}
+										<div
+											className="flex-1 h-1.5 rounded-full overflow-hidden"
+											style={{ background: "var(--color-steel)" }}
+										>
+											<div
+												data-testid="update-percent-bar"
+												className="h-full rounded-full transition-all duration-500"
+												style={{
+													width: `${p?.percent ?? 0}%`,
+													background: "var(--color-electric-blue)",
+												}}
+											/>
+										</div>
+										<span className="text-xs opacity-70">
+											{p?.percent ?? 0}%
+										</span>
 									</div>
 								);
-
-							case "updating":
-								return (
-									<div
-										className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
-										style={{
-											background:
-												"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
-											borderColor: "var(--border-default)",
-											color: "var(--text-primary)",
-										}}
-									>
-										<SpinnerIcon />
-										<span>正在更新（拉取代码 + 编译前端）...</span>
-									</div>
-								);
+							}
 
 							case "restarting":
 								return (
@@ -528,7 +596,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 										}}
 									>
 										<SpinnerIcon />
-										<span>服务重启中，请稍候...</span>
+										<span>{updateState.message}</span>
 									</div>
 								);
 
@@ -545,7 +613,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 									>
 										<span>✅</span>
 										<span className="flex-1">
-											更新完成，版本 v{updateState.version}
+											更新完成 v{updateState.version}
 										</span>
 										<button
 											onClick={dismissUpdateBanner}
@@ -570,10 +638,48 @@ export default function Layout({ children }: { children: ReactNode }) {
 										}}
 									>
 										<span>❌</span>
-										<span className="flex-1">更新失败，请检查服务端日志</span>
+										<span className="flex-1">
+											更新失败
+											{updateState.step
+												? ` — 步骤: ${updateState.step}`
+												: ""}
+											{updateState.error
+												? ` — ${updateState.error}`
+												: "，请检查服务端日志"}
+										</span>
 										<code className="text-xs opacity-70">
 											{updateState.logPath}
 										</code>
+										<button
+											onClick={dismissUpdateBanner}
+											aria-label="关闭"
+											type="button"
+											className="text-sm font-medium hover:opacity-70 flex-shrink-0"
+										>
+											✕
+										</button>
+									</div>
+								);
+
+							case "stalled":
+								return (
+									<div
+										className="flex items-center gap-2 px-4 py-2 text-sm border-b shrink-0"
+										style={{
+											background:
+												"var(--color-caution-amber-muted, oklch(65% .14 75 / .12))",
+											borderColor: "var(--border-default)",
+											color: "var(--text-primary)",
+										}}
+									>
+										<span>⚠️</span>
+										<span className="flex-1">
+											更新已停滞在步骤{" "}
+											{updateState.progress.step_label ||
+												updateState.progress.step ||
+												"—"}
+											，请检查服务端日志
+										</span>
 										<button
 											onClick={dismissUpdateBanner}
 											aria-label="关闭"

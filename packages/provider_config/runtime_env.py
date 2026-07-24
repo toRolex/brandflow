@@ -38,11 +38,11 @@ LLM_ENV_MAPPINGS = {
         },
     },
     "custom": {
-        "provider": "openai",
+        "provider": "custom",
         "env": {
-            "OPENAI_API_KEY": "api_key",
-            "OPENAI_API_URL": "endpoint",
-            "OPENAI_MODEL": "model",
+            "CUSTOM_API_KEY": "api_key",
+            "CUSTOM_API_URL": "endpoint",
+            "CUSTOM_MODEL": "model",
         },
     },
 }

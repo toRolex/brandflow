@@ -123,7 +123,7 @@ class TestV25VoiceClone:
 
         # 2. 验证配置已更新（使用与 upload 路由相同的 config_dir）
         config_manager = TTSConfigManager(config_dir=str(tmp_path / "config"))
-        config = config_manager.get_config("vc_project")
+        config = config_manager.get_config(product_id="vc_project")
         assert config.voice_clone_sample_path is not None
         assert config.voice_clone_mime_type == "audio/mpeg"
 
@@ -170,7 +170,7 @@ class TestV25VoiceClone:
         assert resp.json()["mime_type"] == "audio/wav"
 
         config_manager = TTSConfigManager(config_dir=str(tmp_path / "config"))
-        config = config_manager.get_config("vc_wav_project")
+        config = config_manager.get_config(product_id="vc_wav_project")
         config.model = "mimo-v2.5-tts-voiceclone"
         config.audio_format = "wav"
 

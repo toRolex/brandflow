@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -163,44 +162,26 @@ class TTSConfigManager:
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_config(self, project_id: str | None = None) -> TTSConfig:
-        global_config = self._load_config(None)
-        if project_id:
-            project_config = self._load_config(project_id)
-            return self._merge_configs(global_config, project_config).with_defaults()
-        return global_config.with_defaults()
-
-    def _load_config(self, project_id: str | None = None) -> TTSConfig:
-        if project_id is None:
-            return self._load_global_config()
-        return self._load_file_config(project_id)
+    def get_config(self, product_id: str | None = None) -> TTSConfig:
+        if product_id:
+            return self._load_product_config(product_id).with_defaults()
+        return self._load_global_config().with_defaults()
 
     def _load_global_config(self) -> TTSConfig:
         from packages.provider_config.config_reader import ConfigReader
 
-        config_path = self.config_dir / "app_config.json"
-        if config_path.exists():
-            reader = ConfigReader(config_dir=str(self.config_dir))
-            active_id = reader.active_product_id
-            if active_id:
-                data = reader.get_tts_config(product_id=active_id)
-            else:
-                data = reader.get_tts_config()
-            return TTSConfig.from_dict(self._flatten_tts_config(data))
-        file_path = self._get_config_path(None)
-        if file_path.exists():
-            with open(file_path, encoding="utf-8") as f:
-                return TTSConfig.from_dict(json.load(f))
-        return TTSConfig()
+        reader = ConfigReader(config_dir=str(self.config_dir))
+        data = reader.get_tts_config()  # 不带 product_id → 顶层 tts
+        return TTSConfig.from_dict(self._flatten_tts_config(data))
 
-    def _load_file_config(self, project_id: str) -> TTSConfig:
-        file_path = self._get_config_path(project_id)
-        if file_path.exists():
-            with open(file_path, encoding="utf-8") as f:
-                return TTSConfig.from_dict(json.load(f))
-        return TTSConfig()
+    def _load_product_config(self, product_id: str) -> TTSConfig:
+        from packages.provider_config.config_reader import ConfigReader
 
-    def save_config(self, config: TTSConfig, project_id: str | None = None) -> None:
+        reader = ConfigReader(config_dir=str(self.config_dir))
+        data = reader.get_tts_config(product_id=product_id)
+        return TTSConfig.from_dict(self._flatten_tts_config(data))
+
+    def save_config(self, config: TTSConfig, product_id: str | None = None) -> None:
         # 自动迁移: mimo-v2-tts -> qwen3-tts-flash
         if config.model == "mimo-v2-tts":
             import logging
@@ -209,10 +190,10 @@ class TTSConfigManager:
             logger.warning("Auto-migrating mimo-v2-tts -> qwen3-tts-flash")
             config.model = "qwen3-tts-flash"
             config.voice = "Rocky"
-        if project_id is None:
+        if product_id is None:
             self._save_global_config(config)
         else:
-            self._save_file_config(config, project_id)
+            self._save_product_config(config, product_id)
 
     def _save_global_config(self, config: TTSConfig) -> None:
         from packages.provider_config.config_io import load_config, save_config
@@ -220,25 +201,6 @@ class TTSConfigManager:
 
         config_path = self.config_dir / "app_config.json"
         raw = load_config(config_path)
-
-        # Write to active product when one is set, otherwise top-level tts
-        active_id = raw.get("active_product_id", "")
-        if active_id:
-            for i, p in enumerate(raw.get("products", [])):
-                if p.get("id") == active_id:
-                    if "tts" not in raw["products"][i]:
-                        raw["products"][i]["tts"] = {}
-                    for key, value in config.to_dict().items():
-                        if value is None:
-                            continue
-                        _set_nested(
-                            raw["products"][i]["tts"],
-                            self._FLAT_TO_NESTED.get(key, key),
-                            value,
-                        )
-                    save_config(config_path, raw)
-                    return
-
         if "tts" not in raw:
             raw["tts"] = {}
         for key, value in config.to_dict().items():
@@ -247,30 +209,29 @@ class TTSConfigManager:
             _set_nested(raw["tts"], self._FLAT_TO_NESTED.get(key, key), value)
         save_config(config_path, raw)
 
-    def _save_file_config(self, config: TTSConfig, project_id: str) -> None:
-        file_path = self._get_config_path(project_id)
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(config.to_dict(), f, ensure_ascii=False, indent=2)
+    def _save_product_config(self, config: TTSConfig, product_id: str) -> None:
+        from packages.provider_config.config_io import load_config, save_config
+        from packages.provider_config.config_constants import _set_nested
 
-    def _get_config_path(self, project_id: str | None = None) -> Path:
-        if project_id:
-            return self.config_dir / "projects" / project_id / "tts_config.json"
-        return self.config_dir / "tts_config.json"
-
-    @staticmethod
-    def _merge_configs(*configs: TTSConfig) -> TTSConfig:
-        if not configs:
-            return TTSConfig()
-
-        result = configs[0].to_dict()
-        for config in configs[1:]:
-            override = config.to_dict()
-            for key, value in override.items():
-                if value is not None and value != "" and value != []:
-                    result[key] = value
-
-        return TTSConfig.from_dict(result)
+        config_path = self.config_dir / "app_config.json"
+        raw = load_config(config_path)
+        # 找到匹配 product，不存在则创建
+        for i, p in enumerate(raw.get("products", [])):
+            if p.get("id") == product_id:
+                if "tts" not in raw["products"][i]:
+                    raw["products"][i]["tts"] = {}
+                for key, value in config.to_dict().items():
+                    if value is None:
+                        continue
+                    _set_nested(
+                        raw["products"][i]["tts"],
+                        self._FLAT_TO_NESTED.get(key, key),
+                        value,
+                    )
+                save_config(config_path, raw)
+                return
+        # product 不存在，报错而非隐式创建
+        raise ValueError(f"product '{product_id}' not found in app_config.json")
 
     @staticmethod
     def _flatten_tts_config(data: dict[str, Any]) -> dict[str, Any]:
