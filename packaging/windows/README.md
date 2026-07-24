@@ -45,10 +45,14 @@ packaging\windows\deploy.bat
 
 | 脚本 | 用途 |
 |------|------|
-| `deploy.bat` | **一站式部署**：装工具 → 初始化 → 拉代码 → 编译 → 注册/重启服务 → 健康检查 + 回滚。首次部署和日常更新用同一个命令。 |
-| `start.bat` | 开发调试：同时启动后端和前端，日志写入 `logs/`，按任意键停止。 |
+| `deploy.bat` | **一站式部署**：装工具 → 初始化 → 拉代码 → 编译 → NSSM 注册/重启服务 → 健康检查 + 回滚。首次部署和日常更新用同一个命令。 |
+| `start.bat` | NSSM 启动控制面服务。 |
+| `stop.bat` | NSSM 停止控制面服务。 |
+| `restart.bat` | NSSM 重启控制面服务。 |
+| `status.bat` | 查看 NSSM 服务状态与 Python 进程。 |
+| `update.bat` | 快速更新：拉代码 → 装依赖 → 编译前端 → 重启 NSSM 服务，进度写入 `progress.json`。 |
+| `start_dev.bat` | 开发调试：同时启动后端和前端，日志写入 `logs/`，按任意键停止。 |
 | `start_worker.bat` | 单独启动 runtime worker。 |
-| `deploy_analytics.bat` | 单独部署分析服务。 |
 
 ## 外部工具
 

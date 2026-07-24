@@ -152,7 +152,16 @@ echo   前端编译完成。
 :: Step 6: 注册 / 重启计划任务
 :: ============================================
 echo [6/7] 注册并重启服务 ...
-powershell -ExecutionPolicy Bypass -File "%~dp0manage-task.ps1" -Action restart
+nssm restart brandflow-control-plane >nul 2>&1 || (
+    nssm install brandflow-control-plane cmd /c "uv run --directory %PROJECT_DIR% python -m apps.control_plane"
+    nssm set brandflow-control-plane AppDirectory "%PROJECT_DIR%"
+    nssm set brandflow-control-plane AppStdout "%PROJECT_DIR%\logs\control-plane.log"
+    nssm set brandflow-control-plane AppStderr "%PROJECT_DIR%\logs\control-plane.log"
+    nssm set brandflow-control-plane AppRotateFiles 1
+    nssm set brandflow-control-plane AppRotateBytes 10485760
+    nssm set brandflow-control-plane Start SERVICE_AUTO_START
+    nssm start brandflow-control-plane
+)
 echo   服务已启动。
 
 :: ============================================
@@ -172,7 +181,7 @@ if %errorlevel% neq 0 (
     if defined ROLLBACK_TAG (
         echo   回滚到 !ROLLBACK_TAG! ...
         git reset --hard !ROLLBACK_TAG!
-        powershell -ExecutionPolicy Bypass -File "%~dp0manage-task.ps1" -Action restart
+        nssm restart brandflow-control-plane
         echo [完成] 已回滚 !ROLLBACK_TAG! >> "%LOG_FILE%"
         echo   已回滚到 !ROLLBACK_TAG!，请检查服务状态。
     ) else (
