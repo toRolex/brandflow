@@ -18,6 +18,16 @@ from packages.pipeline_services.tts_provider import MiMoTTSProvider
 
 @pytest.fixture
 def client(tmp_path):
+    # 预创建 products，满足 save_config 的校验
+    from packages.provider_config.config_io import save_config
+
+    config_path = tmp_path / "config" / "app_config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    save_config(
+        config_path,
+        {"products": [{"id": "vc_project"}, {"id": "vc_wav_project"}]},
+    )
+
     app = create_app(root_dir=tmp_path)
     with TestClient(app) as c:
         yield c

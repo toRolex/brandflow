@@ -177,7 +177,10 @@ def get_media_duration(file_path: Path) -> float:
         encoding="utf-8",
         errors="replace",
     )
-    return float(result.stdout.strip())
+    out = result.stdout.strip()
+    if not out:
+        raise RuntimeError(f"ffprobe 返回空 duration: {file_path}")
+    return float(out)
 
 
 def normalize_clip_to_vertical(
@@ -330,8 +333,11 @@ def get_video_size(video_path: Path) -> tuple[int, int]:
     )
     if result.returncode != 0:
         raise RuntimeError(f"ffprobe 失败: {result.stderr}")
-    parts = result.stdout.strip().split("x")
-    return int(parts[0]), int(parts[1])
+    out = result.stdout.strip()
+    if not out or "x" not in out:
+        raise RuntimeError(f"ffprobe 返回空分辨率: {video_path}")
+    w, h = out.split("x", 1)
+    return int(w), int(h)
 
 
 def _resolve_executable(

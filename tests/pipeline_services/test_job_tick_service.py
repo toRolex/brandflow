@@ -22,7 +22,6 @@ from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
     HANDLED_PHASES,
     JobTickService,
-    PhaseExecutionError,
     TickAction,
     _compute_transition,
     _transition_after_artifacts,
@@ -696,24 +695,25 @@ class TestJobTickService:
         mock_repo.save_job.assert_not_called()
 
     def test_tick_wraps_orchestrator_error(self) -> None:
-        """Orchestrator failure should raise PhaseExecutionError."""
+        """Orchestrator failure should result in failed phase after retries."""
         record = make_record(phase="script_generating")
-        mock_repo = Mock(spec=FileStoreRepository)
-        mock_repo.load_job.return_value = record
+        mock_repo = _persistent_repo(record)
         mock_orch = Mock(spec=PhaseOrchestrator)
         mock_orch.run_phase.side_effect = RuntimeError("API failure")
 
-        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo)
-        with pytest.raises(PhaseExecutionError) as exc:
-            svc.tick(
-                "proj-001",
-                "test-job",
-                "羊肚菌",
-                root_dir=Path("/tmp"),
-                project_dir=Path("/tmp/proj"),
-            )
-        assert exc.value.job_id == "test-job"
-        assert exc.value.phase == "script_generating"
+        svc = JobTickService(orchestrator=mock_orch, repo=mock_repo, sleep_fn=None)
+        svc.tick(
+            "proj-001",
+            "test-job",
+            "羊肚菌",
+            root_dir=Path("/tmp"),
+            project_dir=Path("/tmp/proj"),
+        )
+
+        # After max retries, job should be in failed phase.
+        saved = mock_repo.save_job.call_args_list[-1][0][1]
+        assert saved.phase == "failed"
+        assert saved.failed_phase == "script_generating"
 
     def test_deterministic_media_failure_stops_immediately(self) -> None:
         record = make_record(phase="video_rendering", mode="import")
