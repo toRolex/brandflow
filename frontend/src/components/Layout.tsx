@@ -640,9 +640,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 										<span>❌</span>
 										<span className="flex-1">
 											更新失败
-											{updateState.step
-												? ` — 步骤: ${updateState.step}`
-												: ""}
+											{updateState.step ? ` — 步骤: ${updateState.step}` : ""}
 											{updateState.error
 												? ` — ${updateState.error}`
 												: "，请检查服务端日志"}

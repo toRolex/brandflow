@@ -157,9 +157,7 @@ class TestImportModeQueued:
         )
         assert action.run_handler is False
         assert action.new_phase == "scene_assembling"
-        assert (
-            action.message == "queued → scene_assembling (import mode, no handler yet)"
-        )
+        assert action.message == "queued → scene_assembling (import mode)"
 
     def test_queued_import_does_not_run_script_handler(self) -> None:
         """Import mode should NOT route to script_generating."""

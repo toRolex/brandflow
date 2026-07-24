@@ -32,6 +32,14 @@ class TestQwenMigration:
     def test_mimo_v2_migration_with_product_config(self) -> None:
         """save_config 时 product 级别的 mimo-v2-tts 也应被迁移"""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # 预创建 product，满足 save_config 的校验
+            from pathlib import Path
+
+            from packages.provider_config.config_io import save_config as io_save_config
+
+            config_path = Path(tmpdir) / "app_config.json"
+            io_save_config(config_path, {"products": [{"id": "prod-1"}]})
+
             mgr = TTSConfigManager(config_dir=tmpdir)
             config = TTSConfig(model="mimo-v2-tts", voice="old_voice")
             mgr.save_config(config, product_id="prod-1")
