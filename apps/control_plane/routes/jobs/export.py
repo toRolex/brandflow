@@ -78,7 +78,7 @@ def export_status(request: Request, job_id: str):
     service.recover_interrupted()
     task = service._load()
     if not task:
-        raise HTTPException(status_code=404, detail="no export task")
+        return {"task_id": None, "status": "not_started"}
     return {
         "task_id": task["task_id"],
         "status": task["status"],
