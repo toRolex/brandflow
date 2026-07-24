@@ -9,7 +9,6 @@ from fastapi import HTTPException, Request
 
 from packages.domain_core.models import ExecutionFailure, JobRecord
 from packages.file_store.repository import FileStoreRepository
-from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
 
@@ -266,7 +265,7 @@ def _resolve_tts_preview_config(
         TTSConfigShim,
     )
 
-    tts_model: str = str(tts_cfg.get("model", DEFAULTS["tts"]["model"]) or "")
+    tts_model: str = str(tts_cfg.get("model") or "")
     if tts_model.startswith("qwen"):
         provider = QwenTTSProvider(
             api_key=secret_store.get_api_key("qwen"),
