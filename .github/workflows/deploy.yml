@@ -14,7 +14,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: develop
-          path: brandflow
       - name: Deploy develop → test machine
         shell: cmd
         env:
@@ -34,7 +33,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-          path: brandflow
       - name: Deploy main → prod machines
         shell: cmd
         env:
