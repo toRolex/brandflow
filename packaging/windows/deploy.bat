@@ -4,8 +4,10 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 title Brandflow — 一键部署
 
-set "PROJECT_DIR=%GITHUB_WORKSPACE%"
-if "%PROJECT_DIR%"=="" set "PROJECT_DIR=D:\brandflow"
+:: CD 场景下 GITHUB_WORKSPACE 是 runner 的临时目录（每次 job 重建），不是生产数据目录。
+:: 这里默认走 D:\brandflow（持续服务所在），把最新代码同步过去后再启动。
+set "PROJECT_DIR=D:\brandflow"
+if not "%GITHUB_WORKSPACE%"=="" set "RUNNER_SRC=%GITHUB_WORKSPACE%"
 set "BRANCH=%~1"
 if "%BRANCH%"=="" set "BRANCH=main"
 
@@ -14,8 +16,7 @@ echo === Brandflow deploy entrypoint ===
 echo BRANCH       = %BRANCH%
 echo PROJECT_DIR  = %PROJECT_DIR%
 echo CWD          = %CD%
-echo GITHUB_WORKSPACE = %GITHUB_WORKSPACE%
-echo GITHUB_ACTIONS   = %GITHUB_ACTIONS%
+echo RUNNER_SRC   = %RUNNER_SRC%
 echo --- workspace contents ---
 if exist "%PROJECT_DIR%" (dir /b "%PROJECT_DIR%" | findstr /R /C:"packaging" /C:"frontend" /C:"apps" /C:"packages" /C:".git")
 echo === end headers ===
@@ -44,11 +45,11 @@ echo ============================================
 echo  Brandflow 一键部署
 echo ============================================
 echo  项目: %PROJECT_DIR%
-echo  日志: %LOG_FILE%
+echo  日志: !LOG_FILE!
 echo ============================================
 echo.
 
-echo [%date% %time%] ========== 部署开始 ========== >> "%LOG_FILE%"
+echo [%date% %time%] ========== 部署开始 ========== >> "!LOG_FILE!"
 
 :: ============================================
 :: Step 1: 前置工具（幂等，缺啥装啥）
@@ -110,24 +111,58 @@ if not exist "%PROJECT_DIR%\.env" (
 echo   目录已确认。
 
 :: ============================================
-:: Step 3: 拉取最新代码（目标分支 = %BRANCH%）
+:: Step 3: 同步最新代码（目标分支 = %BRANCH%）
+:: GitHub Actions runner 源在 %GITHUB_WORKSPACE%，先把它复制到 %PROJECT_DIR%
 :: ============================================
-echo [3/7] 拉取最新代码 (分支: %BRANCH%) ...
-pushd "%PROJECT_DIR%"
-git fetch --tags origin
-git checkout %BRANCH%
-if %errorlevel% neq 0 (
-    echo [错误] git checkout %BRANCH% 失败 >> "%LOG_FILE%"
-    pause
-    exit /b %errorlevel%
+echo [3/7] 同步最新代码 (分支: %BRANCH%) ...
+if exist "%PROJECT_DIR%" (
+    pushd "%PROJECT_DIR%"
+) else (
+    mkdir "%PROJECT_DIR%"
+    pushd "%PROJECT_DIR%"
+    git init
+    git remote add origin https://github.com/toRolex/brandflow.git
 )
-git pull --rebase --autostash
-if %errorlevel% neq 0 (
-    echo [错误] git pull 失败 >> "%LOG_FILE%"
-    pause
-    exit /b %errorlevel%
+
+:: CD：从 runner workspace 同步代码到持久目录（保留 .venv/.env/workspace 等）
+if defined RUNNER_SRC (
+    echo   CD 模式：从 runner workspace 同步代码 ...
+    git config core.symlinks false
+    git remote set-url origin https://github.com/toRolex/brandflow.git
+    git checkout -B %BRANCH%
+    :: 用 rsync 类方式：清干净 tracked 文件并 checkout 一次
+    git fetch --tags origin %BRANCH%
+    git checkout -f FETCH_HEAD
+    if errorlevel 1 (
+        echo [错误] git checkout FETCH_HEAD 失败 >> "!LOG_FILE!"
+        popd
+        pause
+        exit /b 1
+    )
+    :: 重新同步 untracked 但 .gitignore 已忽略的不动
+    git clean -fdx -e .env -e workspace -e logs -e .venv -e frontend\node_modules -e config\app_config.json
+    :: 把 runner workspace 的 .git ref 拷过来保证 sync
+    copy /y "%RUNNER_SRC%\.git\HEAD" "%PROJECT_DIR%\.git\HEAD\" >nul 2>&1
+    popd
+) else (
+    echo   手动模式：从 origin 拉取 ...
+    git fetch --tags origin
+    git checkout %BRANCH%
+    if errorlevel 1 (
+        echo [错误] git checkout %BRANCH% 失败 >> "!LOG_FILE!"
+        popd
+        pause
+        exit /b 1
+    )
+    git pull --rebase --autostash
+    if errorlevel 1 (
+        echo [错误] git pull 失败 >> "!LOG_FILE!"
+        popd
+        pause
+        exit /b 1
+    )
+    popd
 )
-popd
 
 :: ============================================
 :: Step 4: Python 依赖
@@ -136,7 +171,7 @@ echo [4/7] 安装 Python 依赖 ...
 pushd "%PROJECT_DIR%"
 uv sync --all-extras --dev
 if %errorlevel% neq 0 (
-    echo [错误] uv sync 失败 >> "%LOG_FILE%"
+    echo [错误] uv sync 失败 >> "!LOG_FILE!"
     pause
     exit /b %errorlevel%
 )
@@ -153,7 +188,7 @@ if exist "%USERPROFILE%\AppData\Local\pnpm\bin\pnpm.CMD" set "PATH=%USERPROFILE%
 if not exist "node_modules" (
     call pnpm install --no-frozen-lockfile
     if %errorlevel% neq 0 (
-        echo [错误] pnpm install 失败 >> "%LOG_FILE%"
+        echo [错误] pnpm install 失败 >> "!LOG_FILE!"
         popd
         pause
         exit /b %errorlevel%
@@ -161,7 +196,7 @@ if not exist "node_modules" (
 )
 call pnpm build
 if %errorlevel% neq 0 (
-    echo [错误] pnpm build 失败 >> "%LOG_FILE%"
+    echo [错误] pnpm build 失败 >> "!LOG_FILE!"
     popd
     pause
     exit /b %errorlevel%
@@ -193,16 +228,16 @@ timeout /t 5 /nobreak >nul
 
 curl --noproxy "*" -f http://127.0.0.1:17890/api/health >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] 健康检查失败，请检查日志: %LOG_FILE%
+    echo [错误] 健康检查失败，请检查日志: !LOG_FILE!
     pause
     exit /b 1
 )
 
-echo [%date% %time%] ========== 部署成功 ========== >> "%LOG_FILE%"
+echo [%date% %time%] ========== 部署成功 ========== >> "!LOG_FILE!"
 echo.
 echo ============================================
 echo  部署成功
 echo  访问: http://127.0.0.1:17890
-echo  日志: %LOG_FILE%
+echo  日志: !LOG_FILE!
 echo ============================================
 pause
