@@ -57,8 +57,11 @@ echo [1/7] 检查前置工具 ...
 
 where uv >nul 2>&1 || (
     echo   - 安装 uv ...
-    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+    powershell -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
 )
+if exist "%USERPROFILE%\.local\bin\uv.exe" set "PATH=%USERPROFILE%\.local\bin;%PATH%"
+if exist "C:\Users\ziyua\.local\bin\uv.exe" set "PATH=C:\Users\ziyua\.local\bin;%PATH%"
+if exist "C:\Users\admin\.local\bin\uv.exe" set "PATH=C:\Users\admin\.local\bin;%PATH%"
 
 where node >nul 2>&1 || (
     if exist "C:\Program Files\nodejs\node.exe" (
@@ -76,7 +79,7 @@ where pnpm >nul 2>&1 || (
         set "PATH=%USERPROFILE%\AppData\Local\pnpm\bin;%PATH%"
     ) else (
         echo   - 安装 pnpm ...
-        powershell -c "iwr https://get.pnpm.io/install.ps1 -useb | iex"
+        powershell -ExecutionPolicy Bypass -Command "iwr https://get.pnpm.io/install.ps1 -useb | iex"
         if exist "%USERPROFILE%\AppData\Local\pnpm\bin\pnpm.CMD" set "PATH=%USERPROFILE%\AppData\Local\pnpm\bin;%PATH%"
     )
 )
