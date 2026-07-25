@@ -29,7 +29,7 @@ class LogEntry(BaseModel):
     extra: dict[str, Any] | None = None
 
 
-@router.post("/error")
+@router.post("/error", status_code=201)
 def report_error(entry: LogEntry) -> dict[str, bool]:
     log_error(entry.model_dump(exclude_none=True))
     return {"ok": True}

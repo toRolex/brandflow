@@ -171,6 +171,25 @@ class TestAutoTickLoop:
 
         assert call_count == 2
 
+    @patch("apps.control_plane.app.JobTickService")
+    async def test_persists_generic_tick_exception(
+        self, mock_svc_cls: Mock, mock_projects: Path
+    ) -> None:
+        """An auto-tick failure is available in the persistent runtime log."""
+        mock_svc = Mock(spec=JobTickService)
+        mock_svc.tick.side_effect = ValueError("unexpected error")
+        mock_svc_cls.return_value = mock_svc
+
+        with patch("apps.control_plane.app.log_error") as log_error:
+            await self._run_one_tick(mock_projects)
+
+        entry = log_error.call_args.args[0]
+        assert entry["source"] == "backend"
+        assert entry["level"] == "error"
+        assert entry["message"] == "AUTO-TICK job-001.json: unexpected error"
+        assert entry["extra"] == {"job_file": "job-001.json"}
+        assert "ValueError: unexpected error" in entry["stack_trace"]
+
 
 # ---------------------------------------------------------------------------
 # Executor offloading + single-in-flight (Issue #266)

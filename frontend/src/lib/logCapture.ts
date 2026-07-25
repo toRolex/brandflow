@@ -23,6 +23,16 @@ function send(entry: LogEntry): void {
 	void reportError(entry).catch(() => undefined);
 }
 
+function consoleEntry(level: "error" | "warn", args: unknown[]): LogEntry {
+	const error = args.find((arg): arg is Error => arg instanceof Error);
+	return {
+		source: "frontend",
+		level,
+		message: args.map(stringify).join(" "),
+		stack_trace: error?.stack,
+	};
+}
+
 export function initLogReporting(): void {
 	if (originalError) return;
 	originalError = console.error;
@@ -31,11 +41,11 @@ export function initLogReporting(): void {
 	window.addEventListener("unhandledrejection", onUnhandledRejection);
 	console.error = (...args: unknown[]) => {
 		originalError?.(...args);
-		send({ source: "frontend", level: "error", message: args.map(stringify).join(" ") });
+		send(consoleEntry("error", args));
 	};
 	console.warn = (...args: unknown[]) => {
 		originalWarn?.(...args);
-		send({ source: "frontend", level: "warn", message: args.map(stringify).join(" ") });
+		send(consoleEntry("warn", args));
 	};
 }
 

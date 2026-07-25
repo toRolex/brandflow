@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import time
+import traceback
 
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -47,6 +48,7 @@ from packages.provider_config.config_reader import ConfigReader, ProductStore
 from packages.provider_config.secret_store import SecretStore
 from packages.log_service.excepthook import install_global_excepthook
 from packages.log_service.middleware import install_log_middleware
+from packages.log_service.log_writer import log_error
 
 
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
@@ -132,19 +134,41 @@ async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
                                 flush=True,
                             )
                     except PhaseExecutionError as e:
+                        log_error(
+                            {
+                                "source": "backend",
+                                "level": "error",
+                                "message": f"{e.phase} phase failed: {e}",
+                                "extra": {"job_id": e.job_id, "phase": e.phase},
+                                "stack_trace": traceback.format_exc(),
+                            }
+                        )
                         print(
                             f"[AUTO-TICK] {e.job_id}: {e.phase} phase failed: {e}",
                             flush=True,
                         )
                     except Exception as e:
+                        log_error(
+                            {
+                                "source": "backend",
+                                "level": "error",
+                                "message": f"AUTO-TICK {f.name}: {e}",
+                                "extra": {"job_file": f.name},
+                                "stack_trace": traceback.format_exc(),
+                            }
+                        )
                         print(f"[AUTO-TICK ERROR] {f.name}: {e}", flush=True)
-                        import traceback
-
                         traceback.print_exc()
         except Exception as e:
+            log_error(
+                {
+                    "source": "backend",
+                    "level": "error",
+                    "message": f"AUTO-TICK LOOP ERROR: {e}",
+                    "stack_trace": traceback.format_exc(),
+                }
+            )
             print(f"[AUTO-TICK LOOP ERROR] {e}", flush=True)
-            import traceback
-
             traceback.print_exc()
 
 

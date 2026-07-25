@@ -15,7 +15,7 @@ _LOG_LOCK = threading.Lock()
 
 def get_log_dir() -> Path:
     """Return the OS-specific directory containing daily Brandflow logs."""
-    return Path(user_data_dir("brandflow", appauthor=False, roaming=True)) / "logs"
+    return Path(user_data_dir("brandflow", appauthor=False)) / "logs"
 
 
 def log_error(entry: dict[str, Any], log_dir: Path | None = None) -> Path:
