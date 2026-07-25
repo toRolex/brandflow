@@ -8,12 +8,14 @@ if "%PROJECT_DIR%"=="" set "PROJECT_DIR=D:\brandflow"
 set "BRANCH=%~1"
 if "%BRANCH%"=="" set "BRANCH=main"
 
-:: 自动提权（安装工具和注册服务需要管理员权限）
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 请求管理员权限...
-    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~f0\" %BRANCH%' -Verb RunAs"
-    exit /b
+:: 自动提权（CD 场景跳过；GitHub Actions runner 已是高权限 SYSTEM/管理员）
+if "%GITHUB_ACTIONS%"=="" (
+    net session >nul 2>&1
+    if !errorlevel! neq 0 (
+        echo 请求管理员权限...
+        powershell -Command "Start-Process cmd -ArgumentList '/c \"%~f0\" %BRANCH%' -Verb RunAs"
+        exit /b
+    )
 )
 
 if not exist "%PROJECT_DIR%" (
