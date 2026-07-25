@@ -1,4 +1,5 @@
 @echo off
+echo Begin deploy.bat
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 title Brandflow — 一键部署
