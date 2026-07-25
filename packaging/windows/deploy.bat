@@ -33,9 +33,15 @@ if "%GITHUB_ACTIONS%"=="" (
 )
 
 if not exist "%PROJECT_DIR%" (
-    echo [错误] 项目目录 %PROJECT_DIR% 不存在
-    pause
-    exit /b 1
+    echo [warn] 项目目录 %PROJECT_DIR% 不存在 — 自动创建
+    mkdir "%PROJECT_DIR%"
+)
+if not exist "%PROJECT_DIR%\.git" (
+    echo   初始化 git 仓库 ...
+    pushd "%PROJECT_DIR%"
+    git init -b main
+    git remote add origin https://github.com/toRolex/brandflow.git
+    popd
 )
 
 set "LOG_FILE=%PROJECT_DIR%\logs\deploy.log"
