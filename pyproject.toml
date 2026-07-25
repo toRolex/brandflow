@@ -1,7 +1,7 @@
 [project]
 name = "brandflow-pipeline"
 
-version = "0.7.28"
+version = "0.7.29"
 
 description = "Local short-video automation pipeline"
 requires-python = ">=3.11"

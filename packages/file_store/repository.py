@@ -60,7 +60,20 @@ class FileStoreRepository:
             / "jobs"
             / f"{job_id}.json"
         )
-        return JobRecord.model_validate_json(path.read_text(encoding="utf-8"))
+        # ponytail: control plane auto_tick and worker advance_after_report
+        # both save_job concurrently; their ``os.replace`` on Windows can
+        # briefly surface a torn JSON to readers. Retry once after 50ms
+        # so the caller's 404 isn't permanent.
+        last_exc: Exception | None = None
+        for _ in range(2):
+            try:
+                return JobRecord.model_validate_json(path.read_text(encoding="utf-8"))
+            except (ValueError, OSError) as exc:
+                last_exc = exc
+                import time
+
+                time.sleep(0.05)
+        raise last_exc  # type: ignore[misc]
 
     def delete_job(self, project_id: str, job_id: str) -> bool:
         path = (
@@ -207,9 +220,23 @@ class FileStoreRepository:
         return True
 
     def _write_json(self, path: Path, payload: dict[str, Any]) -> None:
-        temp_path = path.with_suffix(path.suffix + ".tmp")
-        temp_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+        # ponytail: unique tmp per writer — two concurrent writers (control
+        # plane auto_tick + worker advance_after_report) used to share
+        # ``<path>.tmp`` and clobber each other's bytes, leaving truncated
+        # JSON that load_job surfaces as a 404.
+        import os
+        import tempfile
+
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
         )
-        temp_path.replace(path)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+            os.replace(tmp_name, path)
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise

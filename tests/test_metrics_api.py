@@ -380,7 +380,9 @@ class TestOverviewEndpoint:
         # Seed data into the DB used by the client
         db_path = tmp_path / "project_root" / "data" / "metrics.db"
         store = MetricsStore(db_path=str(db_path))
-        _seed_store(store, count=2, base_date="2026-06-24")
+        # Anchor base_date so both seeded rows fall inside the 30-day window
+        base_date = (datetime.now(UTC) - timedelta(days=29)).strftime("%Y-%m-%d")
+        _seed_store(store, count=2, base_date=base_date)
 
         resp = client.get("/api/metrics/overview?days=30")
         assert resp.status_code == 200
