@@ -193,8 +193,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   │   │   ├── metrics.py
 │   │   │   ├── category_suggestion.py
 │   │   │   └── version_check.py
-│   │   ├── services/         # 调度器、排期存储
-│   │   └── templates/        # 旧 Jinja2 模板（逐步淘汰中）
+│   │   └── services/         # 调度器、排期存储
 │   └── runtime_worker/      # 拉模式 worker（poll → execute → report）
 │
 ├── frontend/                 # React 前端（新）
