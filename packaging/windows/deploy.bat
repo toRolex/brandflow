@@ -4,12 +4,14 @@ setlocal enabledelayedexpansion
 title Brandflow — 一键部署
 
 set "PROJECT_DIR=D:\brandflow"
+set "BRANCH=%~1"
+if "%BRANCH%"=="" set "BRANCH=main"
 
 :: 自动提权（安装工具和注册服务需要管理员权限）
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo 请求管理员权限...
-    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~f0\"' -Verb RunAs"
+    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~f0\" %BRANCH%' -Verb RunAs"
     exit /b
 )
 
@@ -92,12 +94,18 @@ if not exist "%PROJECT_DIR%\.env" (
 echo   目录已确认。
 
 :: ============================================
-:: Step 3: 拉取最新代码
+:: Step 3: 拉取最新代码（目标分支 = %BRANCH%）
 :: ============================================
-echo [3/7] 拉取最新代码 ...
+echo [3/7] 拉取最新代码 (分支: %BRANCH%) ...
 pushd "%PROJECT_DIR%"
-git fetch --tags
-git pull --rebase
+git fetch --tags origin
+git checkout %BRANCH%
+if %errorlevel% neq 0 (
+    echo [错误] git checkout %BRANCH% 失败 >> "%LOG_FILE%"
+    pause
+    exit /b %errorlevel%
+)
+git pull --rebase --autostash
 if %errorlevel% neq 0 (
     echo [错误] git pull 失败 >> "%LOG_FILE%"
     pause
