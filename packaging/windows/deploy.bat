@@ -8,6 +8,18 @@ if "%PROJECT_DIR%"=="" set "PROJECT_DIR=D:\brandflow"
 set "BRANCH=%~1"
 if "%BRANCH%"=="" set "BRANCH=main"
 
+:: Debug headers — 方便排查 CD 失败
+echo === Brandflow deploy entrypoint ===
+echo BRANCH       = %BRANCH%
+echo PROJECT_DIR  = %PROJECT_DIR%
+echo CWD          = %CD%
+echo GITHUB_WORKSPACE = %GITHUB_WORKSPACE%
+echo GITHUB_ACTIONS   = %GITHUB_ACTIONS%
+echo --- workspace contents ---
+if exist "%PROJECT_DIR%" (dir /b "%PROJECT_DIR%" | findstr /R /C:"packaging" /C:"frontend" /C:"apps" /C:"packages" /C:".git")
+echo === end headers ===
+echo.
+
 :: 自动提权（CD 场景跳过；GitHub Actions runner 已是高权限 SYSTEM/管理员）
 if "%GITHUB_ACTIONS%"=="" (
     net session >nul 2>&1
