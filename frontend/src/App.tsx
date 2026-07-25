@@ -3,6 +3,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import Layout from "./components/Layout";
 import { ProductProvider } from "./ProductContext";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import LogsPage from "./pages/LogsPage";
 import ConfigPage from "./pages/ConfigPage";
 import JobPipeline from "./pages/JobPipeline";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
@@ -48,6 +49,7 @@ export default function App() {
 						/>
 						<Route path="/tts-config" element={<TtsConfig />} />
 						<Route path="/analytics" element={<AnalyticsPage />} />
+						<Route path="/logs" element={<LogsPage />} />
 					</Routes>
 				</Layout>
 			</ProductProvider>

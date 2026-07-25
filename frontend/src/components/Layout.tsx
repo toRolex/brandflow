@@ -81,6 +81,12 @@ const IconChart = () => (
 	</svg>
 );
 
+const IconScrollText = () => (
+	<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+		<path d="M4 1.5h10v13H7l-3 2v-15z" /><path d="M7 5h4M7 8h4M7 11h2" />
+	</svg>
+);
+
 const IconSun = () => (
 	<svg
 		width="18"
@@ -151,6 +157,7 @@ const ICON_MAP: Record<string, ReactNode> = {
 	image: <IconImage />,
 	gear: <IconGear />,
 	chart: <IconChart />,
+	"scroll-text": <IconScrollText />,
 };
 
 const NAV_ITEMS = [
@@ -158,6 +165,7 @@ const NAV_ITEMS = [
 	{ path: "/assets", label: "素材库", icon: "image" },
 	{ path: "/config", label: "系统配置", icon: "gear" },
 	{ path: "/analytics", label: "数据追踪", icon: "chart" },
+	{ path: "/logs", label: "运行日志", icon: "scroll-text" },
 ];
 
 const CONFIG_ITEMS = [
