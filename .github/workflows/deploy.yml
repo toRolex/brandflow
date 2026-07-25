@@ -13,14 +13,22 @@ jobs:
     steps:
       - name: Deploy
         shell: cmd
-        run: |
-          echo === before-script ===
-          cd /d "%GITHUB_WORKSPACE%"
-          dir packaging\windows\deploy.bat
-          call "%GITHUB_WORKSPACE%\packaging\windows\deploy.bat" develop
         env:
-          https_proxy: http://127.0.0.1:7897
-          http_proxy: http://127.0.0.1:7897
+          https_proxy: ""
+          http_proxy: ""
+        run: |
+          echo === env dump ===
+          echo GITHUB_WORKSPACE=%GITHUB_WORKSPACE%
+          echo PWD=%CD%
+          echo === workspace tree ===
+          cd /d "%GITHUB_WORKSPACE%" 2>nul || (echo cd failed & dir)
+          dir /b "%GITHUB_WORKSPACE%\packaging\windows" 2>nul || (echo no deploy.bat at %GITHUB_WORKSPACE%\packaging\windows)
+          if exist "%GITHUB_WORKSPACE%\packaging\windows\deploy.bat" (
+              echo === running deploy ===
+              call "%GITHUB_WORKSPACE%\packaging\windows\deploy.bat" develop
+          ) else (
+              echo NO deploy.bat FOUND
+          )
 
   prod-cd:
     name: Prod (snack / prod-jump) → main
