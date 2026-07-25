@@ -3,7 +3,7 @@ from __future__ import annotations
 import gc
 import io
 import os
-import resource
+import sys
 import wave
 from collections.abc import Callable
 from collections.abc import Iterator
@@ -17,11 +17,14 @@ import pytest
 #
 # 注意：macOS 上进程 VSZ 因系统框架映射已 ~400GB，setrlimit 设 3GB 会被内核拒绝。
 # 此保护在 Linux CI 环境中生效（VSZ ≈ RSS），macOS 本地不生效，保留作 CI 兼容。
-_LIMIT = 3 * 1024 * 1024 * 1024  # 3 GB
-try:
-    resource.setrlimit(resource.RLIMIT_AS, (_LIMIT, _LIMIT))
-except ValueError:
-    pass
+if sys.platform != "win32":
+    import resource
+
+    _LIMIT = 3 * 1024 * 1024 * 1024  # 3 GB
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (_LIMIT, _LIMIT))
+    except ValueError:
+        pass
 
 # Aggressive GC: lower thresholds trigger collection sooner,
 # preventing unbounded accumulation across long test sessions.

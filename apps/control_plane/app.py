@@ -24,6 +24,7 @@ from apps.control_plane.routes.reviews import router as reviews_router
 from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.routes.metrics import router as metrics_router
+from apps.control_plane.routes.logs import router as logs_router
 from apps.control_plane.routes.knowledge import router as knowledge_router
 from apps.control_plane.routes.templates import router as templates_router
 from apps.control_plane.routes.products import router as products_router
@@ -44,6 +45,8 @@ from packages.pipeline_services.job_tick_service import (
 from packages.pipeline_services.phase_orchestrator import create_orchestrator
 from packages.provider_config.config_reader import ConfigReader, ProductStore
 from packages.provider_config.secret_store import SecretStore
+from packages.log_service.excepthook import install_global_excepthook
+from packages.log_service.middleware import install_log_middleware
 
 
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
@@ -204,7 +207,9 @@ def _get_orchestrator(app: FastAPI):
 
 
 def create_app(root_dir: Path | None = None) -> FastAPI:
+    install_global_excepthook()
     app = FastAPI(title="Brandflow Control Plane", lifespan=lifespan)
+    install_log_middleware(app)
 
     allow_origins_env = os.environ.get(
         "CORS_ALLOWED_ORIGINS",
@@ -265,6 +270,7 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(templates_router)
     app.include_router(products_router)
     app.include_router(version_check_router)
+    app.include_router(logs_router, prefix="/api/logs")
 
     @app.get("/api/health")
     async def health(deploy_check: bool = False):

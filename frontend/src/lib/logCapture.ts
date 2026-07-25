@@ -1,0 +1,59 @@
+import { reportError, type LogEntry } from "../api/logs";
+
+const DEDUPE_WINDOW_MS = 10_000;
+const recentlyReported = new Map<string, number>();
+let originalError: typeof console.error | undefined;
+let originalWarn: typeof console.warn | undefined;
+
+function stringify(value: unknown): string {
+	if (value instanceof Error) return value.message;
+	if (typeof value === "string") return value;
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return String(value);
+	}
+}
+
+function send(entry: LogEntry): void {
+	const signature = `${entry.message}:${entry.stack_trace?.split("\n").slice(0, 3).join("\n") ?? ""}`;
+	const now = Date.now();
+	if ((recentlyReported.get(signature) ?? 0) + DEDUPE_WINDOW_MS > now) return;
+	recentlyReported.set(signature, now);
+	void reportError(entry).catch(() => undefined);
+}
+
+export function initLogReporting(): void {
+	if (originalError) return;
+	originalError = console.error;
+	originalWarn = console.warn;
+	window.addEventListener("error", onError);
+	window.addEventListener("unhandledrejection", onUnhandledRejection);
+	console.error = (...args: unknown[]) => {
+		originalError?.(...args);
+		send({ source: "frontend", level: "error", message: args.map(stringify).join(" ") });
+	};
+	console.warn = (...args: unknown[]) => {
+		originalWarn?.(...args);
+		send({ source: "frontend", level: "warn", message: args.map(stringify).join(" ") });
+	};
+}
+
+function onError(event: ErrorEvent): void {
+	send({ source: "frontend", level: "error", message: event.message, stack_trace: event.error?.stack, extra: { url: event.filename, line: event.lineno, column: event.colno } });
+}
+
+function onUnhandledRejection(event: PromiseRejectionEvent): void {
+	const reason = event.reason;
+	send({ source: "frontend", level: "error", message: stringify(reason), stack_trace: reason instanceof Error ? reason.stack : undefined });
+}
+
+export function stopLogReporting(): void {
+	window.removeEventListener("error", onError);
+	window.removeEventListener("unhandledrejection", onUnhandledRejection);
+	if (originalError) console.error = originalError;
+	if (originalWarn) console.warn = originalWarn;
+	originalError = undefined;
+	originalWarn = undefined;
+	recentlyReported.clear();
+}

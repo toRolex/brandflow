@@ -5,6 +5,9 @@ import "./index.css";
 import "./styles/theme.css";
 import App from "./App";
 import { ThemeProvider } from "./context/ThemeContext";
+import { initLogReporting } from "./lib/logCapture";
+
+initLogReporting();
 
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>
