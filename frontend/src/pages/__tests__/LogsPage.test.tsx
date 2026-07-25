@@ -14,17 +14,20 @@ describe("LogsPage", () => {
 			{ date: "2026-07-25", size_bytes: 1536, error_count: 3 },
 		]);
 		render(<LogsPage />);
-		await waitFor(() => expect(screen.getByText("2026-07-25")).toBeInTheDocument());
-		expect(screen.getByText("1.5 KB")).toBeInTheDocument();
-		expect(screen.getByRole("link")).toHaveAttribute(
-			"href",
-			"/api/logs/download?date=2026-07-25",
+		await waitFor(() =>
+			expect(screen.getByText("2026-07-25")).toBeInTheDocument(),
 		);
+		expect(screen.getByText("1.5 KB")).toBeInTheDocument();
+		const link = screen.getByRole("link");
+		expect(link).toHaveAttribute("download");
+		expect(link).toHaveAttribute("href", "/api/logs/download?date=2026-07-25");
 	});
 
 	it("shows the empty state when no dates are available", async () => {
 		listLogDates.mockResolvedValue([]);
 		render(<LogsPage />);
-		await waitFor(() => expect(screen.getByText("暂无运行日志")).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByText("暂无运行日志")).toBeInTheDocument(),
+		);
 	});
 });

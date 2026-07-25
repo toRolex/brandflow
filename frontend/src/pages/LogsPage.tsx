@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { downloadLogUrl, listLogDates, type LogDateInfo } from "../api/logs";
+import { downloadLogUrl, type LogDateInfo, listLogDates } from "../api/logs";
 
 function formatSize(bytes: number): string {
 	return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
@@ -52,7 +52,7 @@ export default function LogsPage() {
 										<a
 											className="text-[var(--accent)] hover:underline"
 											href={downloadLogUrl(log.date)}
-											download
+											download={true}
 										>
 											下载
 										</a>

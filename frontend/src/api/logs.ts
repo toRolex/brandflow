@@ -15,7 +15,7 @@ export interface LogEntry {
 	method?: string;
 	path?: string;
 	stack_trace?: string;
-	request_body?: string;
+	request_body?: unknown;
 	request_params?: Record<string, string>;
 	extra?: Record<string, unknown>;
 }

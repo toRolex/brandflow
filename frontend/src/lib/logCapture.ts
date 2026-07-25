@@ -1,4 +1,4 @@
-import { reportError, type LogEntry } from "../api/logs";
+import { type LogEntry, reportError } from "../api/logs";
 
 const DEDUPE_WINDOW_MS = 10_000;
 const recentlyReported = new Map<string, number>();
@@ -16,20 +16,32 @@ function stringify(value: unknown): string {
 }
 
 function send(entry: LogEntry): void {
-	const signature = `${entry.message}:${entry.stack_trace?.split("\n").slice(0, 3).join("\n") ?? ""}`;
+	const signature = hashSignature(
+		`${entry.message}\n${entry.stack_trace ?? ""}`,
+	);
 	const now = Date.now();
 	if ((recentlyReported.get(signature) ?? 0) + DEDUPE_WINDOW_MS > now) return;
 	recentlyReported.set(signature, now);
 	void reportError(entry).catch(() => undefined);
 }
 
+function hashSignature(value: string): string {
+	let hash = 0x81_1c_9d_c5;
+	for (let index = 0; index < value.length; index++) {
+		hash ^= value.charCodeAt(index);
+		hash = Math.imul(hash, 0x01_00_01_93);
+	}
+	return (hash >>> 0).toString(16);
+}
+
 function consoleEntry(level: "error" | "warn", args: unknown[]): LogEntry {
 	const error = args.find((arg): arg is Error => arg instanceof Error);
+	const message = args.map(stringify).join(" ");
 	return {
 		source: "frontend",
 		level,
-		message: args.map(stringify).join(" "),
-		stack_trace: error?.stack,
+		message,
+		stack_trace: error?.stack ?? new Error(message).stack,
 	};
 }
 
@@ -50,12 +62,23 @@ export function initLogReporting(): void {
 }
 
 function onError(event: ErrorEvent): void {
-	send({ source: "frontend", level: "error", message: event.message, stack_trace: event.error?.stack, extra: { url: event.filename, line: event.lineno, column: event.colno } });
+	send({
+		source: "frontend",
+		level: "error",
+		message: event.message,
+		stack_trace: event.error?.stack,
+		extra: { url: event.filename, line: event.lineno, column: event.colno },
+	});
 }
 
 function onUnhandledRejection(event: PromiseRejectionEvent): void {
 	const reason = event.reason;
-	send({ source: "frontend", level: "error", message: stringify(reason), stack_trace: reason instanceof Error ? reason.stack : undefined });
+	send({
+		source: "frontend",
+		level: "error",
+		message: stringify(reason),
+		stack_trace: reason instanceof Error ? reason.stack : undefined,
+	});
 }
 
 export function stopLogReporting(): void {

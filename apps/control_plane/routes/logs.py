@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from packages.log_service.log_writer import get_log_dir, log_error
 
@@ -24,14 +24,21 @@ class LogEntry(BaseModel):
     method: str | None = None
     path: str | None = None
     stack_trace: str | None = None
-    request_body: str | None = None
+    request_body: Any | None = None
     request_params: dict[str, str] | None = None
     extra: dict[str, Any] | None = None
 
 
 @router.post("/error", status_code=201)
-def report_error(entry: LogEntry) -> dict[str, bool]:
-    log_error(entry.model_dump(exclude_none=True))
+def report_error(entry: dict[str, Any] = Body(...)) -> dict[str, bool]:
+    try:
+        validated_entry = LogEntry.model_validate(entry)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=exc.errors(include_url=False),
+        ) from exc
+    log_error(validated_entry.model_dump(exclude_none=True))
     return {"ok": True}
 
 
