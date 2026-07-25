@@ -11,9 +11,16 @@ jobs:
     runs-on: [self-hosted, Windows, X64, bf-test]
     timeout-minutes: 30
     steps:
-      - name: Deploy develop → test machine
+      - name: Deploy
         shell: cmd
-        run: call packaging\windows\deploy.bat develop
+        run: |
+          echo === before-script ===
+          cd /d "%GITHUB_WORKSPACE%"
+          dir packaging\windows\deploy.bat
+          call "%GITHUB_WORKSPACE%\packaging\windows\deploy.bat" develop
+        env:
+          https_proxy: http://127.0.0.1:7897
+          http_proxy: http://127.0.0.1:7897
 
   prod-cd:
     name: Prod (snack / prod-jump) → main
@@ -21,9 +28,13 @@ jobs:
     runs-on: [self-hosted, Windows, X64, bf-prod]
     timeout-minutes: 30
     steps:
-      - name: Deploy main → prod machines
+      - name: Deploy
         shell: cmd
         env:
           https_proxy: http://127.0.0.1:7897
           http_proxy: http://127.0.0.1:7897
-        run: call packaging\windows\deploy.bat main
+        run: |
+          echo === before-script ===
+          cd /d "%GITHUB_WORKSPACE%"
+          dir packaging\windows\deploy.bat
+          call "%GITHUB_WORKSPACE%\packaging\windows\deploy.bat" main
