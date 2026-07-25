@@ -951,3 +951,77 @@ describe("JobPipeline new phase rendering (#262)", () => {
 		).toBeInTheDocument();
 	});
 });
+
+describe("JobPipeline transient media phase loading state", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("shows loading instead of integrity error when subtitle_generating succeeded but subtitle artifact is not yet persisted", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			job_id: "job-subtitle",
+			project_id: "project-1",
+			product: "product",
+			platforms: ["douyin"],
+			phase: "subtitle_generating",
+			failed_phase: null,
+			review_status: "none" as const,
+			artifacts: [],
+			execution: {
+				status: "succeeded" as const,
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		render(
+			<MemoryRouter initialEntries={["/jobs/job-subtitle"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+
+		expect(
+			await screen.findByText("正在加载阶段结果"),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText("阶段记录不完整"),
+		).not.toBeInTheDocument();
+	});
+
+	it("shows loading instead of integrity error when tts_generating succeeded but tts_audio artifact is not yet persisted", async () => {
+		vi.mocked(api.getJob).mockResolvedValue({
+			job_id: "job-tts",
+			project_id: "project-1",
+			product: "product",
+			platforms: ["douyin"],
+			phase: "tts_generating",
+			failed_phase: null,
+			review_status: "none" as const,
+			artifacts: [],
+			execution: {
+				status: "succeeded" as const,
+				current_attempt: 1,
+				max_attempts: 3,
+				error: null,
+			},
+		} as never);
+
+		render(
+			<MemoryRouter initialEntries={["/jobs/job-tts"]}>
+				<Routes>
+					<Route path="/jobs/:id" element={<JobPipeline />} />
+				</Routes>
+			</MemoryRouter>,
+		);
+
+		expect(
+			await screen.findByText("正在加载阶段结果"),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText("阶段记录不完整"),
+		).not.toBeInTheDocument();
+	});
+});
