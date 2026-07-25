@@ -16,21 +16,34 @@ _PROGRESS_PATH = (
 )
 
 
-def _reset_state():
+def _reset_state() -> None:
     """Clean up globals and remove any progress.json from previous test runs."""
     version_check._update_in_progress = False
     version_check._update_process = None
-    if _PROGRESS_PATH.exists():
-        _PROGRESS_PATH.unlink(missing_ok=True)
+    pp = version_check._progress_path()
+    if pp is not None and pp.exists():
+        pp.unlink(missing_ok=True)
 
 
 def _write_progress(data: dict) -> None:
-    _PROGRESS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _PROGRESS_PATH.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    pp = version_check._progress_path()
+    assert pp is not None, "_progress_path must be patched to a tmp path"
+    pp.parent.mkdir(parents=True, exist_ok=True)
+    pp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
 
-@pytest.fixture(scope="module")
-def client():
+@pytest.fixture
+def progress_file(tmp_path, monkeypatch):
+    """Per-test progress.json path; patched into version_check so each
+    test runs in isolation even under xdist."""
+    p = tmp_path / "progress.json"
+    monkeypatch.setattr(version_check, "_is_windows", lambda: True)
+    monkeypatch.setattr(version_check, "_progress_path", lambda: p)
+    return p
+
+
+@pytest.fixture
+def client(progress_file):
     with TestClient(create_app()) as c:
         yield c
 
@@ -266,7 +279,7 @@ def test_post_update_allows_failed_retry(client):
     assert resp.status_code == 200
     assert resp.json() == {"status": "started", "log": "packaging/windows/update.log"}
     # Failed status allowed retry: old file cleaned, new initial progress written.
-    data = json.loads(_PROGRESS_PATH.read_text(encoding="utf-8"))
+    data = json.loads(version_check._progress_path().read_text(encoding="utf-8"))
     assert data["status"] == "running"  # replaced with new initial state
     _reset_state()
 
@@ -291,7 +304,7 @@ def test_post_update_allows_done_retry(client):
         resp = client.post("/api/update")
     assert resp.status_code == 200
     # Done status allowed retry: old file cleaned, new initial progress written.
-    data = json.loads(_PROGRESS_PATH.read_text(encoding="utf-8"))
+    data = json.loads(version_check._progress_path().read_text(encoding="utf-8"))
     assert data["status"] == "running"  # replaced with new initial state
     _reset_state()
 
@@ -306,8 +319,8 @@ def test_post_update_writes_initial_progress(client):
     ):
         resp = client.post("/api/update")
     assert resp.status_code == 200
-    assert _PROGRESS_PATH.exists()
-    data = json.loads(_PROGRESS_PATH.read_text(encoding="utf-8"))
+    assert version_check._progress_path().exists()
+    data = json.loads(version_check._progress_path().read_text(encoding="utf-8"))
     assert data["status"] == "running"
     assert data["step"] == "git_pull"
     assert "updated_at" in data
@@ -339,7 +352,7 @@ def test_post_update_in_memory_lock_unchanged(client):
 # ── Startup cleanup (lifespan) ──────────────────────────────────────
 
 
-def test_startup_cleanup_stale_running():
+def test_startup_cleanup_stale_running(progress_file):
     """启动时 running 超过 5 分钟 → 重置锁 + 清理文件"""
     _reset_state()
     version_check._update_in_progress = True
@@ -365,10 +378,10 @@ def test_startup_cleanup_stale_running():
         _startup_cleanup_progress()
 
     assert version_check._update_in_progress is False
-    assert not _PROGRESS_PATH.exists()
+    assert not progress_file.exists()
 
 
-def test_startup_cleanup_done_state():
+def test_startup_cleanup_done_state(progress_file):
     """启动时 done 状态直接清理（不阻塞下次更新）"""
     _reset_state()
     _write_progress(
@@ -383,10 +396,10 @@ def test_startup_cleanup_done_state():
 
     with patch.object(version_check, "_is_windows", return_value=True):
         _startup_cleanup_progress()
-    assert not _PROGRESS_PATH.exists()
+    assert not progress_file.exists()
 
 
-def test_startup_cleanup_failed_state():
+def test_startup_cleanup_failed_state(progress_file):
     """启动时 failed 状态直接清理"""
     _reset_state()
     _write_progress(
@@ -402,10 +415,10 @@ def test_startup_cleanup_failed_state():
 
     with patch.object(version_check, "_is_windows", return_value=True):
         _startup_cleanup_progress()
-    assert not _PROGRESS_PATH.exists()
+    assert not progress_file.exists()
 
 
-def test_startup_cleanup_no_file():
+def test_startup_cleanup_no_file(progress_file):
     """progress.json 不存在时无操作"""
     _reset_state()
     with patch.object(version_check, "_is_windows", return_value=True):
