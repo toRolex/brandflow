@@ -3,7 +3,8 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 title Brandflow — 一键部署
 
-set "PROJECT_DIR=D:\brandflow"
+set "PROJECT_DIR=%GITHUB_WORKSPACE%"
+if "%PROJECT_DIR%"=="" set "PROJECT_DIR=D:\brandflow"
 set "BRANCH=%~1"
 if "%BRANCH%"=="" set "BRANCH=main"
 
