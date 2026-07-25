@@ -49,7 +49,7 @@ export interface PhasePresentation {
 	action: PhasePresentationAction;
 }
 
-function missingArtifacts(input: PhasePresentationInput): string[] {
+export function missingArtifacts(input: PhasePresentationInput): string[] {
 	const defaults: Partial<Record<Phase, string[]>> = {
 		script_review: ["script"],
 		tts_review: ["tts_audio"],
