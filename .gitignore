@@ -12,6 +12,7 @@ docs/
 排期池.xlsx
 指令.xlsx
 logs/
+*.log
 reports/
 .codex-memory/
 tools/bin/
