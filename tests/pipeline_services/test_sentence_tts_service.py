@@ -119,8 +119,12 @@ class TestSentenceTTSService:
         service.synthesize_script("第一句。第二句！", tmp_path / "out.mp3")
 
         assert provider.synthesize.call_count == 2
-        assert provider.synthesize.call_args_list[0].args[0] == "第一句。"
-        assert provider.synthesize.call_args_list[1].args[0] == "第二句！"
+        # Parallel synthesis: order of mock calls is not deterministic.
+        # Assert by content (each sentence appears exactly once).
+        called_sentences = sorted(
+            call.args[0] for call in provider.synthesize.call_args_list
+        )
+        assert called_sentences == ["第一句。", "第二句！"]
 
     def test_caches_by_sentence_fingerprint(self, base_config, tmp_path) -> None:
         provider = MagicMock()
