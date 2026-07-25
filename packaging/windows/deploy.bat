@@ -136,6 +136,9 @@ if not exist "%PROJECT_DIR%\.git" (
 
 pushd "%PROJECT_DIR%"
 
+:: 任何本地改动都丢弃（CD 机器上不应该有未提交的开发改动）
+git reset --hard HEAD >nul 2>&1
+
 :: CD：从 runner workspace 同步代码到持久目录（保留 .venv/.env/workspace 等）
 if defined RUNNER_SRC (
     echo   CD 模式：从 runner workspace 同步代码 ...
@@ -147,9 +150,9 @@ if defined RUNNER_SRC (
         pause
         exit /b 1
     )
-    git checkout -B %BRANCH% FETCH_HEAD >nul 2>&1 || git checkout %BRANCH%
+    git checkout -f -B %BRANCH% FETCH_HEAD
     if errorlevel 1 (
-        echo [错误] git checkout %BRANCH% 失败 >> "!LOG_FILE!"
+        echo [错误] git checkout FETCH_HEAD 失败 >> "!LOG_FILE!"
         popd
         pause
         exit /b 1
