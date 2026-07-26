@@ -266,7 +266,26 @@ class SentenceTTSService:
 
         if not cache_path.exists():
             audio_bytes = self._synthesize_with_retry(sentence, locked_config)
-            cache_path.write_bytes(audio_bytes)
+            # Write to a temp file next to the cache entry, then atomically
+            # rename into place.  Two Jobs hitting the same fingerprint
+            # simultaneously will race on synthesis but never leave a
+            # truncated file in the cache.
+            import os
+            import tempfile
+
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=f".{fp}.", suffix=f".{suffix}", dir=str(self.cache_dir)
+            )
+            try:
+                with os.fdopen(fd, "wb") as f:
+                    f.write(audio_bytes)
+                os.replace(tmp_name, cache_path)
+            except Exception:
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
+                raise
 
         return cache_path
 

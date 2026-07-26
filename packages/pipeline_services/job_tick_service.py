@@ -58,7 +58,7 @@ HANDLED_PHASES: frozenset[str] = frozenset(
     }
 )
 
-_TERMINAL_PHASES: frozenset[str] = frozenset(
+NON_TICKABLE_PHASES: frozenset[str] = frozenset(
     {"draft", "completed", "failed", "cancelled", "paused"}
 )
 
@@ -262,7 +262,7 @@ def _compute_transition(
     # ------------------------------------------------------------------
     # 1. Terminal states — nothing to do
     # ------------------------------------------------------------------
-    if phase in _TERMINAL_PHASES:
+    if phase in NON_TICKABLE_PHASES:
         return TickAction()
 
     # ------------------------------------------------------------------
@@ -668,7 +668,7 @@ class JobTickService:
 
             # Terminal check after reload — an external edit may have
             # moved the job to a terminal state between steps.
-            if record.phase in _TERMINAL_PHASES:
+            if record.phase in NON_TICKABLE_PHASES:
                 if last_summary is None:
                     return _build_tick_summary(initial_phase, TickAction())
                 return last_summary
@@ -690,7 +690,7 @@ class JobTickService:
             #  - Review gate that needs human approval
             if summary.action == "skipped":
                 return summary
-            if record.phase in _TERMINAL_PHASES:
+            if record.phase in NON_TICKABLE_PHASES:
                 return summary
             if (
                 record.phase in REVIEW_PHASES
@@ -916,7 +916,10 @@ class JobTickService:
                 self._repo.save_job(project_id, record)
                 self._sleep_fn(_retry_delay(execution.current_attempt))
                 reloaded = self._repo.load_job(project_id, job_id)
-                if reloaded.phase in _TERMINAL_PHASES or reloaded.phase != record.phase:
+                if (
+                    reloaded.phase in NON_TICKABLE_PHASES
+                    or reloaded.phase != record.phase
+                ):
                     return reloaded, _build_tick_summary(
                         initial_phase,
                         TickAction(

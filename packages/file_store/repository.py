@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,11 @@ from packages.domain_core.models import JobRecord
 
 
 class FileStoreRepository:
+    # Per-project file-locks for append-only JSONL files (review_events.jsonl)
+    # so concurrent Jobs in the same project don't interleave or corrupt lines.
+    _append_locks: dict[str, threading.Lock] = {}
+    _append_locks_guard: threading.Lock = threading.Lock()
+
     def __init__(self, root: Path) -> None:
         self.root = root
 
@@ -111,8 +117,16 @@ class FileStoreRepository:
             / "review_events.jsonl"
         )
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+        # Serialise writes per-project so concurrent Jobs don't interleave
+        # JSON lines or corrupt each other's writes.
+        with self._append_locks_guard:
+            lock = self._append_locks.get(project_id)
+            if lock is None:
+                lock = threading.Lock()
+                self._append_locks[project_id] = lock
+        with lock:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def list_jobs(self, project_id: str) -> list[dict[str, Any]]:
         jobs_root = (

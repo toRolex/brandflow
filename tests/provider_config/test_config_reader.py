@@ -6,6 +6,7 @@ import json
 import tempfile
 import threading
 from pathlib import Path
+from unittest.mock import patch
 
 
 from packages.provider_config.config_reader import ConfigReader
@@ -639,6 +640,47 @@ class TestReload:
                 t.join()
 
             assert len(errors) == 0
+
+    def test_older_reload_cannot_overwrite_newer_snapshot(self) -> None:
+        """A slow earlier reload must not roll the cache back after a later reload."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(tmpdir, {"tts": {"voice": "InitialVoice"}})
+            reader = ConfigReader(config_dir=tmpdir)
+            first_read = threading.Event()
+            allow_first_to_finish = threading.Event()
+            second_read = threading.Event()
+            calls = 0
+            calls_lock = threading.Lock()
+
+            def _controlled_load(_path: Path) -> dict:
+                nonlocal calls
+                with calls_lock:
+                    calls += 1
+                    call_number = calls
+                if call_number == 1:
+                    first_read.set()
+                    allow_first_to_finish.wait(timeout=10)
+                    return {"tts": {"voice": "OlderSnapshot"}}
+                second_read.set()
+                return {"tts": {"voice": "NewerSnapshot"}}
+
+            with patch(
+                "packages.provider_config.config_reader.load_config",
+                side_effect=_controlled_load,
+            ):
+                older = threading.Thread(target=reader.reload)
+                newer = threading.Thread(target=reader.reload)
+                older.start()
+                assert first_read.wait(timeout=5)
+                newer.start()
+                assert second_read.wait(timeout=5)
+                newer.join(timeout=5)
+                allow_first_to_finish.set()
+                older.join(timeout=5)
+
+            assert not older.is_alive()
+            assert not newer.is_alive()
+            assert reader.get_tts_config()["voice"] == "NewerSnapshot"
 
 
 # ---------------------------------------------------------------------------

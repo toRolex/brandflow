@@ -109,7 +109,10 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             flush=True,
         )
         if existing_script:
-            tts_cfg = orchestrator._resolve_tts_config(ctx)
+            # Copy the resolved config dict so per-job overrides do not
+            # mutate the shared ConfigReader cache and leak into other
+            # jobs running concurrently or in subsequent ticks.
+            tts_cfg = dict(orchestrator._resolve_tts_config(ctx))
 
             # Apply job-level TTS overrides (tts_model / tts_voice)
             # Priority: job override > provider defaults > global/product config

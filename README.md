@@ -251,7 +251,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 **路由与编排说明：**
 
 - `api_jobs.py` 与 `api_assets.py` 不再包含具体 handler，仅作为 `APIRouter` 聚合层按顺序 `include_router` 子路由；注意子路由的注册顺序（更具体的 `/jobs/{job_id}/...` 路径优先于动态路径 `/jobs/{job_id}`），以避免路径遮蔽。
-- `PhaseOrchestrator` 维护 `_handlers` 策略表，将 10 个 phase 派发到 `packages/pipeline_services/phases/` 下对应的 handler；生产流程由控制面 `auto_tick` 调用。已废弃的 `runtime_worker` 仍保留同一编排逻辑，仅用于兼容旧代码。
+- `PhaseOrchestrator` 维护 `_handlers` 策略表，将 phase 派发到 `packages/pipeline_services/phases/` 下对应的 handler。生产流程由控制面的 ``AutoTickScheduler`` 驱动，以有界并发（默认 2）周期性扫描并推进 Job，支持 round-robin 公平调度以及优雅关闭（drain 所有运行中 task）。已废弃的 `runtime_worker` 仍保留同一编排逻辑，仅用于兼容旧代码。
 
 ## 可用命令
 

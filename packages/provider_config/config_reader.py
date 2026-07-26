@@ -34,6 +34,8 @@ class ConfigReader:
         self._raw: dict[str, Any] = {}
         self._cache: dict[str, dict[str, Any]] = {}
         self._product_cache: dict[str, dict[str, dict[str, Any]]] = {}
+        self._reload_generation = 0
+        self._applied_reload_generation = 0
         self._build_cache()
 
     # ------------------------------------------------------------------
@@ -127,23 +129,43 @@ class ConfigReader:
     # ------------------------------------------------------------------
 
     def reload(self) -> None:
-        """Re-read the config file from disk and rebuild the full cache."""
-        self._build_cache()
+        """Re-read the config file from disk and rebuild the full cache.
+
+        A new snapshot is built locally and then swapped in under the lock
+        so that concurrent ``get()`` callers never see a mixed state (e.g.
+        new root cache with old product cache).
+        """
+        with self._lock:
+            self._reload_generation += 1
+            generation = self._reload_generation
+
+        raw, cache, product_cache = self._build_snapshot()
+        with self._lock:
+            if generation < self._applied_reload_generation:
+                return
+            self._raw = raw
+            self._cache = cache
+            self._product_cache = product_cache
+            self._applied_reload_generation = generation
 
     # ------------------------------------------------------------------
     # Internal: cache building
     # ------------------------------------------------------------------
 
-    def _build_cache(self) -> None:
-        """Load config file, migrate, merge, and populate in-memory caches."""
+    def _build_snapshot(
+        self,
+    ) -> tuple[
+        dict[str, Any], dict[str, dict[str, Any]], dict[str, dict[str, dict[str, Any]]]
+    ]:
+        """Load config file, migrate, merge, and return new cache snapshots."""
         raw = self._load_and_migrate()
-        self._raw = raw if isinstance(raw, dict) else {}
+        raw_dict = raw if isinstance(raw, dict) else {}
 
-        root = raw if isinstance(raw, dict) else {}
+        root = raw_dict
         products: list[dict[str, Any]] = root.get("products", [])
 
         # -- root-level merged configs (DEFAULTS + root section) ---------
-        self._cache = {
+        cache: dict[str, dict[str, Any]] = {
             "tts": _deep_merge(DEFAULTS["tts"], root.get("tts", {})),
             "llm": _deep_merge(DEFAULTS["llm"], root.get("llm", {})),
             "vision": _deep_merge(DEFAULTS["vision"], root.get("vision", {})),
@@ -157,13 +179,13 @@ class ConfigReader:
         }
 
         # -- per-product cache (DEFAULTS + root-section + product-override)
-        self._product_cache = {}
+        product_cache: dict[str, dict[str, dict[str, Any]]] = {}
         for p in products:
             pid = p.get("id", "")
             if not pid:
                 continue
 
-            root_product = self._cache["product"]
+            root_product = cache["product"]
 
             # Build full product config: DEFAULTS.product + root.product + p
             product_merged = _deep_merge(root_product, p)
@@ -178,24 +200,30 @@ class ConfigReader:
             if isinstance(p_scene, dict) and p_scene:
                 scene_merged = _deep_merge(DEFAULTS["scene"], p_scene)
             else:
-                scene_merged = self._cache["scene"]
+                scene_merged = cache["scene"]
 
-            self._product_cache[pid] = {
+            product_cache[pid] = {
                 "tts": _deep_merge(
-                    self._cache["tts"],
+                    cache["tts"],
                     p.get("tts", {}) if isinstance(p.get("tts"), dict) else {},
                 ),
                 "llm": _deep_merge(
-                    self._cache["llm"],
+                    cache["llm"],
                     p.get("llm", {}) if isinstance(p.get("llm"), dict) else {},
                 ),
                 "vision": _deep_merge(
-                    self._cache["vision"],
+                    cache["vision"],
                     p.get("vision", {}) if isinstance(p.get("vision"), dict) else {},
                 ),
                 "scene": scene_merged,
                 "product": product_merged,
             }
+
+        return (raw_dict, cache, product_cache)
+
+    def _build_cache(self) -> None:
+        """Load config file, migrate, merge, and populate in-memory caches."""
+        self._raw, self._cache, self._product_cache = self._build_snapshot()
 
     def _load_and_migrate(self) -> dict[str, Any]:
         """Load raw config and apply schema migration if needed."""
