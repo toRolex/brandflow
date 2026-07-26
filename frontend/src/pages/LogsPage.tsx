@@ -7,6 +7,7 @@ import {
 	type LogDateInfo,
 	listLogDates,
 } from "../api/logs";
+import { DEFAULT_PAGE_SIZE } from "../api/core";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InlineBanner from "../components/InlineBanner";
 import Pagination from "../components/Pagination";
@@ -34,7 +35,7 @@ export default function LogsPage() {
 	const [loading, setLoading] = useState(true);
 	const [failed, setFailed] = useState(false);
 	const [page, setPage] = useState(1);
-	const [pageSize, setPageSize] = useState(50);
+	const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 	const [total, setTotal] = useState(0);
 	const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
 	const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);

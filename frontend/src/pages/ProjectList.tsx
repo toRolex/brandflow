@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { DEFAULT_PAGE_SIZE } from "../api/core";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InlineBanner from "../components/InlineBanner";
 import Modal from "../components/Modal";
@@ -11,7 +12,7 @@ export default function ProjectList() {
 	const [projects, setProjects] = useState<Project[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [page, setPage] = useState(1);
-	const [pageSize, setPageSize] = useState(50);
+	const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 	const [total, setTotal] = useState(0);
 	const [showCreateModal, setShowCreateModal] = useState(false);
 	const [createName, setCreateName] = useState("");
@@ -33,6 +34,11 @@ export default function ProjectList() {
 		api
 			.listProjects(page, pageSize)
 			.then((r) => {
+				const lastPage = Math.max(1, Math.ceil(r.total / pageSize));
+				if (page > lastPage) {
+					setPage(lastPage);
+					return;
+				}
 				setProjects(r.items);
 				setTotal(r.total);
 			})

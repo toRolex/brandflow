@@ -63,6 +63,7 @@ def test_project_and_job_lists_share_pagination_contract_and_stable_order(
 
         project_page = client.get("/api/projects?page=2&page_size=2")
         project_empty_page = client.get("/api/projects?page=99&page_size=2")
+        project_default_page = client.get("/api/projects")
 
         assert project_page.status_code == 200
         assert project_page.json() == {
@@ -88,6 +89,7 @@ def test_project_and_job_lists_share_pagination_contract_and_stable_order(
             "page": 99,
             "page_size": 2,
         }
+        assert project_default_page.json()["page_size"] == 10
         assert client.get("/api/projects?page=0").status_code == 422
         assert client.get("/api/projects?page_size=201").status_code == 422
         duplicate = client.post("/api/projects", json={"name": " project-0 "})
@@ -111,6 +113,7 @@ def test_project_and_job_lists_share_pagination_contract_and_stable_order(
         after_save = client.get(
             f"/api/projects/{project_id}/jobs?page=1&page_size=2"
         ).json()
+        default_jobs_page = client.get(f"/api/projects/{project_id}/jobs").json()
 
         assert before_save["total"] == 3
         assert before_save["page"] == 1
@@ -123,6 +126,7 @@ def test_project_and_job_lists_share_pagination_contract_and_stable_order(
             created_jobs[0]["job_id"],
             created_jobs[1]["job_id"],
         ]
+        assert default_jobs_page["page_size"] == 10
         assert client.get(
             f"/api/projects/{project_id}/jobs?page=99&page_size=2"
         ).json() == {

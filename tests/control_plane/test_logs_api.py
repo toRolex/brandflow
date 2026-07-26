@@ -74,7 +74,7 @@ def test_log_api_rejects_invalid_entries_and_missing_download(
         == 400
     )
     resp = client.get("/api/logs/dates").json()
-    assert resp == {"items": [], "total": 0, "page": 1, "page_size": 50}
+    assert resp == {"items": [], "total": 0, "page": 1, "page_size": 10}
     # missing download — use a reference date, not hardcoded
     ref_date = (date.today() - timedelta(days=1)).isoformat()
     assert client.get(f"/api/logs/download?date={ref_date}").status_code == 404

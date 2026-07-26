@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
+import { DEFAULT_PAGE_SIZE } from "../api/core";
 import AssetDetailModal from "../components/AssetDetailModal";
 import MetricsCards from "../components/MetricsCards";
 import TopicGrid from "../components/TopicGrid";
@@ -36,42 +37,117 @@ export default function AnalyticsPage() {
 	const [topicsLoading, setTopicsLoading] = useState(true);
 	const [videosLoading, setVideosLoading] = useState(true);
 	const [assetVideo, setAssetVideo] = useState<VideoMetric | null>(null);
+	const [page, setPage] = useState(1);
+	const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+	const [refreshVersion, setRefreshVersion] = useState(0);
 	const fileRef = useRef<HTMLInputElement>(null);
+	const overviewRequestIdRef = useRef(0);
+	const topicsRequestIdRef = useRef(0);
+	const videosRequestIdRef = useRef(0);
 
-	const fetchData = useCallback(() => {
+	const fetchOverview = useCallback(() => {
 		const p = platform || undefined;
-
 		setOverviewLoading(true);
+		const requestId = ++overviewRequestIdRef.current;
 		api
 			.getMetricsOverview(days, p)
-			.then(setOverview)
-			.catch(() => setOverview(null))
-			.finally(() => setOverviewLoading(false));
+			.then((result) => {
+				if (requestId === overviewRequestIdRef.current) {
+					setOverview(result);
+				}
+			})
+			.catch(() => {
+				if (requestId === overviewRequestIdRef.current) {
+					setOverview(null);
+				}
+			})
+			.finally(() => {
+				if (requestId === overviewRequestIdRef.current) {
+					setOverviewLoading(false);
+				}
+			});
+	}, [days, platform]);
 
+	const fetchTopics = useCallback(() => {
+		const p = platform || undefined;
 		setTopicsLoading(true);
+		const requestId = ++topicsRequestIdRef.current;
 		api
 			.getMetricsTopics(30, p, 10)
-			.then(setTopics)
-			.catch(() => setTopics([]))
-			.finally(() => setTopicsLoading(false));
+			.then((result) => {
+				if (requestId === topicsRequestIdRef.current) {
+					setTopics(result);
+				}
+			})
+			.catch(() => {
+				if (requestId === topicsRequestIdRef.current) {
+					setTopics([]);
+				}
+			})
+			.finally(() => {
+				if (requestId === topicsRequestIdRef.current) {
+					setTopicsLoading(false);
+				}
+			});
+	}, [platform]);
 
+	const fetchVideos = useCallback(() => {
+		const p = platform || undefined;
 		setVideosLoading(true);
+		const videosRequestId = ++videosRequestIdRef.current;
 		api
 			.getMetricsVideos({
 				sort_by: sortBy,
 				platform: p,
 				search: search || undefined,
-				page: 1,
-				page_size: 50,
+				page,
+				page_size: pageSize,
 			})
-			.then(setVideoPage)
-			.catch(() => setVideoPage(null))
-			.finally(() => setVideosLoading(false));
-	}, [days, platform, sortBy, search]);
+			.then((result) => {
+				if (videosRequestId === videosRequestIdRef.current) {
+					setVideoPage(result);
+				}
+			})
+			.catch(() => {
+				if (videosRequestId === videosRequestIdRef.current) {
+					setVideoPage(null);
+				}
+			})
+			.finally(() => {
+				if (videosRequestId === videosRequestIdRef.current) {
+					setVideosLoading(false);
+				}
+			});
+	}, [platform, sortBy, search, page, pageSize]);
 
 	useEffect(() => {
-		fetchData();
-	}, [fetchData]);
+		fetchOverview();
+	}, [fetchOverview, refreshVersion]);
+
+	useEffect(() => {
+		fetchTopics();
+	}, [fetchTopics, refreshVersion]);
+
+	useEffect(() => {
+		fetchVideos();
+	}, [fetchVideos, refreshVersion]);
+
+	const withPageReset = <T,>(fn: (v: T) => void) => (v: T) => {
+		fn(v);
+		setPage(1);
+	};
+
+	const handleDaysChange = setDays;
+	const handlePlatformChange = withPageReset(setPlatform);
+	const handleSortChange = withPageReset(setSortBy);
+	const handleSearchChange = withPageReset(setSearch);
+
+	const handlePageChange = (p: number) => setPage(p);
+
+	const handlePageSizeChange = (s: number) => {
+		setPageSize(s);
+		setPage(1);
+	};
 
 	const handleUpload = async () => {
 		const file = fileRef.current?.files?.[0];
@@ -82,7 +158,7 @@ export default function AnalyticsPage() {
 				? `导入部分完成: inserted=${res.inserted}, updated=${res.updated}, error=${res.error}`
 				: `导入完成: inserted=${res.inserted}, updated=${res.updated}`;
 			alert(msg);
-			fetchData();
+			setRefreshVersion((version) => version + 1);
 		} catch (e) {
 			alert("导入失败: " + (e as Error).message);
 		} finally {
@@ -96,7 +172,7 @@ export default function AnalyticsPage() {
 			alert(
 				`扫描完成: 处理 ${res.files_processed} 个文件, inserted=${res.inserted}, updated=${res.updated}`,
 			);
-			fetchData();
+			setRefreshVersion((version) => version + 1);
 		} catch (e) {
 			alert("扫描失败: " + (e as Error).message);
 		}
@@ -115,7 +191,7 @@ export default function AnalyticsPage() {
 					{DAYS_OPTIONS.map((d) => (
 						<button
 							key={d.value}
-							onClick={() => setDays(d.value)}
+							onClick={() => handleDaysChange(d.value)}
 							className={`px-3 py-1 text-sm rounded-lg border transition-colors ${
 								days === d.value
 									? "bg-[var(--bg-nav-active)] border-[var(--accent)] text-[var(--accent)]"
@@ -132,7 +208,7 @@ export default function AnalyticsPage() {
 					{PLATFORM_OPTIONS.map((p) => (
 						<button
 							key={p.value}
-							onClick={() => setPlatform(p.value)}
+							onClick={() => handlePlatformChange(p.value)}
 							className={`px-3 py-1 text-sm rounded-lg border transition-colors ${
 								platform === p.value
 									? "bg-[var(--bg-nav-active)] border-[var(--accent)] text-[var(--accent)]"
@@ -183,10 +259,14 @@ export default function AnalyticsPage() {
 				total={videoPage?.total ?? 0}
 				loading={videosLoading}
 				sortBy={sortBy}
-				onSortChange={setSortBy}
-				onSearchChange={setSearch}
-				onPlatformChange={setPlatform}
+				onSortChange={handleSortChange}
+				onSearchChange={handleSearchChange}
+				onPlatformChange={handlePlatformChange}
 				onAssetClick={setAssetVideo}
+				page={page}
+				pageSize={pageSize}
+				onPageChange={handlePageChange}
+				onPageSizeChange={handlePageSizeChange}
 			/>
 
 			{/* Asset detail modal */}

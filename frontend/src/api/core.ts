@@ -1,5 +1,7 @@
 const BASE = "";
 
+export const DEFAULT_PAGE_SIZE = 10;
+
 export class ApiError extends Error {
 	constructor(
 		public readonly status: number,

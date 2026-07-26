@@ -32,7 +32,7 @@ function makePage(
 		items,
 		total: overrides?.total ?? items.length,
 		page: overrides?.page ?? 1,
-		page_size: overrides?.page_size ?? 50,
+		page_size: overrides?.page_size ?? 10,
 	};
 }
 
@@ -314,7 +314,25 @@ describe("ProjectList", () => {
 				expect(screen.getByText("项目末页")).toBeInTheDocument(),
 			);
 			expect(screen.queryByText("已选 1 项")).not.toBeInTheDocument();
-			expect(api.listProjects).toHaveBeenLastCalledWith(2, 50);
+			expect(api.listProjects).toHaveBeenLastCalledWith(2, 10);
+		});
+
+		it("returns to the last valid page when the current page becomes empty", async () => {
+			vi.mocked(api.listProjects)
+				.mockResolvedValueOnce(makePage(MOCK_PROJECTS, { total: 11 }))
+				.mockResolvedValueOnce(makePage([], { page: 2, total: 10 }))
+				.mockResolvedValueOnce(makePage(MOCK_PROJECTS, { total: 10 }));
+
+			renderPage();
+			await waitFor(() =>
+				expect(screen.getByText("项目A")).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "2" }));
+
+			await waitFor(() =>
+				expect(api.listProjects).toHaveBeenLastCalledWith(1, 10),
+			);
+			expect(screen.getByText("项目A")).toBeInTheDocument();
 		});
 	});
 

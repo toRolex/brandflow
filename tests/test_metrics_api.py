@@ -401,12 +401,13 @@ class TestVideosEndpoint:
         store = MetricsStore(db_path=str(db_path))
         _seed_store(store, count=2, base_date="2026-06-22")
 
-        resp = client.get("/api/metrics/videos?sort_by=plays_desc&page=1&page_size=50")
+        resp = client.get("/api/metrics/videos?sort_by=plays_desc")
         assert resp.status_code == 200
         data = resp.json()
         assert "items" in data
         assert "total" in data
         assert data["total"] == 2
+        assert data["page_size"] == 10
 
 
 # ── API: /api/metrics/topics ─────────────────────────────────────────────────────

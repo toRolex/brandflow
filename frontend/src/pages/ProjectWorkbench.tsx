@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { DEFAULT_PAGE_SIZE } from "../api/core";
 import BatchCreateForm from "../components/BatchCreateForm";
 import ConfirmDialog from "../components/ConfirmDialog";
 import type { SingleJobFormData } from "../components/CreateJobForm";
@@ -62,8 +63,9 @@ export default function ProjectWorkbench() {
 
 	/* ── 分页状态 ── */
 	const [page, setPage] = useState(1);
-	const [pageSize, setPageSize] = useState(50);
+	const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 	const [jobsTotal, setJobsTotal] = useState(0);
+	const jobsRequestIdRef = useRef(0);
 
 	/* ── 产品配置 ── */
 	const { activeProductConfig } = useProducts();
@@ -126,12 +128,20 @@ export default function ProjectWorkbench() {
 
 	const loadJobs = useCallback(async () => {
 		if (!id) return;
+		const requestId = ++jobsRequestIdRef.current;
 		try {
 			const jobsPage = await api.listProjectJobs(id, page, pageSize);
+			if (requestId !== jobsRequestIdRef.current) return;
+			const lastPage = Math.max(1, Math.ceil(jobsPage.total / pageSize));
+			if (page > lastPage) {
+				setPage(lastPage);
+				return;
+			}
 			setJobs(jobsPage.items);
 			setJobsTotal(jobsPage.total);
 			setError("");
 		} catch (e) {
+			if (requestId !== jobsRequestIdRef.current) return;
 			console.error("load project jobs failed", e);
 			setError("加载项目数据失败");
 		}

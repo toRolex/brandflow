@@ -1,4 +1,4 @@
-import { request } from "./core";
+import { DEFAULT_PAGE_SIZE, request } from "./core";
 
 export interface LogDateInfo {
 	date: string;
@@ -33,8 +33,10 @@ export const reportError = (entry: LogEntry) =>
 		body: JSON.stringify(entry),
 	});
 
-export const listLogDates = (page = 1, pageSize = 50) =>
-	request<LogDatePage>(`/api/logs/dates?page=${page}&page_size=${pageSize}`);
+export const listLogDates = (page = 1, pageSize = DEFAULT_PAGE_SIZE) =>
+	request<LogDatePage>(
+		`/api/logs/dates?page=${page}&page_size=${pageSize}`,
+	);
 
 export const deleteLogDate = (date: string) =>
 	request<{ date: string; deleted: boolean }>(`/api/logs/${date}`, {

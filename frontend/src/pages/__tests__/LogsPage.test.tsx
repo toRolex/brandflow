@@ -24,7 +24,7 @@ function makePage(
 		items,
 		total: overrides?.total ?? items.length,
 		page: overrides?.page ?? 1,
-		page_size: overrides?.page_size ?? 50,
+		page_size: overrides?.page_size ?? 10,
 	};
 }
 
@@ -167,9 +167,9 @@ describe("LogsPage — deletion & pagination", () => {
 			error_count: 0,
 		};
 		listLogDates
-			.mockResolvedValueOnce(makePage([firstPageItem], { total: 51 }))
-			.mockResolvedValueOnce(makePage([lastPageItem], { page: 2, total: 51 }))
-			.mockResolvedValueOnce(makePage([firstPageItem], { total: 50 }));
+			.mockResolvedValueOnce(makePage([firstPageItem], { total: 11 }))
+			.mockResolvedValueOnce(makePage([lastPageItem], { page: 2, total: 11 }))
+			.mockResolvedValueOnce(makePage([firstPageItem], { total: 10 }));
 		cleanupLogs.mockResolvedValue({
 			deleted: ["2026-07-20"],
 			deleted_count: 1,
@@ -199,7 +199,7 @@ describe("LogsPage — deletion & pagination", () => {
 		await waitFor(() => {
 			expect(cleanupLogs).toHaveBeenCalled();
 		});
-		await waitFor(() => expect(listLogDates).toHaveBeenLastCalledWith(1, 50));
+		await waitFor(() => expect(listLogDates).toHaveBeenLastCalledWith(1, 10));
 		expect(screen.getByText("2026-07-25")).toBeInTheDocument();
 	});
 });

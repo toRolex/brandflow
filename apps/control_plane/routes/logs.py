@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from packages.log_service import log_deletion
 from packages.log_service.log_writer import get_log_dir, log_error
-from packages.pagination import paginated, slice_indices
+from packages.pagination import DEFAULT_PAGE_SIZE, paginated, slice_indices
 
 router = APIRouter(tags=["logs"])
 
@@ -73,7 +73,7 @@ def _parse_log_date_info(file_path: Any) -> dict[str, int | str]:
 @router.get("/dates")
 def list_dates(
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=200),
 ) -> dict[str, Any]:
     """Return paginated log-date summaries, newest first."""
     log_dir = get_log_dir()

@@ -71,8 +71,16 @@ function makeJobsPage(
 		items: jobs,
 		total: overrides?.total ?? jobs.length,
 		page: overrides?.page ?? 1,
-		page_size: overrides?.page_size ?? 50,
+		page_size: overrides?.page_size ?? 10,
 	};
+}
+
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((done) => {
+		resolve = done;
+	});
+	return { promise, resolve };
 }
 
 function renderPage() {
@@ -88,6 +96,7 @@ function renderPage() {
 describe("ProjectWorkbench create job modal (#272)", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(api.listProjectJobs).mockReset();
 		vi.mocked(api.getProject).mockResolvedValue(MOCK_PROJECT);
 		vi.mocked(api.listProjectJobs).mockResolvedValue(makeJobsPage(MOCK_JOBS));
 		vi.mocked(api.listMusic).mockResolvedValue({ tracks: [] });
@@ -133,12 +142,12 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 					return 1 as unknown as ReturnType<typeof setInterval>;
 				});
 			vi.mocked(api.listProjectJobs)
-				.mockResolvedValueOnce(makeJobsPage([firstPageJob], { total: 51 }))
+				.mockResolvedValueOnce(makeJobsPage([firstPageJob], { total: 11 }))
 				.mockResolvedValueOnce(
-					makeJobsPage([secondPageJob], { page: 2, total: 51 }),
+					makeJobsPage([secondPageJob], { page: 2, total: 11 }),
 				)
 				.mockResolvedValueOnce(
-					makeJobsPage([secondPageJob], { page: 2, total: 51 }),
+					makeJobsPage([secondPageJob], { page: 2, total: 11 }),
 				);
 			renderPage();
 			await waitFor(() =>
@@ -152,10 +161,63 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			await act(async () => pollCurrentPage?.());
 
 			await waitFor(() =>
-				expect(api.listProjectJobs).toHaveBeenLastCalledWith("p1", 2, 50),
+				expect(api.listProjectJobs).toHaveBeenLastCalledWith("p1", 2, 10),
 			);
 			expect(api.getProject).toHaveBeenCalledTimes(1);
 			intervalSpy.mockRestore();
+		});
+
+		it("returns to the last valid page when the current Jobs page becomes empty", async () => {
+			const firstPageJob = { ...MOCK_JOBS[0], job_id: "page-1-job" };
+			vi.mocked(api.listProjectJobs)
+				.mockResolvedValueOnce(makeJobsPage([firstPageJob], { total: 11 }))
+				.mockResolvedValueOnce(makeJobsPage([], { page: 2, total: 10 }))
+				.mockResolvedValueOnce(makeJobsPage([firstPageJob], { total: 10 }));
+
+			renderPage();
+			await waitFor(() =>
+				expect(screen.getByText("page-1-job")).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "2" }));
+
+			await waitFor(() =>
+				expect(api.listProjectJobs).toHaveBeenLastCalledWith("p1", 1, 10),
+			);
+			expect(screen.getByText("page-1-job")).toBeInTheDocument();
+		});
+
+		it("ignores a stale Jobs page response after navigating back", async () => {
+			const stalePage = deferred<JobSummaryPage>();
+			const newestPage = deferred<JobSummaryPage>();
+			const firstPageJob = { ...MOCK_JOBS[0], job_id: "current-page-job" };
+			const stalePageJob = { ...MOCK_JOBS[1], job_id: "stale-page-job" };
+			vi.mocked(api.listProjectJobs)
+				.mockResolvedValueOnce(makeJobsPage([firstPageJob], { total: 11 }))
+				.mockReturnValueOnce(stalePage.promise)
+				.mockReturnValueOnce(newestPage.promise);
+
+			renderPage();
+			await waitFor(() =>
+				expect(screen.getByText("current-page-job")).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "2" }));
+			fireEvent.click(screen.getByRole("button", { name: "1" }));
+
+			await act(async () => {
+				newestPage.resolve(makeJobsPage([firstPageJob], { total: 11 }));
+			});
+			await waitFor(() =>
+				expect(screen.getByText("current-page-job")).toBeInTheDocument(),
+			);
+
+			await act(async () => {
+				stalePage.resolve(
+					makeJobsPage([stalePageJob], { page: 2, total: 11 }),
+				);
+			});
+
+			expect(screen.getByText("current-page-job")).toBeInTheDocument();
+			expect(screen.queryByText("stale-page-job")).not.toBeInTheDocument();
 		});
 	});
 

@@ -28,7 +28,7 @@ describe("log API", () => {
 			.mockResolvedValue(new Response(JSON.stringify(page), { status: 200 }));
 		await expect(listLogDates()).resolves.toEqual(page);
 		expect(fetchMock).toHaveBeenCalledWith(
-			"/api/logs/dates?page=1&page_size=50",
+			"/api/logs/dates?page=1&page_size=10",
 			expect.anything(),
 		);
 		fetchMock.mockRestore();

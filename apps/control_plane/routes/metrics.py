@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 
 from apps.control_plane.services.metrics import MetricsStore
+from packages.pagination import DEFAULT_PAGE_SIZE
 
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
@@ -86,7 +87,7 @@ def get_videos(
     platform: str | None = Query(default=None),
     search: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=200),
 ) -> dict[str, Any]:
     """Paginated, sorted video list with optional search."""
     store = _store(request)

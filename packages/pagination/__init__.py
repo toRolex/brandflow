@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import Any
 
+DEFAULT_PAGE_SIZE = 10
+
 
 def paginated(
     items: list[Any],

@@ -9,7 +9,7 @@ from packages.file_store.repository import (
     DuplicateProjectNameError,
     FileStoreRepository,
 )
-from packages.pagination import paginated, slice_indices
+from packages.pagination import DEFAULT_PAGE_SIZE, paginated, slice_indices
 
 router = APIRouter(prefix="/api/projects", tags=["api-projects"])
 
@@ -22,7 +22,7 @@ class CreateProjectRequest(BaseModel):
 def list_projects(
     request: Request,
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=200),
 ):
     """Return paginated Project summaries sorted by stable project_id."""
     repo = FileStoreRepository(request.app.state.root_dir)
@@ -87,7 +87,7 @@ def list_project_jobs(
     request: Request,
     project_id: str,
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
+    page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=200),
 ):
     """Return paginated Job summaries in immutable creation order."""
     repo = FileStoreRepository(request.app.state.root_dir)
