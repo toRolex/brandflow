@@ -4,7 +4,12 @@ import { api } from "../../api/client";
 import PipelineSidebar from "../../components/PipelineSidebar";
 import { getJobActionPolicy } from "../../policies/jobActionPolicy";
 import { shouldPollJob } from "../../policies/jobPollingPolicy";
-import type { ExportTaskState, JobDetail, Phase } from "../../types";
+import type {
+	ExportTaskState,
+	JobDetail,
+	Phase,
+	PhaseExecutionState,
+} from "../../types";
 import { PIPELINE_STEPS } from "../../types";
 import AssetRetrievingPanel from "./panels/AssetRetrievingPanel";
 import AssetReviewPanel from "./panels/AssetReviewPanel";
@@ -20,7 +25,7 @@ import { CancelledPanel, PausedPanel } from "./panels/TerminalPanels";
 import TtsPanel from "./panels/TtsPanel";
 import TtsReviewPanel from "./panels/TtsReviewPanel";
 import VideoBasePanel from "./panels/VideoBasePanel";
-import { presentPhaseStatus } from "./phasePresentation";
+import { missingArtifacts, presentPhaseStatus } from "./phasePresentation";
 
 const EXPORT_POLL_INTERVAL_MS = 2000;
 
@@ -508,26 +513,52 @@ export default function JobPipeline() {
 			requiredArtifacts?: string[];
 			artifactLoadState?: "idle" | "loading" | "ready" | "failed";
 		} = {},
-	) =>
-		presentPhaseStatus({
+	) => {
+		const isCurrentPhase = executionPhase === phase;
+		const execution: PhaseExecutionState = isCurrentPhase
+			? job.execution
+			: {
+					status:
+						PIPELINE_STEPS.findIndex((step) => step.phase === phase) >
+						executionPhaseIndex
+							? "pending"
+							: "succeeded",
+					current_attempt: 0,
+					max_attempts: 0,
+					error: null,
+				};
+
+		// Subtitle/TTS handlers stay in phase while waiting for the worker to
+		// produce artifacts.  If the execution is already marked succeeded but
+		// the artifact pointer has not yet been persisted/returned, treat it as
+		// a transient loading state instead of an integrity error.
+		const stayInPhaseOnNoArtifacts =
+			phase === "subtitle_generating" || phase === "tts_generating";
+		let artifactLoadState = options.artifactLoadState ?? "idle";
+		if (
+			isCurrentPhase &&
+			stayInPhaseOnNoArtifacts &&
+			execution.status === "succeeded" &&
+			missingArtifacts({
+				phase,
+				execution,
+				reviewStatus: job.phase === phase ? job.review_status : "none",
+				artifacts: job.artifacts,
+				...options,
+			}).length > 0
+		) {
+			artifactLoadState = "loading";
+		}
+
+		return presentPhaseStatus({
 			phase,
-			execution:
-				executionPhase === phase
-					? job.execution
-					: {
-							status:
-								PIPELINE_STEPS.findIndex((step) => step.phase === phase) >
-								executionPhaseIndex
-									? "pending"
-									: "succeeded",
-							current_attempt: 0,
-							max_attempts: 0,
-							error: null,
-						},
+			execution,
 			reviewStatus: job.phase === phase ? job.review_status : "none",
 			artifacts: job.artifacts,
 			...options,
+			artifactLoadState,
 		});
+	};
 
 	const handleTtsModelChange = (model: string) => {
 		setTtsSelectedModel(model);

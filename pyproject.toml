@@ -1,7 +1,7 @@
 [project]
 name = "brandflow-pipeline"
 
-version = "0.7.29"
+version = "0.7.30"
 
 description = "Local short-video automation pipeline"
 requires-python = ">=3.11"
@@ -15,6 +15,7 @@ dependencies = [
     "pydantic>=2.13.4",
     "pyyaml>=6.0.3",
     "python-multipart>=0.0.29",
+    "platformdirs>=4.0.0",
     "pymupdf>=1.28.0",
     "python-docx>=1.2.0",
 ]

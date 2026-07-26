@@ -501,3 +501,18 @@ describe("Layout — update flow with progress (#330)", () => {
 		vi.useRealTimers();
 	});
 });
+
+describe("runtime log navigation", () => {
+	it("renders the fifth runtime-log entry", async () => {
+		mockCheckVersion.mockResolvedValue({
+			current: "0.7.29",
+			latest: "0.7.29",
+			update_available: false,
+		});
+		mockGetUpdateStatus.mockResolvedValue({ status: "idle" });
+		renderWithRouter("/");
+		await waitFor(() =>
+			expect(screen.getByTitle("运行日志")).toBeInTheDocument(),
+		);
+	});
+});

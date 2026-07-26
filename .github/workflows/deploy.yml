@@ -2,24 +2,43 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
-  deploy-test:
-    runs-on: windows-test
+  test-cd:
+    name: Test (zyt) → develop
+    if: github.ref == 'refs/heads/develop'
+    runs-on: [self-hosted, Windows, X64, bf-test]
     timeout-minutes: 30
     steps:
-      - name: Deploy
-        shell: cmd
-        run: call packaging\windows\deploy.bat
-
-  deploy-prod:
-    runs-on: windows-prod
-    timeout-minutes: 30
-    steps:
-      - name: Deploy
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Deploy develop → test machine
         shell: cmd
         env:
-          https_proxy: http://127.0.0.1:7897
-          http_proxy: http://127.0.0.1:7897
-        run: call packaging\windows\deploy.bat
+          https_proxy: ""
+          http_proxy: ""
+        run: |
+          echo === deploy inputs ===
+          echo GITHUB_WORKSPACE=%GITHUB_WORKSPACE%
+          call "%GITHUB_WORKSPACE%\packaging\windows\deploy.bat" develop
+
+  prod-cd:
+    name: Prod (snack / prod-jump) → main
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, X64, bf-prod]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Deploy main → prod machines
+        shell: cmd
+        env:
+          https_proxy: ""
+          http_proxy: ""
+        run: |
+          echo === deploy inputs ===
+          echo GITHUB_WORKSPACE=%GITHUB_WORKSPACE%
+          call "%GITHUB_WORKSPACE%\packaging\windows\deploy.bat" main

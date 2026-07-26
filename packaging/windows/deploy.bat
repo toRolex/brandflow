@@ -1,22 +1,40 @@
 @echo off
+echo Begin deploy.bat
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 title Brandflow — 一键部署
 
+:: CD 场景下 GITHUB_WORKSPACE 是 runner 的临时目录（每次 job 重建），不是生产数据目录。
+:: 这里默认走 D:\brandflow（持续服务所在），把最新代码同步过去后再启动。
 set "PROJECT_DIR=D:\brandflow"
+if not "%GITHUB_WORKSPACE%"=="" set "RUNNER_SRC=%GITHUB_WORKSPACE%"
+set "BRANCH=%~1"
+if "%BRANCH%"=="" set "BRANCH=main"
 
-:: 自动提权（安装工具和注册服务需要管理员权限）
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo 请求管理员权限...
-    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~f0\"' -Verb RunAs"
-    exit /b
+:: Debug headers — 方便排查 CD 失败
+echo === Brandflow deploy entrypoint ===
+echo BRANCH       = %BRANCH%
+echo PROJECT_DIR  = %PROJECT_DIR%
+echo CWD          = %CD%
+echo RUNNER_SRC   = %RUNNER_SRC%
+echo --- workspace contents ---
+if exist "%PROJECT_DIR%" (dir /b "%PROJECT_DIR%" | findstr /R /C:"packaging" /C:"frontend" /C:"apps" /C:"packages" /C:".git")
+echo === end headers ===
+echo.
+
+:: 自动提权（CD 场景跳过；GitHub Actions runner 已是高权限 SYSTEM/管理员）
+if "%GITHUB_ACTIONS%"=="" (
+    net session >nul 2>&1
+    if !errorlevel! neq 0 (
+        echo 请求管理员权限...
+        powershell -Command "Start-Process cmd -ArgumentList '/c \"%~f0\" %BRANCH%' -Verb RunAs"
+        exit /b
+    )
 )
 
 if not exist "%PROJECT_DIR%" (
-    echo [错误] 项目目录 %PROJECT_DIR% 不存在
-    pause
-    exit /b 1
+    echo [warn] 项目目录 %PROJECT_DIR% 不存在 — 自动创建（初次部署）
+    mkdir "%PROJECT_DIR%"
 )
 
 set "LOG_FILE=%PROJECT_DIR%\logs\deploy.log"
@@ -26,11 +44,11 @@ echo ============================================
 echo  Brandflow 一键部署
 echo ============================================
 echo  项目: %PROJECT_DIR%
-echo  日志: %LOG_FILE%
+echo  日志: !LOG_FILE!
 echo ============================================
 echo.
 
-echo [%date% %time%] ========== 部署开始 ========== >> "%LOG_FILE%"
+echo [%date% %time%] ========== 部署开始 ========== >> "!LOG_FILE!"
 
 :: ============================================
 :: Step 1: 前置工具（幂等，缺啥装啥）
@@ -39,8 +57,11 @@ echo [1/7] 检查前置工具 ...
 
 where uv >nul 2>&1 || (
     echo   - 安装 uv ...
-    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+    powershell -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
 )
+if exist "%USERPROFILE%\.local\bin\uv.exe" set "PATH=%USERPROFILE%\.local\bin;%PATH%"
+if exist "C:\Users\ziyua\.local\bin\uv.exe" set "PATH=C:\Users\ziyua\.local\bin;%PATH%"
+if exist "C:\Users\admin\.local\bin\uv.exe" set "PATH=C:\Users\admin\.local\bin;%PATH%"
 
 where node >nul 2>&1 || (
     if exist "C:\Program Files\nodejs\node.exe" (
@@ -58,7 +79,7 @@ where pnpm >nul 2>&1 || (
         set "PATH=%USERPROFILE%\AppData\Local\pnpm\bin;%PATH%"
     ) else (
         echo   - 安装 pnpm ...
-        powershell -c "iwr https://get.pnpm.io/install.ps1 -useb | iex"
+        powershell -ExecutionPolicy Bypass -Command "iwr https://get.pnpm.io/install.ps1 -useb | iex"
         if exist "%USERPROFILE%\AppData\Local\pnpm\bin\pnpm.CMD" set "PATH=%USERPROFILE%\AppData\Local\pnpm\bin;%PATH%"
     )
 )
@@ -92,16 +113,72 @@ if not exist "%PROJECT_DIR%\.env" (
 echo   目录已确认。
 
 :: ============================================
-:: Step 3: 拉取最新代码
+:: Step 3: 同步最新代码（目标分支 = %BRANCH%）
+:: GitHub Actions runner 源在 %GITHUB_WORKSPACE%，先把它复制到 %PROJECT_DIR%
 :: ============================================
-echo [3/7] 拉取最新代码 ...
+echo [3/7] 同步最新代码 (分支: %BRANCH%) ...
+
+:: Git 安全目录：本进程 NETWORK SERVICE 跑在 D:\brandflow 时会被认作 dubious ownership
+git config --global --add safe.directory "*" >nul 2>&1
+
+if not exist "%PROJECT_DIR%\.git" (
+    if exist "%PROJECT_DIR%" (
+        :: 目录存在但没 .git，先 init
+        pushd "%PROJECT_DIR%"
+        git init >nul 2>&1
+        git remote add origin https://github.com/toRolex/brandflow.git >nul 2>&1
+        popd
+    ) else (
+        mkdir "%PROJECT_DIR%"
+        pushd "%PROJECT_DIR%"
+        git init
+        git remote add origin https://github.com/toRolex/brandflow.git
+        popd
+    )
+)
+
 pushd "%PROJECT_DIR%"
-git fetch --tags
-git pull --rebase
-if %errorlevel% neq 0 (
-    echo [错误] git pull 失败 >> "%LOG_FILE%"
-    pause
-    exit /b %errorlevel%
+
+:: 任何本地改动都丢弃（CD 机器上不应该有未提交的开发改动）
+git reset --hard HEAD >nul 2>&1
+
+:: CD：从 runner workspace 同步代码到持久目录（保留 .venv/.env/workspace 等）
+if defined RUNNER_SRC (
+    echo   CD 模式：从 runner workspace 同步代码 ...
+    git remote set-url origin https://github.com/toRolex/brandflow.git >nul 2>&1
+    git fetch --tags origin %BRANCH%
+    if errorlevel 1 (
+        echo [错误] git fetch 失败 >> "!LOG_FILE!"
+        popd
+        pause
+        exit /b 1
+    )
+    git checkout -f -B %BRANCH% FETCH_HEAD
+    if errorlevel 1 (
+        echo [错误] git checkout FETCH_HEAD 失败 >> "!LOG_FILE!"
+        popd
+        pause
+        exit /b 1
+    )
+    :: 清干净 tracked 文件但保留运行时数据
+    git clean -fdx -e .env -e workspace -e logs -e .venv -e frontend\node_modules -e config\app_config.json -e config\providers.yaml >nul 2>&1
+) else (
+    echo   手动模式：从 origin 拉取 ...
+    git fetch --tags origin
+    git checkout %BRANCH%
+    if errorlevel 1 (
+        echo [错误] git checkout %BRANCH% 失败 >> "!LOG_FILE!"
+        popd
+        pause
+        exit /b 1
+    )
+    git pull --rebase --autostash
+    if errorlevel 1 (
+        echo [错误] git pull 失败 >> "!LOG_FILE!"
+        popd
+        pause
+        exit /b 1
+    )
 )
 popd
 
@@ -112,7 +189,7 @@ echo [4/7] 安装 Python 依赖 ...
 pushd "%PROJECT_DIR%"
 uv sync --all-extras --dev
 if %errorlevel% neq 0 (
-    echo [错误] uv sync 失败 >> "%LOG_FILE%"
+    echo [错误] uv sync 失败 >> "!LOG_FILE!"
     pause
     exit /b %errorlevel%
 )
@@ -129,7 +206,7 @@ if exist "%USERPROFILE%\AppData\Local\pnpm\bin\pnpm.CMD" set "PATH=%USERPROFILE%
 if not exist "node_modules" (
     call pnpm install --no-frozen-lockfile
     if %errorlevel% neq 0 (
-        echo [错误] pnpm install 失败 >> "%LOG_FILE%"
+        echo [错误] pnpm install 失败 >> "!LOG_FILE!"
         popd
         pause
         exit /b %errorlevel%
@@ -137,7 +214,7 @@ if not exist "node_modules" (
 )
 call pnpm build
 if %errorlevel% neq 0 (
-    echo [错误] pnpm build 失败 >> "%LOG_FILE%"
+    echo [错误] pnpm build 失败 >> "!LOG_FILE!"
     popd
     pause
     exit /b %errorlevel%
@@ -149,7 +226,7 @@ echo   前端编译完成。
 :: Step 6: 注册 / 启动服务
 :: ============================================
 echo [6/7] 注册并启动服务 ...
-nssm restart brandflow-control-plane >nul 2>&1 || (
+nssm status brandflow-control-plane >nul 2>&1 || (
     nssm install brandflow-control-plane cmd /c "uv run --directory %PROJECT_DIR% python -m apps.control_plane"
     nssm set brandflow-control-plane AppDirectory "%PROJECT_DIR%"
     nssm set brandflow-control-plane AppStdout "%PROJECT_DIR%\logs\control-plane.log"
@@ -157,8 +234,12 @@ nssm restart brandflow-control-plane >nul 2>&1 || (
     nssm set brandflow-control-plane AppRotateFiles 1
     nssm set brandflow-control-plane AppRotateBytes 10485760
     nssm set brandflow-control-plane Start SERVICE_AUTO_START
-    nssm start brandflow-control-plane
 )
+nssm set brandflow-control-plane AppEnvironmentExtra DEV_AUTO_TICK=1 >nul
+nssm restart brandflow-control-plane >nul
+
+nssm stop brandflow-worker >nul 2>&1
+sc config brandflow-worker start= disabled >nul 2>&1
 echo   服务已启动。
 
 :: ============================================
@@ -169,16 +250,16 @@ timeout /t 5 /nobreak >nul
 
 curl --noproxy "*" -f http://127.0.0.1:17890/api/health >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] 健康检查失败，请检查日志: %LOG_FILE%
+    echo [错误] 健康检查失败，请检查日志: !LOG_FILE!
     pause
     exit /b 1
 )
 
-echo [%date% %time%] ========== 部署成功 ========== >> "%LOG_FILE%"
+echo [%date% %time%] ========== 部署成功 ========== >> "!LOG_FILE!"
 echo.
 echo ============================================
 echo  部署成功
 echo  访问: http://127.0.0.1:17890
-echo  日志: %LOG_FILE%
+echo  日志: !LOG_FILE!
 echo ============================================
 pause

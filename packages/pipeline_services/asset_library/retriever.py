@@ -11,6 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 MAX_CLIP_REUSE = 2
+MIN_CLIP_DURATION_SECONDS = 3.0
+
+
+def _has_usable_duration(asset: AssetRecord) -> bool:
+    return (
+        not asset.duration_seconds
+        or asset.duration_seconds >= MIN_CLIP_DURATION_SECONDS
+    )
 
 
 class AssetRetriever:
@@ -34,7 +42,11 @@ class AssetRetriever:
                 candidates = self.repository.query_by_category_name(
                     product, requested_category_name
                 )
-                candidates = [c for c in candidates if c.usage_count < MAX_CLIP_REUSE]
+                candidates = [
+                    c
+                    for c in candidates
+                    if c.usage_count < MAX_CLIP_REUSE and _has_usable_duration(c)
+                ]
                 if candidates:
                     chosen = random.choice(candidates)
                     selected.append(
@@ -106,7 +118,11 @@ class AssetRetriever:
         return self._classify_fn(sentence)
 
     def _fallback(self, product: str) -> AssetRecord | None:
-        all_assets = self.repository.query_all_available(product)
+        all_assets = [
+            asset
+            for asset in self.repository.query_all_available(product)
+            if _has_usable_duration(asset)
+        ]
         available = [a for a in all_assets if a.usage_count < MAX_CLIP_REUSE]
         if available:
             return random.choice(available)

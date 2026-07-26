@@ -6,6 +6,7 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import ConfigPage from "./pages/ConfigPage";
 import JobPipeline from "./pages/JobPipeline";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
+import LogsPage from "./pages/LogsPage";
 import ProductConfigForm from "./pages/ProductConfigForm";
 import ProjectList from "./pages/ProjectList";
 import ProjectWorkbench from "./pages/ProjectWorkbench";
@@ -48,6 +49,7 @@ export default function App() {
 						/>
 						<Route path="/tts-config" element={<TtsConfig />} />
 						<Route path="/analytics" element={<AnalyticsPage />} />
+						<Route path="/logs" element={<LogsPage />} />
 					</Routes>
 				</Layout>
 			</ProductProvider>

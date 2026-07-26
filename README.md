@@ -1,6 +1,6 @@
 # Brandflow 短视频自动化系统 3.0
 
-AI 驱动的短视频自动化生产系统，基于 `control-plane + runtime-worker` 架构。工作人员通过 Web 前端完成全流程操作，无需命令行。
+AI 驱动的短视频自动化生产系统。生产流程由 Control Plane 的自动推进执行，工作人员通过 Web 前端完成全流程操作，无需命令行。`runtime_worker` 保留为已废弃的兼容代码，不是生产部署的一部分。
 
 ## 快速启动
 
@@ -114,9 +114,7 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 ```
 工作人员 → Web 前端（React SPA）
                 │
-           FastAPI 控制面（任务调度 + 状态管理 + 审核门）
-                │
-           Runtime Worker（拉模式，拉取任务 → 执行 → 上报）
+           FastAPI 控制面（任务调度 + 自动推进 + 状态管理 + 审核门）
                 │
            独立 Service（脚本生成 / TTS / 字幕 / 视频 / FFmpeg）
 ```
@@ -144,6 +142,26 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 Job API 响应包含 `execution` 字段（`PhaseExecutionState`），暴露当前 phase 的执行生命周期：`pending / running / retrying / failed / succeeded`、attempt 计数（`current_attempt` / `max_attempts`，默认最多 3 次重试，即最多 4 次总尝试）与结构化错误（`code` / `message` / `retryable`）。结构化 phase 结果模型定义于 `packages/domain_core/phase_execution.py`。
 
 Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 attempt，确定性错误立即终态并记录 `failed_phase`。`POST /api/jobs/{id}/retry` 会先 revalidate 失败阶段输入，通过则从失败阶段恢复（保留已有 artifacts）；不通过返回 409 + 结构化 detail。存量失败 job（无 `failed_phase`）回退为重置 `queued` 重试。
+
+### 运行日志（Issue #333–#337）
+
+控制面将 HTTP 4xx/5xx、未捕获的后端异常、自动推进异常和浏览器端
+`console.error`/`console.warn` 持久化为按本地日期分隔的 JSONL 文件。日志目录由
+`platformdirs` 解析到操作系统应用数据目录；不同平台的默认位置如下：
+
+- Windows: `%LOCALAPPDATA%\brandflow\logs\`
+- Linux: `~/.local/share/brandflow/logs/`
+- macOS: `~/Library/Application Support/brandflow/logs/`
+
+前端 `/logs` 页面列出日期、文件大小和条目数，并可下载原始 `.jsonl` 文件。
+运行日志不采集已废弃 `runtime_worker` 进程的异常；正常生产流程不启动该进程。
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/logs/error` | POST | 接收前端错误上报，成功返回 201 |
+| `/api/logs/dates` | GET | 按日期降序列出日志文件 |
+| `/api/logs/download?date=YYYY-MM-DD` | GET | 下载指定日期的 JSONL 日志 |
+
 ## 知识库 API（Issue #28）
 
 上传产品介绍文档，LLM 自动提取结构化知识并注入脚本生成 system prompt。
@@ -191,14 +209,15 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   │   │   ├── templates.py
 │   │   │   ├── tts.py
 │   │   │   ├── metrics.py
+│   │   │   ├── logs.py
 │   │   │   ├── category_suggestion.py
 │   │   │   └── version_check.py
 │   │   └── services/         # 调度器、排期存储
-│   └── runtime_worker/      # 拉模式 worker（poll → execute → report）
+│   └── runtime_worker/      # 已废弃的拉模式 worker 兼容代码
 │
 ├── frontend/                 # React 前端（新）
 │   └── src/
-│       ├── pages/            # 5 个页面
+│       ├── pages/            # 页面组件（含 /logs 运行日志）
 │       ├── components/       # 16 个复用组件
 │       ├── api/              # 按领域拆分的 API 客户端（jobs / assets / tts / ...）
 │       ├── types/            # 按领域拆分的 TypeScript 类型定义
@@ -210,6 +229,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   ├── file_store/           # 文件系统轻持久化
 │   ├── deploy_health/        # 部署体检：CLI + /api/health?deploy_check=true（Issue #76）
 │   ├── knowledge_store/      # 知识库：文档、items、LLM 提取（Issue #28）
+│   ├── log_service/          # 运行错误 JSONL 写入、中间件与全局异常捕获
 │   ├── pipeline_services/    # 业务能力（独立 service：脚本/TTS/字幕/视频）
 │   │   └── phases/           # Phase handler 实现（由 PhaseOrchestrator 策略表派发）
 │   ├── provider_config/      # 统一配置入口与 provider 配置桥接
@@ -231,7 +251,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 **路由与编排说明：**
 
 - `api_jobs.py` 与 `api_assets.py` 不再包含具体 handler，仅作为 `APIRouter` 聚合层按顺序 `include_router` 子路由；注意子路由的注册顺序（更具体的 `/jobs/{job_id}/...` 路径优先于动态路径 `/jobs/{job_id}`），以避免路径遮蔽。
-- `PhaseOrchestrator` 维护 `_handlers` 策略表，将 10 个 phase 派发到 `packages/pipeline_services/phases/` 下对应的 handler；控制面 `auto_tick` 与 `runtime_worker` 共用同一套编排逻辑。
+- `PhaseOrchestrator` 维护 `_handlers` 策略表，将 10 个 phase 派发到 `packages/pipeline_services/phases/` 下对应的 handler；生产流程由控制面 `auto_tick` 调用。已废弃的 `runtime_worker` 仍保留同一编排逻辑，仅用于兼容旧代码。
 
 ## 可用命令
 
@@ -259,7 +279,7 @@ cd frontend && npm run build
 # 版本同步
 uv run python tools/sync_version.py    # 同步版本到 package.json 和 CONTEXT.md
 
-# 当前 release tag：v0.7.29
+# 当前 release tag：v0.7.30
 ```
 
 ## 前端视觉设计
