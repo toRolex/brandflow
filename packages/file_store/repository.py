@@ -29,6 +29,12 @@ class FileStoreRepository:
     def root(self) -> Path:
         return self._layout.root
 
+    @property
+    def layout(self) -> WorkspaceLayout:
+        """The underlying ``WorkspaceLayout`` for callers that need to join
+        workspace paths without going through this repository's API."""
+        return self._layout
+
     def find_project_for_job(self, job_id: str) -> str | None:
         matches = []
         projects_root = self._layout.projects_dir()

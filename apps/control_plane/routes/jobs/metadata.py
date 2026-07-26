@@ -13,8 +13,6 @@ router = APIRouter(tags=["api-jobs"])
 def get_job_logs(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     return {"logs": record.last_error or "", "job_id": job_id}
 

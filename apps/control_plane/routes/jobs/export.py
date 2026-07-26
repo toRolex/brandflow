@@ -25,23 +25,13 @@ def create_export(request: Request, job_id: str):
     """
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
 
     record = repo.load_job(project_id, job_id)
     if record.phase != "completed":
         raise HTTPException(status_code=400, detail="job not yet completed")
 
-    job_dir = (
-        request.app.state.root_dir
-        / "workspace"
-        / "projects"
-        / project_id
-        / "runtime"
-        / "jobs"
-        / job_id
-    )
-    if not (job_dir / "final.mp4").exists():
+    final_video = repo.layout.job_artifact_path(project_id, job_id, "final.mp4")
+    if not final_video.exists():
         raise HTTPException(
             status_code=409,
             detail="final video not produced; rerender required before export",
@@ -71,8 +61,6 @@ def create_export(request: Request, job_id: str):
 def export_status(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
 
     service = _build_export_service(repo.layout, project_id, job_id)
     service.recover_interrupted()
@@ -91,8 +79,6 @@ def export_status(request: Request, job_id: str):
 def download_export(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
 
     service = _build_export_service(repo.layout, project_id, job_id)
     service.recover_interrupted()
@@ -113,8 +99,6 @@ def invalidate_export(request: Request, job_id: str):
     """Mark the current export task stale (called on rerender)."""
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
 
     service = _build_export_service(repo.layout, project_id, job_id)
     service.mark_stale()

@@ -86,8 +86,6 @@ def _validate_review_gate(phase: str, review_gate: str) -> None:
 def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
 
     # ── Phase validation ──
@@ -134,8 +132,6 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
 def reject_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
 
     _validate_review_gate(record.phase, payload.review_gate)
@@ -286,7 +282,7 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         f"[Review] 打回单个素材: job={job_id}, index={payload.clip_index}, sentence={sentence[:30]}..., asset={rejected_asset_id}"
     )
 
-    if not _resolve_job_project(FileStoreRepository(root_dir), job_id):
+    if not project_id:
         for project_dir in (root_dir / "workspace" / "projects").iterdir():
             if not project_dir.is_dir():
                 continue
@@ -403,8 +399,6 @@ def _check_asset_review_phase(root_dir: Path, job_id: str) -> None:
     """Raise 409 if the job is not in the asset_review phase."""
     repo = FileStoreRepository(root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     if record.phase != "asset_review":
         raise HTTPException(
@@ -462,8 +456,6 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
 
     repo = FileStoreRepository(root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     job_product = record.product or ""
 

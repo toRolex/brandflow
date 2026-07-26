@@ -15,8 +15,6 @@ router = APIRouter(tags=["api-jobs"])
 def update_manual_script(request: Request, job_id: str, payload: UpdateScriptRequest):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
 
     record = repo.load_job(project_id, job_id)
     repo.save_job(
@@ -35,8 +33,6 @@ async def upload_job_audio(request: Request, job_id: str, file: UploadFile):
         raise HTTPException(status_code=400, detail="filename required")
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
 
     record = repo.load_job(project_id, job_id)
     if record.phase != "draft":

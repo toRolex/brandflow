@@ -292,8 +292,6 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
 def enqueue_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     if record.phase != "draft":
         raise HTTPException(
@@ -333,8 +331,6 @@ def get_job(request: Request, job_id: str):
 def pause_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     if record.phase not in _ACTIVE_PHASES:
         raise HTTPException(
@@ -359,8 +355,6 @@ def pause_job(request: Request, job_id: str):
 def resume_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     if record.phase != "paused" or record.paused_from_phase is None:
         raise HTTPException(
@@ -387,8 +381,6 @@ def resume_job(request: Request, job_id: str):
 def cancel_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     if record.phase == "cancelled":
         return {"status": "cancelled", "job_id": job_id}
@@ -425,8 +417,6 @@ def cancel_job(request: Request, job_id: str):
 def delete_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     if record.phase not in _DELETE_ALLOWED_PHASES:
         raise HTTPException(
@@ -445,8 +435,6 @@ def delete_job(request: Request, job_id: str):
 def rename_job(request: Request, job_id: str, payload: RenameJobRequest):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     repo.save_job(project_id, record.model_copy(update={"name": payload.name}))
     return {"job_id": job_id, "name": payload.name}
