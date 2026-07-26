@@ -16,7 +16,7 @@ class Dispatcher:
         self.current_attempts: dict[str, dict[str, str]] = {}
 
     def poll(self, worker_id: str) -> dict[str, object]:
-        projects_root = self._repo.root / "workspace" / "projects"
+        projects_root = self._repo.layout.projects_dir()
         if not projects_root.exists():
             return {"command": "idle", "next_poll_after_seconds": 5}
 

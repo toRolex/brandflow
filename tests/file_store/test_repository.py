@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from packages.domain_core.models import JobRecord
+from packages.file_store.layout import (
+    AmbiguousJobError,
+    WorkspaceLayout,
+)
 from packages.file_store.repository import FileStoreRepository
 
 
@@ -17,7 +23,6 @@ def test_create_project_layout(tmp_path: Path) -> None:
         project_root / "control" / "batches",
         project_root / "reviews",
         project_root / "reports",
-        project_root / "runtime" / "jobs",
         project_root / "runtime" / "source_assets",
         project_root / "runtime" / "schedule" / "exports",
         project_root / "logs",
@@ -315,3 +320,112 @@ def test_list_jobs_bad_json_still_gets_display_index(tmp_path: Path) -> None:
 
     assert result[1]["job_id"] == "job_good"
     assert result[1]["display_index"] == "002"
+
+
+# ——— WorkspaceLayout seam 接入 ———
+
+
+def test_repository_exposes_workspace_layout_attribute(tmp_path: Path) -> None:
+    """``repo.layout`` is the read-only seam for project-tree paths (#357)."""
+    repo = FileStoreRepository(tmp_path)
+    assert isinstance(repo.layout, WorkspaceLayout)
+    assert repo.layout.root == tmp_path
+
+
+def test_repository_does_not_expose_public_root_attribute(tmp_path: Path) -> None:
+    """``root`` is no longer a public attribute on the repository (#357).
+
+    Production callers must route through ``repo.layout`` so the layout
+    seam remains the single source of truth.
+    """
+    repo = FileStoreRepository(tmp_path)
+    assert not hasattr(repo, "root")
+
+
+# ——— find_project_for_job ———
+
+
+def test_find_project_for_job_returns_none_when_no_project_owns_it(
+    tmp_path: Path,
+) -> None:
+    """No project directory holds the requested job_id → ``None`` (#357).
+
+    The 404 / 'job not found' route path uses this branch.
+    """
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+    repo.save_job(
+        "project-001",
+        JobRecord(job_id="other-job", phase="queued", review_status="none"),
+    )
+
+    assert repo.find_project_for_job("missing-job") is None
+
+
+def test_find_project_for_job_returns_unique_owner(tmp_path: Path) -> None:
+    """A single project owns the job → that project_id is returned (#357)."""
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+    repo.create_project("project-002")
+    repo.save_job(
+        "project-002",
+        JobRecord(job_id="shared-job", phase="queued", review_status="none"),
+    )
+
+    assert repo.find_project_for_job("shared-job") == "project-002"
+
+
+def test_find_project_for_job_raises_when_two_projects_claim_same_id(
+    tmp_path: Path,
+) -> None:
+    """Two projects with the same job_id → ``AmbiguousJobError`` (#357).
+
+    The 409 / 'AMBIGUOUS_JOB_ID' route path uses this branch.
+    """
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+    repo.create_project("project-002")
+    repo.save_job(
+        "project-001",
+        JobRecord(job_id="dup-job", phase="queued", review_status="none"),
+    )
+    repo.save_job(
+        "project-002",
+        JobRecord(job_id="dup-job", phase="queued", review_status="none"),
+    )
+
+    with pytest.raises(AmbiguousJobError) as exc_info:
+        repo.find_project_for_job("dup-job")
+
+    message = str(exc_info.value)
+    assert "project-001" in message
+    assert "project-002" in message
+
+
+def test_find_project_for_job_skips_projects_with_corrupt_records(
+    tmp_path: Path,
+) -> None:
+    """A corrupt job record in one project must not mask the unique owner (#357)."""
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-bad")
+    repo.create_project("project-good")
+    # Corrupt record in project-bad — load_job raises, scan skips it.
+    bad_jobs_dir = (
+        tmp_path / "workspace" / "projects" / "project-bad" / "control" / "jobs"
+    )
+    bad_jobs_dir.mkdir(parents=True, exist_ok=True)
+    (bad_jobs_dir / "shared-job.json").write_text("not valid json", encoding="utf-8")
+    # Real record in project-good.
+    repo.save_job(
+        "project-good",
+        JobRecord(job_id="shared-job", phase="queued", review_status="none"),
+    )
+
+    assert repo.find_project_for_job("shared-job") == "project-good"
+
+
+def test_find_project_for_job_no_projects_at_all(tmp_path: Path) -> None:
+    """Empty workspace → ``None`` (no projects to scan)."""
+    repo = FileStoreRepository(tmp_path)
+
+    assert repo.find_project_for_job("anything") is None

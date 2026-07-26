@@ -26,7 +26,7 @@ def list_projects(
 ):
     """Return paginated Project summaries sorted by stable project_id."""
     repo = FileStoreRepository(request.app.state.root_dir)
-    projects_root = repo.root / "workspace" / "projects"
+    projects_root = repo.layout.projects_dir()
     if not projects_root.exists():
         return paginated([], 0, page, page_size)
 
@@ -92,7 +92,7 @@ def list_project_jobs(
     """Return paginated Job summaries in immutable creation order."""
     repo = FileStoreRepository(request.app.state.root_dir)
     # Verify project exists
-    if not (repo.root / "workspace" / "projects" / project_id).is_dir():
+    if not repo.layout.project_dir(project_id).is_dir():
         raise HTTPException(status_code=404, detail="Project not found")
     items, total = repo.list_jobs_paginated(project_id, page=page, page_size=page_size)
     return paginated(items, total, page, page_size)

@@ -79,17 +79,13 @@ def _make_job_response(
 
 
 def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
-    projects_root = repo.root / "workspace" / "projects"
-    if not projects_root.exists():
-        return None
-    for project_dir in projects_root.iterdir():
-        if project_dir.is_dir():
-            try:
-                repo.load_job(project_dir.name, job_id)
-                return project_dir.name
-            except Exception:
-                continue
-    return None
+    """Resolve ``job_id`` to its owning Project via the layout seam (#357).
+
+    Thin wrapper kept for backwards compatibility with this module's
+    remaining call sites; delegates to ``FileStoreRepository`` so the
+    scan logic lives in exactly one place.
+    """
+    return repo.find_project_for_job(job_id)
 
 
 def _export_service(request: Request, project_id: str, job_id: str):

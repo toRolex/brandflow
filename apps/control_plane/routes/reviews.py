@@ -68,19 +68,13 @@ def _find_script_file(job_dir: Path) -> Path | None:
 
 
 def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
-    projects_root = repo.root.joinpath("workspace", "projects")
-    if not projects_root.exists():
-        return None
+    """Resolve ``job_id`` to its owning Project via the layout seam (#357).
 
-    for project_dir in projects_root.iterdir():
-        if not project_dir.is_dir():
-            continue
-        try:
-            repo.load_job(project_dir.name, job_id)
-            return project_dir.name
-        except Exception:
-            continue
-    return None
+    Thin wrapper kept for backwards compatibility with this module's
+    remaining call sites; delegates to ``FileStoreRepository`` so the
+    scan logic lives in exactly one place.
+    """
+    return repo.find_project_for_job(job_id)
 
 
 def _validate_review_gate(phase: str, review_gate: str) -> None:
