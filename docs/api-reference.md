@@ -36,7 +36,7 @@
 | `/api/projects` | POST | 创建项目 |
 | `/api/projects/{project_id}` | GET | 获取项目详情（不内嵌 jobs） |
 | `/api/projects/{project_id}` | DELETE | 删除项目 |
-| `/api/projects/{project_id}/jobs` | GET | 分页列出该项目 Job 摘要；按 job_id 稳定升序，不受状态保存影响 |
+| `/api/projects/{project_id}/jobs` | GET | 分页列出该项目 Job 摘要；新 Job 按不可变 `created_at` 创建顺序，历史 Job 按 `job_id` 确定性兼容排序，不受状态保存影响 |
 | `/api/projects/{project_id}/upload` | POST | 上传文件到项目 |
 | `/api/projects/{project_id}/assets` | GET | 列出项目素材 |
 | `/api/projects/{project_id}/assets/indexed` | GET | 列出已索引素材 |

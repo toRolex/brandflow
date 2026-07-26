@@ -29,17 +29,17 @@ def _write_log_file(log_dir: Path, date_str: str, content: str = "{}") -> Path:
 
 
 def test_is_valid_calendar_date_rejects_bad_format() -> None:
-    assert not log_deletion._is_valid_calendar_date("2026-07-2")  # single digit
-    assert not log_deletion._is_valid_calendar_date("2026/07/25")
-    assert not log_deletion._is_valid_calendar_date("not-a-date")
+    assert not log_deletion.is_valid_calendar_date("2026-07-2")  # single digit
+    assert not log_deletion.is_valid_calendar_date("2026/07/25")
+    assert not log_deletion.is_valid_calendar_date("not-a-date")
 
 
 def test_is_valid_calendar_date_rejects_fake_date() -> None:
-    assert not log_deletion._is_valid_calendar_date("2026-02-30")
+    assert not log_deletion.is_valid_calendar_date("2026-02-30")
 
 
 def test_is_valid_calendar_date_accepts_real_date() -> None:
-    assert log_deletion._is_valid_calendar_date("2026-07-25")
+    assert log_deletion.is_valid_calendar_date("2026-07-25")
 
 
 # ── delete_single ────────────────────────────────────────────────────────────
@@ -57,6 +57,60 @@ def test_delete_single_not_found_idempotent(log_dir: Path, monkeypatch) -> None:
     monkeypatch.setattr(log_deletion, "get_log_dir", lambda: log_dir)
     result = log_deletion.delete_single("2025-12-01")
     assert result == {"date": "2025-12-01", "deleted": False}
+
+
+def test_delete_single_rejects_non_date_path(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(log_deletion, "get_log_dir", lambda: tmp_path / "logs")
+
+    with pytest.raises(ValueError, match="Invalid Log Date"):
+        log_deletion.delete_single("../../outside")
+
+
+def test_delete_single_today_is_protected_in_service(
+    log_dir: Path, monkeypatch
+) -> None:
+    """Today-protection lives inside the service layer, not only in routes."""
+    monkeypatch.setattr(log_deletion, "get_log_dir", lambda: log_dir)
+    today_str = log_deletion._today_str()
+    _write_log_file(log_dir, today_str)
+    result = log_deletion.delete_single(today_str)
+    assert result == {"date": today_str, "deleted": False, "protected": True}
+    # File still exists
+    assert (log_dir / f"{today_str}.jsonl").exists()
+
+
+def test_delete_single_rechecks_today_after_acquiring_writer_lock(
+    log_dir: Path, monkeypatch
+) -> None:
+    """A date that becomes today while waiting for the writer lock is protected."""
+    import threading
+
+    target_date = "2026-07-26"
+    current_today = {"value": "2026-07-25"}
+    started = threading.Event()
+    result_holder: list[dict] = []
+    monkeypatch.setattr(log_deletion, "get_log_dir", lambda: log_dir)
+    monkeypatch.setattr(
+        log_deletion,
+        "_today_str",
+        lambda: current_today["value"],
+    )
+    _write_log_file(log_dir, target_date)
+
+    def _delete_after_start() -> None:
+        started.set()
+        result_holder.append(log_deletion.delete_single(target_date))
+
+    with _LOG_LOCK:
+        thread = threading.Thread(target=_delete_after_start, daemon=True)
+        thread.start()
+        assert started.wait(timeout=1)
+        current_today["value"] = target_date
+
+    thread.join(timeout=2)
+
+    assert result_holder == [{"date": target_date, "deleted": False, "protected": True}]
+    assert (log_dir / f"{target_date}.jsonl").exists()
 
 
 # ── delete_batch ─────────────────────────────────────────────────────────────
@@ -154,7 +208,6 @@ def test_delete_uses_writer_lock(log_dir: Path, monkeypatch) -> None:
     # The delete should block until we release the lock.
     import threading
 
-    acquired = threading.Event()
     result_holder: list[dict] = []
 
     def _try_delete() -> None:
@@ -170,7 +223,9 @@ def test_delete_uses_writer_lock(log_dir: Path, monkeypatch) -> None:
     # Now the lock is released; the delete thread should finish
     t.join(timeout=2)
     assert not t.is_alive()
-    assert result_holder == [{
-        "date": "2025-12-01",
-        "deleted": True,
-    }]
+    assert result_holder == [
+        {
+            "date": "2025-12-01",
+            "deleted": True,
+        }
+    ]
