@@ -158,14 +158,14 @@ def _inject_av_alignment(
     )
     # Rerender changed the Final Timeline — any prior export is now stale (#180).
     try:
+        from packages.file_store.layout import WorkspaceLayout
         from packages.pipeline_services.export_task import ExportTaskService
 
+        layout = WorkspaceLayout(ctx.root_dir)
         ExportTaskService(
             job_id=ctx.job_id,
-            job_dir=job_dir,
-            workspace_dir=ctx.project_dir.parent,
-            project_dir=ctx.project_dir,
-            export_dir=ctx.project_dir / "runtime" / "exports",
+            layout=layout,
+            project_id=ctx.project_dir.name,
         ).mark_stale()
     except Exception:  # noqa: BLE001 — never block rendering on export cleanup
         pass

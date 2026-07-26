@@ -98,6 +98,7 @@ def _resolve_job_project(repo: FileStoreRepository, job_id: str) -> str:
 
 def _build_export_service(layout: WorkspaceLayout, project_id: str, job_id: str):
     """Build an ExportTaskService bound to this job's on-disk directories."""
+    from packages.file_store.layout import WorkspaceLayout
     from packages.pipeline_services.export_task import ExportTaskService
 
     return ExportTaskService(

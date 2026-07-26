@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
@@ -41,14 +40,12 @@ def preview_job_tts(job_id: str, request: Request):
     project_id = _resolve_job_project(repo, job_id)
 
     record = repo.load_job(project_id, job_id)
-    root_dir: Path = request.app.state.root_dir
     config_reader = request.app.state.config_reader
+    layout = repo.layout
 
     # Discover script text: runtime file first, then manual_script on record
     script_text = ""
-    job_dir = (
-        root_dir / "workspace" / "projects" / project_id / "runtime" / "jobs" / job_id
-    )
+    job_dir = layout.job_runtime_dir(project_id, job_id)
     for p in job_dir.glob("*口播文案.txt"):
         script_text = p.read_text(encoding="utf-8").strip()
         break
@@ -111,19 +108,11 @@ def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: R
     project_id = _resolve_job_project(repo, job_id)
 
     record = repo.load_job(project_id, job_id)
-    root_dir: Path = request.app.state.root_dir
+    layout = repo.layout
 
-    # Check for existing formal audio
-    audio_path = (
-        root_dir
-        / "workspace"
-        / "projects"
-        / project_id
-        / "runtime"
-        / "jobs"
-        / job_id
-        / "audio.mp3"
-    )
+    # Check for existing formal audio (per-job artifact, not the
+    # project-wide audio directory).
+    audio_path = layout.job_artifact_path(project_id, job_id, "audio.mp3")
     audio_exists = audio_path.exists()
 
     if audio_exists and not payload.confirm:
@@ -193,15 +182,7 @@ def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: R
             pass
 
         # Cascading invalidation: remove all downstream runtime files (#253)
-        job_dir = (
-            root_dir
-            / "workspace"
-            / "projects"
-            / project_id
-            / "runtime"
-            / "jobs"
-            / job_id
-        )
+        job_dir = layout.job_runtime_dir(project_id, job_id)
         for filename in _TTS_VOICE_CHANGE_CLEANUP_FILES:
             file_path = job_dir / filename
             try:
@@ -216,15 +197,8 @@ def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: R
 
             ExportTaskService(
                 job_id=job_id,
-                job_dir=job_dir,
-                workspace_dir=root_dir / "workspace",
-                project_dir=root_dir / "workspace" / "projects" / project_id,
-                export_dir=root_dir
-                / "workspace"
-                / "projects"
-                / project_id
-                / "runtime"
-                / "exports",
+                layout=layout,
+                project_id=project_id,
             ).mark_stale()
         except Exception:  # noqa: BLE001 — never block voice change on export cleanup
             pass

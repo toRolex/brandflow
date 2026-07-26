@@ -23,16 +23,18 @@ class FileStoreRepository:
     _project_creation_lock: threading.Lock = threading.Lock()
 
     def __init__(self, root: Path) -> None:
+        self.root = root
         self._layout = WorkspaceLayout(root)
 
     @property
-    def root(self) -> Path:
-        return self._layout.root
-
-    @property
     def layout(self) -> WorkspaceLayout:
-        """The underlying ``WorkspaceLayout`` for callers that need to join
-        workspace paths without going through this repository's API."""
+        """The :class:`WorkspaceLayout` seam for project-tree paths.
+
+        Production code should reach every project-tree path through this
+        layout.  ``root`` is retained for tests and legacy paths that do not
+        yet sit under ``workspace/projects/`` (e.g. ``shared_assets``,
+        ``music_library``).
+        """
         return self._layout
 
     def find_project_for_job(self, job_id: str) -> str | None:
@@ -52,7 +54,7 @@ class FileStoreRepository:
         return matches[0] if matches else None
 
     def create_project(self, project_id: str, name: str = "") -> Path:
-        root = self.root / "workspace" / "projects" / project_id
+        root = self._layout.project_dir(project_id)
         for relative in (
             "control/jobs",
             "control/batches",
@@ -64,7 +66,7 @@ class FileStoreRepository:
             "logs",
         ):
             (root / relative).mkdir(parents=True, exist_ok=True)
-        meta_path = root / "project_meta.json"
+        meta_path = self._layout.project_meta_path(project_id)
         if not meta_path.exists():
             meta = {"id": project_id, "name": name}
             self._write_json(meta_path, meta)
@@ -73,7 +75,7 @@ class FileStoreRepository:
     def create_project_with_unique_name(self, project_id: str, name: str) -> Path:
         """Create a Project while atomically enforcing workspace name uniqueness."""
         with self._project_creation_lock:
-            projects_root = self.root / "workspace" / "projects"
+            projects_root = self._layout.projects_dir()
             if projects_root.exists():
                 for project_dir in projects_root.iterdir():
                     if not project_dir.is_dir():
@@ -84,34 +86,18 @@ class FileStoreRepository:
             return self.create_project(project_id, name=name)
 
     def load_project_meta(self, project_id: str) -> dict[str, Any]:
-        path = self.root / "workspace" / "projects" / project_id / "project_meta.json"
+        path = self._layout.project_meta_path(project_id)
         if not path.exists():
             return {"id": project_id, "name": project_id}
         return json.loads(path.read_text(encoding="utf-8"))
 
     def save_job(self, project_id: str, record: JobRecord) -> None:
-        path = (
-            self.root
-            / "workspace"
-            / "projects"
-            / project_id
-            / "control"
-            / "jobs"
-            / f"{record.job_id}.json"
-        )
+        path = self._layout.job_record_path(project_id, record.job_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         self._write_json(path, record.model_dump())
 
     def load_job(self, project_id: str, job_id: str) -> JobRecord:
-        path = (
-            self.root
-            / "workspace"
-            / "projects"
-            / project_id
-            / "control"
-            / "jobs"
-            / f"{job_id}.json"
-        )
+        path = self._layout.job_record_path(project_id, job_id)
         # ponytail: control plane auto_tick and worker advance_after_report
         # both save_job concurrently; their ``os.replace`` on Windows can
         # briefly surface a torn JSON to readers. Retry once after 50ms
@@ -128,40 +114,17 @@ class FileStoreRepository:
         raise last_exc  # type: ignore[misc]
 
     def delete_job(self, project_id: str, job_id: str) -> bool:
-        path = (
-            self.root
-            / "workspace"
-            / "projects"
-            / project_id
-            / "control"
-            / "jobs"
-            / f"{job_id}.json"
-        )
+        path = self._layout.job_record_path(project_id, job_id)
         if not path.exists():
             return False
         path.unlink()
-        runtime_dir = (
-            self.root
-            / "workspace"
-            / "projects"
-            / project_id
-            / "runtime"
-            / "jobs"
-            / job_id
-        )
+        runtime_dir = self._layout.job_runtime_dir(project_id, job_id)
         if runtime_dir.exists():
             shutil.rmtree(runtime_dir)
         return True
 
     def append_review_event(self, project_id: str, event: dict[str, Any]) -> None:
-        path = (
-            self.root
-            / "workspace"
-            / "projects"
-            / project_id
-            / "reviews"
-            / "review_events.jsonl"
-        )
+        path = self._layout.review_events_path(project_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         # Serialise writes per-project so concurrent Jobs don't interleave
         # JSON lines or corrupt each other's writes.
@@ -176,9 +139,7 @@ class FileStoreRepository:
 
     def count_jobs(self, project_id: str) -> int:
         """Count Job JSON files without deserialising any JobRecord."""
-        jobs_root = (
-            self.root / "workspace" / "projects" / project_id / "control" / "jobs"
-        )
+        jobs_root = self._layout.control_jobs_dir(project_id)
         if not jobs_root.exists():
             return 0
         return sum(
@@ -193,9 +154,7 @@ class FileStoreRepository:
         New records sort by their persisted creation timestamp, with job_id as
         a deterministic tiebreaker.
         """
-        jobs_root = (
-            self.root / "workspace" / "projects" / project_id / "control" / "jobs"
-        )
+        jobs_root = self._layout.control_jobs_dir(project_id)
         if not jobs_root.exists():
             return []
         files = [f for f in jobs_root.iterdir() if f.is_file() and f.suffix == ".json"]
@@ -220,15 +179,8 @@ class FileStoreRepository:
             record = JobRecord.model_validate_json(file.read_text(encoding="utf-8"))
             asset_review_unresolved_count = None
             if record.phase == "asset_review":
-                clips_path = (
-                    self.root
-                    / "workspace"
-                    / "projects"
-                    / project_id
-                    / "runtime"
-                    / "jobs"
-                    / record.job_id
-                    / "selected_clips.json"
+                clips_path = self._layout.job_artifact_path(
+                    project_id, record.job_id, "selected_clips.json"
                 )
                 try:
                     clips = json.loads(clips_path.read_text(encoding="utf-8"))
@@ -285,14 +237,7 @@ class FileStoreRepository:
         return results, total
 
     def list_assets(self, project_id: str) -> list[dict[str, Any]]:
-        assets_root = (
-            self.root
-            / "workspace"
-            / "projects"
-            / project_id
-            / "runtime"
-            / "source_assets"
-        )
+        assets_root = self._layout.source_assets_dir(project_id)
         if not assets_root.exists():
             return []
         results: list[dict[str, Any]] = []
@@ -308,22 +253,14 @@ class FileStoreRepository:
         return results
 
     def delete_asset(self, project_id: str, asset_name: str) -> bool:
-        asset_path = (
-            self.root
-            / "workspace"
-            / "projects"
-            / project_id
-            / "runtime"
-            / "source_assets"
-            / asset_name
-        )
+        asset_path = self._layout.source_asset_path(project_id, asset_name)
         if not asset_path.exists():
             return False
         asset_path.unlink()
         return True
 
     def delete_project(self, project_id: str) -> bool:
-        root = self.root / "workspace" / "projects" / project_id
+        root = self._layout.project_dir(project_id)
         if not root.exists():
             return False
         shutil.rmtree(root)

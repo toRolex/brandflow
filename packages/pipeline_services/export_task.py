@@ -15,6 +15,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Callable
 
+from packages.file_store.layout import WorkspaceLayout
 from packages.pipeline_services.export_service import build_export_bundle
 from packages.pipeline_services.export_validation import validate_export_zip
 
@@ -31,24 +32,44 @@ class ExportTaskService:
     def __init__(
         self,
         job_id: str,
-        job_dir: Path,
-        workspace_dir: Path,
-        project_dir: Path,
-        export_dir: Path,
+        job_dir: Path | None = None,
+        workspace_dir: Path | None = None,
+        project_dir: Path | None = None,
+        export_dir: Path | None = None,
         *,
+        layout: WorkspaceLayout | None = None,
+        project_id: str | None = None,
         get_scene_config: Callable[[], dict[str, Any]] | None = None,
         validate_bundle: Callable[[Path], list[str]] | None = None,
     ) -> None:
-        self.job_id = job_id
-        self.job_dir = job_dir
-        self.workspace_dir = workspace_dir
-        self.project_dir = project_dir
-        self.export_dir = export_dir
+        if layout is not None and project_id is not None:
+            self.job_id = job_id
+            self.job_dir = layout.job_runtime_dir(project_id, job_id)
+            self.workspace_dir = layout.workspace_dir()
+            self.project_dir = layout.project_dir(project_id)
+            self.export_dir = layout.runtime_exports_dir(project_id)
+        else:
+            if not (
+                job_dir is not None
+                and workspace_dir is not None
+                and project_dir is not None
+                and export_dir is not None
+            ):
+                raise TypeError(
+                    "ExportTaskService requires either (layout, project_id) "
+                    "or all four path arguments (job_dir, workspace_dir, "
+                    "project_dir, export_dir)."
+                )
+            self.job_id = job_id
+            self.job_dir = job_dir
+            self.workspace_dir = workspace_dir
+            self.project_dir = project_dir
+            self.export_dir = export_dir
         self.get_scene_config = get_scene_config
         self.validate_bundle = validate_bundle or (
             lambda path: validate_export_zip(path, job_id=self.job_id)
         )
-        self._task_path = export_dir / f"{job_id}.export_task.json"
+        self._task_path = self.export_dir / f"{job_id}.export_task.json"
 
     # -- public API ---------------------------------------------------------
 

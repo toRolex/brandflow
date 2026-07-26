@@ -47,6 +47,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from packages.domain_core.models import REVIEW_PHASES
+from packages.file_store.layout import WorkspaceLayout
 from packages.log_service.log_writer import log_error
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
@@ -116,7 +117,7 @@ class AutoTickScheduler:
     ) -> None:
         if max_concurrency < 1:
             raise ValueError(f"max_concurrency must be >= 1, got {max_concurrency}")
-        self._root_dir = root_dir
+        self._layout = WorkspaceLayout(root_dir)
         self._tick_svc = tick_svc
         self._max_concurrency = max_concurrency
 
@@ -295,7 +296,7 @@ class AutoTickScheduler:
         )
 
         candidates: list[_WorkItem] = []
-        projects_root = self._root_dir / "workspace" / "projects"
+        projects_root = self._layout.projects_dir()
         if not projects_root.exists():
             return candidates
 
@@ -303,7 +304,7 @@ class AutoTickScheduler:
             if not project_dir.is_dir():
                 continue
             project_id = project_dir.name
-            jobs_dir = project_dir / "control" / "jobs"
+            jobs_dir = self._layout.control_jobs_dir(project_id)
             if not jobs_dir.exists():
                 continue
 
@@ -431,7 +432,7 @@ class AutoTickScheduler:
                     work.project_id,
                     work.job_id,
                     work.product,
-                    root_dir=self._root_dir,
+                    root_dir=self._layout.root,
                     project_dir=work.project_dir,
                     options=work.to_options_dict(),
                 )
