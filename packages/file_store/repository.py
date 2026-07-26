@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.domain_core.models import JobRecord
-from packages.file_store.layout import AmbiguousJobError, WorkspaceLayout
+from packages.file_store.layout import WorkspaceLayout
 from packages.pagination import slice_indices
 
 
@@ -23,9 +23,7 @@ class FileStoreRepository:
     _project_creation_lock: threading.Lock = threading.Lock()
 
     def __init__(self, root: Path) -> None:
-        # ``_layout`` is the single seam for project-tree paths; production
-        # callers must use ``repo.layout`` rather than touching ``root``
-        # directly (#357).
+        self.root = root
         self._layout = WorkspaceLayout(root)
 
     @property
@@ -33,41 +31,25 @@ class FileStoreRepository:
         """The :class:`WorkspaceLayout` seam for project-tree paths.
 
         Production code should reach every project-tree path through this
-        layout.  Use :attr:`layout.root` for legacy paths that do not yet
-        sit under ``workspace/projects/`` (e.g. ``shared_assets``,
+        layout.  ``root`` is retained for tests and legacy paths that do not
+        yet sit under ``workspace/projects/`` (e.g. ``shared_assets``,
         ``music_library``).
         """
         return self._layout
 
-    def find_project_for_job(self, job_id: str) -> str | None:
-        matches = []
-        projects_root = self._layout.projects_dir()
-        if not projects_root.exists():
-            return None
-        for project_dir in sorted(projects_root.iterdir()):
-            if project_dir.is_dir():
-                try:
-                    self.load_job(project_dir.name, job_id)
-                except Exception:
-                    continue
-                matches.append(project_dir.name)
-        if len(matches) > 1:
-            raise AmbiguousJobError(matches)
-        return matches[0] if matches else None
-
     def create_project(self, project_id: str, name: str = "") -> Path:
         root = self._layout.project_dir(project_id)
-        for path in (
-            self._layout.control_jobs_dir(project_id),
-            self._layout.control_batches_dir(project_id),
-            self._layout.reviews_dir(project_id),
-            self._layout.reports_dir(project_id),
-            self._layout.runtime_jobs_dir(project_id),
-            self._layout.source_assets_dir(project_id),
-            self._layout.schedule_exports_dir(project_id),
-            self._layout.logs_dir(project_id),
+        for relative in (
+            "control/jobs",
+            "control/batches",
+            "reviews",
+            "reports",
+            "runtime/jobs",
+            "runtime/source_assets",
+            "runtime/schedule/exports",
+            "logs",
         ):
-            path.mkdir(parents=True, exist_ok=True)
+            (root / relative).mkdir(parents=True, exist_ok=True)
         meta_path = self._layout.project_meta_path(project_id)
         if not meta_path.exists():
             meta = {"id": project_id, "name": name}
