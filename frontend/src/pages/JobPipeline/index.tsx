@@ -4,7 +4,12 @@ import { api } from "../../api/client";
 import PipelineSidebar from "../../components/PipelineSidebar";
 import { getJobActionPolicy } from "../../policies/jobActionPolicy";
 import { shouldPollJob } from "../../policies/jobPollingPolicy";
-import type { ExportTaskState, JobDetail, Phase, PhaseExecutionState } from "../../types";
+import type {
+	ExportTaskState,
+	JobDetail,
+	Phase,
+	PhaseExecutionState,
+} from "../../types";
 import { PIPELINE_STEPS } from "../../types";
 import AssetRetrievingPanel from "./panels/AssetRetrievingPanel";
 import AssetReviewPanel from "./panels/AssetReviewPanel";

@@ -34,9 +34,7 @@ export const reportError = (entry: LogEntry) =>
 	});
 
 export const listLogDates = (page = 1, pageSize = 50) =>
-	request<LogDatePage>(
-		`/api/logs/dates?page=${page}&page_size=${pageSize}`,
-	);
+	request<LogDatePage>(`/api/logs/dates?page=${page}&page_size=${pageSize}`);
 
 export const deleteLogDate = (date: string) =>
 	request<{ date: string; deleted: boolean }>(`/api/logs/${date}`, {

@@ -2,9 +2,7 @@ import type { Project, ProjectPage } from "../types/project";
 import { request } from "./core";
 
 export const listProjects = (page = 1, pageSize = 50) =>
-	request<ProjectPage>(
-		`/api/projects?page=${page}&page_size=${pageSize}`,
-	);
+	request<ProjectPage>(`/api/projects?page=${page}&page_size=${pageSize}`);
 
 export const createProject = (name: string) =>
 	request<Project>("/api/projects", {

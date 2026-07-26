@@ -54,10 +54,7 @@ export default function Pagination({
 					className="px-3 py-1.5 rounded text-sm font-medium transition-colors"
 					style={{
 						background: "var(--btn-ghost-bg)",
-						color:
-							page <= 1
-								? "var(--text-tertiary)"
-								: "var(--btn-ghost-text)",
+						color: page <= 1 ? "var(--text-tertiary)" : "var(--btn-ghost-text)",
 						border: "1px solid var(--border-default)",
 						cursor: page <= 1 ? "not-allowed" : "pointer",
 						opacity: page <= 1 ? 0.5 : 1,
@@ -84,17 +81,12 @@ export default function Pagination({
 							className="px-3 py-1.5 rounded text-sm font-medium transition-colors"
 							style={{
 								background:
-									p === page
-										? "var(--btn-primary-bg)"
-										: "var(--btn-ghost-bg)",
+									p === page ? "var(--btn-primary-bg)" : "var(--btn-ghost-bg)",
 								color:
 									p === page
 										? "var(--btn-primary-text)"
 										: "var(--btn-ghost-text)",
-								border:
-									p !== page
-										? "1px solid var(--border-default)"
-										: "none",
+								border: p === page ? "none" : "1px solid var(--border-default)",
 							}}
 							onClick={() => onPageChange(p)}
 						>
@@ -123,10 +115,7 @@ export default function Pagination({
 				</button>
 
 				{/* Total info */}
-				<span
-					className="ml-3"
-					style={{ color: "var(--text-tertiary)" }}
-				>
+				<span className="ml-3" style={{ color: "var(--text-tertiary)" }}>
 					共 {total} 条
 				</span>
 			</div>

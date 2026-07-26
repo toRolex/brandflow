@@ -341,7 +341,8 @@ export default function ProjectList() {
 										}}
 										onMouseEnter={(e) => {
 											if (highlightId !== p.id) {
-												e.currentTarget.style.background = "var(--bg-nav-active)";
+												e.currentTarget.style.background =
+													"var(--bg-nav-active)";
 											}
 										}}
 										onMouseLeave={(e) => {

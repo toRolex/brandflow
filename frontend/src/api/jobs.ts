@@ -7,11 +7,7 @@ import type {
 import type { JobSummaryPage } from "../types/project";
 import { request, uploadFile } from "./core";
 
-export const listProjectJobs = (
-	projectId: string,
-	page = 1,
-	pageSize = 50,
-) =>
+export const listProjectJobs = (projectId: string, page = 1, pageSize = 50) =>
 	request<JobSummaryPage>(
 		`/api/projects/${projectId}/jobs?page=${page}&page_size=${pageSize}`,
 	);
