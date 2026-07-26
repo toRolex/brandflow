@@ -176,6 +176,10 @@ class CoverTitle(BaseModel):
 
 class JobRecord(BaseModel):
     job_id: str
+    # Immutable creation-order key used by paginated Job listings. Historical
+    # records do not have this field and use a deterministic compatibility
+    # order in FileStoreRepository.
+    created_at: str = ""
     project_id: str = ""
     product: str = ""
     brand: str = ""

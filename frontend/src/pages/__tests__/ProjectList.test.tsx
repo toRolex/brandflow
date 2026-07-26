@@ -24,8 +24,16 @@ const MOCK_PROJECTS = [
 	{ id: "p2", name: "项目B", status: "active", job_count: 1 },
 ];
 
-function makePage(items: typeof MOCK_PROJECTS): ProjectPage {
-	return { items, total: items.length, page: 1, page_size: 50 };
+function makePage(
+	items: typeof MOCK_PROJECTS,
+	overrides?: Partial<Omit<ProjectPage, "items">>,
+): ProjectPage {
+	return {
+		items,
+		total: overrides?.total ?? items.length,
+		page: overrides?.page ?? 1,
+		page_size: overrides?.page_size ?? 50,
+	};
 }
 
 function renderPage() {
@@ -52,9 +60,7 @@ describe("ProjectList", () => {
 		});
 
 		it("shows empty state after loading when no projects", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage([]),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage([]));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("开始你的第一个项目")).toBeInTheDocument();
@@ -62,9 +68,7 @@ describe("ProjectList", () => {
 		});
 
 		it("shows project list after loading with data", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage(MOCK_PROJECTS),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage(MOCK_PROJECTS));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -75,9 +79,7 @@ describe("ProjectList", () => {
 
 	describe("header create button", () => {
 		it("renders persistent 新建项目 button in header", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage(MOCK_PROJECTS),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage(MOCK_PROJECTS));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -88,9 +90,7 @@ describe("ProjectList", () => {
 		});
 
 		it("opens create modal when header button is clicked", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage(MOCK_PROJECTS),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage(MOCK_PROJECTS));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -105,9 +105,7 @@ describe("ProjectList", () => {
 
 	describe("empty state create button", () => {
 		it("shows 新建项目 button in empty state and it opens modal", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage([]),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage([]));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("开始你的第一个项目")).toBeInTheDocument();
@@ -121,9 +119,7 @@ describe("ProjectList", () => {
 
 	describe("create validation", () => {
 		it("shows error for empty name", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage([]),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage([]));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("开始你的第一个项目")).toBeInTheDocument();
@@ -138,9 +134,7 @@ describe("ProjectList", () => {
 		});
 
 		it("shows error for duplicate name", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage(MOCK_PROJECTS),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage(MOCK_PROJECTS));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -246,9 +240,7 @@ describe("ProjectList", () => {
 
 	describe("bulk selection", () => {
 		it("shows checkboxes and selects a single row", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage(MOCK_PROJECTS),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage(MOCK_PROJECTS));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -264,9 +256,7 @@ describe("ProjectList", () => {
 		});
 
 		it("selects all rows via header checkbox", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage(MOCK_PROJECTS),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage(MOCK_PROJECTS));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -281,9 +271,7 @@ describe("ProjectList", () => {
 		});
 
 		it("shows bulk action bar only when items are selected", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(
-				makePage(MOCK_PROJECTS),
-			);
+			vi.mocked(api.listProjects).mockResolvedValue(makePage(MOCK_PROJECTS));
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -295,6 +283,38 @@ describe("ProjectList", () => {
 			});
 			fireEvent.click(rowCheckboxes[0]);
 			expect(screen.getByText("已选 1 项")).toBeInTheDocument();
+		});
+
+		it("clears the current-page selection when changing pages", async () => {
+			vi.mocked(api.listProjects)
+				.mockResolvedValueOnce(makePage(MOCK_PROJECTS, { total: 51 }))
+				.mockResolvedValueOnce(
+					makePage(
+						[
+							{
+								id: "p51",
+								name: "项目末页",
+								status: "active",
+								job_count: 0,
+							},
+						],
+						{ page: 2, total: 51 },
+					),
+				);
+			renderPage();
+			await waitFor(() =>
+				expect(screen.getByText("项目A")).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getAllByRole("checkbox", { name: /选择项目/ })[0]);
+			expect(screen.getByText("已选 1 项")).toBeInTheDocument();
+
+			fireEvent.click(screen.getByRole("button", { name: "2" }));
+
+			await waitFor(() =>
+				expect(screen.getByText("项目末页")).toBeInTheDocument(),
+			);
+			expect(screen.queryByText("已选 1 项")).not.toBeInTheDocument();
+			expect(api.listProjects).toHaveBeenLastCalledWith(2, 50);
 		});
 	});
 

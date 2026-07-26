@@ -159,8 +159,11 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/api/logs/error` | POST | 接收前端错误上报，成功返回 201 |
-| `/api/logs/dates` | GET | 按日期降序列出日志文件 |
+| `/api/logs/dates?page=&page_size=` | GET | （分页）按日期降序列出日志文件，支持 page/page_size 参数 |
 | `/api/logs/download?date=YYYY-MM-DD` | GET | 下载指定日期的 JSONL 日志 |
+| `/api/logs/batch` | DELETE | 批量删除日志文件（body: `{"dates": [...]}`，当天受保护） |
+| `/api/logs/cleanup` | DELETE | 清理 N 天前的旧日志（query: `before_days=N`，N≥1） |
+| `/api/logs/{date}` | DELETE | 删除单天日志（当天 → 400） |
 
 ## 知识库 API（Issue #28）
 

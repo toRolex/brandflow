@@ -5,8 +5,11 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from packages.file_store.repository import FileStoreRepository
-from packages.pagination import paginated
+from packages.file_store.repository import (
+    DuplicateProjectNameError,
+    FileStoreRepository,
+)
+from packages.pagination import paginated, slice_indices
 
 router = APIRouter(prefix="/api/projects", tags=["api-projects"])
 
@@ -33,10 +36,7 @@ def list_projects(
         key=lambda d: d.name,
     )
     total = len(all_dirs)
-    start = (page - 1) * page_size
-    if start >= total:
-        return paginated([], total, page, page_size)
-    end = min(start + page_size, total)
+    start, end = slice_indices(total, page, page_size)
 
     items: list[dict[str, object]] = []
     for prj_dir in all_dirs[start:end]:
@@ -55,10 +55,17 @@ def list_projects(
 
 @router.post("")
 def create_project(request: Request, payload: CreateProjectRequest):
-    project_id = f"prj_{uuid.uuid4().hex[:12]}"
     repo = FileStoreRepository(request.app.state.root_dir)
-    repo.create_project(project_id, name=payload.name)
-    return {"id": project_id, "name": payload.name, "status": "idle", "job_count": 0}
+    name = payload.name.strip()
+    project_id = f"prj_{uuid.uuid4().hex[:12]}"
+    try:
+        repo.create_project_with_unique_name(project_id, name)
+    except DuplicateProjectNameError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="项目名称已存在，请使用其他名称",
+        ) from exc
+    return {"id": project_id, "name": name, "status": "idle", "job_count": 0}
 
 
 @router.get("/{project_id}")
@@ -82,7 +89,7 @@ def list_project_jobs(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ):
-    """Return paginated Job summaries for *project_id*, sorted by stable job_id."""
+    """Return paginated Job summaries in immutable creation order."""
     repo = FileStoreRepository(request.app.state.root_dir)
     # Verify project exists
     if not (repo.root / "workspace" / "projects" / project_id).is_dir():

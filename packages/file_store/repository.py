@@ -7,6 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from packages.domain_core.models import JobRecord
+from packages.pagination import slice_indices
+
+
+class DuplicateProjectNameError(ValueError):
+    """Raised when a Project name is already present in the workspace."""
 
 
 class FileStoreRepository:
@@ -14,6 +19,7 @@ class FileStoreRepository:
     # so concurrent Jobs in the same project don't interleave or corrupt lines.
     _append_locks: dict[str, threading.Lock] = {}
     _append_locks_guard: threading.Lock = threading.Lock()
+    _project_creation_lock: threading.Lock = threading.Lock()
 
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -36,6 +42,19 @@ class FileStoreRepository:
             meta = {"id": project_id, "name": name}
             self._write_json(meta_path, meta)
         return root
+
+    def create_project_with_unique_name(self, project_id: str, name: str) -> Path:
+        """Create a Project while atomically enforcing workspace name uniqueness."""
+        with self._project_creation_lock:
+            projects_root = self.root / "workspace" / "projects"
+            if projects_root.exists():
+                for project_dir in projects_root.iterdir():
+                    if not project_dir.is_dir():
+                        continue
+                    meta = self.load_project_meta(project_dir.name)
+                    if meta.get("name", "").strip() == name:
+                        raise DuplicateProjectNameError(name)
+            return self.create_project(project_id, name=name)
 
     def load_project_meta(self, project_id: str) -> dict[str, Any]:
         path = self.root / "workspace" / "projects" / project_id / "project_meta.json"
@@ -141,16 +160,30 @@ class FileStoreRepository:
 
     def _sorted_job_files(self, project_id: str) -> list[Path]:
         """Return ``*.json`` files under *project_id*'s jobs dir sorted by
-        stable ``job_id`` (stem) ascending — deterministic & immutable (#354)."""
+        immutable Job creation order (#354).
+
+        Historical records without ``created_at`` sort first by stable job_id.
+        New records sort by their persisted creation timestamp, with job_id as
+        a deterministic tiebreaker.
+        """
         jobs_root = (
             self.root / "workspace" / "projects" / project_id / "control" / "jobs"
         )
         if not jobs_root.exists():
             return []
-        return sorted(
-            [f for f in jobs_root.iterdir() if f.is_file() and f.suffix == ".json"],
-            key=lambda f: f.stem,
-        )
+        files = [f for f in jobs_root.iterdir() if f.is_file() and f.suffix == ".json"]
+
+        def creation_order(file: Path) -> tuple[int, str, str]:
+            try:
+                payload = json.loads(file.read_text(encoding="utf-8"))
+                created_at = payload.get("created_at")
+                if isinstance(created_at, str) and created_at:
+                    return (1, created_at, file.stem)
+            except (OSError, ValueError, TypeError):
+                pass
+            return (0, "", file.stem)
+
+        return sorted(files, key=creation_order)
 
     def _build_job_summary(
         self, project_id: str, file: Path, display_index: str
@@ -199,7 +232,7 @@ class FileStoreRepository:
             }
 
     def list_jobs(self, project_id: str) -> list[dict[str, Any]]:
-        """Return all Job summaries sorted by stable ``job_id`` (immutable)."""
+        """Return all Job summaries sorted by creation order (immutable)."""
         files = self._sorted_job_files(project_id)
         results: list[dict[str, Any]] = []
         for idx, f in enumerate(files, start=1):
@@ -212,15 +245,12 @@ class FileStoreRepository:
     ) -> tuple[list[dict[str, Any]], int]:
         """Return a (items, total) pair for the requested page.
 
-        Items are sorted by stable ``job_id`` ascending.  ``total`` is the
+        Items are sorted by immutable Job creation order.  ``total`` is the
         pre-slice count from a single directory snapshot.
         """
         files = self._sorted_job_files(project_id)
         total = len(files)
-        start = (page - 1) * page_size
-        if start >= total:
-            return [], total
-        end = min(start + page_size, total)
+        start, end = slice_indices(total, page, page_size)
         results: list[dict[str, Any]] = []
         for idx, f in enumerate(files[start:end], start=start + 1):
             display_index = f"{idx:03d}"

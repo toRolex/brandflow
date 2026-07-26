@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+import threading
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +14,20 @@ from packages.domain_core.models import ExecutionFailure, JobRecord
 from packages.file_store.repository import FileStoreRepository
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
+
+_JOB_CREATION_CLOCK_LOCK = threading.Lock()
+_last_job_creation_ns = 0
+
+
+def _next_job_created_at() -> str:
+    """Return a strictly increasing UTC timestamp for Job creation order."""
+    global _last_job_creation_ns
+    with _JOB_CREATION_CLOCK_LOCK:
+        creation_ns = max(time.time_ns(), _last_job_creation_ns + 1)
+        _last_job_creation_ns = creation_ns
+    seconds, nanoseconds = divmod(creation_ns, 1_000_000_000)
+    created_at = datetime.fromtimestamp(seconds, tz=UTC)
+    return f"{created_at:%Y-%m-%dT%H:%M:%S}.{nanoseconds:09d}+00:00"
 
 
 def _resolve_product_from_config(root_dir: Path | str) -> tuple[str, str]:

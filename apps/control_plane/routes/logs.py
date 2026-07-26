@@ -12,9 +12,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from packages.log_service import log_deletion
-from packages.log_service.log_deletion import _is_valid_calendar_date, _today_str
 from packages.log_service.log_writer import get_log_dir, log_error
-from packages.pagination import paginated
+from packages.pagination import paginated, slice_indices
 
 router = APIRouter(tags=["logs"])
 
@@ -40,7 +39,7 @@ class BatchDeleteRequest(BaseModel):
 
 def _validate_date_str(date_str: str) -> None:
     """Raise 400 if *date_str* is not a real calendar date."""
-    if not _is_valid_calendar_date(date_str):
+    if not log_deletion.is_valid_calendar_date(date_str):
         raise HTTPException(400, f"Invalid date: {date_str}")
 
 
@@ -87,10 +86,7 @@ def list_dates(
         reverse=True,
     )
     total = len(all_files)
-    start = (page - 1) * page_size
-    if start >= total:
-        return paginated([], total, page, page_size)
-    end = min(start + page_size, total)
+    start, end = slice_indices(total, page, page_size)
     items = [_parse_log_date_info(f) for f in all_files[start:end]]
     return paginated(items, total, page, page_size)
 
@@ -145,6 +141,7 @@ def cleanup_logs(
 def delete_log_date(date_str: str) -> dict[str, Any]:
     """Delete a single day's log file.  Today → 400."""
     _validate_date_str(date_str)
-    if date_str == _today_str():
+    result = log_deletion.delete_single(date_str)
+    if result.get("protected"):
         raise HTTPException(400, "Cannot delete today's log file")
-    return log_deletion.delete_single(date_str)
+    return result

@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from datetime import date, datetime, timedelta, UTC
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from packages.log_service.log_writer import _LOG_LOCK, get_log_dir
 
@@ -29,7 +29,7 @@ def _today_str() -> str:
     return datetime.now(tz=UTC).astimezone().strftime("%Y-%m-%d")
 
 
-def _is_valid_calendar_date(date_str: str) -> bool:
+def is_valid_calendar_date(date_str: str) -> bool:
     """True when *date_str* is a real calendar date (e.g. rejects 2026-02-30)."""
     if not _DATE_PATTERN.match(date_str):
         return False
@@ -45,19 +45,21 @@ def _log_file_path(date_str: str) -> Path:
     return get_log_dir() / f"{date_str}.jsonl"
 
 
-def _delete_file_safe(file_path: Path) -> bool:
-    """Delete *file_path* under the writer lock; return True if deleted.
+DeleteOutcome = Literal["deleted", "not_found", "protected"]
 
-    Only removes regular ``.jsonl`` files — never follows symlinks or
-    deletes directories.
-    """
+
+def _delete_date_safe(date_str: str) -> DeleteOutcome:
+    """Classify and delete one Log Date atomically under the writer lock."""
     with _LOG_LOCK:
-        if not file_path.is_file():
-            return False
+        if date_str == _today_str():
+            return "protected"
+        file_path = _log_file_path(date_str)
+        if file_path.is_symlink() or not file_path.is_file():
+            return "not_found"
         if file_path.suffix != ".jsonl":
-            return False
+            return "not_found"
         file_path.unlink()
-        return True
+        return "deleted"
 
 
 def delete_single(date_str: str) -> dict[str, Any]:
@@ -65,11 +67,15 @@ def delete_single(date_str: str) -> dict[str, Any]:
 
     Returns ``{"date": date_str, "deleted": True/False}``.
     File-not-found is idempotent and returns ``deleted=False``.
-    Callers must enforce today-protection themselves.
+    Today's date returns ``deleted=False, protected=True`` —
+    callers do NOT need to enforce today-protection themselves.
     """
-    file_path = _log_file_path(date_str)
-    deleted = _delete_file_safe(file_path)
-    return {"date": date_str, "deleted": deleted}
+    if not is_valid_calendar_date(date_str):
+        raise ValueError(f"Invalid Log Date: {date_str}")
+    outcome = _delete_date_safe(date_str)
+    if outcome == "protected":
+        return {"date": date_str, "deleted": False, "protected": True}
+    return {"date": date_str, "deleted": outcome == "deleted"}
 
 
 def delete_batch(dates: list[str]) -> dict[str, Any]:
@@ -79,20 +85,19 @@ def delete_batch(dates: list[str]) -> dict[str, Any]:
 
       {"deleted": [...], "not_found": [...], "protected": [...]}
     """
-    today = _today_str()
     deleted: list[str] = []
     not_found: list[str] = []
     protected: list[str] = []
 
     for d in dates:
-        if d == today:
-            protected.append(d)
-            continue
-        if not _is_valid_calendar_date(d):
+        if not is_valid_calendar_date(d):
             not_found.append(d)
             continue
-        if _delete_file_safe(_log_file_path(d)):
+        outcome = _delete_date_safe(d)
+        if outcome == "deleted":
             deleted.append(d)
+        elif outcome == "protected":
+            protected.append(d)
         else:
             not_found.append(d)
 
@@ -121,11 +126,11 @@ def cleanup(before_days: int) -> dict[str, Any]:
         if not file_path.is_file():
             continue
         date_str = file_path.stem
-        if not _is_valid_calendar_date(date_str):
+        if not is_valid_calendar_date(date_str):
             continue
         file_date = date.fromisoformat(date_str)
         if file_date < cutoff:
-            if _delete_file_safe(file_path):
+            if _delete_date_safe(date_str) == "deleted":
                 deleted.append(date_str)
 
     return {"deleted": deleted, "deleted_count": len(deleted)}

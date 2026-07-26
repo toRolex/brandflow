@@ -112,32 +112,45 @@ export default function ProjectWorkbench() {
 	);
 
 	/* ── 数据加载 ── */
-	const load = useCallback(async () => {
+	const loadProject = useCallback(async () => {
 		if (!id) return;
 		try {
-			// Load project metadata and current jobs page separately
 			const proj = await api.getProject(id);
 			setProjectName(proj.name || id);
+			setError("");
+		} catch (e) {
+			console.error("load project metadata failed", e);
+			setError("加载项目数据失败");
+		}
+	}, [id]);
+
+	const loadJobs = useCallback(async () => {
+		if (!id) return;
+		try {
 			const jobsPage = await api.listProjectJobs(id, page, pageSize);
 			setJobs(jobsPage.items);
 			setJobsTotal(jobsPage.total);
 			setError("");
 		} catch (e) {
-			console.error("load project failed", e);
+			console.error("load project jobs failed", e);
 			setError("加载项目数据失败");
 		}
 	}, [id, page, pageSize]);
 
 	useEffect(() => {
-		load();
-	}, [load]);
+		loadProject();
+	}, [loadProject]);
+
+	useEffect(() => {
+		loadJobs();
+	}, [loadJobs]);
 
 	useEffect(() => {
 		if (jobs.length === 0 || !jobs.some((job) => shouldPollJob(job.phase)))
 			return;
-		const timer = setInterval(load, 5000);
+		const timer = setInterval(loadJobs, 5000);
 		return () => clearInterval(timer);
-	}, [jobs, load]);
+	}, [jobs, loadJobs]);
 
 	const handlePageChange = (p: number) => {
 		setSelectedJobIds(new Set());
@@ -244,7 +257,7 @@ export default function ProjectWorkbench() {
 				await api.enqueueJob(job.job_id);
 			}
 			setIsOpen(false);
-			load();
+			loadJobs();
 			setBanner({
 				type: "success",
 				message: `Job ${job.name || job.job_id} 创建成功`,
@@ -291,7 +304,7 @@ export default function ProjectWorkbench() {
 				type: "success",
 				message: `已创建 ${result.count} 个 Job；${result.review_strategy === "fast_output" ? "脚本与 TTS 自动审核，素材和最终成片仍需人工审核。" : "每个审核关卡都需要人工确认。"}`,
 			});
-			load();
+			loadJobs();
 		} catch (e) {
 			console.error("batch create failed", e);
 			setError(parseApiError(e));
@@ -302,7 +315,7 @@ export default function ProjectWorkbench() {
 	const handleRetry = async (jobId: string) => {
 		try {
 			await api.retryJob(jobId);
-			load();
+			loadJobs();
 		} catch {
 			setError("重试 Job 失败");
 		}
@@ -317,7 +330,7 @@ export default function ProjectWorkbench() {
 	const confirmDelete = async () => {
 		try {
 			await api.deleteJob(confirmTarget);
-			load();
+			loadJobs();
 		} catch (e) {
 			console.error("delete job failed", e);
 			setError("删除 Job 失败");

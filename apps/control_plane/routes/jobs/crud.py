@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from apps.control_plane.routes.jobs.helpers import (
     _find_job_project,
     _make_job_response,
+    _next_job_created_at,
     _resolve_product_from_config,
     _snapshot_tts_defaults,
     _validate_tts_model_voice,
@@ -113,6 +114,7 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
         job_id=job_id,
+        created_at=_next_job_created_at(),
         project_id=project_id,
         product=product,
         brand=brand,
@@ -251,6 +253,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
         cover_title = _cover_title_from_request(item.cover_title)
         record = JobRecord(
             job_id=job_id,
+            created_at=_next_job_created_at(),
             project_id=project_id,
             product=product,
             brand=brand,

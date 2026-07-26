@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+	batchDeleteLogDates,
 	cleanupLogs,
 	deleteLogDate,
-	batchDeleteLogDates,
 	downloadLogUrl,
 	type LogDateInfo,
 	listLogDates,
@@ -75,8 +75,7 @@ export default function LogsPage() {
 
 	/* ── selection ── */
 
-	const allSelected =
-		logs.length > 0 && selectedDates.size === logs.length;
+	const allSelected = logs.length > 0 && selectedDates.size === logs.length;
 
 	const toggleSelect = (date: string) => {
 		setSelectedDates((prev) => {
@@ -111,9 +110,12 @@ export default function LogsPage() {
 		const target = deleteTarget;
 		setDeleteTarget(null);
 
+		let actualDeleted = 0;
+
 		try {
 			if (target.kind === "single") {
 				const r = await deleteLogDate(target.date);
+				actualDeleted = r.deleted ? 1 : 0;
 				setBanner({
 					type: "success",
 					message: r.deleted
@@ -122,6 +124,7 @@ export default function LogsPage() {
 				});
 			} else if (target.kind === "batch") {
 				const r = await batchDeleteLogDates(target.dates);
+				actualDeleted = r.deleted.length;
 				const parts: string[] = [];
 				if (r.deleted.length) parts.push(`${r.deleted.length} 成功`);
 				if (r.not_found.length) parts.push(`${r.not_found.length} 不存在`);
@@ -132,6 +135,7 @@ export default function LogsPage() {
 				});
 			} else {
 				const r = await cleanupLogs(target.beforeDays);
+				actualDeleted = r.deleted_count;
 				setBanner({
 					type: "success",
 					message: `已清理 ${r.deleted_count} 个日志文件`,
@@ -143,15 +147,14 @@ export default function LogsPage() {
 		}
 
 		setSelectedDates(new Set());
-		// After deletion, check if we need to go back a page
-		const remainingAfterDelete =
-			target.kind === "single"
-				? total - 1
-				: target.kind === "batch"
-					? total - target.dates.length
-					: -1; // cleanup: just reload
+		// After deletion, check if we need to go back a page.
+		// Use the *actual* number of deleted entries from the API response,
+		// not the requested count — protected/not_found/failed entries
+		// don't reduce the total.  Cleanup now participates too (was only a
+		// reload before, leaving an empty last page visible).
+		const remainingAfterDelete = total - actualDeleted;
 		const maxPage = Math.max(1, Math.ceil(remainingAfterDelete / pageSize));
-		if (remainingAfterDelete >= 0 && page > maxPage) {
+		if (page > maxPage) {
 			setPage(maxPage);
 		} else {
 			load();
@@ -188,9 +191,7 @@ export default function LogsPage() {
 
 				{/* Cleanup control */}
 				<div className="flex items-center gap-2 text-sm">
-					<span style={{ color: "var(--text-secondary)" }}>
-						清理
-					</span>
+					<span style={{ color: "var(--text-secondary)" }}>清理</span>
 					<input
 						type="number"
 						min={1}
@@ -205,9 +206,7 @@ export default function LogsPage() {
 							setCleanupDays(Math.max(1, Number(e.target.value)))
 						}
 					/>
-					<span style={{ color: "var(--text-secondary)" }}>
-						天前的日志
-					</span>
+					<span style={{ color: "var(--text-secondary)" }}>天前的日志</span>
 					<button
 						className="px-3 py-1 rounded text-xs font-medium transition-colors"
 						style={{
@@ -312,9 +311,7 @@ export default function LogsPage() {
 												/>
 											</td>
 											<td className="p-3">{log.date}</td>
-											<td className="p-3">
-												{formatSize(log.size_bytes)}
-											</td>
+											<td className="p-3">{formatSize(log.size_bytes)}</td>
 											<td className="p-3">{log.error_count}</td>
 											<td className="p-3 text-right">
 												<div className="flex gap-2 justify-end items-center">
@@ -331,20 +328,15 @@ export default function LogsPage() {
 															color: isToday
 																? "var(--text-tertiary)"
 																: "var(--danger)",
-															cursor: isToday
-																? "not-allowed"
-																: "pointer",
+															cursor: isToday ? "not-allowed" : "pointer",
 															opacity: isToday ? 0.4 : 1,
 														}}
 														disabled={isToday}
 														title={
-															isToday
-																? "当天日志受保护，无法删除"
-																: undefined
+															isToday ? "当天日志受保护，无法删除" : undefined
 														}
 														onClick={() => {
-															if (!isToday)
-																startSingleDelete(log.date);
+															if (!isToday) startSingleDelete(log.date);
 														}}
 													>
 														删除

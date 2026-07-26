@@ -50,6 +50,121 @@ def _configure_scene_folders(
     )
 
 
+def test_project_and_job_lists_share_pagination_contract_and_stable_order(
+    tmp_path: Path,
+) -> None:
+    """Project/Job pages preserve envelope and Job position across saves (#354)."""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        project_ids = [
+            client.post("/api/projects", json={"name": f"project-{index}"}).json()["id"]
+            for index in range(3)
+        ]
+
+        project_page = client.get("/api/projects?page=2&page_size=2")
+        project_empty_page = client.get("/api/projects?page=99&page_size=2")
+
+        assert project_page.status_code == 200
+        assert project_page.json() == {
+            "items": sorted(
+                [
+                    {
+                        "id": project_id,
+                        "name": f"project-{index}",
+                        "status": "idle",
+                        "job_count": 0,
+                    }
+                    for index, project_id in enumerate(project_ids)
+                ],
+                key=lambda project: project["id"],
+            )[2:],
+            "total": 3,
+            "page": 2,
+            "page_size": 2,
+        }
+        assert project_empty_page.json() == {
+            "items": [],
+            "total": 3,
+            "page": 99,
+            "page_size": 2,
+        }
+        assert client.get("/api/projects?page=0").status_code == 422
+        assert client.get("/api/projects?page_size=201").status_code == 422
+        duplicate = client.post("/api/projects", json={"name": " project-0 "})
+        assert duplicate.status_code == 409
+
+        project_id = project_ids[0]
+        created_jobs = [
+            client.post(
+                f"/api/projects/{project_id}/jobs",
+                json={"platforms": ["douyin"], "name": f"job-{index}"},
+            ).json()
+            for index in range(3)
+        ]
+        before_save = client.get(
+            f"/api/projects/{project_id}/jobs?page=1&page_size=2"
+        ).json()
+        client.put(
+            f"/api/jobs/{created_jobs[0]['job_id']}/rename",
+            json={"name": "renamed"},
+        )
+        after_save = client.get(
+            f"/api/projects/{project_id}/jobs?page=1&page_size=2"
+        ).json()
+
+        assert before_save["total"] == 3
+        assert before_save["page"] == 1
+        assert before_save["page_size"] == 2
+        assert [item["job_id"] for item in before_save["items"]] == [
+            created_jobs[0]["job_id"],
+            created_jobs[1]["job_id"],
+        ]
+        assert [item["job_id"] for item in after_save["items"]] == [
+            created_jobs[0]["job_id"],
+            created_jobs[1]["job_id"],
+        ]
+        assert client.get(
+            f"/api/projects/{project_id}/jobs?page=99&page_size=2"
+        ).json() == {
+            "items": [],
+            "total": 3,
+            "page": 99,
+            "page_size": 2,
+        }
+
+
+def test_jobs_created_in_same_clock_tick_keep_request_order(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Equal wall-clock readings must not fall back to random Job ID order."""
+    from apps.control_plane.routes.jobs import crud as job_crud
+    from apps.control_plane.routes.jobs import helpers as job_helpers
+
+    job_ids = iter(("f" * 32, "0" * 32))
+    monkeypatch.setattr(job_helpers.time, "time_ns", lambda: 1_785_047_400_000_000_000)
+    monkeypatch.setattr(
+        job_crud,
+        "uuid4",
+        lambda: type("FixedUuid", (), {"hex": next(job_ids)})(),
+    )
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        project_id = client.post("/api/projects", json={"name": "same-tick"}).json()[
+            "id"
+        ]
+        created = [
+            client.post(
+                f"/api/projects/{project_id}/jobs",
+                json={"platforms": ["douyin"], "name": f"job-{index}"},
+            ).json()["job_id"]
+            for index in range(2)
+        ]
+
+        listed = client.get(f"/api/projects/{project_id}/jobs").json()["items"]
+
+        assert [item["job_id"] for item in listed] == created
+
+
 # ── 手动脚本更新不影响模式路由 ────────────────────────────────────
 
 

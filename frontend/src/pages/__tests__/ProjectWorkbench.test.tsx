@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -57,8 +63,16 @@ const MOCK_JOBS: JobSummary[] = [
 	},
 ];
 
-function makeJobsPage(jobs: JobSummary[]): JobSummaryPage {
-	return { items: jobs, total: jobs.length, page: 1, page_size: 50 };
+function makeJobsPage(
+	jobs: JobSummary[],
+	overrides?: Partial<Omit<JobSummaryPage, "items">>,
+): JobSummaryPage {
+	return {
+		items: jobs,
+		total: overrides?.total ?? jobs.length,
+		page: overrides?.page ?? 1,
+		page_size: overrides?.page_size ?? 50,
+	};
 }
 
 function renderPage() {
@@ -75,9 +89,7 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(api.getProject).mockResolvedValue(MOCK_PROJECT);
-		vi.mocked(api.listProjectJobs).mockResolvedValue(
-			makeJobsPage(MOCK_JOBS),
-		);
+		vi.mocked(api.listProjectJobs).mockResolvedValue(makeJobsPage(MOCK_JOBS));
 		vi.mocked(api.listMusic).mockResolvedValue({ tracks: [] });
 		vi.mocked(api.listTemplates).mockResolvedValue([]);
 	});
@@ -108,6 +120,42 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			expect(
 				screen.getByRole("button", { name: "＋ 新建 Job" }),
 			).toBeInTheDocument();
+		});
+
+		it("polls only the currently visible Jobs page", async () => {
+			const firstPageJob = { ...MOCK_JOBS[0], job_id: "page-1-job" };
+			const secondPageJob = { ...MOCK_JOBS[1], job_id: "page-2-job" };
+			let pollCurrentPage: (() => void) | undefined;
+			const intervalSpy = vi
+				.spyOn(globalThis, "setInterval")
+				.mockImplementation((handler) => {
+					pollCurrentPage = handler as () => void;
+					return 1 as unknown as ReturnType<typeof setInterval>;
+				});
+			vi.mocked(api.listProjectJobs)
+				.mockResolvedValueOnce(makeJobsPage([firstPageJob], { total: 51 }))
+				.mockResolvedValueOnce(
+					makeJobsPage([secondPageJob], { page: 2, total: 51 }),
+				)
+				.mockResolvedValueOnce(
+					makeJobsPage([secondPageJob], { page: 2, total: 51 }),
+				);
+			renderPage();
+			await waitFor(() =>
+				expect(screen.getByText("page-1-job")).toBeInTheDocument(),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "2" }));
+			await waitFor(() =>
+				expect(screen.getByText("page-2-job")).toBeInTheDocument(),
+			);
+
+			await act(async () => pollCurrentPage?.());
+
+			await waitFor(() =>
+				expect(api.listProjectJobs).toHaveBeenLastCalledWith("p1", 2, 50),
+			);
+			expect(api.getProject).toHaveBeenCalledTimes(1);
+			intervalSpy.mockRestore();
 		});
 	});
 

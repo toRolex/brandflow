@@ -201,46 +201,70 @@ def test_list_jobs_includes_asset_review_unresolved_count(tmp_path: Path) -> Non
     assert result[0]["asset_review_unresolved_count"] == 2
 
 
-def test_list_jobs_returns_sorted_by_job_id_with_display_index(tmp_path: Path) -> None:
-    """按 job_id 升序返回，并分配 001/002 三位数 display_index (#354 稳定排序)。"""
+def test_list_jobs_keeps_creation_order_after_job_is_saved_again(
+    tmp_path: Path,
+) -> None:
+    """状态保存不得改变 Job 的创建顺序和 display_index (#354)。"""
     repo = FileStoreRepository(tmp_path)
     repo.create_project("project-001")
 
-    # job_a 字母序在前 → 001, job_b 在后 → 002
-    record_a = JobRecord(
+    first = JobRecord(
+        job_id="job_z",
+        created_at="2026-07-26T01:00:00+00:00",
+        phase="queued",
+        review_status="none",
+    )
+    second = JobRecord(
+        job_id="job_a",
+        created_at="2026-07-26T01:00:01+00:00",
+        phase="queued",
+        review_status="none",
+    )
+    repo.save_job("project-001", first)
+    repo.save_job("project-001", second)
+
+    before_save = repo.list_jobs("project-001")
+
+    first.phase = "script_generating"
+    repo.save_job("project-001", first)
+    after_save = repo.list_jobs("project-001")
+
+    assert [(item["job_id"], item["display_index"]) for item in before_save] == [
+        ("job_z", "001"),
+        ("job_a", "002"),
+    ]
+    assert [(item["job_id"], item["display_index"]) for item in after_save] == [
+        ("job_z", "001"),
+        ("job_a", "002"),
+    ]
+
+
+def test_list_jobs_gives_legacy_records_deterministic_compatibility_order(
+    tmp_path: Path,
+) -> None:
+    """Historical Jobs without created_at remain stable across subsequent saves."""
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-001")
+    legacy_z = JobRecord(
+        job_id="job_z",
+        phase="queued",
+        review_status="none",
+    )
+    legacy_a = JobRecord(
         job_id="job_a",
         phase="queued",
         review_status="none",
-        name="Alpha",
-        skip_subtitle=False,
-        auto_approve=True,
     )
-    repo.save_job("project-001", record_a)
-    record_b = JobRecord(
-        job_id="job_b",
-        phase="queued",
-        review_status="none",
-        name="Beta",
-        skip_subtitle=True,
-        auto_approve=False,
-    )
-    repo.save_job("project-001", record_b)
+    repo.save_job("project-001", legacy_z)
+    repo.save_job("project-001", legacy_a)
 
-    result = repo.list_jobs("project-001")
+    before_save = repo.list_jobs("project-001")
+    legacy_z.phase = "script_generating"
+    repo.save_job("project-001", legacy_z)
+    after_save = repo.list_jobs("project-001")
 
-    # job_id 升序：job_a 先，job_b 后
-    assert len(result) == 2
-    assert result[0]["job_id"] == "job_a"
-    assert result[0]["display_index"] == "001"
-    assert result[0]["name"] == "Alpha"
-    assert result[0]["skip_subtitle"] is False
-    assert result[0]["auto_approve"] is True
-
-    assert result[1]["job_id"] == "job_b"
-    assert result[1]["display_index"] == "002"
-    assert result[1]["name"] == "Beta"
-    assert result[1]["skip_subtitle"] is True
-    assert result[1]["auto_approve"] is False
+    assert [item["job_id"] for item in before_save] == ["job_a", "job_z"]
+    assert [item["job_id"] for item in after_save] == ["job_a", "job_z"]
 
 
 def test_list_jobs_name_skip_subtitle_auto_approve_from_record(tmp_path: Path) -> None:
@@ -272,19 +296,19 @@ def test_list_jobs_bad_json_still_gets_display_index(tmp_path: Path) -> None:
     repo = FileStoreRepository(tmp_path)
     repo.create_project("project-001")
 
-    # 坏 json 文件 (job_bad 字母序在前)
+    # 坏 json 文件 (先创建的)
     jobs_dir = tmp_path / "workspace" / "projects" / "project-001" / "control" / "jobs"
     bad_path = jobs_dir / "job_bad.json"
     bad_path.write_text("this is not valid json", encoding="utf-8")
 
-    # 正常 job (job_good 字母序在后)
+    # 正常 job (后创建的)
     record = JobRecord(job_id="job_good", phase="queued", review_status="none")
     repo.save_job("project-001", record)
 
     result = repo.list_jobs("project-001")
 
     assert len(result) == 2
-    # job_id 升序：先 bad，再 good
+    # creation order: bad was created first → 001, good later → 002
     assert result[0]["job_id"] == "job_bad"
     assert "display_index" in result[0]
     assert result[0]["phase"] == "unknown"
