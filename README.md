@@ -306,3 +306,14 @@ uv run python tools/sync_version.py    # 同步版本到 package.json 和 CONTEX
 ## 产品配置
 
 `/system/config/product` 页面支持产品分类管理，包含 AI 智能推荐分类功能：系统根据已有业务数据调用 LLM 建议分类，支持勾选确认后自动合并到现有分类列表。每个分类可配置名称、描述和 Vision Prompt。
+
+## 冒烟流程
+
+冒烟（smoke）报告存放在 `scripts/smoke/` 下，每次运行生成一份 `sandcastle-YYYY-MM-DD.md`，内容包含：
+
+- 运行时间戳（UTC）
+- `uv run pytest tests/`、`pnpm --filter frontend typecheck`、`npm run sandcastle` 等命令的实际退出码
+- `gh auth status` 单行输出
+- 末尾固定为 `Sandcastle smoke run successful.`
+
+由 `git ls-files scripts/smoke/` 可确认报告已被跟踪（避免 `.gitignore` 误屏蔽）。
