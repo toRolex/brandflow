@@ -7,6 +7,7 @@ import type { SingleJobFormData } from "../components/CreateJobForm";
 import CreateJobForm from "../components/CreateJobForm";
 import InlineBanner from "../components/InlineBanner";
 import Modal from "../components/Modal";
+import Pagination from "../components/Pagination";
 import ProjectTabs from "../components/ProjectTabs";
 import WorkbenchShell from "../components/WorkbenchShell";
 import { useProducts } from "../ProductContext";
@@ -59,6 +60,11 @@ export default function ProjectWorkbench() {
 	const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
 	const [templates, setTemplates] = useState<ScriptTemplate[]>([]);
 
+	/* ── 分页状态 ── */
+	const [page, setPage] = useState(1);
+	const [pageSize, setPageSize] = useState(50);
+	const [jobsTotal, setJobsTotal] = useState(0);
+
 	/* ── 产品配置 ── */
 	const { activeProductConfig } = useProducts();
 	const productName = activeProductConfig?.default_name ?? "";
@@ -109,15 +115,18 @@ export default function ProjectWorkbench() {
 	const load = useCallback(async () => {
 		if (!id) return;
 		try {
+			// Load project metadata and current jobs page separately
 			const proj = await api.getProject(id);
-			setJobs((proj as { jobs?: JobSummary[] }).jobs || []);
-			setProjectName((proj as { name?: string }).name || id);
+			setProjectName(proj.name || id);
+			const jobsPage = await api.listProjectJobs(id, page, pageSize);
+			setJobs(jobsPage.items);
+			setJobsTotal(jobsPage.total);
 			setError("");
 		} catch (e) {
 			console.error("load project failed", e);
 			setError("加载项目数据失败");
 		}
-	}, [id]);
+	}, [id, page, pageSize]);
 
 	useEffect(() => {
 		load();
@@ -129,6 +138,17 @@ export default function ProjectWorkbench() {
 		const timer = setInterval(load, 5000);
 		return () => clearInterval(timer);
 	}, [jobs, load]);
+
+	const handlePageChange = (p: number) => {
+		setSelectedJobIds(new Set());
+		setPage(p);
+	};
+
+	const handlePageSizeChange = (size: number) => {
+		setSelectedJobIds(new Set());
+		setPageSize(size);
+		setPage(1);
+	};
 
 	useEffect(() => {
 		api
@@ -493,6 +513,15 @@ export default function ProjectWorkbench() {
 				onRetry={handleRetry}
 				onDeleteJob={handleDeleteJob}
 				onRenameJob={handleRenameJob}
+			/>
+
+			{/* ── Pagination ── */}
+			<Pagination
+				page={page}
+				pageSize={pageSize}
+				total={jobsTotal}
+				onPageChange={handlePageChange}
+				onPageSizeChange={handlePageSizeChange}
 			/>
 
 			{/* ── ConfirmDialog ── */}

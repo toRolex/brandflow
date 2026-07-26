@@ -8,6 +8,7 @@ import {
 import { BrowserRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api/client";
+import type { ProjectPage } from "../../types/project";
 import ProjectList from "../ProjectList";
 
 vi.mock("../../api/client", () => ({
@@ -22,6 +23,10 @@ const MOCK_PROJECTS = [
 	{ id: "p1", name: "项目A", status: "active", job_count: 3 },
 	{ id: "p2", name: "项目B", status: "active", job_count: 1 },
 ];
+
+function makePage(items: typeof MOCK_PROJECTS): ProjectPage {
+	return { items, total: items.length, page: 1, page_size: 50 };
+}
 
 function renderPage() {
 	return render(
@@ -47,7 +52,9 @@ describe("ProjectList", () => {
 		});
 
 		it("shows empty state after loading when no projects", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue([]);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage([]),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("开始你的第一个项目")).toBeInTheDocument();
@@ -55,7 +62,9 @@ describe("ProjectList", () => {
 		});
 
 		it("shows project list after loading with data", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage(MOCK_PROJECTS),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -66,7 +75,9 @@ describe("ProjectList", () => {
 
 	describe("header create button", () => {
 		it("renders persistent 新建项目 button in header", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage(MOCK_PROJECTS),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -77,7 +88,9 @@ describe("ProjectList", () => {
 		});
 
 		it("opens create modal when header button is clicked", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage(MOCK_PROJECTS),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -92,7 +105,9 @@ describe("ProjectList", () => {
 
 	describe("empty state create button", () => {
 		it("shows 新建项目 button in empty state and it opens modal", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue([]);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage([]),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("开始你的第一个项目")).toBeInTheDocument();
@@ -106,7 +121,9 @@ describe("ProjectList", () => {
 
 	describe("create validation", () => {
 		it("shows error for empty name", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue([]);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage([]),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("开始你的第一个项目")).toBeInTheDocument();
@@ -121,7 +138,9 @@ describe("ProjectList", () => {
 		});
 
 		it("shows error for duplicate name", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage(MOCK_PROJECTS),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -147,12 +166,13 @@ describe("ProjectList", () => {
 				status: "active",
 				job_count: 0,
 			};
-			vi.mocked(api.listProjects).mockResolvedValueOnce(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValueOnce(
+				makePage(MOCK_PROJECTS),
+			);
 			vi.mocked(api.createProject).mockResolvedValueOnce(newProject);
-			vi.mocked(api.listProjects).mockResolvedValueOnce([
-				...MOCK_PROJECTS,
-				newProject,
-			]);
+			vi.mocked(api.listProjects).mockResolvedValueOnce(
+				makePage([...MOCK_PROJECTS, newProject]),
+			);
 
 			renderPage();
 			await waitFor(() => {
@@ -175,7 +195,9 @@ describe("ProjectList", () => {
 
 	describe("create failure", () => {
 		it("shows error banner when create fails", async () => {
-			vi.mocked(api.listProjects).mockResolvedValueOnce(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValueOnce(
+				makePage(MOCK_PROJECTS),
+			);
 			vi.mocked(api.createProject).mockRejectedValueOnce(
 				new Error("创建失败：服务错误"),
 			);
@@ -201,7 +223,9 @@ describe("ProjectList", () => {
 
 	describe("single delete failure", () => {
 		it("shows error banner when single delete fails", async () => {
-			vi.mocked(api.listProjects).mockResolvedValueOnce(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValueOnce(
+				makePage(MOCK_PROJECTS),
+			);
 			vi.mocked(api.deleteProject).mockRejectedValueOnce(
 				new Error("删除失败：权限不足"),
 			);
@@ -222,7 +246,9 @@ describe("ProjectList", () => {
 
 	describe("bulk selection", () => {
 		it("shows checkboxes and selects a single row", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage(MOCK_PROJECTS),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -238,7 +264,9 @@ describe("ProjectList", () => {
 		});
 
 		it("selects all rows via header checkbox", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage(MOCK_PROJECTS),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -253,7 +281,9 @@ describe("ProjectList", () => {
 		});
 
 		it("shows bulk action bar only when items are selected", async () => {
-			vi.mocked(api.listProjects).mockResolvedValue(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValue(
+				makePage(MOCK_PROJECTS),
+			);
 			renderPage();
 			await waitFor(() => {
 				expect(screen.getByText("项目A")).toBeInTheDocument();
@@ -270,9 +300,13 @@ describe("ProjectList", () => {
 
 	describe("bulk delete", () => {
 		it("deletes selected projects and refreshes the list", async () => {
-			vi.mocked(api.listProjects).mockResolvedValueOnce(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValueOnce(
+				makePage(MOCK_PROJECTS),
+			);
 			vi.mocked(api.deleteProject).mockResolvedValue({ ok: true });
-			vi.mocked(api.listProjects).mockResolvedValueOnce([MOCK_PROJECTS[1]]);
+			vi.mocked(api.listProjects).mockResolvedValueOnce(
+				makePage([MOCK_PROJECTS[1]]),
+			);
 
 			renderPage();
 			await waitFor(() => {
@@ -295,12 +329,16 @@ describe("ProjectList", () => {
 		});
 
 		it("shows partial failure summary and refreshes the list", async () => {
-			vi.mocked(api.listProjects).mockResolvedValueOnce(MOCK_PROJECTS);
+			vi.mocked(api.listProjects).mockResolvedValueOnce(
+				makePage(MOCK_PROJECTS),
+			);
 			vi.mocked(api.deleteProject).mockImplementation((id: string) => {
 				if (id === "p1") return Promise.resolve({ ok: true });
 				return Promise.reject(new Error("删除失败：权限不足"));
 			});
-			vi.mocked(api.listProjects).mockResolvedValueOnce([MOCK_PROJECTS[1]]);
+			vi.mocked(api.listProjects).mockResolvedValueOnce(
+				makePage([MOCK_PROJECTS[1]]),
+			);
 
 			renderPage();
 			await waitFor(() => {

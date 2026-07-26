@@ -8,6 +8,7 @@ import ProjectWorkbench from "../ProjectWorkbench";
 vi.mock("../../api/client", () => ({
 	api: {
 		getProject: vi.fn(),
+		listProjectJobs: vi.fn(),
 		listMusic: vi.fn(),
 		listTemplates: vi.fn(),
 		createJob: vi.fn(),
@@ -31,26 +32,34 @@ const MOCK_PROJECT = {
 	name: "测试项目",
 	status: "active",
 	job_count: 2,
-	jobs: [
-		{
-			job_id: "job-1",
-			product: "产品A",
-			phase: "completed" as const,
-			review_status: "approved" as const,
-			phase_index: 14,
-			phase_total: 14,
-		},
-		{
-			job_id: "job-2",
-			product: "产品B",
-			phase: "asset_review" as const,
-			review_status: "pending" as const,
-			phase_index: 2,
-			phase_total: 14,
-			asset_review_unresolved_count: 3,
-		},
-	],
 };
+
+import type { JobSummary } from "../../types/job";
+import type { JobSummaryPage } from "../../types/project";
+
+const MOCK_JOBS: JobSummary[] = [
+	{
+		job_id: "job-1",
+		product: "产品A",
+		phase: "completed" as const,
+		review_status: "approved" as const,
+		phase_index: 14,
+		phase_total: 14,
+	},
+	{
+		job_id: "job-2",
+		product: "产品B",
+		phase: "asset_review" as const,
+		review_status: "pending" as const,
+		phase_index: 2,
+		phase_total: 14,
+		asset_review_unresolved_count: 3,
+	},
+];
+
+function makeJobsPage(jobs: JobSummary[]): JobSummaryPage {
+	return { items: jobs, total: jobs.length, page: 1, page_size: 50 };
+}
 
 function renderPage() {
 	return render(
@@ -66,6 +75,9 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(api.getProject).mockResolvedValue(MOCK_PROJECT);
+		vi.mocked(api.listProjectJobs).mockResolvedValue(
+			makeJobsPage(MOCK_JOBS),
+		);
 		vi.mocked(api.listMusic).mockResolvedValue({ tracks: [] });
 		vi.mocked(api.listTemplates).mockResolvedValue([]);
 	});
@@ -151,12 +163,11 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 				},
 				artifacts: [],
 			});
-			vi.mocked(api.getProject)
-				.mockResolvedValueOnce(MOCK_PROJECT)
-				.mockResolvedValueOnce({
-					...MOCK_PROJECT,
-					jobs: [
-						...MOCK_PROJECT.jobs,
+			vi.mocked(api.listProjectJobs)
+				.mockResolvedValueOnce(makeJobsPage(MOCK_JOBS))
+				.mockResolvedValueOnce(
+					makeJobsPage([
+						...MOCK_JOBS,
 						{
 							job_id: "job-new",
 							product: "新产品",
@@ -165,8 +176,8 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 							phase_index: 1,
 							phase_total: 14,
 						},
-					],
-				});
+					]),
+				);
 
 			renderPage();
 
@@ -194,7 +205,7 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			});
 
 			expect(mockNavigate).not.toHaveBeenCalled();
-			expect(api.getProject).toHaveBeenCalledTimes(2);
+			expect(api.listProjectJobs).toHaveBeenCalledTimes(2);
 		});
 	});
 
@@ -228,12 +239,11 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 					},
 				],
 			});
-			vi.mocked(api.getProject)
-				.mockResolvedValueOnce(MOCK_PROJECT)
-				.mockResolvedValueOnce({
-					...MOCK_PROJECT,
-					jobs: [
-						...MOCK_PROJECT.jobs,
+			vi.mocked(api.listProjectJobs)
+				.mockResolvedValueOnce(makeJobsPage(MOCK_JOBS))
+				.mockResolvedValueOnce(
+					makeJobsPage([
+						...MOCK_JOBS,
 						{
 							job_id: "batch-1",
 							product: "批量产品",
@@ -250,8 +260,8 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 							phase_index: 1,
 							phase_total: 14,
 						},
-					],
-				});
+					]),
+				);
 
 			renderPage();
 
@@ -278,7 +288,7 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			expect(screen.getByText("batch-2")).toBeInTheDocument();
 
 			expect(mockNavigate).not.toHaveBeenCalled();
-			expect(api.getProject).toHaveBeenCalledTimes(2);
+			expect(api.listProjectJobs).toHaveBeenCalledTimes(2);
 		});
 	});
 });

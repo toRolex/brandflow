@@ -1,4 +1,6 @@
-"""API endpoints for submitting and downloading persistent error logs."""
+"""API endpoints for submitting, listing, downloading and deleting persistent
+error logs (#354).
+"""
 
 from __future__ import annotations
 
@@ -9,7 +11,10 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from packages.log_service import log_deletion
+from packages.log_service.log_deletion import _is_valid_calendar_date, _today_str
 from packages.log_service.log_writer import get_log_dir, log_error
+from packages.pagination import paginated
 
 router = APIRouter(tags=["logs"])
 
@@ -29,6 +34,19 @@ class LogEntry(BaseModel):
     extra: dict[str, Any] | None = None
 
 
+class BatchDeleteRequest(BaseModel):
+    dates: list[str]
+
+
+def _validate_date_str(date_str: str) -> None:
+    """Raise 400 if *date_str* is not a real calendar date."""
+    if not _is_valid_calendar_date(date_str):
+        raise HTTPException(400, f"Invalid date: {date_str}")
+
+
+# ── write ──────────────────────────────────────────────────────────────────
+
+
 @router.post("/error", status_code=201)
 def report_error(entry: dict[str, Any] = Body(...)) -> dict[str, bool]:
     try:
@@ -42,22 +60,42 @@ def report_error(entry: dict[str, Any] = Body(...)) -> dict[str, bool]:
     return {"ok": True}
 
 
+# ── list ───────────────────────────────────────────────────────────────────
+
+
+def _parse_log_date_info(file_path: Any) -> dict[str, int | str]:
+    return {
+        "date": file_path.stem,
+        "size_bytes": file_path.stat().st_size,
+        "error_count": sum(1 for _ in file_path.open(encoding="utf-8")),
+    }
+
+
 @router.get("/dates")
-def list_dates() -> list[dict[str, int | str]]:
+def list_dates(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+) -> dict[str, Any]:
+    """Return paginated log-date summaries, newest first."""
     log_dir = get_log_dir()
     if not log_dir.exists():
-        return []
-    files = sorted(
-        (p for p in log_dir.glob("????-??-??.jsonl") if p.is_file()), reverse=True
+        return paginated([], 0, page, page_size)
+
+    all_files = sorted(
+        (p for p in log_dir.glob("????-??-??.jsonl") if p.is_file()),
+        key=lambda f: f.stem,
+        reverse=True,
     )
-    return [
-        {
-            "date": file.stem,
-            "size_bytes": file.stat().st_size,
-            "error_count": sum(1 for _ in file.open(encoding="utf-8")),
-        }
-        for file in files
-    ]
+    total = len(all_files)
+    start = (page - 1) * page_size
+    if start >= total:
+        return paginated([], total, page, page_size)
+    end = min(start + page_size, total)
+    items = [_parse_log_date_info(f) for f in all_files[start:end]]
+    return paginated(items, total, page, page_size)
+
+
+# ── download ───────────────────────────────────────────────────────────────
 
 
 @router.get("/download")
@@ -72,3 +110,41 @@ def download_log(
     if not file.is_file():
         raise HTTPException(404, "Log file not found")
     return FileResponse(file, media_type="application/x-ndjson", filename=file.name)
+
+
+# ── delete (static routes MUST come before dynamic /{date}) ────────────────
+
+
+@router.delete("/batch")
+def delete_logs_batch(payload: BatchDeleteRequest) -> dict[str, Any]:
+    """Delete multiple log files (1–200 dates).
+
+    Today's date is placed in ``protected``, non-existent dates in
+    ``not_found`` — neither blocks other dates from being processed.
+    """
+    dates = payload.dates
+    if not dates or len(dates) > 200:
+        raise HTTPException(400, "dates must contain 1–200 entries")
+    for d in dates:
+        _validate_date_str(d)
+    return log_deletion.delete_batch(dates)
+
+
+@router.delete("/cleanup")
+def cleanup_logs(
+    before_days: int = Query(ge=1),
+) -> dict[str, Any]:
+    """Delete log files strictly older than *before_days* before today.
+
+    ``before_days`` must be >= 1 (0 or negative is rejected).
+    """
+    return log_deletion.cleanup(before_days)
+
+
+@router.delete("/{date_str}")
+def delete_log_date(date_str: str) -> dict[str, Any]:
+    """Delete a single day's log file.  Today → 400."""
+    _validate_date_str(date_str)
+    if date_str == _today_str():
+        raise HTTPException(400, "Cannot delete today's log file")
+    return log_deletion.delete_single(date_str)

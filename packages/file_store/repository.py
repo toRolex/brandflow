@@ -128,65 +128,104 @@ class FileStoreRepository:
             with path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
-    def list_jobs(self, project_id: str) -> list[dict[str, Any]]:
+    def count_jobs(self, project_id: str) -> int:
+        """Count Job JSON files without deserialising any JobRecord."""
+        jobs_root = (
+            self.root / "workspace" / "projects" / project_id / "control" / "jobs"
+        )
+        if not jobs_root.exists():
+            return 0
+        return sum(
+            1 for f in jobs_root.iterdir() if f.is_file() and f.suffix == ".json"
+        )
+
+    def _sorted_job_files(self, project_id: str) -> list[Path]:
+        """Return ``*.json`` files under *project_id*'s jobs dir sorted by
+        stable ``job_id`` (stem) ascending — deterministic & immutable (#354)."""
         jobs_root = (
             self.root / "workspace" / "projects" / project_id / "control" / "jobs"
         )
         if not jobs_root.exists():
             return []
-        results: list[dict[str, Any]] = []
-        files = sorted(
+        return sorted(
             [f for f in jobs_root.iterdir() if f.is_file() and f.suffix == ".json"],
-            key=lambda f: f.stat().st_mtime,
+            key=lambda f: f.stem,
         )
+
+    def _build_job_summary(
+        self, project_id: str, file: Path, display_index: str
+    ) -> dict[str, Any]:
+        """Read and parse one Job JSON file into the standard summary dict."""
+        try:
+            record = JobRecord.model_validate_json(file.read_text(encoding="utf-8"))
+            asset_review_unresolved_count = None
+            if record.phase == "asset_review":
+                clips_path = (
+                    self.root
+                    / "workspace"
+                    / "projects"
+                    / project_id
+                    / "runtime"
+                    / "jobs"
+                    / record.job_id
+                    / "selected_clips.json"
+                )
+                try:
+                    clips = json.loads(clips_path.read_text(encoding="utf-8"))
+                    asset_review_unresolved_count = sum(
+                        clip.get("visual_type", "unresolved") == "unresolved"
+                        for clip in clips
+                    )
+                except (OSError, ValueError):
+                    asset_review_unresolved_count = None
+            return {
+                "job_id": record.job_id,
+                "product": record.product,
+                "phase": record.phase,
+                "review_status": record.review_status,
+                "artifacts": [a.model_dump() for a in record.artifacts],
+                "display_index": display_index,
+                "name": record.name,
+                "skip_subtitle": record.skip_subtitle,
+                "auto_approve": record.auto_approve,
+                "asset_review_unresolved_count": asset_review_unresolved_count,
+            }
+        except Exception:
+            return {
+                "job_id": file.stem,
+                "phase": "unknown",
+                "review_status": "unknown",
+                "display_index": display_index,
+            }
+
+    def list_jobs(self, project_id: str) -> list[dict[str, Any]]:
+        """Return all Job summaries sorted by stable ``job_id`` (immutable)."""
+        files = self._sorted_job_files(project_id)
+        results: list[dict[str, Any]] = []
         for idx, f in enumerate(files, start=1):
             display_index = f"{idx:03d}"
-            try:
-                record = JobRecord.model_validate_json(f.read_text(encoding="utf-8"))
-                asset_review_unresolved_count = None
-                if record.phase == "asset_review":
-                    clips_path = (
-                        self.root
-                        / "workspace"
-                        / "projects"
-                        / project_id
-                        / "runtime"
-                        / "jobs"
-                        / record.job_id
-                        / "selected_clips.json"
-                    )
-                    try:
-                        clips = json.loads(clips_path.read_text(encoding="utf-8"))
-                        asset_review_unresolved_count = sum(
-                            clip.get("visual_type", "unresolved") == "unresolved"
-                            for clip in clips
-                        )
-                    except (OSError, ValueError):
-                        asset_review_unresolved_count = None
-                results.append(
-                    {
-                        "job_id": record.job_id,
-                        "product": record.product,
-                        "phase": record.phase,
-                        "review_status": record.review_status,
-                        "artifacts": [a.model_dump() for a in record.artifacts],
-                        "display_index": display_index,
-                        "name": record.name,
-                        "skip_subtitle": record.skip_subtitle,
-                        "auto_approve": record.auto_approve,
-                        "asset_review_unresolved_count": asset_review_unresolved_count,
-                    }
-                )
-            except Exception:
-                results.append(
-                    {
-                        "job_id": f.stem,
-                        "phase": "unknown",
-                        "review_status": "unknown",
-                        "display_index": display_index,
-                    }
-                )
+            results.append(self._build_job_summary(project_id, f, display_index))
         return results
+
+    def list_jobs_paginated(
+        self, project_id: str, page: int = 1, page_size: int = 50
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Return a (items, total) pair for the requested page.
+
+        Items are sorted by stable ``job_id`` ascending.  ``total`` is the
+        pre-slice count from a single directory snapshot.
+        """
+        files = self._sorted_job_files(project_id)
+        total = len(files)
+        start = (page - 1) * page_size
+        if start >= total:
+            return [], total
+        end = min(start + page_size, total)
+        results: list[dict[str, Any]] = []
+        for idx, f in enumerate(files[start:end], start=start + 1):
+            display_index = f"{idx:03d}"
+            results.append(self._build_job_summary(project_id, f, display_index))
+        return results, total
 
     def list_assets(self, project_id: str) -> list[dict[str, Any]]:
         assets_root = (

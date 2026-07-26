@@ -5,14 +5,21 @@ import LogsPage from "../LogsPage";
 const listLogDates = vi.hoisted(() => vi.fn());
 vi.mock("../../api/logs", () => ({
 	listLogDates,
+	deleteLogDate: vi.fn(),
+	batchDeleteLogDates: vi.fn(),
+	cleanupLogs: vi.fn(),
 	downloadLogUrl: (date: string) => `/api/logs/download?date=${date}`,
 }));
 
+function makePage(items: Array<{ date: string; size_bytes: number; error_count: number }>) {
+	return { items, total: items.length, page: 1, page_size: 50 };
+}
+
 describe("LogsPage", () => {
 	it("renders each available date and its download link", async () => {
-		listLogDates.mockResolvedValue([
-			{ date: "2026-07-25", size_bytes: 1536, error_count: 3 },
-		]);
+		listLogDates.mockResolvedValue(
+			makePage([{ date: "2026-07-25", size_bytes: 1536, error_count: 3 }]),
+		);
 		render(<LogsPage />);
 		await waitFor(() =>
 			expect(screen.getByText("2026-07-25")).toBeInTheDocument(),
@@ -24,7 +31,7 @@ describe("LogsPage", () => {
 	});
 
 	it("shows the empty state when no dates are available", async () => {
-		listLogDates.mockResolvedValue([]);
+		listLogDates.mockResolvedValue(makePage([]));
 		render(<LogsPage />);
 		await waitFor(() =>
 			expect(screen.getByText("暂无运行日志")).toBeInTheDocument(),

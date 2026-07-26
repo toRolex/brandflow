@@ -1183,8 +1183,9 @@ def test_delete_job_success(tmp_path: Path) -> None:
             "/api/projects/prj_001/jobs",
             json={"platforms": ["douyin"]},
         )
-        # Find the job_id from the response
-        jobs = client.get("/api/projects/prj_001").json().get("jobs", [])
+        # Find the job_id from the project jobs endpoint
+        jobs_resp = client.get("/api/projects/prj_001/jobs").json()
+        jobs = jobs_resp.get("items", [])
         assert len(jobs) == 1
         job_id = jobs[0]["job_id"]
 

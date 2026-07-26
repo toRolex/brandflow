@@ -17,8 +17,8 @@ def test_project_delete_removes_from_list() -> None:
         pid = resp.json()["id"]
         assert pid is not None
 
-        # verify it appears in listing
-        all_before = {p["id"] for p in client.get("/api/projects").json()}
+        # verify it appears in paginated listing
+        all_before = {p["id"] for p in client.get("/api/projects").json()["items"]}
         assert pid in all_before, f"project {pid} should be in listing after create"
 
         # delete it
@@ -32,8 +32,8 @@ def test_project_delete_removes_from_list() -> None:
             f"project directory {project_dir} should be removed"
         )
 
-        # verify it is gone from the listing
-        all_after = {p["id"] for p in client.get("/api/projects").json()}
+        # verify it is gone from the paginated listing
+        all_after = {p["id"] for p in client.get("/api/projects").json()["items"]}
         assert pid not in all_after, (
             f"project {pid} should not appear in listing after delete"
         )

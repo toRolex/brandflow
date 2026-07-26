@@ -1,7 +1,10 @@
-import type { Project } from "../types/project";
+import type { Project, ProjectPage } from "../types/project";
 import { request } from "./core";
 
-export const listProjects = () => request<Project[]>("/api/projects");
+export const listProjects = (page = 1, pageSize = 50) =>
+	request<ProjectPage>(
+		`/api/projects?page=${page}&page_size=${pageSize}`,
+	);
 
 export const createProject = (name: string) =>
 	request<Project>("/api/projects", {
@@ -10,9 +13,7 @@ export const createProject = (name: string) =>
 	});
 
 export const getProject = (id: string) =>
-	request<Project & { jobs: import("../types/job").JobSummary[] }>(
-		`/api/projects/${id}`,
-	);
+	request<Project>(`/api/projects/${id}`);
 
 export const deleteProject = (id: string) =>
 	request<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" });
