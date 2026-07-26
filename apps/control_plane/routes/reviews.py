@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from packages.domain_core.models import REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
 from apps.control_plane.routes.jobs.helpers import _resolve_job_project
+from packages.file_store.layout import WorkspaceLayout
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
     validate_assets,
@@ -45,17 +46,17 @@ class RegenerateWithPromptRequest(BaseModel):
     custom_prompt: str
 
 
-def _find_job_dir(root_dir: Path, project_id: str, job_id: str) -> Path:
-    projects_dir = root_dir / "workspace" / "projects"
+def _find_job_dir(layout: WorkspaceLayout, project_id: str, job_id: str) -> Path:
     if project_id:
-        job_dir = projects_dir / project_id / "runtime" / "jobs" / job_id
+        job_dir = layout.job_runtime_dir(project_id, job_id)
         if job_dir.exists():
             return job_dir
 
-    for project_dir in projects_dir.iterdir():
+    for project_dir in layout.projects_dir().iterdir():
         if not project_dir.is_dir():
             continue
-        job_dir = project_dir / "runtime" / "jobs" / job_id
+        candidate_project_id = project_dir.name
+        job_dir = layout.job_runtime_dir(candidate_project_id, job_id)
         if job_dir.exists():
             return job_dir
 
@@ -93,8 +94,8 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
 
     # ── Asset review specific checks ──
     if record.phase == "asset_review":
-        root_dir = Path(request.app.state.root_dir)
-        job_dir = _find_job_dir(root_dir, project_id, job_id)
+        layout = WorkspaceLayout(request.app.state.root_dir)
+        job_dir = _find_job_dir(layout, project_id, job_id)
         try:
             clips = validate_assets(job_dir, force=payload.force)
             write_reviewed_snapshot(job_dir, clips)
@@ -166,10 +167,10 @@ def edit_script(
     request: Request,
 ) -> dict:
     """Manually edit the script text."""
-    root_dir = Path(request.app.state.root_dir)
+    layout = WorkspaceLayout(request.app.state.root_dir)
     project_id = request.query_params.get("project_id", "")
 
-    job_dir = _find_job_dir(root_dir, project_id, job_id)
+    job_dir = _find_job_dir(layout, project_id, job_id)
     script_file = _find_script_file(job_dir)
 
     if not script_file:
@@ -204,9 +205,10 @@ def regenerate_with_prompt(
 ) -> dict:
     """Regenerate script with custom prompt instructions."""
     root_dir = Path(request.app.state.root_dir)
+    layout = WorkspaceLayout(root_dir)
     project_id = request.query_params.get("project_id", "")
 
-    job_dir = _find_job_dir(root_dir, project_id, job_id)
+    job_dir = _find_job_dir(layout, project_id, job_id)
 
     manifest_path = job_dir / "job_manifest.json"
     product = ""
@@ -255,9 +257,10 @@ class RejectClipRequest(BaseModel):
 @router.post("/{job_id}/reject-clip")
 def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> dict:
     root_dir = Path(request.app.state.root_dir)
+    layout = WorkspaceLayout(root_dir)
     project_id = request.query_params.get("project_id", "")
 
-    job_dir = _find_job_dir(root_dir, project_id, job_id)
+    job_dir = _find_job_dir(layout, project_id, job_id)
     clips_path = job_dir / "selected_clips.json"
 
     if not clips_path.exists():
@@ -283,20 +286,19 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
     )
 
     if not project_id:
-        for project_dir in (root_dir / "workspace" / "projects").iterdir():
+        for project_dir in layout.projects_dir().iterdir():
             if not project_dir.is_dir():
                 continue
-            if (project_dir / "runtime" / "jobs" / job_id).exists():
-                project_id = project_dir.name
+            candidate_project_id = project_dir.name
+            if layout.job_runtime_dir(candidate_project_id, job_id).exists():
+                project_id = candidate_project_id
                 break
 
     if not project_id:
         raise HTTPException(status_code=404, detail="project not found for job")
 
     product = ""
-    control_jobs_dir = (
-        root_dir / "workspace" / "projects" / project_id / "control" / "jobs"
-    )
+    control_jobs_dir = layout.control_jobs_dir(project_id)
     job_json_path = control_jobs_dir / f"{job_id}.json"
     if job_json_path.exists():
         job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
@@ -363,8 +365,9 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
 def _resolve_job_context(request: Request, job_id: str) -> tuple[Path, str, Path]:
     """Resolve root_dir, project_id, job_dir from request and job_id."""
     root_dir = Path(request.app.state.root_dir)
+    layout = WorkspaceLayout(root_dir)
     project_id = request.query_params.get("project_id", "")
-    job_dir = _find_job_dir(root_dir, project_id, job_id)
+    job_dir = _find_job_dir(layout, project_id, job_id)
     return root_dir, project_id, job_dir
 
 

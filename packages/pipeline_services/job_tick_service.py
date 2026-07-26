@@ -954,8 +954,8 @@ class JobTickService:
             # downgrade) so that mock-based tests and async-worker scenarios
             # can pre-set the field without it being clobbered (#326).
             if handler_phase == "asset_retrieving" and handler_ran:
-                clips_path = (
-                    project_dir / "runtime" / "jobs" / job_id / "selected_clips.json"
+                clips_path = ctx.layout.job_artifact_path(
+                    project_id, job_id, "selected_clips.json"
                 )
                 if clips_path.exists():
                     try:
@@ -982,7 +982,10 @@ class JobTickService:
             and record.phase == "asset_review"
             and (record.auto_approve or record.review_strategy == "fast_output")
         ):
-            job_dir = project_dir / "runtime" / "jobs" / job_id
+            from packages.file_store.layout import WorkspaceLayout
+
+            layout = WorkspaceLayout(root_dir)
+            job_dir = layout.job_runtime_dir(project_id, job_id)
 
             # --- Gate 1: collection not started or in progress → block (#326) ---
             if record.asset_collection_status in ("not_started", "collecting"):

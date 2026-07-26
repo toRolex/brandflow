@@ -228,6 +228,10 @@ class WorkspaceLayout:
     def indexed_clips_dir(self, project_id: str) -> Path:
         return self.project_dir(project_id) / "runtime" / "indexed_clips"
 
+    def runtime_jobs_dir(self, project_id: str) -> Path:
+        """Return the project-level runtime jobs parent directory."""
+        return self.project_dir(project_id) / "runtime" / "jobs"
+
     def runtime_exports_dir(self, project_id: str) -> Path:
         return self.project_dir(project_id) / "runtime" / "exports"
 

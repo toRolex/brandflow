@@ -40,8 +40,8 @@ def retry_job(request: Request, job_id: str):
     from packages.file_store.layout import WorkspaceLayout
     from packages.pipeline_services.phase_orchestrator import PhaseContext
 
-    project_dir = request.app.state.root_dir / "workspace" / "projects" / project_id
     layout = WorkspaceLayout(request.app.state.root_dir)
+    project_dir = layout.project_dir(project_id)
     scene_config = request.app.state.config_reader.get_scene_config(
         product_id=record.product
     )

@@ -55,17 +55,17 @@ class FileStoreRepository:
 
     def create_project(self, project_id: str, name: str = "") -> Path:
         root = self._layout.project_dir(project_id)
-        for relative in (
-            "control/jobs",
-            "control/batches",
-            "reviews",
-            "reports",
-            "runtime/jobs",
-            "runtime/source_assets",
-            "runtime/schedule/exports",
-            "logs",
+        for path in (
+            self._layout.control_jobs_dir(project_id),
+            self._layout.control_batches_dir(project_id),
+            self._layout.reviews_dir(project_id),
+            self._layout.reports_dir(project_id),
+            self._layout.runtime_jobs_dir(project_id),
+            self._layout.source_assets_dir(project_id),
+            self._layout.schedule_exports_dir(project_id),
+            self._layout.logs_dir(project_id),
         ):
-            (root / relative).mkdir(parents=True, exist_ok=True)
+            path.mkdir(parents=True, exist_ok=True)
         meta_path = self._layout.project_meta_path(project_id)
         if not meta_path.exists():
             meta = {"id": project_id, "name": name}

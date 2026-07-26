@@ -313,18 +313,11 @@ def enqueue_job(request: Request, job_id: str):
 @router.get("/jobs/{job_id}")
 def get_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    projects_root = repo.root / "workspace" / "projects"
-    if projects_root.exists():
-        for project_dir in projects_root.iterdir():
-            if project_dir.is_dir():
-                try:
-                    record = repo.load_job(project_dir.name, job_id)
-                    job_data = record.model_dump()
-                    job_data["project_id"] = project_dir.name
-                    return job_data
-                except Exception:
-                    continue
-    raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
+    record = repo.load_job(project_id, job_id)
+    job_data = record.model_dump()
+    job_data["project_id"] = project_id
+    return job_data
 
 
 @router.post("/jobs/{job_id}/pause", status_code=202)
