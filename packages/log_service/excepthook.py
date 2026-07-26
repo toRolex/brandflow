@@ -29,7 +29,7 @@ def _wrap_excepthook(delegate: ExceptionHook) -> ExceptionHook:
             )
         delegate(exc_type, exc_value, exc_tb)
 
-    log_excepthook._brandflow_log_hook = True  # type: ignore[attr-defined]
+    setattr(log_excepthook, "_brandflow_log_hook", True)
     return log_excepthook
 
 
