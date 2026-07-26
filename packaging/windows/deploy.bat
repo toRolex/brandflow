@@ -226,7 +226,7 @@ echo   前端编译完成。
 :: Step 6: 注册 / 启动服务
 :: ============================================
 echo [6/7] 注册并启动服务 ...
-nssm restart brandflow-control-plane >nul 2>&1 || (
+nssm status brandflow-control-plane >nul 2>&1 || (
     nssm install brandflow-control-plane cmd /c "uv run --directory %PROJECT_DIR% python -m apps.control_plane"
     nssm set brandflow-control-plane AppDirectory "%PROJECT_DIR%"
     nssm set brandflow-control-plane AppStdout "%PROJECT_DIR%\logs\control-plane.log"
@@ -234,8 +234,12 @@ nssm restart brandflow-control-plane >nul 2>&1 || (
     nssm set brandflow-control-plane AppRotateFiles 1
     nssm set brandflow-control-plane AppRotateBytes 10485760
     nssm set brandflow-control-plane Start SERVICE_AUTO_START
-    nssm start brandflow-control-plane
 )
+nssm set brandflow-control-plane AppEnvironmentExtra DEV_AUTO_TICK=1 >nul
+nssm restart brandflow-control-plane >nul
+
+nssm stop brandflow-worker >nul 2>&1
+sc config brandflow-worker start= disabled >nul 2>&1
 echo   服务已启动。
 
 :: ============================================

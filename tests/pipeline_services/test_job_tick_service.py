@@ -1157,6 +1157,7 @@ class TestAdvanceAfterReport:
         saved = mock_repo.save_job.call_args[0][1]
         assert len(saved.artifacts) == 1
         assert saved.artifacts[0].kind == "final_video"
+        assert saved.artifacts[0].url == "/workspace/final_video.mp4"
 
 
 # ---------------------------------------------------------------------------

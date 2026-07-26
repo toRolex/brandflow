@@ -1202,6 +1202,7 @@ class JobTickService:
                 ArtifactPointer(
                     kind=kind,
                     relative_path=f.get("relative_path", ""),
+                    url=f"/workspace/{f.get('relative_path', '')}",
                     size_bytes=f.get("size_bytes", 0),
                 )
             )
