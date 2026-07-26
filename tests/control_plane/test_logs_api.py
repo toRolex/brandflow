@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -75,7 +76,9 @@ def test_log_api_accepts_large_frontend_reports_and_sorts_dates(
     )
 
     assert response.status_code == 201
+    today = date.today().isoformat()
     assert [entry["date"] for entry in client.get("/api/logs/dates").json()] == [
+        today,
         "2026-07-25",
         "2026-07-24",
     ]
