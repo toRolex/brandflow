@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from packages.domain_core.models import REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
+from apps.control_plane.routes.jobs.helpers import _resolve_job_project
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
     validate_assets,
@@ -64,22 +65,6 @@ def _find_job_dir(root_dir: Path, project_id: str, job_id: str) -> Path:
 def _find_script_file(job_dir: Path) -> Path | None:
     for f in job_dir.glob("*口播文案.txt"):
         return f
-    return None
-
-
-def _resolve_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
-    projects_root = repo.root.joinpath("workspace", "projects")
-    if not projects_root.exists():
-        return None
-
-    for project_dir in projects_root.iterdir():
-        if not project_dir.is_dir():
-            continue
-        try:
-            repo.load_job(project_dir.name, job_id)
-            return project_dir.name
-        except Exception:
-            continue
     return None
 
 
