@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from packages.domain_core.models import ArtifactPointer
+from packages.file_store.layout import WorkspaceLayout
 from packages.pipeline_services.sentence_tts_service import SentenceTiming
 
 if TYPE_CHECKING:
@@ -25,13 +26,26 @@ def to_url_path(path: Path, workspace_dir: Path) -> str:
 
 def _job_dir(ctx: PhaseContext) -> Path:
     """Return (and ensure) the job's runtime output directory."""
-    d = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+    project_id = ctx.project_dir.name
+    d = ctx.layout.job_runtime_dir(project_id, ctx.job_id)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _to_artifact(kind: str, path: Path, workspace_dir: Path) -> ArtifactPointer:
-    """Build an ``ArtifactPointer`` from an absolute file path."""
+def _to_artifact(
+    kind: str, path: Path, layout: WorkspaceLayout | Path
+) -> ArtifactPointer:
+    """Build an ``ArtifactPointer`` from an absolute file path.
+
+    ``layout`` (or a pre-computed ``workspace_dir`` ``Path``) is the directory
+    that contains ``projects/`` — the prefix stripped to produce the URL
+    contract ``/workspace/<relative>``.  We accept both shapes so callers
+    that already hold a ``Path`` do not have to re-resolve it.
+    """
+    if isinstance(layout, WorkspaceLayout):
+        workspace_dir = layout.root / "workspace"
+    else:
+        workspace_dir = layout
     rel = to_url_path(path, workspace_dir)
     return ArtifactPointer(
         kind=kind,

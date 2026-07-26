@@ -34,7 +34,6 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         2. Otherwise discover script text from ``*口播文案.txt`` then ``*.json``
            and synthesize each canonical Script Sentence separately.
     """
-    workspace_dir = ctx.root_dir / "workspace"
     job_dir = _job_dir(ctx)
     audio_path = job_dir / "audio.mp3"
     result: list = []
@@ -77,7 +76,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                             _to_artifact(
                                 "sentence_timings",
                                 sentences_path,
-                                workspace_dir,
+                                ctx.layout,
                             )
                         )
                         print(
@@ -149,9 +148,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                 ),
                 encoding="utf-8",
             )
-            result.append(
-                _to_artifact("sentence_timings", sentences_path, workspace_dir)
-            )
+            result.append(_to_artifact("sentence_timings", sentences_path, ctx.layout))
             print(
                 f"[TTS] Synthesized: {audio_path.exists()}, "
                 f"size={audio_path.stat().st_size if audio_path.exists() else 0}",
@@ -161,7 +158,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             print(f"[TTS WARN] No script text found in {job_dir}", flush=True)
 
     if audio_path.exists():
-        result.append(_to_artifact("tts_audio", audio_path, workspace_dir))
+        result.append(_to_artifact("tts_audio", audio_path, ctx.layout))
 
     return result
 
@@ -169,11 +166,10 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
 def run_review(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     """tts_review: return existing audio artifact for review."""
     job_dir = _job_dir(ctx)
-    workspace_dir = ctx.root_dir / "workspace"
     audio_path = job_dir / "audio.mp3"
     if audio_path.exists():
         print(f"[TTS_REVIEW] Audio ready for review: {audio_path}", flush=True)
-        return [_to_artifact("tts_audio", audio_path, workspace_dir)]
+        return [_to_artifact("tts_audio", audio_path, ctx.layout)]
     print(f"[TTS_REVIEW WARN] No audio found in {job_dir}", flush=True)
     return []
 
@@ -182,7 +178,7 @@ def _create_sentence_tts_service(
     provider: Any, tts_cfg: dict[str, Any], ctx: PhaseContext
 ) -> SentenceTTSService:
     """Factory hook for the sentence-level TTS service (overridable in tests)."""
-    cache_dir = ctx.root_dir / "workspace" / ".cache" / "tts"
+    cache_dir = ctx.layout.root / "workspace" / ".cache" / "tts"
     return SentenceTTSService(
         provider=provider,
         config=tts_cfg,

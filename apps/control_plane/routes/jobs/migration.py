@@ -37,9 +37,11 @@ def retry_job(request: Request, job_id: str):
         )
         return {"status": "queued_for_retry", "job_id": job_id}
 
+    from packages.file_store.layout import WorkspaceLayout
     from packages.pipeline_services.phase_orchestrator import PhaseContext
 
     project_dir = request.app.state.root_dir / "workspace" / "projects" / project_id
+    layout = WorkspaceLayout(request.app.state.root_dir)
     scene_config = request.app.state.config_reader.get_scene_config(
         product_id=record.product
     )
@@ -59,6 +61,7 @@ def retry_job(request: Request, job_id: str):
         root_dir=request.app.state.root_dir,
         product=record.product,
         brand=record.brand,
+        layout=layout,
         options={
             "manual_script": record.manual_script,
             "uploaded_audio_path": record.uploaded_audio_path,

@@ -23,7 +23,6 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     Picks one random video file from each folder, then uses ffmpeg ``xfade``
     to create a crossfade scene segment.
     """
-    workspace_dir = ctx.root_dir / "workspace"
     job_dir = orchestrator._job_dir(ctx)
 
     # 1. Resolve scene folder paths
@@ -249,18 +248,19 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             f"[SCENE] scene_segment.mp4 produced ({scene_path.stat().st_size} bytes)",
             flush=True,
         )
-        return [orchestrator._to_artifact("scene_segment", scene_path, workspace_dir)]
+        return [orchestrator._to_artifact("scene_segment", scene_path, ctx.layout)]
     return []
 
 
 def _resolve_scene_folders(ctx: PhaseContext, config_reader=None) -> list[Path]:
     """Resolve scene folder paths from context, config or ConfigReader."""
+    workspace_dir = ctx.layout.root / "workspace"
     folders: list[Path] = []
     if ctx.scene_folder_paths:
         for folder_path in ctx.scene_folder_paths:
             path = Path(folder_path)
             if not path.is_absolute():
-                path = ctx.root_dir / "workspace" / path
+                path = workspace_dir / path
             folders.append(path)
         return folders
 
@@ -270,7 +270,7 @@ def _resolve_scene_folders(ctx: PhaseContext, config_reader=None) -> list[Path]:
     for entry in scene_config.get("folders", []):
         path_str = entry.get("path", "")
         if path_str:
-            folders.append(ctx.root_dir / "workspace" / path_str)
+            folders.append(workspace_dir / path_str)
     return folders
 
 

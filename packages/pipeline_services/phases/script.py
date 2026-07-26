@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     """Execute script generation (manual or LLM) and optional cover title."""
-    workspace_dir = ctx.root_dir / "workspace"
     job_dir = orchestrator._job_dir(ctx)
     manual_script: str = ctx.options.get("manual_script", "")
     result: list = []
@@ -81,7 +80,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     json_path = Path(script_result["json_path"])
     for p in [txt_path, json_path]:
         if p.exists():
-            result.append(orchestrator._to_artifact("script", p, workspace_dir))
+            result.append(orchestrator._to_artifact("script", p, ctx.layout))
 
     # 3. Auto-generate cover title (if not already set)
     _maybe_generate_cover_title(orchestrator, ctx, script_result)
@@ -99,7 +98,7 @@ def _maybe_generate_cover_title(
     Uses ConfigReader for LLM config resolution.
     Errors are logged but never propagated.
     """
-    job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
+    job_json_path = ctx.layout.job_record_path(ctx.project_dir.name, ctx.job_id)
     if not job_json_path.exists():
         return
 

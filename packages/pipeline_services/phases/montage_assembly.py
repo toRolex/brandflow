@@ -27,7 +27,6 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     A missing snapshot/audio/timings, unresolved decisions, or missing clip
     files are raised as structured failures by the shared input loader.
     """
-    workspace_dir = ctx.root_dir / "workspace"
     job_dir = _job_dir(ctx)
     selected, sentence_timings, error = load_montage_inputs(ctx)
     if error is not None:
@@ -69,9 +68,9 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
 
     result: list = []
     if montage_path.exists():
-        result.append(_to_artifact("montage_segment", montage_path, workspace_dir))
+        result.append(_to_artifact("montage_segment", montage_path, ctx.layout))
     if segments_path.exists():
-        result.append(_to_artifact("montage_segments", segments_path, workspace_dir))
+        result.append(_to_artifact("montage_segments", segments_path, ctx.layout))
     return result
 
 

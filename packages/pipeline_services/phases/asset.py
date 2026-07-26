@@ -28,7 +28,6 @@ if TYPE_CHECKING:
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     """Execute semantic retrieval: script text -> keyword match -> selected clips."""
     job_dir = _job_dir(ctx)
-    workspace_dir = ctx.root_dir / "workspace"
 
     script_text = _discover_script(job_dir)
 
@@ -42,7 +41,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             f"[ASSET] No script text — wrote empty clip list to {clip_list_path}",
             flush=True,
         )
-        return [_to_artifact("selected_clips", clip_list_path, workspace_dir)]
+        return [_to_artifact("selected_clips", clip_list_path, ctx.layout)]
 
     db_path = ctx.root_dir / "workspace" / "shared_assets" / "asset_index.db"
 
@@ -79,4 +78,4 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     )
 
     print(f"[ASSET] Retrieved {len(selected)} clips -> {clip_list_path}", flush=True)
-    return [_to_artifact("selected_clips", clip_list_path, workspace_dir)]
+    return [_to_artifact("selected_clips", clip_list_path, ctx.layout)]

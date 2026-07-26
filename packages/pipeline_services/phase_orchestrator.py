@@ -21,6 +21,7 @@ from packages.domain_core.phase_execution import (
     PhaseExecutionResult,
     PhaseExecutionSuccess,
 )
+from packages.file_store.layout import WorkspaceLayout
 from packages.pipeline_services.force_align_service import ForceAlignError
 from packages.pipeline_services.phases import (
     classify_tts_error,
@@ -118,6 +119,15 @@ class PhaseContext:
     # Full scene config dict (populated by caller from ConfigReader);
     # when non-empty, handlers use this instead of reading config themselves.
     scene_config: dict[str, Any] = field(default_factory=dict)
+    # WorkspaceLayout seam — the single lexical source for project-tree paths.
+    # ``root_dir`` / ``project_dir`` remain readable as derived shortcuts so
+    # existing handlers keep working; new code should resolve paths through
+    # ``layout`` rather than string concatenation.
+    layout: WorkspaceLayout | None = None
+
+    def __post_init__(self) -> None:
+        if self.layout is None:
+            self.layout = WorkspaceLayout(self.root_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -319,7 +329,7 @@ class PhaseOrchestrator:
                 if not (job_dir / name).exists()
             ]
             skip_subtitle = False
-            job_json = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
+            job_json = ctx.layout.job_record_path(ctx.project_dir.name, ctx.job_id)
             if job_json.exists():
                 try:
                     skip_subtitle = bool(
@@ -393,10 +403,10 @@ class PhaseOrchestrator:
         return _job_dir_fn(ctx)
 
     def _to_artifact(
-        self, kind: str, path: Path, workspace_dir: Path
+        self, kind: str, path: Path, layout: WorkspaceLayout
     ) -> ArtifactPointer:
         """Build an ``ArtifactPointer`` from an absolute file path."""
-        return _to_artifact_fn(kind, path, workspace_dir)
+        return _to_artifact_fn(kind, path, layout)
 
     # -- config resolution helpers (ConfigReader-first, fallback to callbacks) --
 

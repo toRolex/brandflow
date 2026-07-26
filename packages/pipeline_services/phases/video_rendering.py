@@ -36,7 +36,6 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     immutable and review-time decisions are preserved exactly.
     """
     job_dir = _job_dir(ctx)
-    workspace_dir = ctx.root_dir / "workspace"
     base_path = job_dir / "base.mp4"
     montage_path = job_dir / "montage_segment.mp4"
     scene_path = job_dir / "scene_segment.mp4"
@@ -98,7 +97,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
         _inject_av_alignment(orchestrator, ctx, job_dir, base_path, trim_params)
-        return [_to_artifact("video_base", base_path, workspace_dir)]
+        return [_to_artifact("video_base", base_path, ctx.layout)]
 
     print(f"[VIDEO WARN] base.mp4 not produced for {ctx.job_id}", flush=True)
     return []
@@ -158,13 +157,11 @@ def _inject_av_alignment(
     )
     # Rerender changed the Final Timeline — any prior export is now stale (#180).
     try:
-        from packages.file_store.layout import WorkspaceLayout
         from packages.pipeline_services.export_task import ExportTaskService
 
-        layout = WorkspaceLayout(ctx.root_dir)
         ExportTaskService(
             job_id=ctx.job_id,
-            layout=layout,
+            layout=ctx.layout,
             project_id=ctx.project_dir.name,
         ).mark_stale()
     except Exception:  # noqa: BLE001 — never block rendering on export cleanup

@@ -717,6 +717,9 @@ class JobTickService:
         Rebuilt before every handler attempt (including retries) so external
         edits to the record (cancel, voice switch, etc.) are observed.
         """
+        from packages.file_store.layout import WorkspaceLayout
+
+        layout = WorkspaceLayout(root_dir)
         scene_folder_paths: list[str] = []
         transition_duration_ms = 500
         scene_config: dict[str, Any] = {}
@@ -736,7 +739,7 @@ class JobTickService:
             transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
 
             if record.manual_script:
-                job_dir = project_dir / "runtime" / "jobs" / job_id
+                job_dir = layout.job_runtime_dir(project_id, job_id)
                 job_dir.mkdir(parents=True, exist_ok=True)
                 script_path = job_dir / f"{record.product}口播文案.txt"
                 script_path.write_text(record.manual_script, encoding="utf-8")
@@ -761,6 +764,7 @@ class JobTickService:
             root_dir=root_dir,
             product=product,
             brand=record.brand,
+            layout=layout,
             options=merged_options,
             scene_folder_paths=scene_folder_paths,
             transition_duration_ms=transition_duration_ms,

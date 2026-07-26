@@ -23,12 +23,11 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     ``ctx.options``, since that is where the UI persists them.
     """
     job_dir = _job_dir(ctx)
-    workspace_dir = ctx.root_dir / "workspace"
     final_path = job_dir / "final.mp4"
     base_path = job_dir / "base.mp4"
     audio_path = job_dir / "audio.mp3"
     srt_path = job_dir / "subtitles.srt"
-    job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
+    job_json_path = ctx.layout.job_record_path(ctx.project_dir.name, ctx.job_id)
 
     skip_subtitle = False
     music_path = None
@@ -94,6 +93,6 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             f"[FINAL] {ctx.job_id}: final.mp4 produced ({final_path.stat().st_size} bytes)",
             flush=True,
         )
-        return [_to_artifact("final_video", final_path, workspace_dir)]
+        return [_to_artifact("final_video", final_path, ctx.layout)]
     print(f"[FINAL] {ctx.job_id}: final.mp4 NOT produced", flush=True)
     return []

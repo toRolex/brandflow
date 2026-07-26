@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from apps.runtime_worker.http_client import WorkerHttpClient
+from packages.file_store.layout import WorkspaceLayout
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
@@ -34,11 +35,16 @@ class WorkerLoop:
         worker_id: str,
         workspace_root: Path,
         orchestrator: PhaseOrchestrator,
+        layout: WorkspaceLayout | None = None,
     ) -> None:
         self.api = api
         self.worker_id = worker_id
         self.workspace_root = workspace_root
         self.orchestrator = orchestrator
+        # Worker keeps its own WorkspaceLayout rooted at the worker cwd so the
+        # control plane is not coupled into the worker's filesystem view.
+        # Callers may inject an explicit layout (mostly for tests).
+        self.layout = layout if layout is not None else WorkspaceLayout(Path.cwd())
 
     def run_forever(self) -> None:
         """Poll 任务，根据 handler_phase 执行单个 phase，report 后继续轮询。"""
@@ -59,14 +65,13 @@ class WorkerLoop:
             self.api.download_input_bundle(command["input_bundle_url"])
 
             root_dir = Path.cwd()
-            project_dir = (
-                root_dir / self.workspace_root / "projects" / command["project_id"]
-            ).resolve()
+            project_id = command["project_id"]
+            project_dir = self.layout.project_dir(project_id)
             job_id = command["job_id"]
             handler_phase = command.get("handler_phase", "")
 
             # Write job JSON so the orchestrator can read cover_title, music, etc.
-            job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
+            job_json_path = self.layout.job_record_path(project_id, job_id)
             job_json_path.parent.mkdir(parents=True, exist_ok=True)
             existing_job: dict[str, Any] = {}
             if job_json_path.exists():
@@ -100,6 +105,7 @@ class WorkerLoop:
                 root_dir=root_dir,
                 product=product,
                 brand=brand,
+                layout=self.layout,
                 options={
                     "manual_script": command.get("manual_script", ""),
                     "uploaded_audio_path": command.get("uploaded_audio_path", ""),
@@ -116,7 +122,7 @@ class WorkerLoop:
                     artifacts.extend(pp_artifacts)
 
                 # Upload artifacts
-                workspace_dir = root_dir / "workspace"
+                workspace_dir = self.layout.workspace_dir()
                 uploaded_files = []
                 for art in artifacts:
                     if not art.relative_path:

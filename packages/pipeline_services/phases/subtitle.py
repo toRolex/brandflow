@@ -21,7 +21,6 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     sentence boundary.
     """
     job_dir = _job_dir(ctx)
-    workspace_dir = ctx.root_dir / "workspace"
     audio_path = job_dir / "audio.mp3"
     srt_path = job_dir / "subtitles.srt"
     print(
@@ -57,5 +56,5 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     else:
         print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
     if srt_path.exists():
-        return [_to_artifact("subtitle", srt_path, workspace_dir)]
+        return [_to_artifact("subtitle", srt_path, ctx.layout)]
     return []
