@@ -279,7 +279,7 @@ cd frontend && npm run build
 # 版本同步
 uv run python tools/sync_version.py    # 同步版本到 package.json 和 CONTEXT.md
 
-# 当前 release tag：v0.7.29
+# 当前 release tag：v0.7.30
 ```
 
 ## 前端视觉设计
