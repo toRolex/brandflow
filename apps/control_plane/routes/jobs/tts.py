@@ -8,7 +8,7 @@ from fastapi.responses import Response
 
 from apps.control_plane.routes.jobs.helpers import (
     _TTS_VOICE_CHANGE_CLEANUP_FILES,
-    _find_job_project,
+    _resolve_job_project,
     _first_sentence,
     _INVALIDATE_ARTIFACT_KINDS,
     _resolve_tts_preview_config,
@@ -25,7 +25,7 @@ router = APIRouter(tags=["api-jobs"])
 def get_job_tts_voice(job_id: str, request: Request):
     """Return the effective TTS model/voice and which config level it came from."""
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -40,7 +40,7 @@ def preview_job_tts(job_id: str, request: Request):
     Does NOT persist audio, modify artifacts, or advance the job phase.
     """
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
 
@@ -112,7 +112,7 @@ def update_job_tts_voice(job_id: str, payload: UpdateTTSVoiceRequest, request: R
     Script and asset-selection artifacts are preserved.
     """
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
 

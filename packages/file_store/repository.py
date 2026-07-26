@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.domain_core.models import JobRecord
+from packages.file_store.layout import AmbiguousJobError, WorkspaceLayout
 from packages.pagination import slice_indices
 
 
@@ -22,7 +23,27 @@ class FileStoreRepository:
     _project_creation_lock: threading.Lock = threading.Lock()
 
     def __init__(self, root: Path) -> None:
-        self.root = root
+        self._layout = WorkspaceLayout(root)
+
+    @property
+    def root(self) -> Path:
+        return self._layout.root
+
+    def find_project_for_job(self, job_id: str) -> str | None:
+        matches = []
+        projects_root = self._layout.projects_dir()
+        if not projects_root.exists():
+            return None
+        for project_dir in sorted(projects_root.iterdir()):
+            if project_dir.is_dir():
+                try:
+                    self.load_job(project_dir.name, job_id)
+                except Exception:
+                    continue
+                matches.append(project_dir.name)
+        if len(matches) > 1:
+            raise AmbiguousJobError(matches)
+        return matches[0] if matches else None
 
     def create_project(self, project_id: str, name: str = "") -> Path:
         root = self.root / "workspace" / "projects" / project_id

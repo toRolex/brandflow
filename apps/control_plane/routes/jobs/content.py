@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 
-from apps.control_plane.routes.jobs.helpers import _find_job_project
+from apps.control_plane.routes.jobs.helpers import _resolve_job_project
 from apps.control_plane.routes.jobs.models import UpdateScriptRequest
 from packages.file_store.repository import FileStoreRepository
 
@@ -14,7 +14,7 @@ router = APIRouter(tags=["api-jobs"])
 @router.post("/jobs/{job_id}/script")
 def update_manual_script(request: Request, job_id: str, payload: UpdateScriptRequest):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
 
@@ -34,7 +34,7 @@ async def upload_job_audio(request: Request, job_id: str, file: UploadFile):
     if not file.filename:
         raise HTTPException(status_code=400, detail="filename required")
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
 

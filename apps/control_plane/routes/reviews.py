@@ -67,7 +67,7 @@ def _find_script_file(job_dir: Path) -> Path | None:
     return None
 
 
-def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
+def _resolve_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
     projects_root = repo.root.joinpath("workspace", "projects")
     if not projects_root.exists():
         return None
@@ -100,7 +100,7 @@ def _validate_review_gate(phase: str, review_gate: str) -> None:
 @router.post("/{job_id}/approve")
 def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -148,7 +148,7 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
 @router.post("/{job_id}/reject")
 def reject_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -301,7 +301,7 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         f"[Review] 打回单个素材: job={job_id}, index={payload.clip_index}, sentence={sentence[:30]}..., asset={rejected_asset_id}"
     )
 
-    if not _find_job_project(FileStoreRepository(root_dir), job_id):
+    if not _resolve_job_project(FileStoreRepository(root_dir), job_id):
         for project_dir in (root_dir / "workspace" / "projects").iterdir():
             if not project_dir.is_dir():
                 continue
@@ -417,7 +417,7 @@ def _save_clips(job_dir: Path, clips: list[dict]) -> None:
 def _check_asset_review_phase(root_dir: Path, job_id: str) -> None:
     """Raise 409 if the job is not in the asset_review phase."""
     repo = FileStoreRepository(root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -476,7 +476,7 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
     _check_asset_review_phase(root_dir, job_id)
 
     repo = FileStoreRepository(root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -484,7 +484,7 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
 
     clips = _load_clips(job_dir, payload.clip_index)
     repo = FileStoreRepository(root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     product = repo.load_job(project_id, job_id).product

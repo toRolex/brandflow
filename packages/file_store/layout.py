@@ -37,11 +37,13 @@ class InvalidWorkspacePath(ValueError):
 
 
 class AmbiguousJobError(Exception):
-    """Raised when a ``job_id`` resolves to more than one Project.
+    """Raised when a ``job_id`` resolves to more than one Project."""
 
-    The workspace structure is well-formed; the conflict is semantic.
-    Callers typically translate this to ``HTTP 409``.
-    """
+    def __init__(self, project_ids: list[str]) -> None:
+        self.project_ids = project_ids
+        super().__init__(
+            f"Job ID is present in multiple projects: {', '.join(project_ids)}"
+        )
 
 
 # Separator characters that, when present in an identifier, indicate a

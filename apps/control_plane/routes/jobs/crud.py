@@ -8,7 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from apps.control_plane.routes.jobs.helpers import (
-    _find_job_project,
+    _resolve_job_project,
     _make_job_response,
     _next_job_created_at,
     _resolve_product_from_config,
@@ -291,7 +291,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
 @router.post("/jobs/{job_id}/enqueue")
 def enqueue_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -332,7 +332,7 @@ def get_job(request: Request, job_id: str):
 @router.post("/jobs/{job_id}/pause", status_code=202)
 def pause_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -358,7 +358,7 @@ def pause_job(request: Request, job_id: str):
 @router.post("/jobs/{job_id}/resume")
 def resume_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -386,7 +386,7 @@ def resume_job(request: Request, job_id: str):
 @router.post("/jobs/{job_id}/cancel", status_code=202)
 def cancel_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -424,7 +424,7 @@ def cancel_job(request: Request, job_id: str):
 @router.delete("/jobs/{job_id}")
 def delete_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -444,7 +444,7 @@ def delete_job(request: Request, job_id: str):
 @router.put("/jobs/{job_id}/rename")
 def rename_job(request: Request, job_id: str, payload: RenameJobRequest):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = _resolve_job_project(repo, job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
