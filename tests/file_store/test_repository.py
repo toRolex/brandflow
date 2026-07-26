@@ -32,6 +32,7 @@ def test_create_project_layout(tmp_path: Path) -> None:
     for path in expected_dirs:
         assert path.exists()
         assert path.is_dir()
+    assert not (project_root / "runtime" / "jobs").exists()
 
 
 def test_save_and_load_job_record(tmp_path: Path) -> None:
