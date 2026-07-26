@@ -229,7 +229,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │
 ├── packages/
 │   ├── domain_core/          # 领域模型 + 状态机 + worker 协议
-│   ├── file_store/           # 文件系统轻持久化
+│   ├── file_store/           # 文件系统轻持久化（FileStoreRepository + WorkspaceLayout seam）
 │   ├── deploy_health/        # 部署体检：CLI + /api/health?deploy_check=true（Issue #76）
 │   ├── knowledge_store/      # 知识库：文档、items、LLM 提取（Issue #28）
 │   ├── log_service/          # 运行错误 JSONL 写入、中间件与全局异常捕获

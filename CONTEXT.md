@@ -43,6 +43,11 @@ AI 能力的供应商。LLM、TTS 与 Vision provider 各自拥有独立的模�
 
 WorkspaceLayout seam 已接入 FileStoreRepository、控制面路由、Auto-Tick、pipeline phase handlers 与 Runtime Worker。所有 project-tree 路径通过布局的显式方法解析；`shared_assets`、`music_library` 等全局库保持各自的路径所有权。
 
+### WorkspaceLayout seam 收口
+
+- `FileStoreRepository` 不再持有 `root` 属性；项目树路径一律通过 `repo.layout` 的显式方法访问。
+- `FileStoreRepository.find_project_for_job(job_id)` 在多个 Project 同时持有同一 `job_id` 时抛 `AmbiguousJobError`，路由层在 `jobs/` 与 `reviews/` 子模块统一通过 `_resolve_job_project(repo, job_id)` 调用，返回 404 / 409。
+
 ### 路由与 phase handler 拆分
 
 - `apps/control_plane/routes/jobs/` 按 Job 用例拆分为 CRUD、TTS、导出、内容、metadata 和 migration 子路由。

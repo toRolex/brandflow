@@ -97,15 +97,7 @@ def _setup_completed_job(client: TestClient, project_id: str, job_id: str) -> Pa
     )
     record = (
         repo.load_job(project_id, job_id)
-        if (
-            repo.root
-            / "workspace"
-            / "projects"
-            / project_id
-            / "control"
-            / "jobs"
-            / f"{job_id}.json"
-        ).exists()
+        if repo.layout.job_record_path(project_id, job_id).exists()
         else None
     )
     if record is None:

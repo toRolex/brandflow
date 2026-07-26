@@ -318,6 +318,9 @@ def get_job(request: Request, job_id: str):
     job_data = record.model_dump()
     job_data["project_id"] = project_id
     return job_data
+    job_data = record.model_dump()
+    job_data["project_id"] = project_id
+    return job_data
 
 
 @router.post("/jobs/{job_id}/pause", status_code=202)

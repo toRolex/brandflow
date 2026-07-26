@@ -23,7 +23,9 @@ class FileStoreRepository:
     _project_creation_lock: threading.Lock = threading.Lock()
 
     def __init__(self, root: Path) -> None:
-        self.root = root
+        # ``_layout`` is the single seam for project-tree paths; production
+        # callers must use ``repo.layout`` rather than touching ``root``
+        # directly (#357).
         self._layout = WorkspaceLayout(root)
 
     @property
@@ -31,8 +33,8 @@ class FileStoreRepository:
         """The :class:`WorkspaceLayout` seam for project-tree paths.
 
         Production code should reach every project-tree path through this
-        layout.  ``root`` is retained for tests and legacy paths that do not
-        yet sit under ``workspace/projects/`` (e.g. ``shared_assets``,
+        layout.  Use :attr:`layout.root` for legacy paths that do not yet
+        sit under ``workspace/projects/`` (e.g. ``shared_assets``,
         ``music_library``).
         """
         return self._layout
