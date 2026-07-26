@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from packages.domain_core.models import REVIEW_PHASES, next_phase
+from packages.file_store.layout import WorkspaceLayout
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
@@ -45,16 +46,18 @@ class RegenerateWithPromptRequest(BaseModel):
 
 
 def _find_job_dir(root_dir: Path, project_id: str, job_id: str) -> Path:
-    projects_dir = root_dir / "workspace" / "projects"
+    layout = WorkspaceLayout(root_dir)
     if project_id:
-        job_dir = projects_dir / project_id / "runtime" / "jobs" / job_id
+        job_dir = layout.job_runtime_dir(project_id, job_id)
         if job_dir.exists():
             return job_dir
 
-    for project_dir in projects_dir.iterdir():
-        if not project_dir.is_dir():
+    for candidate in sorted(
+        layout.projects_dir().iterdir(), key=lambda path: path.name
+    ):
+        if not candidate.is_dir():
             continue
-        job_dir = project_dir / "runtime" / "jobs" / job_id
+        job_dir = layout.job_runtime_dir(candidate.name, job_id)
         if job_dir.exists():
             return job_dir
 
@@ -65,16 +68,6 @@ def _find_script_file(job_dir: Path) -> Path | None:
     for f in job_dir.glob("*口播文案.txt"):
         return f
     return None
-
-
-def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
-    """Resolve ``job_id`` to its owning Project via the layout seam (#357).
-
-    Thin wrapper kept for backwards compatibility with this module's
-    remaining call sites; delegates to ``FileStoreRepository`` so the
-    scan logic lives in exactly one place.
-    """
-    return repo.find_project_for_job(job_id)
 
 
 def _validate_review_gate(phase: str, review_gate: str) -> None:
@@ -94,7 +87,7 @@ def _validate_review_gate(phase: str, review_gate: str) -> None:
 @router.post("/{job_id}/approve")
 def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = repo.find_project_for_job(job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -142,7 +135,7 @@ def approve_review(job_id: str, payload: ReviewAction, request: Request) -> dict
 @router.post("/{job_id}/reject")
 def reject_review(job_id: str, payload: ReviewAction, request: Request) -> dict:
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = repo.find_project_for_job(job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -295,22 +288,14 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         f"[Review] 打回单个素材: job={job_id}, index={payload.clip_index}, sentence={sentence[:30]}..., asset={rejected_asset_id}"
     )
 
-    if not _find_job_project(FileStoreRepository(root_dir), job_id):
-        for project_dir in (root_dir / "workspace" / "projects").iterdir():
-            if not project_dir.is_dir():
-                continue
-            if (project_dir / "runtime" / "jobs" / job_id).exists():
-                project_id = project_dir.name
-                break
+    repo = FileStoreRepository(root_dir)
+    project_id = repo.find_project_for_job(job_id)
 
     if not project_id:
         raise HTTPException(status_code=404, detail="project not found for job")
 
     product = ""
-    control_jobs_dir = (
-        root_dir / "workspace" / "projects" / project_id / "control" / "jobs"
-    )
-    job_json_path = control_jobs_dir / f"{job_id}.json"
+    job_json_path = repo.layout.job_record_path(project_id, job_id)
     if job_json_path.exists():
         job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
         product = job_data.get("product", "")
@@ -411,7 +396,7 @@ def _save_clips(job_dir: Path, clips: list[dict]) -> None:
 def _check_asset_review_phase(root_dir: Path, job_id: str) -> None:
     """Raise 409 if the job is not in the asset_review phase."""
     repo = FileStoreRepository(root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = repo.find_project_for_job(job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
@@ -470,18 +455,14 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
     _check_asset_review_phase(root_dir, job_id)
 
     repo = FileStoreRepository(root_dir)
-    project_id = _find_job_project(repo, job_id)
+    project_id = repo.find_project_for_job(job_id)
     if not project_id:
         raise HTTPException(status_code=404, detail="job not found")
     record = repo.load_job(project_id, job_id)
     job_product = record.product or ""
 
     clips = _load_clips(job_dir, payload.clip_index)
-    repo = FileStoreRepository(root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
-    product = repo.load_job(project_id, job_id).product
+    product = job_product
 
     from packages.pipeline_services.asset_library import AssetRepository
 
@@ -489,17 +470,6 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
     asset_db.parent.mkdir(parents=True, exist_ok=True)
     asset_repo = AssetRepository(asset_db)
     asset = asset_repo.query_one(payload.asset_id)
-    if asset is None:
-        raise HTTPException(status_code=404, detail="asset not found")
-    if asset.status != "available":
-        raise HTTPException(status_code=409, detail="asset is not available")
-    if asset.product != product:
-        raise HTTPException(status_code=409, detail="asset is outside the job product")
-
-    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    arepo = AssetRepository(db_path)
-    asset = arepo.query_one(payload.asset_id)
     if asset is None:
         raise HTTPException(
             status_code=404,
@@ -510,6 +480,11 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
             status_code=409,
             detail=f"asset {payload.asset_id} is disabled",
         )
+    if asset.status != "available":
+        raise HTTPException(status_code=409, detail="asset is not available")
+    if asset.product != product:
+        raise HTTPException(status_code=409, detail="asset is outside the job product")
+
     if job_product and asset.product and job_product != asset.product:
         raise HTTPException(
             status_code=409,

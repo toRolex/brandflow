@@ -45,14 +45,11 @@ def preview_job_tts(job_id: str, request: Request):
         raise HTTPException(status_code=404, detail="job not found")
 
     record = repo.load_job(project_id, job_id)
-    root_dir: Path = request.app.state.root_dir
     config_reader = request.app.state.config_reader
 
     # Discover script text: runtime file first, then manual_script on record
     script_text = ""
-    job_dir = (
-        root_dir / "workspace" / "projects" / project_id / "runtime" / "jobs" / job_id
-    )
+    job_dir = repo.layout.job_runtime_dir(project_id, job_id)
     for p in job_dir.glob("*口播文案.txt"):
         script_text = p.read_text(encoding="utf-8").strip()
         break

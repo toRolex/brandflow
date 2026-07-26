@@ -79,12 +79,6 @@ def _make_job_response(
 
 
 def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
-    """Resolve ``job_id`` to its owning Project via the layout seam (#357).
-
-    Thin wrapper kept for backwards compatibility with this module's
-    remaining call sites; delegates to ``FileStoreRepository`` so the
-    scan logic lives in exactly one place.
-    """
     return repo.find_project_for_job(job_id)
 
 
@@ -93,14 +87,15 @@ def _export_service(request: Request, project_id: str, job_id: str):
     from packages.pipeline_services.export_task import ExportTaskService
 
     root_dir: Path = request.app.state.root_dir
-    workspace_dir = root_dir / "workspace"
-    project_dir = workspace_dir / "projects" / project_id
+    repo = FileStoreRepository(root_dir)
+    layout = repo.layout
+    project_dir = layout.project_dir(project_id)
     return ExportTaskService(
         job_id=job_id,
-        job_dir=project_dir / "runtime" / "jobs" / job_id,
-        workspace_dir=workspace_dir,
+        job_dir=layout.job_runtime_dir(project_id, job_id),
+        workspace_dir=layout.workspace_dir(),
         project_dir=project_dir,
-        export_dir=project_dir / "runtime" / "exports",
+        export_dir=layout.runtime_exports_dir(project_id),
     )
 
 
