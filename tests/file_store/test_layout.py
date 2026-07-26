@@ -8,6 +8,7 @@ that the path exists on disk.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -41,8 +42,6 @@ def test_constructor_does_not_perform_io(tmp_path: Path) -> None:
     """Constructing a layout does not touch the filesystem.  The directory
     is removed before construction to prove construction does not require
     it to exist."""
-    import shutil
-
     shutil.rmtree(tmp_path)
     assert not tmp_path.exists()
     WorkspaceLayout(tmp_path)

@@ -49,6 +49,41 @@ class AmbiguousJobError(Exception):
 _FORBIDDEN_IDENTIFIER_SEPARATORS: Final = ("/", "\\")
 
 
+def _check_string(value: object, *, field: str) -> str:
+    """Reject ``None``, non-strings, and empty strings; return ``value`` as ``str``.
+
+    Centralises the three checks that every input string goes through.  The
+    return value preserves the input for chained ``str`` operations in
+    callers; downstream helpers trust the narrowing.
+    """
+    if value is None:
+        raise InvalidWorkspacePath(f"{field} must not be None")
+    if not isinstance(value, str):
+        raise InvalidWorkspacePath(
+            f"{field} must be a string, got {type(value).__name__}"
+        )
+    if value == "":
+        raise InvalidWorkspacePath(f"{field} must not be empty")
+    return value
+
+
+def _check_not_absolute(value: str, *, field: str) -> None:
+    """Reject POSIX, Windows, and UNC absolute paths.
+
+    Catches ``/foo``, ``\\foo``, ``//host/foo``, and the Windows drive-letter
+    form ``C:foo`` / ``C:\\foo`` / ``C:/foo``.  Identifiers and relative paths
+    both call into this helper so the rejection rules stay in sync.
+    """
+    if value.startswith("/") or value.startswith("\\"):
+        raise InvalidWorkspacePath(
+            f"{field} must not be an absolute path (got {value!r})"
+        )
+    if len(value) >= 2 and value[1] == ":" and value[0].isalpha():
+        raise InvalidWorkspacePath(
+            f"{field} must not be a Windows absolute path (got {value!r})"
+        )
+
+
 def _validate_identifier(value: object, *, field: str) -> str:
     """Validate an identifier string and return it unchanged on success.
 
@@ -60,14 +95,7 @@ def _validate_identifier(value: object, *, field: str) -> str:
     * Must not equal ``"."`` or ``".."``.
     * Must not be an absolute path (POSIX or Windows).
     """
-    if value is None:
-        raise InvalidWorkspacePath(f"{field} must not be None")
-    if not isinstance(value, str):
-        raise InvalidWorkspacePath(
-            f"{field} must be a string, got {type(value).__name__}"
-        )
-    if value == "":
-        raise InvalidWorkspacePath(f"{field} must not be empty")
+    value = _check_string(value, field=field)
     if value in (".", ".."):
         raise InvalidWorkspacePath(f"{field} must not be '.' or '..' (got {value!r})")
     for separator in _FORBIDDEN_IDENTIFIER_SEPARATORS:
@@ -75,15 +103,7 @@ def _validate_identifier(value: object, *, field: str) -> str:
             raise InvalidWorkspacePath(
                 f"{field} must not contain separator {separator!r} (got {value!r})"
             )
-    if value.startswith("/") or value.startswith("\\"):
-        raise InvalidWorkspacePath(
-            f"{field} must not be an absolute path (got {value!r})"
-        )
-    # Windows drive-letter form (e.g. ``C:\\foo`` or ``C:/foo``).
-    if len(value) >= 2 and value[1] == ":" and value[0].isalpha():
-        raise InvalidWorkspacePath(
-            f"{field} must not be a Windows absolute path (got {value!r})"
-        )
+    _check_not_absolute(value, field=field)
     return value
 
 
@@ -91,31 +111,13 @@ def _validate_relative_path(value: object, *, field: str) -> str:
     """Validate a relative path string and normalise its separators.
 
     The input is rejected when it is ``None``, empty, absolute, or contains
-    a ``..`` segment after splitting on either separator.  Callers that need
-    ``Path`` objects should pass the returned string to :class:`pathlib.Path`
-    after combining with the layout root.
+    a ``..`` segment after splitting on either separator.  Backslashes are
+    normalised to forward slashes so Windows callers can use their native
+    separator.  Callers that need ``Path`` objects should pass the returned
+    string to :class:`pathlib.Path` after combining with the layout root.
     """
-    if value is None:
-        raise InvalidWorkspacePath(f"{field} must not be None")
-    if not isinstance(value, str):
-        raise InvalidWorkspacePath(
-            f"{field} must be a string, got {type(value).__name__}"
-        )
-    if value == "":
-        raise InvalidWorkspacePath(f"{field} must not be empty")
-    # POSIX absolute: ``/foo``; Windows absolute: ``\\foo`` or ``C:\\foo``.
-    if value.startswith("/"):
-        raise InvalidWorkspacePath(
-            f"{field} must not be a POSIX absolute path (got {value!r})"
-        )
-    if value.startswith("\\") or value.startswith("//"):
-        raise InvalidWorkspacePath(
-            f"{field} must not be a Windows absolute path (got {value!r})"
-        )
-    if len(value) >= 2 and value[1] == ":" and value[0].isalpha():
-        raise InvalidWorkspacePath(
-            f"{field} must not be a Windows absolute path (got {value!r})"
-        )
+    value = _check_string(value, field=field)
+    _check_not_absolute(value, field=field)
     # Reject ``..`` segments after lexical splitting.  We split on both
     # ``/`` and ``\\`` so a Windows caller cannot smuggle a ``..`` via the
     # backslash separator.
@@ -142,15 +144,16 @@ class WorkspaceLayout:
     path strings manually.
     """
 
-    __slots__ = ("_root", "root")
+    __slots__ = ("_root",)
 
     def __init__(self, root: Path) -> None:
-        """Store *root* verbatim.  No I/O is performed."""
         self._root = root
-        # ``root`` is exposed read-only via the public attribute.  We do not
-        # use ``@property`` because the value is immutable for the lifetime
-        # of the layout instance.
-        self.root = root
+
+    @property
+    def root(self) -> Path:
+        """The workspace root, exposed read-only for callers that need a stable
+        reference (e.g. for logging or for joining paths outside the layout)."""
+        return self._root
 
     # ------------------------------------------------------------------
     # Top-level paths
