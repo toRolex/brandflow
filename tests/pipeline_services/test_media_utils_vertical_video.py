@@ -54,6 +54,36 @@ def _make_color_video(
     return output_path
 
 
+def _make_motion_video(output_path: Path, duration: float = 2.0) -> Path:
+    subprocess.run(
+        [
+            _ffmpeg(),
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=red:s=720x1280:d={duration / 2}:r=30",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=blue:s=720x1280:d={duration / 2}:r=30",
+            "-filter_complex",
+            "[0:v][1:v]concat=n=2:v=1:a=0[v]",
+            "-map",
+            "[v]",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(output_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return output_path
+
+
 def _probe_size(video_path: Path) -> tuple[int, int]:
     result = subprocess.run(
         [
@@ -100,6 +130,26 @@ def _extract_first_frame(video_path: Path, frame_path: Path) -> Path:
         [
             _ffmpeg(),
             "-y",
+            "-i",
+            str(video_path),
+            "-frames:v",
+            "1",
+            str(frame_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return frame_path
+
+
+def _extract_frame(video_path: Path, frame_path: Path, at: float) -> Path:
+    subprocess.run(
+        [
+            _ffmpeg(),
+            "-y",
+            "-ss",
+            str(at),
             "-i",
             str(video_path),
             "-frames:v",
@@ -184,9 +234,31 @@ def test_assemble_vertical_base_video_respects_audio_duration(tmp_path: Path) ->
 
     assert output.exists()
     assert math.isclose(_probe_duration(output), audio_duration, abs_tol=0.3)
-    # Clips (2s total) < audio_duration (5s) triggers stream_loop wrapping;
-    # verify the loop boundary does not corrupt the output.
-    assert is_decodable_video(output), "looped montage must be decodable"
+    assert is_decodable_video(output), "extended montage must be decodable"
+
+
+@pytest.mark.slow
+def test_assemble_vertical_base_video_does_not_restart_short_montage(
+    tmp_path: Path,
+) -> None:
+    source = _make_motion_video(tmp_path / "source.mp4")
+    output = tmp_path / "base.mp4"
+    start_frame = tmp_path / "start.png"
+    end_frame = tmp_path / "end.png"
+
+    assemble_vertical_base_video(
+        _ffmpeg(), [source], audio_duration=5.0, output_path=output
+    )
+    _extract_frame(output, start_frame, 0.25)
+    _extract_frame(output, end_frame, 4.25)
+
+    with Image.open(start_frame) as start, Image.open(end_frame) as end:
+        start_pixel = cast(
+            tuple[int, int, int], start.convert("RGB").getpixel((540, 960))
+        )
+        end_pixel = cast(tuple[int, int, int], end.convert("RGB").getpixel((540, 960)))
+    assert start_pixel[0] > start_pixel[2]
+    assert end_pixel[2] > end_pixel[0]
 
 
 @pytest.mark.slow

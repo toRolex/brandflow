@@ -68,6 +68,29 @@ def test_retrieve_includes_duration_seconds(tmp_path):
     assert results[0]["duration_seconds"] == 7.5
 
 
+def test_retrieve_ignores_sub_three_second_clips(tmp_path):
+    repo = AssetRepository(tmp_path / "short_assets.db")
+    for asset_id, duration in (("too-short", 2.01), ("usable", 3.0)):
+        repo.insert(
+            AssetRecord(
+                asset_id=asset_id,
+                file_path=f"/data/{asset_id}.mp4",
+                category=Category.CUTTING,
+                product="荔枝菌",
+                confidence=0.9,
+                duration_seconds=duration,
+            )
+        )
+
+    retriever = AssetRetriever(
+        repo, classify_fn=lambda _sentence: Category.CUTTING.value
+    )
+
+    results = retriever.retrieve("把荔枝菌切好。", "荔枝菌")
+
+    assert results[0]["asset_id"] == "usable"
+
+
 class TestScriptSentenceUnification:
     """Retriever delegates to canonical parse_script_sentences().
 
