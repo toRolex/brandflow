@@ -82,8 +82,18 @@ const IconChart = () => (
 );
 
 const IconScrollText = () => (
-	<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-		<path d="M4 1.5h10v13H7l-3 2v-15z" /><path d="M7 5h4M7 8h4M7 11h2" />
+	<svg
+		width="18"
+		height="18"
+		viewBox="0 0 18 18"
+		fill="none"
+		stroke="currentColor"
+		strokeWidth="1.5"
+		strokeLinecap="round"
+		strokeLinejoin="round"
+	>
+		<path d="M4 1.5h10v13H7l-3 2v-15z" />
+		<path d="M7 5h4M7 8h4M7 11h2" />
 	</svg>
 );
 

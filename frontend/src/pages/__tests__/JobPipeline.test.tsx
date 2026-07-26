@@ -983,12 +983,8 @@ describe("JobPipeline transient media phase loading state", () => {
 			</MemoryRouter>,
 		);
 
-		expect(
-			await screen.findByText("正在加载阶段结果"),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByText("阶段记录不完整"),
-		).not.toBeInTheDocument();
+		expect(await screen.findByText("正在加载阶段结果")).toBeInTheDocument();
+		expect(screen.queryByText("阶段记录不完整")).not.toBeInTheDocument();
 	});
 
 	it("shows loading instead of integrity error when tts_generating succeeded but tts_audio artifact is not yet persisted", async () => {
@@ -1017,11 +1013,7 @@ describe("JobPipeline transient media phase loading state", () => {
 			</MemoryRouter>,
 		);
 
-		expect(
-			await screen.findByText("正在加载阶段结果"),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByText("阶段记录不完整"),
-		).not.toBeInTheDocument();
+		expect(await screen.findByText("正在加载阶段结果")).toBeInTheDocument();
+		expect(screen.queryByText("阶段记录不完整")).not.toBeInTheDocument();
 	});
 });

@@ -511,6 +511,8 @@ describe("runtime log navigation", () => {
 		});
 		mockGetUpdateStatus.mockResolvedValue({ status: "idle" });
 		renderWithRouter("/");
-		await waitFor(() => expect(screen.getByTitle("运行日志")).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByTitle("运行日志")).toBeInTheDocument(),
+		);
 	});
 });
