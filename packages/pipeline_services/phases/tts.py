@@ -178,7 +178,7 @@ def _create_sentence_tts_service(
     provider: Any, tts_cfg: dict[str, Any], ctx: PhaseContext
 ) -> SentenceTTSService:
     """Factory hook for the sentence-level TTS service (overridable in tests)."""
-    cache_dir = ctx.layout.root / "workspace" / ".cache" / "tts"
+    cache_dir = ctx.layout.workspace_url_prefix() / ".cache" / "tts"
     return SentenceTTSService(
         provider=provider,
         config=tts_cfg,

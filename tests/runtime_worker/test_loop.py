@@ -167,9 +167,8 @@ def _make_loop(
     """Helper to construct a WorkerLoop with a stub orchestrator."""
     if orchestrator is None:
         orchestrator = StubOrchestrator()
-    # The worker builds its WorkspaceLayout from ``Path.cwd()`` (issue #360).
-    # Mirror that by anchoring cwd to ``tmp_path`` so project-tree paths
-    # resolve under the test's temporary directory.
+    # Anchor cwd to tmp_path so the worker's default WorkspaceLayout
+    # resolves project-tree paths under the test's tmp directory.
     if monkeypatch is not None:
         monkeypatch.chdir(tmp_path)
     loop = WorkerLoop(
@@ -235,9 +234,9 @@ def test_worker_loop_reports_success_and_uploads_artifacts(
 
         def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
             artifacts = super().run_phase(phase, ctx)
-            # Artifacts are written under the project runtime directory; the
-            # worker resolves them relative to ``layout.workspace_dir()``.
-            workspace_dir = ctx.layout.workspace_dir()
+            # Artifacts are written under the project-tree; the worker
+            # resolves them against the layout's URL prefix.
+            workspace_dir = ctx.layout.workspace_url_prefix()
             for art in artifacts:
                 abs_path = workspace_dir / art.relative_path
                 abs_path.parent.mkdir(parents=True, exist_ok=True)
@@ -414,7 +413,7 @@ def test_worker_loop_includes_parallel_artifacts_in_report(
     class ParallelFileOrchestrator(StubOrchestrator):
         def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
             artifacts = super().run_phase(phase, ctx)
-            workspace_dir = ctx.layout.workspace_dir()
+            workspace_dir = ctx.layout.workspace_url_prefix()
             for art in artifacts:
                 abs_path = workspace_dir / art.relative_path
                 abs_path.parent.mkdir(parents=True, exist_ok=True)

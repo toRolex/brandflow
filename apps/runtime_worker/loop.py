@@ -41,9 +41,7 @@ class WorkerLoop:
         self.worker_id = worker_id
         self.workspace_root = workspace_root
         self.orchestrator = orchestrator
-        # Worker keeps its own WorkspaceLayout rooted at the worker cwd so the
-        # control plane is not coupled into the worker's filesystem view.
-        # Callers may inject an explicit layout (mostly for tests).
+        # Default to cwd; callers (mostly tests) may inject a layout.
         self.layout = layout if layout is not None else WorkspaceLayout(Path.cwd())
 
     def run_forever(self) -> None:
@@ -122,7 +120,7 @@ class WorkerLoop:
                     artifacts.extend(pp_artifacts)
 
                 # Upload artifacts
-                workspace_dir = self.layout.workspace_dir()
+                workspace_dir = self.layout.workspace_url_prefix()
                 uploaded_files = []
                 for art in artifacts:
                     if not art.relative_path:

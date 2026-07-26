@@ -405,7 +405,7 @@ class PhaseOrchestrator:
     def _to_artifact(
         self, kind: str, path: Path, layout: WorkspaceLayout
     ) -> ArtifactPointer:
-        """Build an ``ArtifactPointer`` from an absolute file path."""
+        """Build an ``ArtifactPointer`` from an absolute *path* under *layout*."""
         return _to_artifact_fn(kind, path, layout)
 
     # -- config resolution helpers (ConfigReader-first, fallback to callbacks) --

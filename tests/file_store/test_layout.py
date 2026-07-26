@@ -68,6 +68,11 @@ def test_workspace_dir_is_root() -> None:
     assert layout.workspace_dir() == layout.root
 
 
+def test_workspace_url_prefix_is_root_workspace() -> None:
+    layout = WorkspaceLayout(Path("/root"))
+    assert layout.workspace_url_prefix() == Path("/root/workspace")
+
+
 def test_projects_dir_is_workspace_projects() -> None:
     layout = WorkspaceLayout(Path("/root"))
     assert layout.projects_dir() == Path("/root/workspace/projects")

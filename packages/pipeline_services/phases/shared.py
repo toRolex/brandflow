@@ -32,20 +32,15 @@ def _job_dir(ctx: PhaseContext) -> Path:
     return d
 
 
-def _to_artifact(
-    kind: str, path: Path, layout: WorkspaceLayout | Path
-) -> ArtifactPointer:
+def _to_artifact(kind: str, path: Path, layout: WorkspaceLayout) -> ArtifactPointer:
     """Build an ``ArtifactPointer`` from an absolute file path.
 
-    ``layout`` (or a pre-computed ``workspace_dir`` ``Path``) is the directory
-    that contains ``projects/`` — the prefix stripped to produce the URL
-    contract ``/workspace/<relative>``.  We accept both shapes so callers
-    that already hold a ``Path`` do not have to re-resolve it.
+    The URL contract is ``/workspace/<relative>``; we strip
+    ``layout.workspace_url_prefix()`` from *path* to produce the relative
+    portion.  ``size_bytes`` is 0 when the file does not exist so the
+    control plane can still receive the pointer for retry accounting.
     """
-    if isinstance(layout, WorkspaceLayout):
-        workspace_dir = layout.root / "workspace"
-    else:
-        workspace_dir = layout
+    workspace_dir = layout.workspace_url_prefix()
     rel = to_url_path(path, workspace_dir)
     return ArtifactPointer(
         kind=kind,

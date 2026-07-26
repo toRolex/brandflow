@@ -254,7 +254,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
 
 def _resolve_scene_folders(ctx: PhaseContext, config_reader=None) -> list[Path]:
     """Resolve scene folder paths from context, config or ConfigReader."""
-    workspace_dir = ctx.layout.root / "workspace"
+    workspace_dir = ctx.layout.workspace_url_prefix()
     folders: list[Path] = []
     if ctx.scene_folder_paths:
         for folder_path in ctx.scene_folder_paths:

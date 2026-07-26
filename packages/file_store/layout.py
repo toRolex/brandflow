@@ -165,6 +165,15 @@ class WorkspaceLayout:
         """Return the workspace root directory itself."""
         return self._root
 
+    def workspace_url_prefix(self) -> Path:
+        """Return the on-disk directory the ``/workspace/<relative>`` URL contract
+        strips paths against — i.e. the directory that contains ``projects/``,
+        ``shared_assets/``, etc.  Callers building ``ArtifactPointer`` URLs and
+        callers resolving scene / asset folders should use this rather than
+        concatenating ``root / "workspace"`` themselves.
+        """
+        return self._root / "workspace"
+
     def projects_dir(self) -> Path:
         """Return the directory that holds all Project trees."""
         return self._root / "workspace" / "projects"
