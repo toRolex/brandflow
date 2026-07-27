@@ -107,6 +107,29 @@ def test_runtime_settings_reject_invalid_scene_folder_shape(tmp_path) -> None:
     assert "scene.folders[0]" in response.json()["detail"]
 
 
+def test_runtime_settings_reject_scene_folder_path_escape(tmp_path) -> None:
+    payload = default_provider_document()
+    payload["settings"]["scene"]["folders"] = [{"name": "escape", "path": "../outside"}]
+
+    with TestClient(create_app(root_dir=tmp_path)) as client:
+        response = client.put("/api/config", json=payload)
+
+    assert response.status_code == 400
+    assert "scene.folders[0]" in response.json()["detail"]
+
+
+def test_product_config_rejects_scene_folder_path_escape(tmp_path) -> None:
+    with TestClient(create_app(root_dir=tmp_path)) as client:
+        client.post("/api/products/product-1/switch")
+        response = client.put(
+            "/api/config/product",
+            json={"scene": {"folders": [{"path": "../outside"}]}},
+        )
+
+    assert response.status_code == 400
+    assert "scene.folders[0]" in response.json()["detail"]
+
+
 def test_embedding_secret_is_saved_only_to_env(tmp_path) -> None:
     payload = default_provider_document()
     payload["settings"]["embedding"]["api_key"] = "embedding-secret"

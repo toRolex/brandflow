@@ -8,6 +8,7 @@ import pytest
 from packages.domain_core.models import JobRecord
 from packages.file_store.layout import (
     AmbiguousJobError,
+    InvalidWorkspacePath,
     WorkspaceLayout,
 )
 from packages.file_store.repository import FileStoreRepository
@@ -376,6 +377,29 @@ def test_find_project_for_job_returns_unique_owner(tmp_path: Path) -> None:
     assert repo.find_project_for_job("shared-job") == "project-002"
 
 
+def test_find_project_for_job_only_loads_existing_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = FileStoreRepository(tmp_path)
+    repo.create_project("project-empty")
+    repo.create_project("project-owner")
+    repo.save_job(
+        "project-owner",
+        JobRecord(job_id="job-1", phase="queued", review_status="none"),
+    )
+    calls: list[str] = []
+    original_load_job = repo.load_job
+
+    def tracking_load_job(project_id: str, job_id: str) -> JobRecord:
+        calls.append(project_id)
+        return original_load_job(project_id, job_id)
+
+    monkeypatch.setattr(repo, "load_job", tracking_load_job)
+
+    assert repo.find_project_for_job("job-1") == "project-owner"
+    assert calls == ["project-owner"]
+
+
 def test_find_project_for_job_raises_when_two_projects_claim_same_id(
     tmp_path: Path,
 ) -> None:
@@ -430,3 +454,10 @@ def test_find_project_for_job_no_projects_at_all(tmp_path: Path) -> None:
     repo = FileStoreRepository(tmp_path)
 
     assert repo.find_project_for_job("anything") is None
+
+
+def test_find_project_for_job_rejects_invalid_job_id(tmp_path: Path) -> None:
+    repo = FileStoreRepository(tmp_path)
+
+    with pytest.raises(InvalidWorkspacePath):
+        repo.find_project_for_job("../escape")

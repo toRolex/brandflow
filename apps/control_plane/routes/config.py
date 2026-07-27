@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -10,6 +11,10 @@ from packages.provider_config import (
     mask_provider_config,
     provider_options_payload,
     save_provider_config,
+)
+from packages.provider_config.scene_config import (
+    SceneConfigValidationError,
+    validate_scene_folders,
 )
 from packages.provider_config.store import CLEAR_SECRET_SENTINEL
 
@@ -30,7 +35,7 @@ def get_config_options() -> dict:
 @router.put("/api/config")
 def put_config(request: Request, payload: dict) -> dict:
     root_dir = request.app.state.root_dir
-    normalized_payload = _normalize_payload(payload)
+    normalized_payload = _normalize_payload(payload, root_dir)
     _ensure_selected_providers_are_valid(normalized_payload)
     save_provider_config(root_dir, normalized_payload)
     request.app.state.config_reader.reload()
@@ -69,9 +74,9 @@ def _ensure_selected_providers_are_valid(payload: dict) -> None:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def _normalize_payload(payload: dict) -> dict:
+def _normalize_payload(payload: dict, root_dir: Path) -> dict:
     normalized = deepcopy(payload)
-    _normalize_runtime_settings(normalized)
+    _normalize_runtime_settings(normalized, root_dir)
     sections = normalized.get("providers") if isinstance(normalized, dict) else None
     if not isinstance(sections, dict):
         return normalized
@@ -112,7 +117,7 @@ def _normalize_payload(payload: dict) -> dict:
     return normalized
 
 
-def _normalize_runtime_settings(payload: dict) -> None:
+def _normalize_runtime_settings(payload: dict, root_dir: Path) -> None:
     settings = payload.get("settings")
     if not isinstance(settings, dict):
         return
@@ -138,7 +143,7 @@ def _normalize_runtime_settings(payload: dict) -> None:
                     ) from exc
                 value = section[field_name]
             if field.get("kind") == "json":
-                _validate_json_setting(qualified_name, value, field)
+                _validate_json_setting(qualified_name, value, field, root_dir)
                 continue
             if field.get("kind") != "number":
                 continue
@@ -166,7 +171,9 @@ def _normalize_runtime_settings(payload: dict) -> None:
                 )
 
 
-def _validate_json_setting(qualified_name: str, value: object, field: dict) -> None:
+def _validate_json_setting(
+    qualified_name: str, value: object, field: dict, root_dir: Path
+) -> None:
     if field.get("json_type") == "array" and not isinstance(value, list):
         raise HTTPException(
             status_code=400,
@@ -187,6 +194,11 @@ def _validate_json_setting(qualified_name: str, value: object, field: dict) -> N
                 status_code=400,
                 detail=f"missing {missing[0]}: {qualified_name}[{index}]",
             )
+    if qualified_name == "scene.folders":
+        try:
+            validate_scene_folders(value, root_dir)
+        except SceneConfigValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _resolve_product_config(reader) -> dict:
@@ -208,6 +220,7 @@ def get_product_config(request: Request) -> dict:
 def put_product_config(request: Request, payload: dict) -> dict:
     product_store = request.app.state.product_store
     reader = request.app.state.config_reader
+    _validate_product_scene_config(payload, request.app.state.root_dir)
     product_store.set_product_config(payload)
     return _resolve_product_config(reader)
 
@@ -216,3 +229,13 @@ def put_product_config(request: Request, payload: dict) -> dict:
 def delete_product_config(request: Request) -> dict:
     request.app.state.product_store.reset_product_config()
     return {"status": "ok"}
+
+
+def _validate_product_scene_config(payload: dict, root_dir: Path) -> None:
+    scene = payload.get("scene") if isinstance(payload, dict) else None
+    if not isinstance(scene, dict) or "folders" not in scene:
+        return
+    try:
+        validate_scene_folders(scene["folders"], root_dir)
+    except SceneConfigValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

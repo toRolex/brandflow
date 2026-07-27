@@ -207,10 +207,11 @@ class ConfigReader:
                     "default_name", ""
                 ) or product_merged.get("id", "")
 
-            # Scene: product-level scene overrides top-level scene
+            # Scene follows the same three-layer merge as other sections:
+            # defaults -> root scene -> product override.
             p_scene = p.get("scene")
             if isinstance(p_scene, dict) and p_scene:
-                scene_merged = _deep_merge(DEFAULTS["scene"], p_scene)
+                scene_merged = _deep_merge(cache["scene"], p_scene)
             else:
                 scene_merged = cache["scene"]
 
@@ -273,7 +274,7 @@ class ConfigReader:
                 continue
             model = str(section.get("model") or "")
             inferred = tts_provider_for_model(model)
-            if inferred and section.get("provider") != inferred:
+            if inferred and not section.get("provider"):
                 section["provider"] = inferred
                 changed = True
 

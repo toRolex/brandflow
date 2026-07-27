@@ -64,13 +64,12 @@ class TestConstructorMigration:
             tts = reader.get_tts_config()
             assert tts["provider"] == "qwen"
 
-    def test_legacy_tts_provider_model_mismatch_is_migrated(self) -> None:
+    def test_legacy_tts_model_only_config_is_migrated(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = _write_config(
                 tmpdir,
                 {
                     "tts": {
-                        "provider": "mimo",
                         "model": "qwen3-tts-flash",
                     }
                 },
@@ -81,6 +80,19 @@ class TestConstructorMigration:
             assert reader.get_tts_config()["provider"] == "qwen"
             persisted = json.loads(config_path.read_text(encoding="utf-8"))
             assert persisted["tts"]["provider"] == "qwen"
+
+    def test_explicit_tts_provider_model_mismatch_is_not_rewritten(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = _write_config(
+                tmpdir,
+                {"tts": {"provider": "mimo", "model": "qwen3-tts-flash"}},
+            )
+
+            reader = ConfigReader(config_dir=tmpdir)
+
+            assert reader.get_tts_config()["provider"] == "mimo"
+            persisted = json.loads(config_path.read_text(encoding="utf-8"))
+            assert persisted["tts"]["provider"] == "mimo"
 
     def test_empty_provider_model_values_fall_back_to_catalog_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -537,11 +549,12 @@ class TestSceneConfig:
             assert config["transition_duration_ms"] == 400
 
     def test_get_scene_config_product_partial_merge(self) -> None:
-        """产品级 scene 部分字段时回退到 DEFAULTS."""
+        """产品级 scene 部分字段应继承根级 scene 配置."""
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_config(
                 tmpdir,
                 {
+                    "scene": {"transition_duration_ms": 750},
                     "products": [
                         {
                             "id": "snack",
@@ -555,7 +568,7 @@ class TestSceneConfig:
             reader = ConfigReader(config_dir=tmpdir)
             config = reader.get_scene_config(product_id="snack")
             assert config["folders"][0]["name"] == "单文件夹"
-            assert config["transition_duration_ms"] == 500  # DEFAULTS
+            assert config["transition_duration_ms"] == 750
 
 
 # ---------------------------------------------------------------------------

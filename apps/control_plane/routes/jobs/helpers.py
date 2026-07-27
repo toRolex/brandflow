@@ -11,7 +11,11 @@ from typing import Any
 from fastapi import HTTPException
 
 from packages.domain_core.models import ExecutionFailure, JobRecord
-from packages.file_store.layout import AmbiguousJobError, WorkspaceLayout
+from packages.file_store.layout import (
+    AmbiguousJobError,
+    InvalidWorkspacePath,
+    WorkspaceLayout,
+)
 from packages.file_store.repository import FileStoreRepository
 from packages.provider_config.catalog import tts_provider_for_model
 from packages.provider_config.config_reader import ConfigReader
@@ -92,6 +96,8 @@ def _resolve_job_project(repo: FileStoreRepository, job_id: str) -> str:
                 "project_ids": exc.project_ids,
             },
         ) from exc
+    except InvalidWorkspacePath as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if project_id is None:
         raise HTTPException(status_code=404, detail="job not found")
     return project_id

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.domain_core.models import JobRecord
-from packages.file_store.layout import WorkspaceLayout
+from packages.file_store.layout import AmbiguousJobError, WorkspaceLayout
 from packages.pagination import slice_indices
 
 
@@ -23,7 +23,6 @@ class FileStoreRepository:
     _project_creation_lock: threading.Lock = threading.Lock()
 
     def __init__(self, root: Path) -> None:
-        self.root = root
         self._layout = WorkspaceLayout(root)
 
     @property
@@ -31,9 +30,8 @@ class FileStoreRepository:
         """The :class:`WorkspaceLayout` seam for project-tree paths.
 
         Production code should reach every project-tree path through this
-        layout.  ``root`` is retained for tests and legacy paths that do not
-        yet sit under ``workspace/projects/`` (e.g. ``shared_assets``,
-        ``music_library``).
+        layout.  Callers needing the source root for non-project paths can use
+        ``repo.layout.root``.
         """
         return self._layout
 
@@ -96,6 +94,41 @@ class FileStoreRepository:
 
                 time.sleep(0.05)
         raise last_exc  # type: ignore[misc]
+
+    def find_project_for_job(self, job_id: str) -> str | None:
+        """Return the unique Project that owns *job_id*.
+
+        A Job ID is only globally usable by routes when exactly one valid
+        record owns it.  Corrupt records are skipped so a damaged historical
+        file cannot hide another project's valid Job; duplicate valid records
+        are reported explicitly instead of selecting an arbitrary project.
+        """
+        # Validate before scanning: invalid IDs must retain the layout seam's
+        # InvalidWorkspacePath signal rather than being silently treated as a
+        # missing Job.
+        self._layout.job_record_path("job-owner-validation", job_id)
+
+        owners: list[str] = []
+        projects_root = self._layout.projects_dir()
+        if not projects_root.exists():
+            return None
+
+        for project_dir in sorted(projects_root.iterdir(), key=lambda path: path.name):
+            if not project_dir.is_dir():
+                continue
+            project_id = project_dir.name
+            if not self._layout.job_record_path(project_id, job_id).exists():
+                continue
+            try:
+                record = self.load_job(project_id, job_id)
+            except (OSError, ValueError):
+                continue
+            if record.job_id == job_id:
+                owners.append(project_id)
+
+        if len(owners) > 1:
+            raise AmbiguousJobError(owners)
+        return owners[0] if owners else None
 
     def delete_job(self, project_id: str, job_id: str) -> bool:
         path = self._layout.job_record_path(project_id, job_id)

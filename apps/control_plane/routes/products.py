@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import BaseModel
 
 from fastapi import APIRouter, HTTPException, Request
 
 from packages.provider_config.config_reader import ProductStore
+from packages.provider_config.scene_config import (
+    SceneConfigValidationError,
+    validate_scene_folders,
+)
 
 router = APIRouter(tags=["products"])
 
@@ -91,5 +97,16 @@ def update_product_config(request: Request, product_id: str, payload: dict) -> d
     if not any(p["id"] == product_id for p in products):
         raise HTTPException(status_code=404, detail="product not found")
 
+    _validate_scene_config(payload, request.app.state.root_dir)
     store.save_product_config(product_id, payload)
     return store.get_product_config(product_id)
+
+
+def _validate_scene_config(payload: dict, root_dir: Path) -> None:
+    scene = payload.get("scene") if isinstance(payload, dict) else None
+    if not isinstance(scene, dict) or "folders" not in scene:
+        return
+    try:
+        validate_scene_folders(scene["folders"], root_dir)
+    except SceneConfigValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
