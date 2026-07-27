@@ -17,12 +17,12 @@ def test_save_provider_config_uses_app_config_as_runtime_source(tmp_path) -> Non
         encoding="utf-8",
     )
     payload = load_provider_config(tmp_path)
-    payload["providers"]["tts"]["selected"] = "qwen"
-    payload["providers"]["tts"]["providers"]["qwen"].update(
+    # Use LLM section since TTS is now managed exclusively via /api/tts/config (#386)
+    payload["providers"]["llm"]["selected"] = "deepseek"
+    payload["providers"]["llm"]["providers"]["deepseek"].update(
         {
-            "endpoint": "https://qwen.example.com/api",
-            "model": "qwen3-tts-flash",
-            "voice": "Cherry",
+            "endpoint": "https://deepseek.example.com/api",
+            "model": "deepseek-v4-pro",
         }
     )
 
@@ -30,20 +30,19 @@ def test_save_provider_config_uses_app_config_as_runtime_source(tmp_path) -> Non
 
     assert not (config_dir / "providers.yaml").exists()
     saved = json.loads(app_config_path.read_text(encoding="utf-8"))
-    assert saved["tts"]["provider"] == "qwen"
-    assert saved["tts"]["model"] == "qwen3-tts-flash"
-    assert saved["tts"]["endpoint"] == "https://qwen.example.com/api"
-    assert saved["tts"]["voice"] == "Cherry"
+    assert saved["llm"]["provider"] == "deepseek"
+    assert saved["llm"]["model"] == "deepseek-v4-pro"
+    assert saved["llm"]["endpoint"] == "https://deepseek.example.com/api"
     assert saved["media"]["ffmpeg_path"] == "custom-ffmpeg"
-    assert "qwen" not in saved["provider_profiles"]["tts"]
+    assert "deepseek" not in saved.get("provider_profiles", {}).get("llm", {})
 
 
 def test_app_config_wins_over_stale_legacy_provider_yaml(tmp_path) -> None:
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     legacy = default_provider_document()
-    legacy["providers"]["tts"]["selected"] = "mimo"
-    legacy["providers"]["tts"]["providers"]["mimo"]["model"] = "mimo-v2.5-tts"
+    legacy["providers"]["llm"]["selected"] = "openai"
+    legacy["providers"]["llm"]["providers"]["openai"]["model"] = "gpt-4o"
     (config_dir / "providers.yaml").write_text(
         yaml.safe_dump(legacy, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
@@ -51,10 +50,10 @@ def test_app_config_wins_over_stale_legacy_provider_yaml(tmp_path) -> None:
     (config_dir / "app_config.json").write_text(
         json.dumps(
             {
-                "tts": {
-                    "provider": "qwen",
-                    "model": "qwen3-tts-flash",
-                    "endpoint": "https://qwen.example.com/api",
+                "llm": {
+                    "provider": "deepseek",
+                    "model": "deepseek-v4-pro",
+                    "endpoint": "https://deepseek.example.com/api",
                 }
             }
         ),
@@ -63,11 +62,14 @@ def test_app_config_wins_over_stale_legacy_provider_yaml(tmp_path) -> None:
 
     loaded = load_provider_config(tmp_path)
 
-    assert loaded["providers"]["tts"]["selected"] == "qwen"
-    assert loaded["providers"]["tts"]["providers"]["qwen"]["model"] == "qwen3-tts-flash"
+    assert loaded["providers"]["llm"]["selected"] == "deepseek"
     assert (
-        loaded["providers"]["tts"]["providers"]["qwen"]["endpoint"]
-        == "https://qwen.example.com/api"
+        loaded["providers"]["llm"]["providers"]["deepseek"]["model"]
+        == "deepseek-v4-pro"
+    )
+    assert (
+        loaded["providers"]["llm"]["providers"]["deepseek"]["endpoint"]
+        == "https://deepseek.example.com/api"
     )
 
 
@@ -77,7 +79,7 @@ def test_existing_app_config_uses_catalog_defaults_for_missing_sections(
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     legacy = default_provider_document()
-    legacy["providers"]["tts"]["selected"] = "mimo"
+    legacy["providers"]["llm"]["selected"] = "openai"
     (config_dir / "providers.yaml").write_text(
         yaml.safe_dump(legacy, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
@@ -89,22 +91,24 @@ def test_existing_app_config_uses_catalog_defaults_for_missing_sections(
 
     loaded = load_provider_config(tmp_path)
 
-    assert loaded["providers"]["tts"]["selected"] == "qwen"
+    assert loaded["providers"]["llm"]["selected"] == "deepseek"
+    # TTS section should be empty since it's managed separately (#386)
+    assert loaded["providers"]["tts"]["providers"] == {}
 
 
 def test_save_provider_config_keeps_secret_only_in_env(tmp_path) -> None:
     payload = default_provider_document()
-    payload["providers"]["tts"]["selected"] = "qwen"
-    payload["providers"]["tts"]["providers"]["qwen"]["api_key"] = "secret-value"
+    payload["providers"]["llm"]["selected"] = "deepseek"
+    payload["providers"]["llm"]["providers"]["deepseek"]["api_key"] = "secret-value"
 
     save_provider_config(tmp_path, payload)
 
     app_config = (tmp_path / "config" / "app_config.json").read_text(encoding="utf-8")
     env_file = (tmp_path / ".env").read_text(encoding="utf-8")
     assert "secret-value" not in app_config
-    assert "DASHSCOPE_API_KEY=secret-value" in env_file
+    assert "DEEPSEEK_API_KEY=secret-value" in env_file
     assert (
-        load_provider_config(tmp_path)["providers"]["tts"]["providers"]["qwen"][
+        load_provider_config(tmp_path)["providers"]["llm"]["providers"]["deepseek"][
             "api_key"
         ]
         == "***"

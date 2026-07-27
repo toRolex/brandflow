@@ -253,7 +253,9 @@ def load_provider_config(root_dir: Path) -> dict:
                 if provider_name in known_providers and isinstance(profile, dict):
                     known_providers[provider_name].update(deepcopy(profile))
 
-    for section_name in ("llm", "tts", "vision"):
+    # TTS runtime fields are now managed exclusively by TTSConfigManager;
+    # the unified provider document no longer includes a TTS section (#386).
+    for section_name in ("llm", "vision"):
         runtime = app_config.get(section_name)
         if not isinstance(runtime, dict):
             continue
@@ -275,6 +277,11 @@ def load_provider_config(root_dir: Path) -> dict:
         for field_name in section:
             if field_name in runtime:
                 section[field_name] = deepcopy(runtime[field_name])
+
+    # TTS section is no longer managed via the unified provider document (#386);
+    # remove it so the frontend does not render a TTS tab in the provider config page.
+    if "tts" in merged.get("providers", {}):
+        merged["providers"]["tts"] = {"selected": "", "providers": {}}
 
     return _inject_env_secrets(merged, root)
 
@@ -391,7 +398,8 @@ def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
 
     secret_fields = _known_secret_fields()
     managed_runtime_fields: dict[str, set[str]] = {}
-    for section_name in ("llm", "tts", "vision"):
+    # TTS is now managed exclusively via TTSConfigManager (#386)
+    for section_name in ("llm", "vision"):
         names: set[str] = set()
         for provider in providers.get(section_name, {}).get("providers", {}).values():
             names.update(
@@ -415,7 +423,10 @@ def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
                 if key not in secret_fields
             }
 
-        if section_name not in ("llm", "tts", "vision"):
+        # TTS runtime fields are now managed exclusively via TTSConfigManager (#386)
+        if section_name == "tts":
+            continue
+        if section_name not in ("llm", "vision"):
             continue
         if not selected or selected not in provider_values:
             continue

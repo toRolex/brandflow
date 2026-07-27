@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import random
+import json
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -11,6 +13,7 @@ from packages.provider_config.catalog import (
 )
 from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.secret_store import SecretStore
+from packages.provider_config.tts_config import TTSConfig
 
 
 class TTSError(Exception):
@@ -54,7 +57,7 @@ class QwenTTSProvider:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
 
-    def _build_payload(self, text: str, config: Any) -> dict[str, Any]:
+    def _build_payload(self, text: str, config: TTSConfig) -> dict[str, Any]:
         input_data: dict[str, Any] = {
             "text": text,
             "voice": config.voice,
@@ -71,12 +74,28 @@ class QwenTTSProvider:
             "input": input_data,
         }
 
-    def _http_post(self, payload: dict[str, Any]) -> Any:
+    @staticmethod
+    def _extra_headers(config: TTSConfig) -> dict[str, str]:
+        raw = config.extra_headers
+        if not isinstance(raw, str) or not raw.strip():
+            return {}
+        try:
+            value = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        if not isinstance(value, dict):
+            return {}
+        return {str(key): str(item) for key, item in value.items()}
+
+    def _http_post(self, payload: dict[str, Any], config: TTSConfig) -> Any:
         url = f"{self.base_url}/services/aigc/multimodal-generation/generation"
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+        headers = self._extra_headers(config)
+        headers.update(
+            {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+        )
         return requests.post(
             url,
             headers=headers,
@@ -85,13 +104,13 @@ class QwenTTSProvider:
             proxies={"all": None, "http": None, "https": None},
         )
 
-    def synthesize(self, text: str, config: Any) -> bytes:
+    def synthesize(self, text: str, config: TTSConfig) -> bytes:
         payload = self._build_payload(text, config)
         print(
             f"[TTS DEBUG] Qwen TTS: model={config.model} text_len={len(text)}",
             flush=True,
         )
-        resp = self._http_post(payload)
+        resp = self._http_post(payload, config)
 
         if resp.status_code == 429:
             raise TTSQuotaExceededError("TTS 配额超限")
@@ -138,14 +157,28 @@ class QwenTTSProvider:
 
 
 class MiMoTTSProvider:
+    # 默认 TTS endpoint（完整 URL，含路径）。当外部只提供 base URL 时拼接此路径。
+    _DEFAULT_TTS_PATH: str = "/chat/completions"
+
     def __init__(self, api_key: str, base_url: str = "https://api.xiaomimimo.com/v1"):
         self.api_key = api_key
-        self.base_url = base_url.rstrip("/")
+        base_url = base_url.rstrip("/")
+        # 若 endpoint 已包含具体 API 路径（如 /chat/completions、/audio/speech），
+        # 直接作为完整 URL 使用，避免重复拼接；否则追加默认路径。
+        try:
+            resolved = urlparse(base_url)
+            path = resolved.path
+        except (TypeError, ValueError, AttributeError):
+            path = ""
+        if path and path not in ("/", "/v1"):
+            self.base_url = base_url
+        else:
+            self.base_url = f"{base_url}{self._DEFAULT_TTS_PATH}"
 
     def _build_request(
         self,
         text: str,
-        config: Any,
+        config: TTSConfig,
         voice_id: str | None = None,
     ) -> dict[str, Any]:
         if config.model == "mimo-v2.5-tts-voicedesign":
@@ -157,7 +190,7 @@ class MiMoTTSProvider:
             voice = random.choice(config.random_voices)
         return self._build_preset_request(text, config, voice)
 
-    def _build_style_instruction(self, config: Any) -> str:
+    def _build_style_instruction(self, config: TTSConfig) -> str:
         # 导演模式
         if config.style_control_mode == "director":
             parts = []
@@ -176,41 +209,61 @@ class MiMoTTSProvider:
 
         return "自然 清晰 适合短视频带货口播"
 
-    def _build_assistant_content(self, text: str, config: Any) -> str:
+    def _build_assistant_content(self, text: str, config: TTSConfig) -> str:
         # 标签控制：在文本前添加标签
         if config.audio_tags_enabled and config.audio_tags:
             return f"{config.audio_tags}{text}"
         return text
 
+    @staticmethod
+    def _apply_provider_params(payload: dict[str, Any], config: TTSConfig) -> None:
+        """Inject provider connection parameters into the request payload (#386)."""
+        audio = payload.setdefault("audio", {})
+        for config_key, payload_key in (
+            ("group_id", "group_id"),
+            ("speed", "speed"),
+            ("vol", "volume"),
+            ("pitch", "pitch"),
+            ("emotion", "emotion"),
+        ):
+            value = getattr(config, config_key, None)
+            if isinstance(value, str) and value:
+                payload[payload_key] = value
+        for key in ("sample_rate", "bitrate", "channel"):
+            value = getattr(config, key, None)
+            if isinstance(value, str) and value:
+                audio[key] = value
+
     def _build_preset_request(
         self,
         text: str,
-        config: Any,
+        config: TTSConfig,
         voice_id: str | None = None,
     ) -> dict[str, Any]:
         voice = voice_id or config.voice
         style_instruction = self._build_style_instruction(config)
         assistant_content = self._build_assistant_content(text, config)
 
+        audio: dict[str, Any] = {
+            "format": config.audio_format,
+            "voice": voice,
+        }
         payload: dict[str, Any] = {
             "model": config.model,
             "messages": [
                 {"role": "user", "content": style_instruction},
                 {"role": "assistant", "content": assistant_content},
             ],
-            "audio": {
-                "format": config.audio_format,
-                "voice": voice,
-            },
+            "audio": audio,
             "stream": False,
         }
-
+        self._apply_provider_params(payload, config)
         return payload
 
     def _build_voicedesign_request(
         self,
         text: str,
-        config: Any,
+        config: TTSConfig,
     ) -> dict[str, Any]:
         style_instruction = self._build_style_instruction(config)
         assistant_content = self._build_assistant_content(text, config)
@@ -230,15 +283,16 @@ class MiMoTTSProvider:
             "stream": False,
         }
 
-        if getattr(config, "optimize_text_preview", False):
+        if config.optimize_text_preview:
             payload["audio"]["optimize_text_preview"] = True
 
+        self._apply_provider_params(payload, config)
         return payload
 
     def _build_voiceclone_request(
         self,
         text: str,
-        config: Any,
+        config: TTSConfig,
     ) -> dict[str, Any]:
         """构建 voiceclone 请求
 
@@ -272,10 +326,10 @@ class MiMoTTSProvider:
             },
             "stream": False,
         }
-
+        self._apply_provider_params(payload, config)
         return payload
 
-    def synthesize(self, text: str, config: Any) -> bytes:
+    def synthesize(self, text: str, config: TTSConfig) -> bytes:
         """完整 TTS 调用：构建请求 → HTTP → 解析响应 → 返回音频字节。"""
         payload = self._build_request(text, config)
         print(
@@ -283,11 +337,14 @@ class MiMoTTSProvider:
             f" text_len={len(text)}",
             flush=True,
         )
-        url = f"{self.base_url}/chat/completions"
-        headers = {
-            "api-key": self.api_key,
-            "Content-Type": "application/json",
-        }
+        url = self.base_url  # 已在 __init__ 中解析为完整 endpoint URL
+        headers = QwenTTSProvider._extra_headers(config)
+        headers.update(
+            {
+                "api-key": self.api_key,
+                "Content-Type": "application/json",
+            }
+        )
         resp = requests.post(
             url,
             headers=headers,
@@ -301,7 +358,8 @@ class MiMoTTSProvider:
         if resp.status_code in (401, 403):
             raise TTSBlockedError(f"TTS 鉴权失败: {resp.status_code}")
         if resp.status_code >= 400:
-            raise TTSBlockedError(f"MiMo TTS HTTP {resp.status_code}")
+            detail = f"MiMo TTS HTTP {resp.status_code} ← {url}"
+            raise TTSBlockedError(detail)
 
         try:
             body = resp.json()
@@ -382,66 +440,14 @@ class MiMoTTSProvider:
 
 
 # ---------------------------------------------------------------------------
-# TTS config shim (duck-type, preserves synthesize() API)
-# ---------------------------------------------------------------------------
-
-
-class TTSConfigShim:
-    """Duck-type config object built from the TTS config dict.
-
-    Preserves the interface expected by ``tts_provider.synthesize()``.
-    """
-
-    def __init__(self, cfg: dict[str, Any]) -> None:
-        defaults = DEFAULTS["tts"]
-        director = defaults.get("director", {})
-        audio_tags = defaults.get("audio_tags", {})
-
-        self.model: str = cfg.get("model", defaults["model"])
-        self.voice: str = cfg.get("voice", defaults["voice"])
-        self.instructions: str = cfg.get("instructions", defaults["instructions"])
-        self.language_type: str = cfg.get("language_type", defaults["language_type"])
-        self.optimize_instructions: bool = cfg.get("optimize_instructions", False)
-        self.fallback_voice: str = cfg.get("fallback_voice", defaults["fallback_voice"])
-        self.randomize_voice: bool = cfg.get(
-            "randomize_voice", defaults["randomize_voice"]
-        )
-        self.random_voices: list[str] = cfg.get(
-            "random_voices", defaults["random_voices"]
-        )
-        self.style_control_mode: str = cfg.get(
-            "style_control_mode", defaults["style_control_mode"]
-        )
-        self.style_prompt: str = cfg.get("style_prompt", defaults["style_prompt"])
-        self.voice_design_prompt: str = cfg.get(
-            "voice_design_prompt", defaults.get("voice_design_prompt", "")
-        )
-        self.audio_format: str = cfg.get("audio_format", defaults["audio_format"])
-        self.audio_tags_enabled: bool = cfg.get(
-            "audio_tags_enabled", audio_tags.get("enabled", False)
-        )
-        self.audio_tags: str = cfg.get("audio_tags", audio_tags.get("tags", ""))
-        self.voice_clone_sample_path: str = cfg.get("voice_clone_sample_path", "")
-        self.voice_clone_mime_type: str = cfg.get("voice_clone_mime_type", "")
-        self.optimize_text_preview: bool = cfg.get("optimize_text_preview", False)
-        self.director_character: str = cfg.get(
-            "director_character", director.get("character", "")
-        )
-        self.director_scene: str = cfg.get("director_scene", director.get("scene", ""))
-        self.director_guidance: str = cfg.get(
-            "director_guidance", director.get("guidance", "")
-        )
-
-
-# ---------------------------------------------------------------------------
 # TTS provider factory
 # ---------------------------------------------------------------------------
 
 
-def resolve_tts_provider_name(config: dict[str, Any]) -> str:
+def resolve_tts_provider_name(config: TTSConfig) -> str:
     """Return and validate the provider selected by a TTS config."""
-    tts_model = str(config.get("model", DEFAULTS["tts"]["model"]) or "")
-    configured_provider = str(config.get("provider") or "").strip().lower()
+    tts_model = str(config.model or DEFAULTS["tts"]["model"])
+    configured_provider = (config.provider or "").strip().lower()
     inferred_provider = tts_provider_for_model(tts_model)
     if configured_provider:
         provider_name = configured_provider
@@ -460,9 +466,9 @@ def resolve_tts_provider_name(config: dict[str, Any]) -> str:
 
 
 def create_tts_provider(
-    config: dict[str, Any], secrets: SecretStore
+    config: TTSConfig, secrets: SecretStore
 ) -> QwenTTSProvider | MiMoTTSProvider:
-    """Build a TTS provider instance from the current config dict.
+    """Build a TTS provider instance from a TTSConfig.
 
     ``provider`` is authoritative.  Model-prefix inference is retained only for
     legacy callers that do not yet supply a provider.  A contradictory
@@ -471,7 +477,7 @@ def create_tts_provider(
     """
     provider_name = resolve_tts_provider_name(config)
 
-    configured_endpoint = str(config.get("endpoint") or "").strip().rstrip("/")
+    configured_endpoint = (config.endpoint or "").strip().rstrip("/")
     if provider_name == "qwen":
         base_url = configured_endpoint or secrets.get_api_base_url(
             "qwen", section="tts"

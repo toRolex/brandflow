@@ -96,14 +96,20 @@ cp .env.example .env
 常见配置项：
 - `LLM_API_KEY` / `TTS_API_KEY` / `VISION_API_KEY` — 通用 key，适合单 provider 场景
 - `DEEPSEEK_API_KEY` / `MIMO_API_KEY` / `XIAOMI_VISION_API_KEY` — provider 专用 key，优先级高于通用 key
-- provider、model、voice、thinking 等业务参数 — 通过前端“系统配置 → AI Provider”写入 `config/app_config.json`
+- LLM / Vision 的 provider、model、thinking 等业务参数 — 通过前端”系统配置 → AI Provider”写入 `config/app_config.json`；TTS 参数统一通过 `/tts-config` 页面管理（#386）
 - Embedding（含 API Key）、FFmpeg/FFprobe、素材分类建议与场景导入参数 — 通过“系统配置 → 运行参数”编辑
 
-TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
+TTS 配置统一由 `/tts-config` 页面管理（#386），通过 `PUT /api/tts/config` 写入 `config/app_config.json` 的 `tts` 节。主要配置项：
+- `provider` / `model` / `voice` — 服务商、模型与音色选择，`model` 前缀决定 provider 路由
+- `speed` / `vol` / `pitch` / `emotion` — Provider 连接参数，调节语速/音量/音调/情感
+- `group_id` / `endpoint` / `extra_headers` — 组 ID、自定义端点与额外请求头
 - `voice_clone_sample_path` — 音色克隆样本路径（由上传接口自动写入）
 - `voice_clone_mime_type` — 样本 MIME 类型（`audio/mpeg` 或 `audio/wav`）
 - `optimize_text_preview` — voicedesign 模式下是否启用文本优化预览（默认 `false`）
 - `audio_format` — 音频格式（默认 `wav`）
+- `style_control_mode` / `style_prompt` / `director_*` — 风格控制与导演模式参数
+- `audio_tags` / `audio_tags_enabled` — 音频标签控制
+- `randomize_voice` / `random_voices` — 随机音色池
 
 配置优先级：
 1. product override

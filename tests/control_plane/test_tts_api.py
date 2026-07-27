@@ -237,12 +237,10 @@ class TestTTSPreviewAPI:
             response = client.post("/api/tts/preview", json={"text": "测试"})
 
             assert response.status_code == 200
-            mock_app_config.get_api_key.assert_called_once_with(
-                "mimo", section="tts"
-            )
+            mock_app_config.get_api_key.assert_called_once_with("mimo", section="tts")
             provider_config = mock_factory.call_args.args[0]
-            assert provider_config["provider"] == "mimo"
-            assert provider_config["model"] == "mimo-v2.5-tts"
+            assert provider_config.provider == "mimo"
+            assert provider_config.model == "mimo-v2.5-tts"
 
     def test_preview_with_valid_text(self, client):
         response = client.post(
@@ -704,6 +702,7 @@ class TestTTSPreviewResponse:
             patch("apps.control_plane.routes.tts.config_manager") as mock_manager,
         ):
             mock_config.get_api_key.return_value = "test-api-key"
+            mock_config.get_api_base_url.return_value = "https://api.xiaomimimo.com/v1"
             mock_manager.get_config.return_value.with_defaults.return_value = config
             mock_response = MagicMock(status_code=200)
             mock_response.json.return_value = {

@@ -68,7 +68,7 @@ def test_custom_random_voices() -> None:
 def test_to_dict_returns_all_fields() -> None:
     config = TTSConfig()
     data = config.to_dict()
-    assert len(data) == 21
+    assert len(data) == 32
 
 
 def test_to_dict_values_match_defaults() -> None:
@@ -441,3 +441,138 @@ def test_tts_config_voiceclone_from_dict() -> None:
     config = TTSConfig.from_dict(data)
     assert config.voice_clone_sample_path == "voice_clone_sample.mp3"
     assert config.voice_clone_mime_type == "audio/wav"
+
+
+# ---------------------------------------------------------------------------
+# New provider connection fields (#386)
+# ---------------------------------------------------------------------------
+
+
+def test_new_provider_fields_default_to_none() -> None:
+    """新建 TTSConfig() 后 11 个新 provider 连接字段均为 None"""
+    config = TTSConfig()
+    assert config.speed is None
+    assert config.vol is None
+    assert config.pitch is None
+    assert config.emotion is None
+    assert config.sample_rate is None
+    assert config.bitrate is None
+    assert config.channel is None
+    assert config.group_id is None
+    assert config.voice_id is None
+    assert config.endpoint is None
+    assert config.extra_headers is None
+
+
+def test_new_provider_fields_roundtrip_to_dict() -> None:
+    """to_dict/from_dict 保留新 provider 连接字段值"""
+    config = TTSConfig(
+        speed="1.0",
+        vol="0.8",
+        pitch="0.0",
+        emotion="happy",
+        sample_rate="24000",
+        bitrate="128",
+        channel="1",
+        group_id="group-123",
+        voice_id="voice-456",
+        endpoint="https://custom.example.com/v1",
+        extra_headers='{"X-Custom": "value"}',
+    )
+    data = config.to_dict()
+    assert data["speed"] == "1.0"
+    assert data["vol"] == "0.8"
+    assert data["pitch"] == "0.0"
+    assert data["emotion"] == "happy"
+    assert data["sample_rate"] == "24000"
+    assert data["bitrate"] == "128"
+    assert data["channel"] == "1"
+    assert data["group_id"] == "group-123"
+    assert data["voice_id"] == "voice-456"
+    assert data["endpoint"] == "https://custom.example.com/v1"
+    assert data["extra_headers"] == '{"X-Custom": "value"}'
+
+    restored = TTSConfig.from_dict(data)
+    assert restored.speed == "1.0"
+    assert restored.vol == "0.8"
+    assert restored.pitch == "0.0"
+    assert restored.emotion == "happy"
+
+
+def test_with_defaults_fills_provider_params() -> None:
+    """with_defaults() 从 DEFAULTS 填充 provider 连接参数（新字段默认 None，不应有默认值）"""
+    config = TTSConfig().with_defaults()
+    # 新字段在 DEFAULTS 中无对应值时保持 None
+    assert config.speed is None
+    assert config.vol is None
+    assert config.pitch is None
+    assert config.emotion is None
+
+
+def test_to_dict_field_count_updated() -> None:
+    """field count 反映新增的 11 个 provider 连接字段（21 → 32）"""
+    config = TTSConfig()
+    data = config.to_dict()
+    assert len(data) == 32
+
+
+def test_save_and_load_preserves_provider_params() -> None:
+    """TTSConfigManager roundtrip 保留新 provider 连接字段"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = TTSConfigManager(config_dir=tmpdir)
+        config = TTSConfig(
+            model="mimo-v2.5-tts",
+            voice="Mia",
+            speed="1.2",
+            vol="0.9",
+            pitch="-0.1",
+            emotion="calm",
+            group_id="my-group",
+            endpoint="https://custom.example.com/v1",
+            extra_headers='{"X-Custom": "v"}',
+        )
+        manager.save_config(config)
+        loaded = manager.get_config()
+        assert loaded.speed == "1.2"
+        assert loaded.vol == "0.9"
+        assert loaded.pitch == "-0.1"
+        assert loaded.emotion == "calm"
+        assert loaded.group_id == "my-group"
+        assert loaded.endpoint == "https://custom.example.com/v1"
+        assert loaded.extra_headers == '{"X-Custom": "v"}'
+
+
+def test_save_and_load_product_provider_params() -> None:
+    """product 级 provider 连接参数持久化与回读"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        from packages.provider_config.config_io import save_config
+
+        config_path = Path(tmpdir) / "app_config.json"
+        save_config(config_path, {"products": [{"id": "prod-1"}]})
+
+        manager = TTSConfigManager(config_dir=tmpdir)
+        config = TTSConfig(
+            model="mimo-v2.5-tts",
+            speed="0.8",
+            vol="0.7",
+            group_id="product-group",
+        )
+        manager.save_config(config, product_id="prod-1")
+        loaded = manager.get_config(product_id="prod-1")
+        assert loaded.speed == "0.8"
+        assert loaded.vol == "0.7"
+        assert loaded.group_id == "product-group"
+
+
+def test_from_dict_ignores_dead_provider_profile_fields() -> None:
+    """旧 provider_profiles 残余字段在 from_dict 中被静默忽略"""
+    config = TTSConfig.from_dict(
+        {
+            "model": "test",
+            "sample_rate": "48000",  # old profile field, now a first-class field
+            "some_dead_field": "should_be_ignored",
+        }
+    )
+    assert config.model == "test"
+    assert config.sample_rate == "48000"  # valid new field
+    assert not hasattr(config, "some_dead_field")

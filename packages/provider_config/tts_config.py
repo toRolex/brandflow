@@ -44,6 +44,19 @@ class TTSConfig:
 
     audio_format: str | None = None
 
+    # Provider 连接参数 (#386)
+    speed: str | None = None
+    vol: str | None = None
+    pitch: str | None = None
+    emotion: str | None = None
+    sample_rate: str | None = None
+    bitrate: str | None = None
+    channel: str | None = None
+    group_id: str | None = None
+    voice_id: str | None = None
+    endpoint: str | None = None
+    extra_headers: str | None = None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "provider": self.provider,
@@ -67,6 +80,17 @@ class TTSConfig:
             "optimize_instructions": self.optimize_instructions,
             "language_type": self.language_type,
             "audio_format": self.audio_format,
+            "speed": self.speed,
+            "vol": self.vol,
+            "pitch": self.pitch,
+            "emotion": self.emotion,
+            "sample_rate": self.sample_rate,
+            "bitrate": self.bitrate,
+            "channel": self.channel,
+            "group_id": self.group_id,
+            "voice_id": self.voice_id,
+            "endpoint": self.endpoint,
+            "extra_headers": self.extra_headers,
         }
 
     @classmethod
@@ -93,6 +117,17 @@ class TTSConfig:
             optimize_instructions=data.get("optimize_instructions", False),
             language_type=data.get("language_type"),
             audio_format=data.get("audio_format"),
+            speed=data.get("speed"),
+            vol=data.get("vol"),
+            pitch=data.get("pitch"),
+            emotion=data.get("emotion"),
+            sample_rate=data.get("sample_rate"),
+            bitrate=data.get("bitrate"),
+            channel=data.get("channel"),
+            group_id=data.get("group_id"),
+            voice_id=data.get("voice_id"),
+            endpoint=data.get("endpoint"),
+            extra_headers=data.get("extra_headers"),
         )
 
     def with_defaults(self) -> TTSConfig:
@@ -152,6 +187,17 @@ class TTSConfig:
             audio_format=self.audio_format
             if self.audio_format is not None
             else defaults.get("audio_format", "wav"),
+            speed=self.speed,
+            vol=self.vol,
+            pitch=self.pitch,
+            emotion=self.emotion,
+            sample_rate=self.sample_rate,
+            bitrate=self.bitrate,
+            channel=self.channel,
+            group_id=self.group_id,
+            voice_id=self.voice_id,
+            endpoint=self.endpoint,
+            extra_headers=self.extra_headers,
         )
 
 

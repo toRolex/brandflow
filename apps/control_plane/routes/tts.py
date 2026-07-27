@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from packages.pipeline_services.media_utils import detect_audio_format
-from packages.provider_config.catalog import tts_provider_for_model
+from packages.provider_config.catalog import tts_provider_for_model, tts_preset_voices
 from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.secret_store import SecretStore
 from packages.provider_config.tts_config import TTSConfigManager
@@ -76,6 +76,18 @@ class TTSConfigRequest(BaseModel):
     voice_clone_sample_path: str | None = None
     voice_clone_mime_type: str | None = None
     optimize_text_preview: bool | None = None
+    # Provider 连接参数 (#386)
+    speed: str | None = None
+    vol: str | None = None
+    pitch: str | None = None
+    emotion: str | None = None
+    sample_rate: str | None = None
+    bitrate: str | None = None
+    channel: str | None = None
+    group_id: str | None = None
+    voice_id: str | None = None
+    endpoint: str | None = None
+    extra_headers: str | None = None
 
 
 class TTSConfigResponse(BaseModel):
@@ -102,6 +114,18 @@ class TTSConfigResponse(BaseModel):
     voice_clone_sample_path: str | None
     voice_clone_mime_type: str | None
     optimize_text_preview: bool
+    # Provider 连接参数 (#386)
+    speed: str | None = None
+    vol: str | None = None
+    pitch: str | None = None
+    emotion: str | None = None
+    sample_rate: str | None = None
+    bitrate: str | None = None
+    channel: str | None = None
+    group_id: str | None = None
+    voice_id: str | None = None
+    endpoint: str | None = None
+    extra_headers: str | None = None
 
 
 class TTSPreviewRequest(BaseModel):
@@ -115,271 +139,21 @@ class TTSPreviewRequest(BaseModel):
     instructions: str | None = None
     optimize_instructions: bool | None = None
     language_type: str | None = None
+    # Keep preview requests aligned with the persisted TTS form state.
+    speed: str | None = None
+    vol: str | None = None
+    pitch: str | None = None
+    emotion: str | None = None
+    group_id: str | None = None
+    endpoint: str | None = None
+    sample_rate: str | None = None
+    bitrate: str | None = None
+    channel: str | None = None
+    extra_headers: str | None = None
 
 
-PRESET_VOICES = [
-    {
-        "id": "mimo_default",
-        "label": "MiMo 默认音色",
-        "note": "官方默认音色，中国区通常映射为冰糖",
-        "model": "mimo-v2.5-tts",
-    },
-    {
-        "id": "冰糖",
-        "label": "冰糖",
-        "note": "中文女声，清亮自然",
-        "model": "mimo-v2.5-tts",
-    },
-    {
-        "id": "茉莉",
-        "label": "茉莉",
-        "note": "中文女声，柔和亲切",
-        "model": "mimo-v2.5-tts",
-    },
-    {
-        "id": "苏打",
-        "label": "苏打",
-        "note": "中文男声，适合短视频口播",
-        "model": "mimo-v2.5-tts",
-    },
-    {
-        "id": "白桦",
-        "label": "白桦",
-        "note": "中文男声，稳重讲解",
-        "model": "mimo-v2.5-tts",
-    },
-    {"id": "Mia", "label": "Mia", "note": "英文女声", "model": "mimo-v2.5-tts"},
-    {"id": "Chloe", "label": "Chloe", "note": "英文女声", "model": "mimo-v2.5-tts"},
-    {"id": "Milo", "label": "Milo", "note": "英文男声", "model": "mimo-v2.5-tts"},
-    {"id": "Dean", "label": "Dean", "note": "英文男声", "model": "mimo-v2.5-tts"},
-]
-
-QWEN_VOICES = [
-    {
-        "id": "Rocky",
-        "label": "阿强（粤语）",
-        "note": "幽默风趣的粤语男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Kiki",
-        "label": "阿清（粤语）",
-        "note": "甜美的港妹闺蜜女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Cherry",
-        "label": "芊悦",
-        "note": "阳光积极、亲切自然女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Serena",
-        "label": "苏瑶",
-        "note": "温柔女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Ethan",
-        "label": "晨煦",
-        "note": "阳光温暖男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Chelsie",
-        "label": "千雪",
-        "note": "二次元虚拟女友声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Momo",
-        "label": "茉兔",
-        "note": "撒娇搞怪女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Vivian",
-        "label": "十三",
-        "note": "拽拽可爱的女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Moon",
-        "label": "月白",
-        "note": "率性帅气男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Maia",
-        "label": "四月",
-        "note": "知性温柔女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Kai",
-        "label": "凯",
-        "note": "磁性男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Nofish",
-        "label": "不吃鱼",
-        "note": "设计师男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Bella",
-        "label": "萌宝",
-        "note": "小萝莉女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Jennifer",
-        "label": "詹妮弗",
-        "note": "电影质感美语女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Ryan",
-        "label": "甜茶",
-        "note": "节奏感强男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Katerina",
-        "label": "卡捷琳娜",
-        "note": "御姐女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Eldric Sage",
-        "label": "沧明子",
-        "note": "沉稳睿智老者和声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Mia",
-        "label": "乖小妹",
-        "note": "温顺乖巧女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Mochi",
-        "label": "沙小弥",
-        "note": "聪明伶俐童声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Bellona",
-        "label": "燕铮莺",
-        "note": "洪亮吐字清晰女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Vincent",
-        "label": "田叔",
-        "note": "沙哑烟嗓男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Bunny",
-        "label": "萌小姬",
-        "note": "萌属性小萝莉",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Neil",
-        "label": "阿闻",
-        "note": "专业新闻主持人男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Elias",
-        "label": "墨讲师",
-        "note": "知识讲解女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Arthur",
-        "label": "徐大爷",
-        "note": "质朴方言男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Nini",
-        "label": "邻家妹妹",
-        "note": "软糯甜美少女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Seren",
-        "label": "小婉",
-        "note": "温和舒缓女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Pip",
-        "label": "顽屁小孩",
-        "note": "调皮童真男童声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Stella",
-        "label": "少女阿月",
-        "note": "甜美少女声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Jada",
-        "label": "阿珍（上海话）",
-        "note": "风风火火沪上阿姐",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Dylan",
-        "label": "晓东（北京话）",
-        "note": "北京胡同少年",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Li",
-        "label": "老李（南京话）",
-        "note": "耐心瑜伽老师",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Marcus",
-        "label": "秦川（陕西话）",
-        "note": "面宽话短老陕",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Roy",
-        "label": "阿杰（闽南语）",
-        "note": "台湾哥仔",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Peter",
-        "label": "李彼得（天津话）",
-        "note": "天津相声捧哏",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Sunny",
-        "label": "晴儿（四川话）",
-        "note": "甜心川妹子",
-        "model": "qwen3-tts-instruct-flash",
-    },
-    {
-        "id": "Eric",
-        "label": "程川（四川话）",
-        "note": "成都男声",
-        "model": "qwen3-tts-instruct-flash",
-    },
-]
-
-INSTRUCT_UNSUPPORTED_VOICES = {"Jennifer", "Ryan", "Katerina"}
+# Voice lists moved to catalog.json preset_voices (#386)
+_INSTRUCT_UNSUPPORTED_VOICES = {"Jennifer", "Ryan", "Katerina"}
 
 
 @router.get("/config", response_model=TTSConfigResponse)
@@ -410,7 +184,7 @@ async def save_tts_config(
         if inferred_provider:
             current.provider = inferred_provider
     try:
-        resolve_tts_provider_name(current.to_dict())
+        resolve_tts_provider_name(current)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     validate_voice_for_model(current.model, current.voice)
@@ -428,6 +202,7 @@ def get_valid_preset_voice_ids(model: str) -> set[str] | None:
 
     VoiceDesign/VoiceClone sub-models return None (skip validation).
     Unknown models also return None.
+    Voice data is sourced from catalog.json preset_voices (#386).
     """
     if not model:
         return None
@@ -437,17 +212,11 @@ def get_valid_preset_voice_ids(model: str) -> set[str] | None:
     # VoiceDesign/VoiceClone sub-models have no preset voice concept
     if model in ("mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone"):
         return None
-    if provider == "mimo":
-        return {v["id"] for v in PRESET_VOICES}
-    if provider == "qwen":
-        if model == "qwen3-tts-instruct-flash":
-            return {
-                v["id"]
-                for v in QWEN_VOICES
-                if v["id"] not in INSTRUCT_UNSUPPORTED_VOICES
-            }
-        return {v["id"] for v in QWEN_VOICES}
-    return None
+
+    voices = tts_preset_voices(provider)
+    if model == "qwen3-tts-instruct-flash":
+        return {v["id"] for v in voices if v["id"] not in _INSTRUCT_UNSUPPORTED_VOICES}
+    return {v["id"] for v in voices} if voices else None
 
 
 def validate_voice_for_model(model: str | None, voice: str | None) -> None:
@@ -476,6 +245,11 @@ def validate_voice_for_model(model: str | None, voice: str | None) -> None:
 
 @router.get("/voices")
 async def get_voices(provider: str | None = None, model: str | None = None):
+    from packages.provider_config.catalog import (
+        tts_preset_voices,
+        tts_runtime_providers,
+    )
+
     if model is not None:
         resolved = tts_provider_for_model(model)
         if resolved is None:
@@ -486,16 +260,15 @@ async def get_voices(provider: str | None = None, model: str | None = None):
         provider = resolved
     elif provider is None:
         provider = str(DEFAULTS["tts"]["provider"])
-    elif provider not in ("mimo", "qwen"):
+    elif provider not in tts_runtime_providers():
         raise HTTPException(
             status_code=400, detail=f"Unsupported TTS provider: {provider}"
         )
-    if provider == "qwen":
-        voices = QWEN_VOICES
-        if model == "qwen3-tts-instruct-flash":
-            voices = [v for v in voices if v["id"] not in INSTRUCT_UNSUPPORTED_VOICES]
-        return {"preset_voices": voices}
-    return {"preset_voices": PRESET_VOICES}
+
+    voices = tts_preset_voices(provider)
+    if provider == "qwen" and model == "qwen3-tts-instruct-flash":
+        voices = [v for v in voices if v["id"] not in _INSTRUCT_UNSUPPORTED_VOICES]
+    return {"preset_voices": voices}
 
 
 @router.post("/preview")
@@ -524,6 +297,21 @@ async def preview_tts(request: TTSPreviewRequest):
             config.optimize_instructions = request.optimize_instructions
         if request.language_type is not None:
             config.language_type = request.language_type
+        for key in (
+            "speed",
+            "vol",
+            "pitch",
+            "emotion",
+            "group_id",
+            "endpoint",
+            "sample_rate",
+            "bitrate",
+            "channel",
+            "extra_headers",
+        ):
+            value = getattr(request, key)
+            if value is not None:
+                setattr(config, key, value)
 
         validate_voice_for_model(config.model, config.voice)
 
@@ -546,9 +334,8 @@ async def preview_tts(request: TTSPreviewRequest):
                 status_code=500,
                 detail=f"未配置 TTS provider ({provider_name}) 的 API Key",
             )
-        provider_config = config.to_dict()
-        provider_config["provider"] = provider_name
-        provider = create_tts_provider(provider_config, app_config)
+        config.provider = provider_name
+        provider = create_tts_provider(config, app_config)
 
         audio_bytes = provider.synthesize(request.text, config)
 

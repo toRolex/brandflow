@@ -4,7 +4,8 @@ from apps.control_plane.app import create_app
 from packages.provider_config.catalog import default_provider_document
 
 
-def test_provider_config_save_rejects_tts_provider_model_mismatch(tmp_path) -> None:
+def test_provider_config_save_ignores_tts_section(tmp_path) -> None:
+    """PUT /api/config no longer validates or writes TTS — TTS is managed via /api/tts/config (#386)."""
     payload = default_provider_document()
     payload["providers"]["tts"]["selected"] = "mimo"
     payload["providers"]["tts"]["providers"]["mimo"]["model"] = "qwen3-tts-flash"
@@ -12,11 +13,12 @@ def test_provider_config_save_rejects_tts_provider_model_mismatch(tmp_path) -> N
     with TestClient(create_app(root_dir=tmp_path)) as client:
         response = client.put("/api/config", json=payload)
 
-    assert response.status_code == 400
-    assert "provider/model mismatch" in response.json()["detail"]
+    # TTS validation removed — the payload should be accepted
+    assert response.status_code == 200
 
 
-def test_provider_config_save_is_immediately_visible_to_config_reader(tmp_path) -> None:
+def test_provider_config_save_does_not_affect_tts_config(tmp_path) -> None:
+    """PUT /api/config no longer writes TTS runtime fields to app_config.json (#386)."""
     payload = default_provider_document()
     payload["providers"]["tts"]["selected"] = "mimo"
     payload["providers"]["tts"]["providers"]["mimo"]["model"] = "mimo-v2.5-tts"
@@ -26,8 +28,9 @@ def test_provider_config_save_is_immediately_visible_to_config_reader(tmp_path) 
         response = client.put("/api/config", json=payload)
 
     assert response.status_code == 200
-    assert app.state.config_reader.get_tts_config()["provider"] == "mimo"
-    assert app.state.config_reader.get_tts_config()["model"] == "mimo-v2.5-tts"
+    # TTS config should NOT be affected by provider config save
+    tts_config = app.state.config_reader.get_tts_config()
+    assert tts_config["provider"] == "qwen"  # stays at catalog default
     assert not (tmp_path / "config" / "providers.yaml").exists()
 
 

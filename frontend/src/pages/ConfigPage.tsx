@@ -274,8 +274,9 @@ export default function ConfigPage() {
 		);
 	}
 
+	// TTS is now managed exclusively via /tts-config page (#386)
 	const availableSections = Object.entries(options.providers)
-		.filter(([, section]) => Object.keys(section.providers).length > 0)
+		.filter(([key, section]) => key !== "tts" && Object.keys(section.providers).length > 0)
 		.map(([key, section]) => ({
 			key,
 			label: section.label || key,

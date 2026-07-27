@@ -11,6 +11,8 @@ import threading
 from pathlib import Path
 from typing import Any, cast
 
+import yaml
+
 from packages.provider_config.catalog import tts_provider_for_model
 from packages.provider_config.config_constants import (
     DEFAULTS,
@@ -243,6 +245,44 @@ class ConfigReader:
         raw = load_config(self._config_path)
         changed = False
 
+        # Import the selected Qwen/MiMo connection fields from the legacy
+        # provider document, but never merge an unselected profile into a
+        # different active provider.  providers.yaml remains read-only.
+        legacy_path = self._config_dir / "providers.yaml"
+        if legacy_path.exists():
+            try:
+                legacy = yaml.safe_load(legacy_path.read_text(encoding="utf-8")) or {}
+            except (OSError, yaml.YAMLError):
+                legacy = {}
+            legacy_tts = legacy.get("providers", {}).get("tts", {})
+            selected = legacy_tts.get("selected")
+            profiles = legacy_tts.get("providers", {})
+            source = (
+                profiles.get(selected)
+                if isinstance(selected, str) and selected in {"qwen", "mimo"}
+                else None
+            )
+            root_tts = raw.setdefault("tts", {})
+            active = root_tts.get("provider") or tts_provider_for_model(
+                str(root_tts.get("model") or "")
+            )
+            if isinstance(source, dict) and (not active or active == selected):
+                migrated = False
+                if not root_tts.get("provider"):
+                    root_tts["provider"] = selected
+                    migrated = True
+                for key, value in source.items():
+                    if key == "api_key" or value in (None, ""):
+                        continue
+                    runtime_key = "style_prompt" if key == "style" else key
+                    if runtime_key not in root_tts or root_tts[runtime_key] in (
+                        None,
+                        "",
+                    ):
+                        root_tts[runtime_key] = value
+                        migrated = True
+                changed = changed or migrated
+
         # Migrate old "product" -> "products" (one-time, write-back)
         if "product" in raw and "products" not in raw:
             old_product = raw.pop("product", {})
@@ -277,6 +317,60 @@ class ConfigReader:
             if inferred and not section.get("provider"):
                 section["provider"] = inferred
                 changed = True
+
+        # Migrate provider_profiles.tts → root tts section (#386)
+        if "provider_profiles" in raw and isinstance(raw["provider_profiles"], dict):
+            profiles = raw["provider_profiles"]
+            tts_profiles = profiles.get("tts")
+            if isinstance(tts_profiles, dict) and tts_profiles:
+                from packages.provider_config.catalog import (
+                    provider_field_to_runtime_field,
+                )
+
+                root_tts = raw.setdefault("tts", {})
+                secret_field_names = {"api_key"}
+
+                # Migrate only the active provider profile. A legacy document
+                # without a root provider may use its sole profile; never
+                # guess when a provider is already selected.
+                active_provider = root_tts.get("provider", "")
+                non_empty = {
+                    p: f
+                    for p, f in tts_profiles.items()
+                    if isinstance(f, dict)
+                    and any(k not in secret_field_names and v for k, v in f.items())
+                }
+
+                source_provider = ""
+                if active_provider and active_provider in non_empty:
+                    source_provider = active_provider
+                elif not active_provider and len(non_empty) == 1:
+                    # A legacy document without a root provider can safely
+                    # inherit its sole provider profile.  Never guess when a
+                    # root provider is already selected: provider_profiles
+                    # contains non-selected profiles by design.
+                    source_provider = next(iter(non_empty))
+
+                if source_provider:
+                    provider_fields = tts_profiles[source_provider]
+                    for key, value in provider_fields.items():
+                        if key in secret_field_names or not value:
+                            continue
+                        runtime_name = provider_field_to_runtime_field(key)
+                        if runtime_name not in root_tts or root_tts[runtime_name] in (
+                            None,
+                            "",
+                        ):
+                            root_tts[runtime_name] = value
+                    # Ensure provider is set so runtime can route (#386)
+                    if not root_tts.get("provider"):
+                        root_tts["provider"] = source_provider
+
+                if source_provider:
+                    profiles.pop("tts", None)
+                    if not profiles:
+                        raw.pop("provider_profiles", None)
+                    changed = True
 
         if changed:
             save_config(self._config_path, raw)

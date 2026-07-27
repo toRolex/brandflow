@@ -25,10 +25,8 @@ from packages.pipeline_services.script_sentence import (
     ScriptSentence,
     parse_script_sentences,
 )
-from packages.pipeline_services.tts_provider import (
-    TTSConfigShim,
-    TTSRetriesExhaustedError,
-)
+from packages.pipeline_services.tts_provider import TTSRetriesExhaustedError
+from packages.provider_config.tts_config import TTSConfig
 
 
 # Keys that affect the produced audio and therefore must be part of the cache
@@ -47,17 +45,19 @@ _FINGERPRINT_KEYS: tuple[str, ...] = (
     "audio_tags",
     "voice_clone_sample_path",
     "voice_design_prompt",
+    "speed",
+    "vol",
+    "pitch",
+    "emotion",
+    "sample_rate",
+    "bitrate",
+    "channel",
 )
 
 
 NormalizeFn = Callable[[Path, Path, str, int], None]
 ConcatFn = Callable[[list[Path], Path], None]
 DurationFn = Callable[[Path], float]
-
-
-def _config_shim(config: dict[str, Any]) -> TTSConfigShim:
-    """Build the duck-typed config object expected by the TTS providers."""
-    return TTSConfigShim(config)
 
 
 def _default_normalize_sentence_audio(
@@ -303,11 +303,11 @@ class SentenceTTSService:
         """
         from packages.pipeline_services.tts_provider import TTSBlockedError
 
-        shim = _config_shim(locked_config)
+        tts_config = TTSConfig.from_dict(locked_config).with_defaults()
         last_error: Exception | None = None
         for attempt in range(1, self.max_retries + 1):
             try:
-                return self.provider.synthesize(sentence, shim)
+                return self.provider.synthesize(sentence, tts_config)
             except TTSBlockedError:
                 raise  # permanent failure — do not retry
             except Exception as exc:  # noqa: BLE001
@@ -350,5 +350,4 @@ __all__ = [
     "SentenceTTSService",
     "SentenceTiming",
     "ScriptSentence",
-    "_config_shim",
 ]

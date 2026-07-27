@@ -101,5 +101,7 @@ def _build_tts_provider(
     pipeline entry point uses the same routing rules.
     """
     from packages.pipeline_services.tts_provider import create_tts_provider
+    from packages.provider_config.tts_config import TTSConfig
 
-    return create_tts_provider(tts_cfg, orchestrator._secrets)
+    config = TTSConfig.from_dict(tts_cfg).with_defaults()
+    return create_tts_provider(config, orchestrator._secrets)

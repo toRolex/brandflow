@@ -15,8 +15,8 @@ import pytest
 from packages.pipeline_services.sentence_tts_service import (
     SentenceTTSService,
     SentenceTiming,
-    _config_shim,
 )
+from packages.provider_config.tts_config import TTSConfig
 
 
 class _RecordingHelpers:
@@ -248,16 +248,16 @@ class TestSentenceTTSService:
         assert timings[0].end_seconds == 2.25
 
 
-class TestConfigShim:
-    def test_config_shim_supplies_defaults(self, base_config) -> None:
-        shim = _config_shim({})
-        assert shim.model == "qwen3-tts-flash"
-        assert shim.voice == "Cherry"
+class TestConfigWithDefaults:
+    def test_config_with_defaults_supplies_defaults(self, base_config) -> None:
+        config = TTSConfig.from_dict({}).with_defaults()
+        assert config.model == "qwen3-tts-flash"
+        assert config.voice == "Cherry"
 
-    def test_config_shim_respects_provided_values(self, base_config) -> None:
-        shim = _config_shim(base_config)
-        assert shim.model == "mimo-v2.5-tts"
-        assert shim.voice == "Mia"
+    def test_config_with_defaults_respects_provided_values(self, base_config) -> None:
+        config = TTSConfig.from_dict(base_config).with_defaults()
+        assert config.model == "mimo-v2.5-tts"
+        assert config.voice == "Mia"
 
 
 # ---------------------------------------------------------------------------

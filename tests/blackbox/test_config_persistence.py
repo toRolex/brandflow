@@ -30,8 +30,8 @@ def cleanup_config():
 class TestConfigPersistence:
     def test_save_tts_config_persists_to_file(self, client):
         config = {
-            "model": "test-persist-model",
-            "voice": "test-persist-voice",
+            "model": "qwen3-tts-instruct-flash",
+            "voice": "Cherry",
             "style_prompt": "test-persist-style",
         }
         response = client.put("/api/tts/config", json=config)
@@ -58,33 +58,33 @@ class TestConfigPersistence:
             )
         else:
             tts = saved_data.get("tts", {})
-        assert tts["model"] == "test-persist-model"
-        assert tts["voice"] == "test-persist-voice"
+        assert tts["model"] == "qwen3-tts-instruct-flash"
+        assert tts["voice"] == "Cherry"
         assert tts["style_prompt"] == "test-persist-style"
 
     def test_config_persists_across_requests(self, client):
-        client.put("/api/tts/config", json={"model": "persisted-model"})
+        client.put("/api/tts/config", json={"model": "qwen3-tts-flash"})
 
         response = client.get("/api/tts/config")
         assert response.status_code == 200
-        assert response.json()["model"] == "persisted-model"
+        assert response.json()["model"] == "qwen3-tts-flash"
 
     def test_partial_update_preserves_other_fields(self, client):
         client.put(
             "/api/tts/config",
             json={
-                "model": "original-model",
-                "voice": "original-voice",
+                "model": "qwen3-tts-flash",
+                "voice": "Cherry",
                 "style_prompt": "original-style",
             },
         )
 
-        client.put("/api/tts/config", json={"model": "updated-model"})
+        client.put("/api/tts/config", json={"model": "qwen3-tts-instruct-flash"})
 
         response = client.get("/api/tts/config")
         data = response.json()
-        assert data["model"] == "updated-model"
-        assert data["voice"] == "original-voice"
+        assert data["model"] == "qwen3-tts-instruct-flash"
+        assert data["voice"] == "Cherry"
         assert data["style_prompt"] == "original-style"
 
     def test_nested_config_persists(self, client):
@@ -148,16 +148,16 @@ class TestConfigPersistence:
     def test_config_survives_new_client(self):
         app1 = create_app()
         with TestClient(app1) as client1:
-            client1.put("/api/tts/config", json={"model": "survived-model"})
+            client1.put("/api/tts/config", json={"model": "qwen3-tts-flash"})
 
         app2 = create_app()
         with TestClient(app2) as client2:
             response = client2.get("/api/tts/config")
         assert response.status_code == 200
-        assert response.json()["model"] == "survived-model"
+        assert response.json()["model"] == "qwen3-tts-flash"
 
     def test_multiple_config_sections_independent(self, client):
-        client.put("/api/tts/config", json={"model": "tts-model"})
+        client.put("/api/tts/config", json={"model": "qwen3-tts-flash"})
 
         config_file = Path("config/app_config.json")
         with open(config_file, encoding="utf-8") as f:
@@ -176,7 +176,7 @@ class TestConfigPersistence:
             )
         else:
             tts = saved_data.get("tts", {})
-        assert tts["model"] == "tts-model"
+        assert tts["model"] == "qwen3-tts-flash"
         if active_id:
             assert "products" in saved_data
         else:

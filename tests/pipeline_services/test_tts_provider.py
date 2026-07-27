@@ -42,7 +42,7 @@ class TestMiMoTTSProvider:
     def test_provider_initialization(self):
         provider = MiMoTTSProvider(api_key="test_key")
         assert provider.api_key == "test_key"
-        assert provider.base_url == "https://api.xiaomimimo.com/v1"
+        assert provider.base_url == "https://api.xiaomimimo.com/v1/chat/completions"
 
     def test_build_preset_request(self):
         provider = MiMoTTSProvider(api_key="test_key")
@@ -58,6 +58,32 @@ class TestMiMoTTSProvider:
         assert request["messages"][0]["role"] == "user"
         assert "活泼热情" in request["messages"][0]["content"]
         assert request["messages"][1]["content"] == "测试文本"
+
+    def test_build_preset_request_uses_connection_parameters(self):
+        provider = MiMoTTSProvider(api_key="test_key")
+        config = TTSConfig(
+            model="mimo-v2.5-tts",
+            voice="Mia",
+            speed="1.2",
+            vol="0.8",
+            pitch="-0.1",
+            emotion="calm",
+            sample_rate="24000",
+            bitrate="128",
+            channel="1",
+            group_id="group-1",
+        )
+
+        request = provider._build_request("测试文本", config)
+
+        assert request["speed"] == "1.2"
+        assert request["volume"] == "0.8"
+        assert request["pitch"] == "-0.1"
+        assert request["emotion"] == "calm"
+        assert request["group_id"] == "group-1"
+        assert request["audio"]["sample_rate"] == "24000"
+        assert request["audio"]["bitrate"] == "128"
+        assert request["audio"]["channel"] == "1"
 
     def test_build_voicedesign_request(self):
         provider = MiMoTTSProvider(api_key="test_key")
@@ -309,9 +335,8 @@ class TestCreateTTSProvider:
                 "DASHSCOPE_API_URL": "https://qwen.example.com",
             }
         )
-        provider = create_tts_provider(
-            {"provider": "qwen", "model": "qwen3-tts-flash"}, secrets
-        )
+        config = TTSConfig(provider="qwen", model="qwen3-tts-flash")
+        provider = create_tts_provider(config, secrets)
         assert isinstance(provider, QwenTTSProvider)
         assert provider.api_key == "qwen-key"
         assert provider.base_url == "https://qwen.example.com"
@@ -323,12 +348,11 @@ class TestCreateTTSProvider:
                 "MIMO_API_BASE_URL": "https://mimo.example.com",
             }
         )
-        provider = create_tts_provider(
-            {"provider": "mimo", "model": "mimo-v2.5-tts"}, secrets
-        )
+        config = TTSConfig(provider="mimo", model="mimo-v2.5-tts")
+        provider = create_tts_provider(config, secrets)
         assert isinstance(provider, MiMoTTSProvider)
         assert provider.api_key == "mimo-key"
-        assert provider.base_url == "https://mimo.example.com"
+        assert provider.base_url == "https://mimo.example.com/chat/completions"
 
     def test_provider_model_mismatch_is_rejected(self):
         secrets = SecretStore(env={})
@@ -337,64 +361,66 @@ class TestCreateTTSProvider:
             match="TTS provider/model mismatch: provider=mimo, model=qwen3-tts-flash",
         ):
             create_tts_provider(
-                {"provider": "mimo", "model": "qwen3-tts-flash"}, secrets
+                TTSConfig(provider="mimo", model="qwen3-tts-flash"), secrets
             )
 
     def test_legacy_config_without_provider_infers_it_from_model(self):
         secrets = SecretStore(env={"MIMO_API_KEY": "mimo-key"})
-        provider = create_tts_provider({"model": "mimo-v2.5-tts"}, secrets)
+        config = TTSConfig(model="mimo-v2.5-tts")
+        provider = create_tts_provider(config, secrets)
         assert isinstance(provider, MiMoTTSProvider)
 
     def test_empty_model_defaults_to_qwen(self):
         secrets = SecretStore(env={"DASHSCOPE_API_KEY": "qwen-key"})
-        provider = create_tts_provider({}, secrets)
+        config = TTSConfig()
+        provider = create_tts_provider(config, secrets)
         assert isinstance(provider, QwenTTSProvider)
         assert provider.api_key == "qwen-key"
         assert provider.base_url == "https://dashscope.aliyuncs.com/api/v1"
 
     def test_fallback_base_url_when_env_missing(self):
         secrets = SecretStore(env={"DASHSCOPE_API_KEY": "qwen-key"})
-        provider = create_tts_provider({"model": "qwen-tts"}, secrets)
+        config = TTSConfig(model="qwen-tts")
+        provider = create_tts_provider(config, secrets)
         assert isinstance(provider, QwenTTSProvider)
         assert provider.base_url == "https://dashscope.aliyuncs.com/api/v1"
 
     def test_tts_api_key_fallback(self):
         secrets = SecretStore(env={"TTS_API_KEY": "fallback-key"})
-        provider = create_tts_provider({"model": "mimo-v2.5-tts"}, secrets)
+        config = TTSConfig(model="mimo-v2.5-tts")
+        provider = create_tts_provider(config, secrets)
         assert isinstance(provider, MiMoTTSProvider)
         assert provider.api_key == "fallback-key"
 
 
 # ---------------------------------------------------------------------------
-# TTSConfigShim — regression guard: missing flat keys must not crash
+# TTSConfig.with_defaults — regression guard: missing flat keys must not crash
 # ---------------------------------------------------------------------------
 
 
-class TestTTSConfigShimDefaults:
-    """TTSConfigShim supplies defaults for all optional flat attributes."""
+class TestTTSConfigWithDefaults:
+    """TTSConfig.with_defaults() supplies defaults for all optional flat attributes."""
 
     def test_empty_dict_gets_all_defaults(self):
         """Empty dict → every expected attribute gets its default value."""
         from packages.provider_config.config_constants import DEFAULTS
-        from packages.pipeline_services.tts_provider import TTSConfigShim
 
         defaults = DEFAULTS["tts"]
-        shim = TTSConfigShim({})
-        assert shim.model == defaults["model"]
-        assert shim.voice == defaults["voice"]
-        assert shim.style_control_mode == defaults["style_control_mode"]
-        assert shim.style_prompt == defaults["style_prompt"]
-        assert shim.audio_format == defaults["audio_format"]
-        assert shim.director_character == defaults["director"]["character"]
-        assert shim.director_scene == defaults["director"]["scene"]
-        assert shim.director_guidance == defaults["director"]["guidance"]
-        assert shim.audio_tags_enabled is defaults["audio_tags"]["enabled"]
-        assert shim.audio_tags == defaults["audio_tags"]["tags"]
+        config = TTSConfig.from_dict({}).with_defaults()
+        assert config.model == defaults["model"]
+        assert config.voice == defaults["voice"]
+        assert config.style_control_mode == defaults["style_control_mode"]
+        assert config.style_prompt == defaults["style_prompt"]
+        assert config.audio_format == defaults["audio_format"]
+        assert config.director_character == defaults["director"]["character"]
+        assert config.director_scene == defaults["director"]["scene"]
+        assert config.director_guidance == defaults["director"]["guidance"]
+        assert config.audio_tags_enabled is defaults["audio_tags"]["enabled"]
+        assert config.audio_tags == defaults["audio_tags"]["tags"]
 
     def test_missing_nested_keys_get_defaults(self):
         """A config dict with nested director/audio_tags but no flat keys
         must supply defaults for the flat key access that MiMo provider uses."""
-        from packages.pipeline_services.tts_provider import TTSConfigShim
 
         cfg = {
             "model": "mimo-v2.5-tts",
@@ -406,31 +432,28 @@ class TestTTSConfigShimDefaults:
             },
             "audio_tags": {"enabled": True, "tags": "(温柔)"},
         }
-        shim = TTSConfigShim(cfg)
-        # Flat keys that don't exist in dict get defaults
-        assert shim.director_character == ""
-        assert shim.director_scene == ""
-        assert shim.director_guidance == ""
-        assert shim.audio_tags_enabled is False
-        # audio_tags key exists as nested dict in input – shim returns dict as-is
-        # ponytail: no flattening, see AC
-        assert isinstance(shim.audio_tags, dict)
+        config = TTSConfig.from_dict(cfg).with_defaults()
+        # Flat keys that don't exist in dict get defaults from with_defaults()
+        assert config.director_character == ""
+        assert config.director_scene == ""
+        assert config.director_guidance == ""
+        assert config.audio_tags_enabled is False
+        # audio_tags key exists as nested dict in input via from_dict().get("audio_tags")
+        assert isinstance(config.audio_tags, dict)
         # Explicitly set keys are preserved
-        assert shim.model == "mimo-v2.5-tts"
-        assert shim.voice == "Mia"
+        assert config.model == "mimo-v2.5-tts"
+        assert config.voice == "Mia"
 
     def test_flat_keys_are_preserved(self):
         """When the dict has flat keys, those values are used."""
-        from packages.pipeline_services.tts_provider import TTSConfigShim
-
         cfg = {
             "model": "qwen-tts",
             "voice": "Cherry",
             "director_character": "男主播",
             "audio_tags_enabled": True,
         }
-        shim = TTSConfigShim(cfg)
-        assert shim.model == "qwen-tts"
-        assert shim.voice == "Cherry"
-        assert shim.director_character == "男主播"
-        assert shim.audio_tags_enabled is True
+        config = TTSConfig.from_dict(cfg).with_defaults()
+        assert config.model == "qwen-tts"
+        assert config.voice == "Cherry"
+        assert config.director_character == "男主播"
+        assert config.audio_tags_enabled is True

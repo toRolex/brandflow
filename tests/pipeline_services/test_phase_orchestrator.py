@@ -510,9 +510,9 @@ class _FakeSentenceTTSService:
         self.config = config
 
     def _config_shim(self):
-        from packages.pipeline_services.tts_provider import TTSConfigShim
+        from packages.provider_config.tts_config import TTSConfig
 
-        return TTSConfigShim(self.config)
+        return TTSConfig.from_dict(self.config).with_defaults()
 
     def synthesize_script(
         self, script_text: str, output_path: Path

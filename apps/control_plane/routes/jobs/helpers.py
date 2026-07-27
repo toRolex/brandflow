@@ -308,13 +308,12 @@ def _resolve_tts_preview_config(
     # Preview must resolve the same voice as formal synthesis — never randomize (#252)
     tts_cfg["randomize_voice"] = False
 
-    from packages.pipeline_services.tts_provider import (
-        TTSConfigShim,
-        create_tts_provider,
-    )
+    from packages.pipeline_services.tts_provider import create_tts_provider
+    from packages.provider_config.tts_config import TTSConfig
 
-    provider = create_tts_provider(tts_cfg, secret_store)
-    return provider, TTSConfigShim(tts_cfg)
+    config = TTSConfig.from_dict(tts_cfg).with_defaults()
+    provider = create_tts_provider(config, secret_store)
+    return provider, config
 
 
 _INVALIDATE_ARTIFACT_KINDS: frozenset[str] = frozenset(

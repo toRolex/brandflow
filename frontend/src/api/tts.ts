@@ -42,6 +42,13 @@ export const previewTTS = async (requestBody: {
 	instructions?: string;
 	optimize_instructions?: boolean;
 	language_type?: string;
+	speed?: string;
+	vol?: string;
+	pitch?: string;
+	emotion?: string;
+	group_id?: string;
+	endpoint?: string;
+	extra_headers?: string;
 }) => {
 	const res = await fetch("/api/tts/preview", {
 		method: "POST",

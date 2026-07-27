@@ -61,18 +61,8 @@ def _ensure_selected_providers_are_valid(payload: dict) -> None:
                 status_code=400, detail=f"invalid provider: {section_name}.{selected}"
             )
 
-    tts = providers.get("tts", {})
-    selected = tts.get("selected") if isinstance(tts, dict) else None
-    provider_configs = tts.get("providers", {}) if isinstance(tts, dict) else {}
-    if isinstance(selected, str) and selected in provider_configs:
-        from packages.pipeline_services.tts_provider import resolve_tts_provider_name
-
-        try:
-            resolve_tts_provider_name(
-                {"provider": selected, "model": provider_configs[selected].get("model")}
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # TTS provider validation is no longer needed here — TTS is managed
+    # exclusively via PUT /api/tts/config (#386).
 
 
 def _normalize_payload(payload: dict, root_dir: Path) -> dict:

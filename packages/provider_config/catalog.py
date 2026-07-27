@@ -6,13 +6,29 @@ from pathlib import Path
 
 _CATALOG_PATH = Path(__file__).with_name("catalog.json")
 _RUNTIME_FIELD_ALIASES = {"style": "style_prompt"}
+_SUPPORTED_TTS_PROVIDERS = frozenset({"qwen", "mimo"})
+
+
+def _runtime_catalog(data: dict) -> dict:
+    """Return the catalog view for providers that have an implementation."""
+    result = deepcopy(data)
+    tts = result.get("providers", {}).get("tts", {})
+    providers = tts.get("providers")
+    if isinstance(providers, dict):
+        tts["providers"] = {
+            name: value
+            for name, value in providers.items()
+            if name in _SUPPORTED_TTS_PROVIDERS
+        }
+    return result
+
 
 with _CATALOG_PATH.open(encoding="utf-8") as _fh:
     _DATA: dict = json.load(_fh)
 
 
 def default_provider_document() -> dict:
-    return deepcopy(_DATA["default_document"])
+    return _runtime_catalog(_DATA["default_document"])
 
 
 def default_runtime_settings() -> dict:
@@ -51,7 +67,7 @@ def default_runtime_provider_config() -> dict:
 
 
 def provider_options_payload() -> dict:
-    return deepcopy(_DATA["provider_options"])
+    return _runtime_catalog(_DATA["provider_options"])
 
 
 def setting_secret_env_var(section_name: str, field_name: str) -> str:
@@ -74,6 +90,8 @@ def tts_provider_for_model(model: str) -> str | None:
     """Return the catalog TTS provider whose declared prefix owns *model*."""
     providers = _DATA["provider_options"]["providers"]["tts"]["providers"]
     for provider_name, provider in providers.items():
+        if provider_name not in _SUPPORTED_TTS_PROVIDERS:
+            continue
         prefixes = provider.get("model_prefixes", [])
         if any(model.startswith(prefix) for prefix in prefixes):
             return provider_name
@@ -86,5 +104,16 @@ def tts_runtime_providers() -> frozenset[str]:
     return frozenset(
         provider_name
         for provider_name, provider in providers.items()
-        if provider.get("model_prefixes")
+        if provider_name in _SUPPORTED_TTS_PROVIDERS and provider.get("model_prefixes")
     )
+
+
+def tts_preset_voices(provider_name: str) -> list[dict]:
+    """Return preset voices for a TTS provider from the catalog."""
+    providers = _DATA["provider_options"]["providers"]["tts"]["providers"]
+    if provider_name not in _SUPPORTED_TTS_PROVIDERS:
+        return []
+    provider = providers.get(provider_name)
+    if provider is None:
+        return []
+    return list(provider.get("preset_voices", []))

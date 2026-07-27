@@ -443,13 +443,9 @@ def toggle_job_pin(request: Request, job_id: str):
     project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
     if record.is_pinned:
-        updated = record.model_copy(
-            update={"is_pinned": False, "pinned_at": ""}
-        )
+        updated = record.model_copy(update={"is_pinned": False, "pinned_at": ""})
     else:
-        updated = record.model_copy(
-            update={"is_pinned": True, "pinned_at": _utc_now()}
-        )
+        updated = record.model_copy(update={"is_pinned": True, "pinned_at": _utc_now()})
     repo.save_job(project_id, updated)
     return {
         "job_id": job_id,

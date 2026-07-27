@@ -268,3 +268,35 @@ describe("TTSConfigPage model switch preserves voice or falls back to Cherry (#3
 		});
 	});
 });
+
+describe("TTSConfigPage provider switching", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("does not preview a MiMo model with the previously selected Qwen endpoint", async () => {
+		vi.mocked(api.getTTSConfig).mockResolvedValue({
+			...baseConfig,
+			provider: "qwen",
+			endpoint: "https://dashscope.aliyuncs.com/api/v1",
+		});
+		vi.mocked(api.getTTSVoices).mockResolvedValue({ preset_voices: [] });
+		vi.mocked(api.previewTTS).mockResolvedValue("blob:preview");
+
+		renderWithProduct();
+		await waitFor(() => expect(api.getTTSConfig).toHaveBeenCalled());
+
+		fireEvent.click(screen.getByText("预置音色"));
+		fireEvent.click(screen.getByRole("button", { name: "播放预览" }));
+
+		await waitFor(() => {
+			expect(api.previewTTS).toHaveBeenCalledWith(
+				expect.objectContaining({
+					provider: "mimo",
+					model: "mimo-v2.5-tts",
+					endpoint: undefined,
+				}),
+			);
+		});
+	});
+});

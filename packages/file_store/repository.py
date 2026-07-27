@@ -174,9 +174,7 @@ class FileStoreRepository:
             1 for f in jobs_root.iterdir() if f.is_file() and f.suffix == ".json"
         )
 
-    def _sorted_job_files(
-        self, project_id: str
-    ) -> tuple[list[Path], dict[str, int]]:
+    def _sorted_job_files(self, project_id: str) -> tuple[list[Path], dict[str, int]]:
         """Return ``(sorted_paths, stable_index_map)`` for *project_id*.
 
         Sorted for display: pinned Jobs first (most-recently-pinned first),
@@ -216,13 +214,9 @@ class FileStoreRepository:
         index_map = {e[0].stem: idx for idx, e in enumerate(entries, start=1)}
 
         # Extract pinned entries to the front, sorted by pinned_at desc.
-        pinned = [
-            e for e in entries
-            if e[1].get("is_pinned") and e[1].get("pinned_at")
-        ]
+        pinned = [e for e in entries if e[1].get("is_pinned") and e[1].get("pinned_at")]
         unpinned = [
-            e for e in entries
-            if not (e[1].get("is_pinned") and e[1].get("pinned_at"))
+            e for e in entries if not (e[1].get("is_pinned") and e[1].get("pinned_at"))
         ]
 
         def _pinned_at_desc(entry: tuple[Path, dict[str, Any]]) -> str:

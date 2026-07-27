@@ -741,3 +741,131 @@ class TestCacheBehavior:
             first = reader.get_tts_config()
             second = reader.get_tts_config()
             assert first is second
+
+
+# ---------------------------------------------------------------------------
+# Seam: provider_profiles.tts migration (#386)
+# ---------------------------------------------------------------------------
+
+
+class TestTTSProviderProfileMigration:
+    def test_migrates_selected_legacy_yaml_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_config(tmpdir, {})
+            (root / "providers.yaml").write_text(
+                """providers:\n  tts:\n    selected: mimo\n    providers:\n      mimo:\n        endpoint: https://mimo.example\n        group_id: group-1\n        model: mimo-v2.5-tts\n        api_key: secret\n""",
+                encoding="utf-8",
+            )
+
+            reader = ConfigReader(config_dir=tmpdir)
+            tts = reader.get_tts_config()
+
+            assert tts["provider"] == "mimo"
+            assert tts["endpoint"] == "https://mimo.example"
+            assert tts["group_id"] == "group-1"
+            assert tts["model"] == "mimo-v2.5-tts"
+
+    def test_migrate_provider_profiles_tts_to_root(self) -> None:
+        """provider_profiles.tts 的非 secret 字段迁移到 root tts section."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = _write_config(
+                tmpdir,
+                {
+                    "tts": {"provider": "mimo", "model": "mimo-v2.5-tts"},
+                    "provider_profiles": {
+                        "tts": {
+                            "mimo": {
+                                "speed": "1.2",
+                                "vol": "0.8",
+                                "pitch": "-0.1",
+                                "emotion": "calm",
+                                "group_id": "my-group",
+                            }
+                        }
+                    },
+                },
+            )
+            reader = ConfigReader(config_dir=tmpdir)
+            tts = reader.get_tts_config()
+            # Migrated fields appear in root tts
+            assert tts.get("speed") == "1.2"
+            assert tts.get("vol") == "0.8"
+            assert tts.get("pitch") == "-0.1"
+            assert tts.get("emotion") == "calm"
+            assert tts.get("group_id") == "my-group"
+            # provider_profiles.tts 被清除
+            persisted = json.loads(config_path.read_text(encoding="utf-8"))
+            profiles = persisted.get("provider_profiles", {})
+            assert "tts" not in profiles
+
+    def test_does_not_merge_non_selected_tts_profile(self) -> None:
+        """Non-selected legacy profiles must not contaminate root TTS config."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = _write_config(
+                tmpdir,
+                {
+                    "tts": {"provider": "qwen", "model": "qwen3-tts-flash"},
+                    "provider_profiles": {
+                        "tts": {
+                            "mimo": {"endpoint": "https://mimo.invalid", "group_id": "g"}
+                        }
+                    },
+                },
+            )
+            reader = ConfigReader(config_dir=tmpdir)
+            tts = reader.get_tts_config()
+            assert tts.get("endpoint") != "https://mimo.invalid"
+            persisted = json.loads(config_path.read_text(encoding="utf-8"))
+            assert "tts" in persisted.get("provider_profiles", {})
+
+    def test_migrate_tts_profiles_idempotent(self) -> None:
+        """重复迁移不覆盖已有值（idempotent）."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(
+                tmpdir,
+                {
+                    "tts": {"speed": "2.0", "vol": "1.0"},
+                    "provider_profiles": {
+                        "tts": {
+                            "mimo": {
+                                "speed": "1.2",
+                                "vol": "0.8",
+                                "pitch": "-0.1",
+                            }
+                        }
+                    },
+                },
+            )
+            reader = ConfigReader(config_dir=tmpdir)
+            tts = reader.get_tts_config()
+            # 已有值不被覆盖
+            assert tts.get("speed") == "2.0"
+            assert tts.get("vol") == "1.0"
+            # 未设置的被填充
+            assert tts.get("pitch") == "-0.1"
+
+    def test_migrate_empty_provider_profiles_no_error(self) -> None:
+        """空/missing provider_profiles 不报错."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(tmpdir, {"tts": {"model": "test"}})
+            reader = ConfigReader(config_dir=tmpdir)
+            assert reader.get_tts_config()["model"] == "test"
+
+    def test_migrate_empty_tts_profiles_no_error(self) -> None:
+        """provider_profiles 存在但无 tts key 不报错."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_config(
+                tmpdir,
+                {
+                    "tts": {"model": "test"},
+                    "provider_profiles": {"llm": {"kimi": {"model": "test"}}},
+                },
+            )
+            reader = ConfigReader(config_dir=tmpdir)
+            assert reader.get_tts_config()["model"] == "test"
+            # llm profile 未被清除
+            persisted = json.loads(
+                Path(tmpdir).joinpath("app_config.json").read_text(encoding="utf-8")
+            )
+            assert "llm" in persisted.get("provider_profiles", {})
