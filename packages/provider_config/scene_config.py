@@ -32,3 +32,15 @@ def validate_scene_folders(value: Any, root_dir: Path) -> None:
             raise SceneConfigValidationError(
                 f"invalid path: scene.folders[{index}]"
             ) from exc
+
+
+def validate_scene_payload(payload: dict, root_dir: Path) -> None:
+    """Validate ``scene.folders`` inside a config payload dict.
+
+    No-op when *payload* has no scene section.  Raises
+    ``SceneConfigValidationError`` when any folder path is invalid.
+    """
+    scene = payload.get("scene") if isinstance(payload, dict) else None
+    if not isinstance(scene, dict) or "folders" not in scene:
+        return
+    validate_scene_folders(scene["folders"], root_dir)

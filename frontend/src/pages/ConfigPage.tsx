@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { ProviderConfig, ProviderField, ProviderOptions } from "../types";
+import { displayFieldValue } from "../utils/providerForm";
 import { ConfigSettingsPanel } from "./ConfigSettingsPanel";
 
 type IconRenderer = (color: string) => React.ReactNode;
@@ -112,8 +113,6 @@ const inputStyle: React.CSSProperties = {
 	color: "var(--input-text)",
 };
 
-const SECRET_MASK = "***";
-
 function selectFirstProviders(
 	c: ProviderConfig,
 	o: ProviderOptions,
@@ -131,14 +130,6 @@ function selectFirstProviders(
 		}
 	}
 	return next;
-}
-
-function displayFieldValue(value: unknown, field: ProviderField): string {
-	if (field.secret && value === SECRET_MASK) return "";
-	if (field.kind === "json" && value && typeof value !== "string") {
-		return JSON.stringify(value, null, 2);
-	}
-	return typeof value === "string" ? value : "";
 }
 
 export default function ConfigPage() {

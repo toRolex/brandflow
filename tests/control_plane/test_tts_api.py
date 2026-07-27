@@ -264,7 +264,7 @@ class TestTTSPreviewAPI:
             json={"text": "测试文本", "model": "mimo-v2.5-tts", "voice": "Mia"},
         )
         assert response.status_code == 500
-        assert "MIMO_API_KEY" in response.json()["detail"]
+        assert "mimo" in response.json()["detail"]
 
     def test_preview_with_invalid_model_returns_error(self, client, monkeypatch):
         monkeypatch.delenv("MIMO_API_KEY", raising=False)
@@ -616,7 +616,7 @@ class TestTTSPreviewResponse:
         malformation: str,
     ):
         """Malformed WAV containers that still have valid RIFF/WAVE magic
-        bytes are detected by _detect_audio_format and served as audio/wav
+        bytes are detected by detect_audio_format and served as audio/wav
         rather than rejected — this keeps the door open for cases like Qwen's
         multimodal-generation API that returns MP3 when WAV is expected."""
         if malformation == "header-only":

@@ -15,6 +15,7 @@ from packages.provider_config import (
 from packages.provider_config.scene_config import (
     SceneConfigValidationError,
     validate_scene_folders,
+    validate_scene_payload,
 )
 from packages.provider_config.store import CLEAR_SECRET_SENTINEL
 
@@ -232,10 +233,7 @@ def delete_product_config(request: Request) -> dict:
 
 
 def _validate_product_scene_config(payload: dict, root_dir: Path) -> None:
-    scene = payload.get("scene") if isinstance(payload, dict) else None
-    if not isinstance(scene, dict) or "folders" not in scene:
-        return
     try:
-        validate_scene_folders(scene["folders"], root_dir)
+        validate_scene_payload(payload, root_dir)
     except SceneConfigValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

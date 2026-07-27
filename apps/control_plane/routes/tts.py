@@ -8,6 +8,7 @@ from fastapi.responses import Response
 from pathlib import Path
 from pydantic import BaseModel
 
+from packages.pipeline_services.media_utils import detect_audio_format
 from packages.provider_config.catalog import tts_provider_for_model
 from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.secret_store import SecretStore
@@ -32,30 +33,6 @@ def _is_playable_wav(audio_bytes: bytes) -> bool:
             return len(wav_file.readframes(frame_count)) == expected_size
     except (EOFError, wave.Error):
         return False
-
-
-def _detect_audio_format(audio_bytes: bytes) -> str | None:
-    """Detect audio format from magic bytes.
-
-    Returns a (media_type, file_extension) pair, or None if unrecognised.
-    """
-    if len(audio_bytes) < 4:
-        return None
-
-    # WAV/RIFF
-    if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
-        return ("audio/wav", "wav")
-    # MP3 — ID3v2 tag or sync word
-    if audio_bytes[:3] == b"ID3" or audio_bytes[:2] == b"\xff\xfb":
-        return ("audio/mpeg", "mp3")
-    # OGG
-    if audio_bytes[:4] == b"OggS":
-        return ("audio/ogg", "ogg")
-    # FLAC
-    if audio_bytes[:4] == b"fLaC":
-        return ("audio/flac", "flac")
-    # PCM raw — no magic bytes; assume wav extension for downloaded content
-    return None
 
 
 class TTSConfigRequest(BaseModel):
@@ -548,10 +525,10 @@ async def preview_tts(request: TTSPreviewRequest):
             raise HTTPException(status_code=400, detail=f"不支持的 TTS model: {model}")
         api_key = app_config.get_api_key(provider_name, section="tts")
         if not api_key:
-            env_name = (
-                "DASHSCOPE_API_KEY" if provider_name == "qwen" else "MIMO_API_KEY"
+            raise HTTPException(
+                status_code=500,
+                detail=f"未配置 TTS provider ({provider_name}) 的 API Key",
             )
-            raise HTTPException(status_code=500, detail=f"未配置 {env_name}")
         provider_config = config.to_dict()
         provider_config["provider"] = provider_name
         provider = create_tts_provider(provider_config, app_config)
@@ -567,7 +544,7 @@ async def preview_tts(request: TTSPreviewRequest):
                 # Qwen multimodal-generation API returns MP3 even when
                 # the caller expects WAV — detect the real format instead
                 # of failing with a 502.
-                detected = _detect_audio_format(audio_bytes)
+                detected = detect_audio_format(audio_bytes)
                 if detected is None:
                     raise TTSError("TTS returned unrecognised audio data")
                 media_type, ext = detected
@@ -576,7 +553,7 @@ async def preview_tts(request: TTSPreviewRequest):
             media_type = "audio/L16;rate=24000;channels=1"
             filename = "preview.pcm"
         else:
-            detected = _detect_audio_format(audio_bytes)
+            detected = detect_audio_format(audio_bytes)
             if detected is not None:
                 media_type, ext = detected
                 filename = f"preview.{ext}"

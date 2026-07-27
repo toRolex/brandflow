@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 from packages.provider_config.config_reader import ProductStore
 from packages.provider_config.scene_config import (
     SceneConfigValidationError,
-    validate_scene_folders,
+    validate_scene_payload,
 )
 
 router = APIRouter(tags=["products"])
@@ -103,10 +103,7 @@ def update_product_config(request: Request, product_id: str, payload: dict) -> d
 
 
 def _validate_scene_config(payload: dict, root_dir: Path) -> None:
-    scene = payload.get("scene") if isinstance(payload, dict) else None
-    if not isinstance(scene, dict) or "folders" not in scene:
-        return
     try:
-        validate_scene_folders(scene["folders"], root_dir)
+        validate_scene_payload(payload, root_dir)
     except SceneConfigValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

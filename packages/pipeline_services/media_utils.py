@@ -37,6 +37,31 @@ class ToolNotFoundError(FileNotFoundError):
         super().__init__(message)
 
 
+def detect_audio_format(audio_bytes: bytes) -> tuple[str, str] | None:
+    """Detect audio format from magic bytes.
+
+    Returns a ``(media_type, file_extension)`` pair, or ``None`` if the
+    format cannot be recognised.
+    """
+    if len(audio_bytes) < 4:
+        return None
+
+    # WAV/RIFF
+    if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+        return ("audio/wav", "wav")
+    # MP3 — ID3v2 tag or sync word
+    if audio_bytes[:3] == b"ID3" or audio_bytes[:2] == b"\xff\xfb":
+        return ("audio/mpeg", "mp3")
+    # OGG
+    if audio_bytes[:4] == b"OggS":
+        return ("audio/ogg", "ogg")
+    # FLAC
+    if audio_bytes[:4] == b"fLaC":
+        return ("audio/flac", "flac")
+    # PCM raw — no magic bytes
+    return None
+
+
 def _get_media_config(reader: ConfigReader | None) -> dict:
     if reader is not None:
         return reader.get_media_config()

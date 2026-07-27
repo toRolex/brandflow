@@ -1,4 +1,5 @@
 import type { ProviderField, ProviderOptions } from "../types";
+import { displayFieldValue } from "../utils/providerForm";
 
 interface ConfigSettingsPanelProps {
 	settings: Record<string, Record<string, unknown>>;
@@ -10,7 +11,7 @@ interface SettingInputProps {
 	field: ProviderField;
 	fieldId: string;
 	secretConfigured: boolean;
-	value: string | number;
+	value: string;
 	onChange: (value: unknown) => void;
 }
 
@@ -19,19 +20,6 @@ const inputStyle: React.CSSProperties = {
 	borderColor: "var(--input-border)",
 	color: "var(--input-text)",
 };
-
-function displayValue(value: unknown, field: ProviderField): string | number {
-	if (field.secret && value === "***") {
-		return "";
-	}
-	if (field.kind === "json" && typeof value !== "string") {
-		return JSON.stringify(value ?? {}, null, 2);
-	}
-	if (typeof value === "string" || typeof value === "number") {
-		return value;
-	}
-	return "";
-}
 
 function SettingInput({
 	field,
@@ -130,7 +118,7 @@ export function ConfigSettingsPanel({
 					{section.fields.map((field) => {
 						const fieldId = `setting-${sectionKey}-${field.name}`;
 						const rawValue = settings[sectionKey]?.[field.name];
-						const value = displayValue(rawValue, field);
+						const value = displayFieldValue(rawValue, field);
 						const secretConfigured = Boolean(
 							field.secret && typeof rawValue === "string" && rawValue !== "",
 						);
