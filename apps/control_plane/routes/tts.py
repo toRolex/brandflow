@@ -22,6 +22,23 @@ config_manager = TTSConfigManager()
 
 
 def _is_playable_wav(audio_bytes: bytes) -> bool:
+    if len(audio_bytes) >= 12 and audio_bytes[:4] == b"RIFF":
+        wav_bytes = bytearray(audio_bytes)
+        riff_size = int.from_bytes(wav_bytes[4:8], "little")
+        data_offset = wav_bytes.find(b"data", 12)
+        if (
+            riff_size == 0x7FFFFFBF
+            and data_offset >= 0
+            and data_offset + 8 <= len(wav_bytes)
+            and int.from_bytes(wav_bytes[data_offset + 4 : data_offset + 8], "little")
+            == riff_size - data_offset
+        ):
+            wav_bytes[4:8] = (len(wav_bytes) - 8).to_bytes(4, "little")
+            wav_bytes[data_offset + 4 : data_offset + 8] = (
+                len(wav_bytes) - data_offset - 8
+            ).to_bytes(4, "little")
+        audio_bytes = bytes(wav_bytes)
+
     try:
         with wave.open(io.BytesIO(audio_bytes), "rb") as wav_file:
             frame_count = wav_file.getnframes()

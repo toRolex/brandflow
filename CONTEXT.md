@@ -47,6 +47,10 @@ AI 能力的供应商。LLM、TTS 与 Vision provider 各自拥有独立的模�
 
 WorkspaceLayout seam 已接入 FileStoreRepository、控制面路由、Auto-Tick、pipeline phase handlers 与 Runtime Worker。所有 project-tree 路径通过布局的显式方法解析；`shared_assets`、`music_library` 等全局库保持各自的路径所有权。
 
+### TTS 音频兼容
+
+- Qwen TTS 返回的 WAV 使用流式 RIFF/data 长度哨兵；预览校验会在临时副本中按实际载荷长度解析，不修改返回的原始音频。
+
 ### WorkspaceLayout seam 收口
 
 - `FileStoreRepository` 不再持有 `root` 属性；项目树路径一律通过 `repo.layout` 的显式方法访问。

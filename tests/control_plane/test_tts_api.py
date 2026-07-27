@@ -580,6 +580,48 @@ class TestTTSPreviewResponse:
             with wave.open(io.BytesIO(response.content), "rb") as wav_file:
                 assert wav_file.getnframes() / wav_file.getframerate() > 0
 
+    def test_preview_accepts_qwen_wav_with_streaming_size_sentinels(
+        self, client, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = bytearray(wav_bytes())
+        source_audio[4:8] = (0x7FFFFFBF).to_bytes(4, "little")
+        source_audio[40:44] = (0x7FFFFF9B).to_bytes(4, "little")
+
+        with (
+            patch("requests.post") as mock_post,
+            patch("requests.get") as mock_get,
+            patch("apps.control_plane.routes.tts.app_config") as mock_config,
+        ):
+            mock_config.get_api_key.return_value = "test-api-key"
+            mock_config.get_api_base_url.return_value = (
+                "https://dashscope.aliyuncs.com/api/v1"
+            )
+            mock_post.return_value = MagicMock(
+                status_code=200,
+                json=MagicMock(
+                    return_value={
+                        "output": {"audio": {"url": "https://example.com/audio.wav"}}
+                    }
+                ),
+            )
+            mock_get.return_value = MagicMock(
+                content=bytes(source_audio),
+                headers={"content-type": "audio/x-wav"},
+            )
+
+            response = client.post(
+                "/api/tts/preview",
+                json={
+                    "text": "测试",
+                    "model": "qwen3-tts-flash",
+                    "voice": "Rocky",
+                },
+            )
+
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "audio/wav"
+            assert response.content == bytes(source_audio)
+
     def test_preview_rejects_non_wav_payload_without_leaking_provider_data(
         self, client
     ):
