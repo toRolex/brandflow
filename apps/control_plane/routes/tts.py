@@ -34,6 +34,30 @@ def _is_playable_wav(audio_bytes: bytes) -> bool:
         return False
 
 
+def _detect_audio_format(audio_bytes: bytes) -> str | None:
+    """Detect audio format from magic bytes.
+
+    Returns a (media_type, file_extension) pair, or None if unrecognised.
+    """
+    if len(audio_bytes) < 4:
+        return None
+
+    # WAV/RIFF
+    if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+        return ("audio/wav", "wav")
+    # MP3 — ID3v2 tag or sync word
+    if audio_bytes[:3] == b"ID3" or audio_bytes[:2] == b"\xff\xfb":
+        return ("audio/mpeg", "mp3")
+    # OGG
+    if audio_bytes[:4] == b"OggS":
+        return ("audio/ogg", "ogg")
+    # FLAC
+    if audio_bytes[:4] == b"fLaC":
+        return ("audio/flac", "flac")
+    # PCM raw — no magic bytes; assume wav extension for downloaded content
+    return None
+
+
 class TTSConfigRequest(BaseModel):
     provider: str | None = None
     model: str | None = None
@@ -536,16 +560,29 @@ async def preview_tts(request: TTSPreviewRequest):
 
         audio_format = config.audio_format or "wav"
         if audio_format == "wav":
-            if not _is_playable_wav(audio_bytes):
-                raise TTSError("TTS returned invalid WAV audio")
-            media_type = "audio/wav"
-            filename = "preview.wav"
+            if _is_playable_wav(audio_bytes):
+                media_type = "audio/wav"
+                filename = "preview.wav"
+            else:
+                # Qwen multimodal-generation API returns MP3 even when
+                # the caller expects WAV — detect the real format instead
+                # of failing with a 502.
+                detected = _detect_audio_format(audio_bytes)
+                if detected is None:
+                    raise TTSError("TTS returned unrecognised audio data")
+                media_type, ext = detected
+                filename = f"preview.{ext}"
         elif audio_format == "pcm16":
             media_type = "audio/L16;rate=24000;channels=1"
             filename = "preview.pcm"
         else:
-            media_type = "audio/wav"
-            filename = "preview.wav"
+            detected = _detect_audio_format(audio_bytes)
+            if detected is not None:
+                media_type, ext = detected
+                filename = f"preview.{ext}"
+            else:
+                media_type = "audio/wav"
+                filename = "preview.wav"
 
         return Response(
             content=audio_bytes,

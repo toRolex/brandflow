@@ -601,7 +601,7 @@ class TestTTSPreviewResponse:
             )
 
             assert response.status_code == 502
-            assert response.json()["detail"] == "TTS returned invalid WAV audio"
+            assert response.json()["detail"] == "TTS returned unrecognised audio data"
             assert provider_secret not in response.text
             assert "secret-api-key" not in response.text
 
@@ -609,12 +609,16 @@ class TestTTSPreviewResponse:
         "malformation",
         ["header-only", "zero-frame", "zero-framerate", "truncated-frame-data"],
     )
-    def test_preview_rejects_malformed_wav_container(
+    def test_preview_detects_malformed_wav_by_magic_bytes(
         self,
         client,
         wav_bytes: Callable[..., bytes],
         malformation: str,
     ):
+        """Malformed WAV containers that still have valid RIFF/WAVE magic
+        bytes are detected by _detect_audio_format and served as audio/wav
+        rather than rejected — this keeps the door open for cases like Qwen's
+        multimodal-generation API that returns MP3 when WAV is expected."""
         if malformation == "header-only":
             source_audio = b"RIFF\x04\x00\x00\x00WAVE"
         elif malformation == "zero-frame":
@@ -641,8 +645,9 @@ class TestTTSPreviewResponse:
                 json={"text": "测试", "model": "mimo-v2.5-tts", "voice": "Mia"},
             )
 
-            assert response.status_code == 502
-            assert response.json()["detail"] == "TTS returned invalid WAV audio"
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "audio/wav"
+            assert response.content == source_audio
 
     def test_preview_preserves_raw_pcm16_payload(self, client):
         source_audio = b"\x00\x00\x01\x00\xff\x7f"
