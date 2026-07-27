@@ -33,6 +33,7 @@ def put_config(request: Request, payload: dict) -> dict:
     normalized_payload = _normalize_payload(payload)
     _ensure_selected_providers_are_valid(normalized_payload)
     save_provider_config(root_dir, normalized_payload)
+    request.app.state.config_reader.reload()
     return mask_provider_config(load_provider_config(root_dir))
 
 
@@ -53,6 +54,19 @@ def _ensure_selected_providers_are_valid(payload: dict) -> None:
             raise HTTPException(
                 status_code=400, detail=f"invalid provider: {section_name}.{selected}"
             )
+
+    tts = providers.get("tts", {})
+    selected = tts.get("selected") if isinstance(tts, dict) else None
+    provider_configs = tts.get("providers", {}) if isinstance(tts, dict) else {}
+    if isinstance(selected, str) and selected in provider_configs:
+        from packages.pipeline_services.tts_provider import resolve_tts_provider_name
+
+        try:
+            resolve_tts_provider_name(
+                {"provider": selected, "model": provider_configs[selected].get("model")}
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _normalize_payload(payload: dict) -> dict:

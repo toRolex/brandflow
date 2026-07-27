@@ -224,6 +224,7 @@ export default function TTSConfigPage() {
 					: config.voice;
 			const requestBody: {
 				text: string;
+				provider?: string;
 				model?: string;
 				voice?: string;
 				style_prompt?: string;
@@ -233,6 +234,7 @@ export default function TTSConfigPage() {
 				language_type?: string;
 			} = {
 				text: previewText,
+				provider: config.model?.startsWith("qwen") ? "qwen" : "mimo",
 				model: config.model,
 				voice,
 				style_prompt: config.style_prompt,

@@ -34,6 +34,7 @@ export const getTTSVoices = (provider?: string, model?: string) => {
 
 export const previewTTS = async (requestBody: {
 	text: string;
+	provider?: string;
 	model?: string;
 	voice?: string;
 	style_prompt?: string;

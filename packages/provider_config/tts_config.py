@@ -9,6 +9,7 @@ from packages.provider_config.config_constants import DEFAULTS
 
 @dataclass
 class TTSConfig:
+    provider: str | None = None
     model: str | None = None
     voice: str | None = None
     fallback_voice: str | None = None
@@ -45,6 +46,7 @@ class TTSConfig:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "provider": self.provider,
             "model": self.model,
             "voice": self.voice,
             "fallback_voice": self.fallback_voice,
@@ -70,6 +72,7 @@ class TTSConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TTSConfig:
         return cls(
+            provider=data.get("provider"),
             model=data.get("model"),
             voice=data.get("voice"),
             fallback_voice=data.get("fallback_voice"),
@@ -98,6 +101,9 @@ class TTSConfig:
         audio_tags = defaults.get("audio_tags", {})
 
         return TTSConfig(
+            provider=self.provider
+            if self.provider is not None
+            else defaults.get("provider"),
             model=self.model if self.model is not None else defaults.get("model"),
             voice=self.voice if self.voice is not None else defaults.get("voice"),
             fallback_voice=self.fallback_voice
@@ -244,8 +250,6 @@ class TTSConfigManager:
             elif key == "audio_tags" and isinstance(value, dict):
                 result["audio_tags_enabled"] = value.get("enabled", False)
                 result["audio_tags"] = value.get("tags", "")
-            elif key == "provider":
-                continue
             else:
                 result[key] = value
         return result

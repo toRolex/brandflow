@@ -68,7 +68,7 @@ def test_custom_random_voices() -> None:
 def test_to_dict_returns_all_fields() -> None:
     config = TTSConfig()
     data = config.to_dict()
-    assert len(data) == 20
+    assert len(data) == 21
 
 
 def test_to_dict_values_match_defaults() -> None:

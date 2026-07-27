@@ -244,13 +244,13 @@
         }
       },
       "tts": {
-        "selected": "mimo",
+        "selected": "qwen",
         "providers": {
           "qwen": {
             "api_key": "",
             "endpoint": "https://dashscope.aliyuncs.com/api/v1",
             "model": "qwen3-tts-flash",
-            "voice": "Rocky",
+            "voice": "Cherry",
             "instructions": "",
             "language_type": "Chinese",
             "audio_format": "wav",
@@ -311,12 +311,12 @@
         "providers": {}
       },
       "vision": {
-        "selected": "",
+        "selected": "xiaomi",
         "providers": {
           "xiaomi": {
             "api_key": "",
             "endpoint": "",
-            "model": "",
+            "model": "mimo-v2.5",
             "temperature": "",
             "max_tokens": "300",
             "thinking": "",

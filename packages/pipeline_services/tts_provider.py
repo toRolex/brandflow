@@ -434,24 +434,55 @@ class TTSConfigShim:
 # ---------------------------------------------------------------------------
 
 
+def resolve_tts_provider_name(config: dict[str, Any]) -> str:
+    """Return and validate the provider selected by a TTS config."""
+    tts_model = str(config.get("model", DEFAULTS["tts"]["model"]) or "")
+    configured_provider = str(config.get("provider") or "").strip().lower()
+    if configured_provider:
+        provider_name = configured_provider
+    elif tts_model.startswith("qwen"):
+        provider_name = "qwen"
+    elif tts_model.startswith("mimo"):
+        provider_name = "mimo"
+    else:
+        provider_name = str(DEFAULTS["tts"]["provider"])
+
+    expected_prefix = {"qwen": "qwen", "mimo": "mimo"}.get(provider_name)
+    if expected_prefix is None:
+        raise ValueError(f"Unsupported TTS provider: {provider_name}")
+    if tts_model and not tts_model.startswith(expected_prefix):
+        raise ValueError(
+            f"TTS provider/model mismatch: provider={provider_name}, model={tts_model}"
+        )
+    return provider_name
+
+
 def create_tts_provider(
     config: dict[str, Any], secrets: SecretStore
 ) -> QwenTTSProvider | MiMoTTSProvider:
     """Build a TTS provider instance from the current config dict.
 
-    Model prefix ``qwen`` selects ``QwenTTSProvider``; everything else selects
-    ``MiMoTTSProvider``. API keys and base URLs are resolved via ``SecretStore``
-    so configuration changes take effect without restarting the worker.
+    ``provider`` is authoritative.  Model-prefix inference is retained only for
+    legacy callers that do not yet supply a provider.  A contradictory
+    provider/model pair is rejected instead of silently routing to a different
+    provider.
     """
-    tts_model = config.get("model", DEFAULTS["tts"]["model"]) or ""
+    provider_name = resolve_tts_provider_name(config)
 
-    if tts_model.startswith("qwen"):
-        base_url = secrets.get_api_base_url("qwen")
+    configured_endpoint = str(config.get("endpoint") or "").strip().rstrip("/")
+    if provider_name == "qwen":
+        base_url = configured_endpoint or secrets.get_api_base_url(
+            "qwen", section="tts"
+        )
         if not base_url:
             base_url = "https://dashscope.aliyuncs.com/api/v1"
-        return QwenTTSProvider(api_key=secrets.get_api_key("qwen"), base_url=base_url)
+        return QwenTTSProvider(
+            api_key=secrets.get_api_key("qwen", section="tts"), base_url=base_url
+        )
 
-    base_url = secrets.get_api_base_url("mimo")
+    base_url = configured_endpoint or secrets.get_api_base_url("mimo", section="tts")
     if not base_url:
         base_url = "https://api.xiaomimimo.com/v1"
-    return MiMoTTSProvider(api_key=secrets.get_api_key("mimo"), base_url=base_url)
+    return MiMoTTSProvider(
+        api_key=secrets.get_api_key("mimo", section="tts"), base_url=base_url
+    )

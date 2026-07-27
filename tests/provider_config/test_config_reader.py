@@ -64,6 +64,37 @@ class TestConstructorMigration:
             tts = reader.get_tts_config()
             assert tts["provider"] == "qwen"
 
+    def test_legacy_tts_provider_model_mismatch_is_migrated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = _write_config(
+                tmpdir,
+                {
+                    "tts": {
+                        "provider": "mimo",
+                        "model": "qwen3-tts-flash",
+                    }
+                },
+            )
+
+            reader = ConfigReader(config_dir=tmpdir)
+
+            assert reader.get_tts_config()["provider"] == "qwen"
+            persisted = json.loads(config_path.read_text(encoding="utf-8"))
+            assert persisted["tts"]["provider"] == "qwen"
+
+    def test_empty_provider_model_values_fall_back_to_catalog_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = _write_config(
+                tmpdir,
+                {"vision": {"provider": "xiaomi", "model": ""}},
+            )
+
+            reader = ConfigReader(config_dir=tmpdir)
+
+            assert reader.get_vision_config()["model"] == "mimo-v2.5"
+            persisted = json.loads(config_path.read_text(encoding="utf-8"))
+            assert "model" not in persisted["vision"]
+
 
 # ---------------------------------------------------------------------------
 # Seam: get(section, product_id=None)

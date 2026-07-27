@@ -1,11 +1,13 @@
 {
   "llm": {
     "provider": "deepseek",
+    "endpoint": "https://api.deepseek.com/chat/completions",
     "model": "deepseek-v4-pro",
     "thinking": "disabled"
   },
   "tts": {
     "provider": "mimo",
+    "endpoint": "https://api.xiaomimimo.com/v1",
     "model": "mimo-v2.5-tts",
     "voice": "Mia",
     "fallback_voice": "Dean",
@@ -36,8 +38,13 @@
     "language_type": "Chinese"
   },
   "vision": {
-    "provider": "openai",
+    "provider": "xiaomi",
+    "endpoint": "https://api.xiaomimimo.com/v1/chat/completions",
     "model": "mimo-v2.5"
+  },
+  "embedding": {
+    "endpoint": "",
+    "model": "text-embedding-ada-002"
   },
   "media": {
     "ffmpeg_path": "ffmpeg",

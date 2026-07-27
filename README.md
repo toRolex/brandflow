@@ -72,9 +72,9 @@ cd frontend && npm run dev
 | 后端 | Python 3.11+ / FastAPI / Pydantic v2 |
 | 依赖管理 | uv |
 | 媒体引擎 | FFmpeg（ffmpeg-full） / ffprobe / whisper-cli |
-| LLM | DeepSeek / Kimi / OpenAI（默认实现见 `DEFAULTS`） |
-| TTS | Xiaomi MiMo / MiniMax（支持 preset / voicedesign / voiceclone 三种模式，见 `DEFAULTS`） |
-| Vision | Xiaomi / OpenAI / Claude 兼容接口（默认实现见 `DEFAULTS`） |
+| LLM | DeepSeek / Kimi / OpenAI（provider 默认资料见 `catalog.json`） |
+| TTS | Qwen / Xiaomi MiMo（支持 preset / voicedesign / voiceclone） |
+| Vision | Xiaomi / OpenAI / Claude 兼容接口（provider 默认资料见 `catalog.json`） |
 | 排期存储 | SQLite |
 | 目标平台 | 抖音、小红书、视频号、快手 |
 
@@ -88,9 +88,10 @@ cp .env.example .env
 ```
 
 配置职责：
-- `.env` — 保存 API Key 与可选环境变量覆盖
-- `config/app_config.json` — 保存 provider、model、voice、thinking 等业务配置
-- `config/providers.yaml` — 前端“系统配置”页面的兼容存储；保存时会同步到 `app_config.json` 与 `.env`
+- `.env` — 只保存 API Key 等 secret
+- `config/app_config.json` — 唯一非 secret 配置源，保存 provider、model、endpoint、voice、thinking 等
+- `packages/provider_config/catalog.json` — 系统配置页字段目录与 provider 默认资料
+- `config/providers.yaml` — 旧版本兼容输入；新版本只读、不再写入
 
 常见配置项：
 - `LLM_API_KEY` / `TTS_API_KEY` / `VISION_API_KEY` — 通用 key，适合单 provider 场景
@@ -104,10 +105,12 @@ TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 - `audio_format` — 音频格式（默认 `wav`）
 
 配置优先级：
-1. provider 专用环境变量
-2. 通用环境变量
-3. `config/app_config.json`
-4. 代码默认值（`packages/provider_config/app_config.py` 中的 `DEFAULTS`）
+1. product override
+2. `config/app_config.json`
+3. catalog/代码业务默认值
+
+API Key 单独按 provider 专用环境变量 → 通用环境变量解析。旧 endpoint
+环境变量仅在 `app_config.json` 未配置 endpoint 时兼容回退。
 
 ## 核心概念
 
@@ -239,8 +242,8 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   └── runtime_adapters/     # 平台适配（Mac / Windows）
 │
 ├── config/
-│   ├── app_config.json       # 业务配置（provider / model / voice / thinking）
-│   ├── providers.yaml        # 系统配置页兼容存储，保存时同步到 app_config.json / .env
+│   ├── app_config.json       # 唯一非 secret 配置源
+│   ├── providers.yaml        # 旧版本只读兼容输入
 │   ├── defaults.yaml
 │   └── profiles/             # mac-local.yaml / windows-prod.yaml
 │

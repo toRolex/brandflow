@@ -159,17 +159,51 @@ def _inject_env_secrets(payload: dict, root_dir: Path) -> dict:
 
 
 def load_provider_config(root_dir: Path) -> dict:
-    """Load provider config from ``config/providers.yaml``.
+    """Build the provider form document from the canonical app config.
 
-    保留用于前端"系统配置"页面。
+    ``providers.yaml`` is read only as a legacy compatibility input.  Runtime
+    selections and the selected provider's non-secret fields always come from
+    ``app_config.json``; unselected form profiles live under
+    ``provider_profiles`` in that same file.
     """
-    config_path = Path(root_dir) / "config" / "providers.yaml"
-    if not config_path.exists():
-        return default_provider_document()
+    from packages.provider_config.config_io import load_config
 
-    data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    merged = _merge_payload(data)
-    return _inject_env_secrets(merged, root_dir)
+    root = Path(root_dir)
+    legacy_path = root / "config" / "providers.yaml"
+    if legacy_path.exists():
+        legacy = yaml.safe_load(legacy_path.read_text(encoding="utf-8"))
+        merged = _merge_payload(legacy)
+    else:
+        merged = default_provider_document()
+
+    app_config = load_config(root / "config" / "app_config.json")
+    profiles = app_config.get("provider_profiles", {})
+    if isinstance(profiles, dict):
+        for section_name, provider_profiles in profiles.items():
+            if not isinstance(provider_profiles, dict):
+                continue
+            section = merged.get("providers", {}).get(section_name, {})
+            known_providers = section.get("providers", {})
+            for provider_name, profile in provider_profiles.items():
+                if provider_name in known_providers and isinstance(profile, dict):
+                    known_providers[provider_name].update(deepcopy(profile))
+
+    for section_name in ("llm", "tts", "vision"):
+        runtime = app_config.get(section_name)
+        if not isinstance(runtime, dict):
+            continue
+        selected = runtime.get("provider")
+        section = merged["providers"][section_name]
+        if not isinstance(selected, str) or selected not in section["providers"]:
+            continue
+        section["selected"] = selected
+        selected_profile = section["providers"][selected]
+        for field_name in selected_profile:
+            runtime_name = "style_prompt" if field_name == "style" else field_name
+            if runtime_name in runtime:
+                selected_profile[field_name] = deepcopy(runtime[runtime_name])
+
+    return _inject_env_secrets(merged, root)
 
 
 def _build_secret_env_map() -> dict[tuple[str, str, str], str]:
@@ -262,51 +296,55 @@ def _sync_secrets_to_env(root_dir: Path, payload: dict) -> dict:
 
 
 def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
-    """Sync business config from providers.yaml to app_config.json."""
+    """Persist non-secret provider settings into the canonical app config."""
     from packages.provider_config.config_io import load_config, save_config
 
     config_path = root_dir / "config" / "app_config.json"
     app_config = load_config(config_path)
     providers = providers_payload.get("providers", {})
 
-    # Sync LLM config (provider, model, thinking)
-    llm_section = providers.get("llm", {})
-    llm_selected = llm_section.get("selected", "")
-    if llm_selected and llm_selected in llm_section.get("providers", {}):
-        llm_provider = llm_section["providers"][llm_selected]
-        if "llm" not in app_config:
-            app_config["llm"] = {}
-        app_config["llm"]["provider"] = llm_selected
-        if llm_provider.get("model"):
-            app_config["llm"]["model"] = llm_provider["model"]
-        if llm_provider.get("thinking"):
-            app_config["llm"]["thinking"] = llm_provider["thinking"]
+    secret_fields = _known_secret_fields()
+    managed_runtime_fields: dict[str, set[str]] = {}
+    for section_name in ("llm", "tts", "vision"):
+        names: set[str] = set()
+        for provider in providers.get(section_name, {}).get("providers", {}).values():
+            names.update(
+                "style_prompt" if name == "style" else name
+                for name in provider
+                if name not in secret_fields
+            )
+        managed_runtime_fields[section_name] = names
 
-    # Sync TTS config (provider, model, voice)
-    tts_section = providers.get("tts", {})
-    tts_selected = tts_section.get("selected", "")
-    if tts_selected and tts_selected in tts_section.get("providers", {}):
-        tts_provider = tts_section["providers"][tts_selected]
-        if "tts" not in app_config:
-            app_config["tts"] = {}
-        app_config["tts"]["provider"] = tts_selected
-        if tts_provider.get("model"):
-            app_config["tts"]["model"] = tts_provider["model"]
-        if tts_provider.get("voice"):
-            app_config["tts"]["voice"] = tts_provider["voice"]
-        if tts_provider.get("style"):
-            app_config["tts"]["style_prompt"] = tts_provider["style"]
+    profiles: dict[str, dict[str, dict[str, Any]]] = {}
+    for section_name, section in providers.items():
+        selected = section.get("selected", "")
+        provider_values = section.get("providers", {})
+        profiles[section_name] = {}
+        for provider_name, provider in provider_values.items():
+            if provider_name == selected or not isinstance(provider, dict):
+                continue
+            profiles[section_name][provider_name] = {
+                key: deepcopy(value)
+                for key, value in provider.items()
+                if key not in secret_fields
+            }
 
-    # Sync Vision config (provider, model)
-    vision_section = providers.get("vision", {})
-    vision_selected = vision_section.get("selected", "")
-    if vision_selected and vision_selected in vision_section.get("providers", {}):
-        vision_provider = vision_section["providers"][vision_selected]
-        if "vision" not in app_config:
-            app_config["vision"] = {}
-        app_config["vision"]["provider"] = vision_selected
-        if vision_provider.get("model"):
-            app_config["vision"]["model"] = vision_provider["model"]
+        if section_name not in ("llm", "tts", "vision"):
+            continue
+        if not selected or selected not in provider_values:
+            continue
+
+        runtime = app_config.setdefault(section_name, {})
+        for field_name in managed_runtime_fields[section_name]:
+            runtime.pop(field_name, None)
+        runtime["provider"] = selected
+        for field_name, value in provider_values[selected].items():
+            if field_name in secret_fields:
+                continue
+            runtime_name = "style_prompt" if field_name == "style" else field_name
+            runtime[runtime_name] = deepcopy(value)
+
+    app_config["provider_profiles"] = profiles
 
     save_config(config_path, app_config)
 
@@ -315,19 +353,10 @@ def save_provider_config(root_dir: Path, payload: dict) -> None:
     root = Path(root_dir)
     config_dir = root / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
-    config_path = config_dir / "providers.yaml"
     existing = load_provider_config(root)
     normalized = validate_provider_payload(payload, previous=existing)
-    # Sync real secret values to .env, clear them from YAML
+    # Secrets are the only values persisted outside app_config.json.
     normalized = _sync_secrets_to_env(root, normalized)
-    temp_path = config_path.with_suffix(".yaml.tmp")
-    temp_path.unlink(missing_ok=True)
-    temp_path.write_text(
-        yaml.safe_dump(normalized, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
-    temp_path.replace(config_path)
-    # Sync business config to app_config.json
     _sync_to_app_config(root, normalized)
 
 

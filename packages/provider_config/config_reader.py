@@ -76,6 +76,10 @@ class ConfigReader:
         """Return Vision config.  When *product_id* is given, product overrides are applied."""
         return self.get("vision", product_id=product_id)
 
+    def get_embedding_config(self) -> dict[str, Any]:
+        """Return embedding config (no product override)."""
+        return self.get("embedding")
+
     def get_scene_config(self, product_id: str | None = None) -> dict[str, Any]:
         """Return Scene config.  Product-level scene overrides top-level scene."""
         return self.get("scene", product_id=product_id)
@@ -169,6 +173,7 @@ class ConfigReader:
             "tts": _deep_merge(DEFAULTS["tts"], root.get("tts", {})),
             "llm": _deep_merge(DEFAULTS["llm"], root.get("llm", {})),
             "vision": _deep_merge(DEFAULTS["vision"], root.get("vision", {})),
+            "embedding": _deep_merge(DEFAULTS["embedding"], root.get("embedding", {})),
             "scene": _deep_merge(DEFAULTS["scene"], root.get("scene", {})),
             "media": _deep_merge(DEFAULTS["media"], root.get("media", {})),
             "video": _deep_merge(DEFAULTS["video"], root.get("video", {})),
@@ -228,12 +233,50 @@ class ConfigReader:
     def _load_and_migrate(self) -> dict[str, Any]:
         """Load raw config and apply schema migration if needed."""
         raw = load_config(self._config_path)
+        changed = False
 
         # Migrate old "product" -> "products" (one-time, write-back)
         if "product" in raw and "products" not in raw:
             old_product = raw.pop("product", {})
             raw["products"] = [{"id": "default", **old_product}]
             raw["active_product_id"] = "default"
+            changed = True
+
+        products = [
+            product for product in raw.get("products", []) if isinstance(product, dict)
+        ]
+        for section_name in ("llm", "tts", "vision"):
+            sections = [raw.get(section_name)]
+            sections.extend(product.get(section_name) for product in products)
+            for section in sections:
+                if not isinstance(section, dict):
+                    continue
+                for field_name in ("provider", "model"):
+                    if section.get(field_name) == "":
+                        section.pop(field_name)
+                        changed = True
+
+        # Before provider became the routing authority, TTS selected its
+        # implementation from the model prefix.  Reconcile those legacy
+        # documents once so strict runtime validation remains compatible.
+        tts_sections = [raw.get("tts")]
+        tts_sections.extend(product.get("tts") for product in products)
+        for section in tts_sections:
+            if not isinstance(section, dict):
+                continue
+            model = str(section.get("model") or "")
+            inferred = (
+                "qwen"
+                if model.startswith("qwen")
+                else "mimo"
+                if model.startswith("mimo")
+                else ""
+            )
+            if inferred and section.get("provider") != inferred:
+                section["provider"] = inferred
+                changed = True
+
+        if changed:
             save_config(self._config_path, raw)
 
         return raw
@@ -280,7 +323,9 @@ class ConfigResolver:
         config = self._reader.get_llm_config(product_id=self._product_id(product_id))
         provider = config.get("provider", "deepseek")
         api_key = self._api_key_for(provider)
-        api_url = self._chat_completions_url_for(provider)
+        api_url = self._chat_completions_url_for(
+            provider, configured_url=str(config.get("endpoint") or "")
+        )
         return config, api_key, api_url
 
     def categories(self, product_id: str = "") -> list[str]:
@@ -318,15 +363,15 @@ class ConfigResolver:
 
     def _api_key_for(self, provider: str) -> str:
         """Resolve API key for *provider* via SecretStore."""
-        return self._secrets.get_api_key(provider)
+        return self._secrets.get_api_key(provider, section="llm")
 
     def _api_base_url_for(self, provider: str) -> str:
         """Resolve base API URL for *provider* via SecretStore."""
-        return self._secrets.get_api_base_url(provider)
+        return self._secrets.get_api_base_url(provider, section="llm")
 
-    def _chat_completions_url_for(self, provider: str) -> str:
+    def _chat_completions_url_for(self, provider: str, configured_url: str = "") -> str:
         """Resolve chat-completions URL for *provider*, auto-completing the path."""
-        url = self._api_base_url_for(provider)
+        url = configured_url.strip().rstrip("/") or self._api_base_url_for(provider)
         if url and not url.endswith("/chat/completions"):
             url = f"{url}/chat/completions"
         return url

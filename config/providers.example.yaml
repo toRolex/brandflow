@@ -1,3 +1,4 @@
+# Legacy import example only. New saves use config/app_config.json + .env.
 providers:
   llm:
     selected: deepseek

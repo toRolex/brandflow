@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import os
 from pathlib import Path
 
 from packages.pipeline_services.asset_library.category_config import default_categories
@@ -44,10 +43,10 @@ class VisionClient:
         provider: str = "",
         categories: list[str] | None = None,
     ) -> None:
-        self.api_key = api_key or os.getenv("VISION_API_KEY", "")
-        self.endpoint = endpoint or os.getenv("VISION_API_URL", "")
-        self.model = model or os.getenv("VISION_MODEL", "")
-        self.provider = provider or os.getenv("VISION_PROVIDER", "openai")
+        self.api_key = api_key
+        self.endpoint = endpoint
+        self.model = model
+        self.provider = provider or "xiaomi"
         self._vision_prompt = build_vision_prompt(categories)
 
     def _resolve_endpoint(self) -> str:

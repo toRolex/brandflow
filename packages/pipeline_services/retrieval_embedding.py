@@ -2,15 +2,17 @@
 
 Task 7:
   - cosine_similarity(a, b)
-  - fetch_embedding(text) via EMBEDDING_API_URL / EMBEDDING_API_KEY / EMBEDDING_MODEL
+  - fetch_embedding(text) via ConfigReader / SecretStore
 """
 
 from __future__ import annotations
 
 import math
-import os
 
 import requests
+
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -33,22 +35,29 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (mag_a * mag_b)
 
 
-def fetch_embedding(text: str) -> list[float]:
+def fetch_embedding(
+    text: str,
+    reader: ConfigReader | None = None,
+    secrets: SecretStore | None = None,
+) -> list[float]:
     """Fetch an embedding vector for *text* from the configured embedding API.
 
-    Reads configuration from environment variables:
-      - EMBEDDING_API_URL  (required)
-      - EMBEDDING_API_KEY  (required, sent as Bearer token)
-      - EMBEDDING_MODEL    (defaults to ``"text-embedding-ada-002"``)
+    Endpoint and model are non-secret values from ``app_config.json``.  The API
+    key remains in ``.env`` and is resolved through ``SecretStore``.
 
     Returns the raw float list from the first embedding in the response.
     """
-    api_url = os.getenv("EMBEDDING_API_URL", "").strip()
-    api_key = os.getenv("EMBEDDING_API_KEY", "").strip()
-    model = os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002").strip()
+    config_reader = reader or ConfigReader()
+    secret_store = secrets or SecretStore()
+    config = config_reader.get_embedding_config()
+    api_url = str(config.get("endpoint") or "").strip()
+    if not api_url:
+        api_url = secret_store.get_api_base_url("embedding")
+    api_key = secret_store.get_api_key("embedding")
+    model = str(config.get("model") or "").strip()
 
     if not api_url:
-        raise RuntimeError("EMBEDDING_API_URL is not set")
+        raise RuntimeError("embedding.endpoint is not configured")
     if not api_key:
         raise RuntimeError("EMBEDDING_API_KEY is not set")
 

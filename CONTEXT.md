@@ -28,16 +28,16 @@ Job 生命周期中的一个离散步骤。系统根据脚本来源模式使用�
 ## 配置体系
 
 ### ConfigReader
-纯配置读取器，读取 `config/app_config.json` 并合并默认配置及 product 级覆盖。
+唯一非 secret 配置读取器，读取 `config/app_config.json` 并合并 catalog/业务默认配置及 product 级覆盖。旧 TTS model-only 配置会一次性补齐一致的 provider。
 
 ### ProductStore
 product 级配置的 CRUD 存储，与 `ConfigReader` 协同持久化并刷新配置缓存。
 
 ### SecretStore
-环境变量 API key 与 endpoint 解析器，不依赖配置文件。
+Secret 解析器。API key 只从环境变量读取；endpoint 环境变量仅作为旧配置缺省时的兼容回退，不覆盖 `app_config.json`。
 
 ### Provider（服务提供者）
-AI 能力的供应商。LLM、TTS 与 Vision provider 各自拥有独立的模型和凭据配置。
+AI 能力的供应商。LLM、TTS 与 Vision provider 各自拥有独立的模型和凭据配置；provider 是运行时路由字段，model 必须属于该 provider。
 
 ## 架构状态（v0.7.30）
 

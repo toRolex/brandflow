@@ -300,31 +300,50 @@ class TestMiMoTTSProviderSynthesize:
 
 
 class TestCreateTTSProvider:
-    """Factory selects provider by model prefix and resolves secrets."""
+    """Factory selects the configured provider and resolves secrets."""
 
-    def test_qwen_prefix_returns_qwen_provider(self):
+    def test_qwen_provider_returns_qwen_provider(self):
         secrets = SecretStore(
             env={
                 "DASHSCOPE_API_KEY": "qwen-key",
                 "DASHSCOPE_API_URL": "https://qwen.example.com",
             }
         )
-        provider = create_tts_provider({"model": "qwen3-tts-flash"}, secrets)
+        provider = create_tts_provider(
+            {"provider": "qwen", "model": "qwen3-tts-flash"}, secrets
+        )
         assert isinstance(provider, QwenTTSProvider)
         assert provider.api_key == "qwen-key"
         assert provider.base_url == "https://qwen.example.com"
 
-    def test_mimo_prefix_returns_mimo_provider(self):
+    def test_mimo_provider_returns_mimo_provider(self):
         secrets = SecretStore(
             env={
                 "MIMO_API_KEY": "mimo-key",
                 "MIMO_API_BASE_URL": "https://mimo.example.com",
             }
         )
-        provider = create_tts_provider({"model": "mimo-v2.5-tts"}, secrets)
+        provider = create_tts_provider(
+            {"provider": "mimo", "model": "mimo-v2.5-tts"}, secrets
+        )
         assert isinstance(provider, MiMoTTSProvider)
         assert provider.api_key == "mimo-key"
         assert provider.base_url == "https://mimo.example.com"
+
+    def test_provider_model_mismatch_is_rejected(self):
+        secrets = SecretStore(env={})
+        with pytest.raises(
+            ValueError,
+            match="TTS provider/model mismatch: provider=mimo, model=qwen3-tts-flash",
+        ):
+            create_tts_provider(
+                {"provider": "mimo", "model": "qwen3-tts-flash"}, secrets
+            )
+
+    def test_legacy_config_without_provider_infers_it_from_model(self):
+        secrets = SecretStore(env={"MIMO_API_KEY": "mimo-key"})
+        provider = create_tts_provider({"model": "mimo-v2.5-tts"}, secrets)
+        assert isinstance(provider, MiMoTTSProvider)
 
     def test_empty_model_defaults_to_qwen(self):
         secrets = SecretStore(env={"DASHSCOPE_API_KEY": "qwen-key"})

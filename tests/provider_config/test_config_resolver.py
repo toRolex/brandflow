@@ -60,7 +60,10 @@ class TestConfigResolverTTS:
 class TestConfigResolverLLM:
     def test_llm_returns_config_key_and_url(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            _write_config(tmpdir, {})
+            _write_config(
+                tmpdir,
+                {"llm": {"endpoint": "https://api.deepseek.com/v1"}},
+            )
             reader = ConfigReader(config_dir=tmpdir)
             secrets = SecretStore(
                 env={
@@ -76,7 +79,10 @@ class TestConfigResolverLLM:
 
     def test_llm_appends_chat_completions_when_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            _write_config(tmpdir, {})
+            _write_config(
+                tmpdir,
+                {"llm": {"endpoint": "https://api.example.com/"}},
+            )
             reader = ConfigReader(config_dir=tmpdir)
             secrets = SecretStore(env={"DEEPSEEK_API_URL": "https://api.example.com/"})
             resolver = ConfigResolver(reader=reader, secrets=secrets)
@@ -85,7 +91,10 @@ class TestConfigResolverLLM:
 
     def test_llm_does_not_double_append_chat_completions(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            _write_config(tmpdir, {})
+            _write_config(
+                tmpdir,
+                {"llm": {"endpoint": "https://api.example.com/chat/completions"}},
+            )
             reader = ConfigReader(config_dir=tmpdir)
             secrets = SecretStore(
                 env={"DEEPSEEK_API_URL": "https://api.example.com/chat/completions"}
@@ -96,7 +105,7 @@ class TestConfigResolverLLM:
 
     def test_llm_empty_url_remains_empty(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            _write_config(tmpdir, {})
+            _write_config(tmpdir, {"llm": {"endpoint": ""}})
             reader = ConfigReader(config_dir=tmpdir)
             secrets = SecretStore(env={})
             resolver = ConfigResolver(reader=reader, secrets=secrets)
@@ -105,7 +114,15 @@ class TestConfigResolverLLM:
 
     def test_llm_uses_provider_from_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            _write_config(tmpdir, {"llm": {"provider": "kimi"}})
+            _write_config(
+                tmpdir,
+                {
+                    "llm": {
+                        "provider": "kimi",
+                        "endpoint": "https://api.kimi.com",
+                    }
+                },
+            )
             reader = ConfigReader(config_dir=tmpdir)
             secrets = SecretStore(
                 env={
@@ -124,11 +141,17 @@ class TestConfigResolverLLM:
             _write_config(
                 tmpdir,
                 {
-                    "llm": {"provider": "deepseek"},
+                    "llm": {
+                        "provider": "deepseek",
+                        "endpoint": "https://api.deepseek.com",
+                    },
                     "products": [
                         {
                             "id": "snack",
-                            "llm": {"provider": "kimi"},
+                            "llm": {
+                                "provider": "kimi",
+                                "endpoint": "https://api.kimi.com",
+                            },
                         },
                     ],
                 },

@@ -34,6 +34,7 @@ def _is_playable_wav(audio_bytes: bytes) -> bool:
 
 
 class TTSConfigRequest(BaseModel):
+    provider: str | None = None
     model: str | None = None
     voice: str | None = None
     fallback_voice: str | None = None
@@ -59,6 +60,7 @@ class TTSConfigRequest(BaseModel):
 
 
 class TTSConfigResponse(BaseModel):
+    provider: str
     model: str
     voice: str
     fallback_voice: str
@@ -85,6 +87,7 @@ class TTSConfigResponse(BaseModel):
 
 class TTSPreviewRequest(BaseModel):
     text: str
+    provider: str | None = None
     model: str = DEFAULTS["tts"]["model"]
     voice: str | None = None
     style_prompt: str | None = None
@@ -378,6 +381,8 @@ async def save_tts_config(
     for key, value in update_data.items():
         setattr(current, key, value)
 
+    if current.model in MODEL_TO_PROVIDER:
+        current.provider = MODEL_TO_PROVIDER[current.model]
     validate_voice_for_model(current.model, current.voice)
 
     config_manager.save_config(current, product_id)
@@ -474,9 +479,8 @@ async def get_voices(provider: str = "mimo", model: str | None = None):
 async def preview_tts(request: TTSPreviewRequest):
     try:
         from packages.pipeline_services.tts_provider import (
-            MiMoTTSProvider,
-            QwenTTSProvider,
             TTSError,
+            create_tts_provider,
         )
 
         config = config_manager.get_config().with_defaults()
@@ -504,22 +508,18 @@ async def preview_tts(request: TTSPreviewRequest):
         config.randomize_voice = False
 
         model = config.model or ""
-        if model.startswith("qwen"):
-            api_key = app_config.get_api_key("qwen")
-            if not api_key:
-                raise HTTPException(status_code=500, detail="未配置 DASHSCOPE_API_KEY")
-            base_url = (
-                app_config.get_api_base_url("qwen")
-                or "https://dashscope.aliyuncs.com/api/v1"
-            )
-            provider = QwenTTSProvider(api_key=api_key, base_url=base_url)
-        elif model.startswith("mimo"):
-            api_key = app_config.get_api_key("mimo")
-            if not api_key:
-                raise HTTPException(status_code=500, detail="未配置 MIMO_API_KEY")
-            provider = MiMoTTSProvider(api_key=api_key)
-        else:
+        provider_name = request.provider or MODEL_TO_PROVIDER.get(model)
+        if provider_name is None:
             raise HTTPException(status_code=400, detail=f"不支持的 TTS model: {model}")
+        api_key = app_config.get_api_key(provider_name, section="tts")
+        if not api_key:
+            env_name = (
+                "DASHSCOPE_API_KEY" if provider_name == "qwen" else "MIMO_API_KEY"
+            )
+            raise HTTPException(status_code=500, detail=f"未配置 {env_name}")
+        provider_config = config.to_dict()
+        provider_config["provider"] = provider_name
+        provider = create_tts_provider(provider_config, app_config)
 
         audio_bytes = provider.synthesize(request.text, config)
 

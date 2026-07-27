@@ -8,17 +8,15 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from packages.provider_config.catalog import default_runtime_provider_config
+
+
+_PROVIDER_DEFAULTS = default_runtime_provider_config()
 
 DEFAULTS: dict[str, Any] = {
-    "llm": {
-        "provider": "deepseek",
-        "model": "deepseek-v4-pro",
-        "thinking": "disabled",
-    },
+    "llm": _PROVIDER_DEFAULTS["llm"],
     "tts": {
-        "provider": "qwen",
-        "model": "qwen3-tts-flash",
-        "voice": "Cherry",
+        **_PROVIDER_DEFAULTS["tts"],
         "fallback_voice": "Stella",
         "randomize_voice": True,
         "random_voices": ["Cherry", "Stella"],
@@ -34,13 +32,11 @@ DEFAULTS: dict[str, Any] = {
             "enabled": False,
             "tags": "",
         },
-        "instructions": "",
-        "language_type": "Chinese",
-        "audio_format": "wav",
     },
-    "vision": {
-        "provider": "xiaomi",
-        "model": "mimo-v2.5",
+    "vision": _PROVIDER_DEFAULTS["vision"],
+    "embedding": {
+        "endpoint": "",
+        "model": "text-embedding-ada-002",
     },
     "media": {
         "ffmpeg_path": "ffmpeg",

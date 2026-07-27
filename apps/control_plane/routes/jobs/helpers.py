@@ -294,22 +294,11 @@ def _resolve_tts_preview_config(
     tts_cfg["randomize_voice"] = False
 
     from packages.pipeline_services.tts_provider import (
-        MiMoTTSProvider,
-        QwenTTSProvider,
         TTSConfigShim,
+        create_tts_provider,
     )
 
-    tts_model: str = str(tts_cfg.get("model") or "")
-    if tts_model.startswith("qwen"):
-        provider = QwenTTSProvider(
-            api_key=secret_store.get_api_key("qwen"),
-            base_url=secret_store.get_api_base_url("qwen")
-            or "https://dashscope.aliyuncs.com/api/v1",
-        )
-    else:
-        provider = MiMoTTSProvider(
-            api_key=secret_store.get_api_key("mimo"),
-        )
+    provider = create_tts_provider(tts_cfg, secret_store)
     return provider, TTSConfigShim(tts_cfg)
 
 
