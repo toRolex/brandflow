@@ -357,6 +357,15 @@ export default function ProjectWorkbench() {
 		}
 	};
 
+	const handleTogglePin = async (jobId: string) => {
+		try {
+			await api.toggleJobPin(jobId);
+			loadJobs();
+		} catch {
+			setError("置顶操作失败");
+		}
+	};
+
 	return (
 		<WorkbenchShell
 			projectName={projectName}
@@ -536,6 +545,7 @@ export default function ProjectWorkbench() {
 				onRetry={handleRetry}
 				onDeleteJob={handleDeleteJob}
 				onRenameJob={handleRenameJob}
+				onTogglePin={handleTogglePin}
 			/>
 
 			{/* ── Pagination ── */}

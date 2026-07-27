@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -13,6 +12,7 @@ from apps.control_plane.routes.jobs.helpers import (
     _next_job_created_at,
     _resolve_product_from_config,
     _snapshot_tts_defaults,
+    _utc_now,
     _validate_tts_model_voice,
 )
 from apps.control_plane.routes.jobs.models import (
@@ -47,10 +47,6 @@ _ACTIVE_PHASES = frozenset(
         "final_review",
     }
 )
-
-
-def _utc_now() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def _enqueue_validation_error(
@@ -434,3 +430,29 @@ def rename_job(request: Request, job_id: str, payload: RenameJobRequest):
     record = repo.load_job(project_id, job_id)
     repo.save_job(project_id, record.model_copy(update={"name": payload.name}))
     return {"job_id": job_id, "name": payload.name}
+
+
+@router.post("/jobs/{job_id}/pin")
+def toggle_job_pin(request: Request, job_id: str):
+    """Toggle pin status for a Job.
+
+    Pinned Jobs appear first in the project Job list, ordered by most
+    recently pinned.
+    """
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _resolve_job_project(repo, job_id)
+    record = repo.load_job(project_id, job_id)
+    if record.is_pinned:
+        updated = record.model_copy(
+            update={"is_pinned": False, "pinned_at": ""}
+        )
+    else:
+        updated = record.model_copy(
+            update={"is_pinned": True, "pinned_at": _utc_now()}
+        )
+    repo.save_job(project_id, updated)
+    return {
+        "job_id": job_id,
+        "is_pinned": updated.is_pinned,
+        "pinned_at": updated.pinned_at,
+    }

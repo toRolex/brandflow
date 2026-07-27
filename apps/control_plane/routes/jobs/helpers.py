@@ -25,6 +25,11 @@ _JOB_CREATION_CLOCK_LOCK = threading.Lock()
 _last_job_creation_ns = 0
 
 
+def _utc_now() -> str:
+    """Return current UTC time as an ISO-8601 string."""
+    return datetime.now(UTC).isoformat()
+
+
 def _next_job_created_at() -> str:
     """Return a strictly increasing UTC timestamp for Job creation order."""
     global _last_job_creation_ns

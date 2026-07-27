@@ -180,6 +180,11 @@ class JobRecord(BaseModel):
     # records do not have this field and use a deterministic compatibility
     # order in FileStoreRepository.
     created_at: str = ""
+    # Pinned Jobs sort before unpinned ones in list views.
+    # ``pinned_at`` is the ISO timestamp when the Job was last pinned;
+    # multiple pinned Jobs sort by most-recently-pinned first.
+    is_pinned: bool = False
+    pinned_at: str = ""
     project_id: str = ""
     product: str = ""
     brand: str = ""

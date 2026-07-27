@@ -114,6 +114,16 @@ export default function ProjectList() {
 		}
 	};
 
+	const handleTogglePin = async (project: Project) => {
+		try {
+			await api.toggleProjectPin(project.id);
+			load();
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : "操作失败";
+			setBanner({ type: "error", message: msg });
+		}
+	};
+
 	const allSelected =
 		projects.length > 0 && selectedIds.size === projects.length;
 
@@ -327,6 +337,9 @@ export default function ProjectList() {
 											onChange={toggleSelectAll}
 										/>
 									</th>
+									<th className="py-3 px-2 font-medium w-10" title="置顶">
+										📌
+									</th>
 									<th className="py-3 px-4 font-medium">项目名称</th>
 									<th className="py-3 px-4 font-medium">状态</th>
 									<th className="py-3 px-4 font-medium">Jobs</th>
@@ -364,6 +377,20 @@ export default function ProjectList() {
 												checked={selectedIds.has(p.id)}
 												onChange={() => toggleSelect(p.id)}
 											/>
+										</td>
+										<td className="py-3 px-2 text-center">
+											<button
+												type="button"
+												className="text-sm leading-none transition-opacity hover:opacity-70"
+												title={p.is_pinned ? "取消置顶" : "置顶"}
+												onClick={() => handleTogglePin(p)}
+												style={{
+													opacity: p.is_pinned ? 1 : 0.25,
+													fontSize: "1.1rem",
+												}}
+											>
+												📌
+											</button>
 										</td>
 										<td
 											className="py-3 px-4 font-medium"

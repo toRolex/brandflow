@@ -25,6 +25,9 @@ Job 生命周期中的一个离散步骤。系统根据脚本来源模式使用�
 ### AmbiguousJobError（任务 ID 歧义）
 布局级异常。当同一个 `job_id` 在多个 Project 中同时存在时由 `FileStoreRepository.find_project_for_job()` 抛出。路由层将其映射为 HTTP 409，并返回 `AMBIGUOUS_JOB_ID` 错误码。
 
+### Pin / 置顶
+Project 与 Job 共有的置顶标记。`JobRecord` 携带 `is_pinned: bool` 与 `pinned_at: str`（ISO 时间戳）；Project 通过 `project_meta.json` 持久化同名字段。置顶条目始终排列在列表首位（最近置顶优先），`display_index` 在置顶/取消置顶时保持不变。API 端点：`POST /api/projects/{id}/pin` 与 `POST /api/jobs/{id}/pin` toggle 状态。
+
 ## 配置体系
 
 ### ConfigReader

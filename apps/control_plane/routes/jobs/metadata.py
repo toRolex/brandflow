@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 
 from apps.control_plane.routes.jobs.helpers import _resolve_job_project
 from apps.control_plane.services.music_library import MusicLibrary

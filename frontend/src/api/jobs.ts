@@ -76,6 +76,12 @@ export const deleteJob = (jobId: string) =>
 		method: "DELETE",
 	});
 
+export const toggleJobPin = (jobId: string) =>
+	request<{ job_id: string; is_pinned: boolean; pinned_at: string }>(
+		`/api/jobs/${jobId}/pin`,
+		{ method: "POST" },
+	);
+
 export const getJobLogs = (jobId: string) =>
 	request<{ logs: string }>(`/api/jobs/${jobId}/logs`);
 

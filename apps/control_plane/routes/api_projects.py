@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
+from apps.control_plane.routes.jobs.helpers import _utc_now
 from packages.file_store.repository import (
     DuplicateProjectNameError,
     FileStoreRepository,
@@ -24,17 +25,27 @@ def list_projects(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=200),
 ):
-    """Return paginated Project summaries sorted by stable project_id."""
+    """Return paginated Project summaries — pinned first, then by project_id."""
     repo = FileStoreRepository(request.app.state.root_dir)
     projects_root = repo.layout.projects_dir()
     if not projects_root.exists():
         return paginated([], 0, page, page_size)
 
-    # One snapshot: collect all project ids first, then slice
-    all_dirs = sorted(
-        [d for d in projects_root.iterdir() if d.is_dir()],
-        key=lambda d: d.name,
-    )
+    # One snapshot: collect all project dirs, then sort (pinned first).
+    all_dirs = [d for d in projects_root.iterdir() if d.is_dir()]
+
+    # Two-pass stable sort: pin-aware then alphabetical.
+    all_dirs.sort(key=lambda d: d.name)  # stable base order
+    pinned_dirs = []
+    unpinned_dirs = []
+    for prj_dir in all_dirs:
+        meta = repo.load_project_meta(prj_dir.name)
+        if meta.get("is_pinned") and meta.get("pinned_at"):
+            pinned_dirs.append((prj_dir, meta))
+        else:
+            unpinned_dirs.append(prj_dir)
+    pinned_dirs.sort(key=lambda item: item[1].get("pinned_at", ""), reverse=True)
+    all_dirs = [item[0] for item in pinned_dirs] + unpinned_dirs
     total = len(all_dirs)
     start, end = slice_indices(total, page, page_size)
 
@@ -48,6 +59,8 @@ def list_projects(
                 "name": meta.get("name", prj_dir.name),
                 "status": "idle",
                 "job_count": job_count,
+                "is_pinned": meta.get("is_pinned", False),
+                "pinned_at": meta.get("pinned_at", ""),
             }
         )
     return paginated(items, total, page, page_size)
@@ -104,3 +117,28 @@ def delete_project(request: Request, project_id: str):
     if not repo.delete_project(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
     return {"ok": True}
+
+
+@router.post("/{project_id}/pin")
+def toggle_project_pin(request: Request, project_id: str):
+    """Toggle pin status for a Project.
+
+    Pinned Projects appear first in the project list, ordered by most
+    recently pinned.
+    """
+    repo = FileStoreRepository(request.app.state.root_dir)
+    if not repo.layout.project_dir(project_id).is_dir():
+        raise HTTPException(status_code=404, detail="Project not found")
+    meta = repo.load_project_meta(project_id)
+    if meta.get("is_pinned"):
+        meta["is_pinned"] = False
+        meta["pinned_at"] = ""
+    else:
+        meta["is_pinned"] = True
+        meta["pinned_at"] = _utc_now()
+    repo.save_project_meta(project_id, meta)
+    return {
+        "id": project_id,
+        "is_pinned": meta["is_pinned"],
+        "pinned_at": meta["pinned_at"],
+    }

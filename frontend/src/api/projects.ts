@@ -17,3 +17,9 @@ export const getProject = (id: string) =>
 
 export const deleteProject = (id: string) =>
 	request<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" });
+
+export const toggleProjectPin = (id: string) =>
+	request<{ id: string; is_pinned: boolean; pinned_at: string }>(
+		`/api/projects/${id}/pin`,
+		{ method: "POST" },
+	);

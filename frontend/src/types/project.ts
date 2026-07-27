@@ -3,6 +3,8 @@ export interface Project {
 	name: string;
 	status: string;
 	job_count: number;
+	is_pinned?: boolean;
+	pinned_at?: string;
 }
 
 export interface ProjectPage {

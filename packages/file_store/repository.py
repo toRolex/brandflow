@@ -50,7 +50,12 @@ class FileStoreRepository:
             (root / relative).mkdir(parents=True, exist_ok=True)
         meta_path = self._layout.project_meta_path(project_id)
         if not meta_path.exists():
-            meta = {"id": project_id, "name": name}
+            meta = {
+                "id": project_id,
+                "name": name,
+                "is_pinned": False,
+                "pinned_at": "",
+            }
             self._write_json(meta_path, meta)
         return root
 
@@ -72,6 +77,12 @@ class FileStoreRepository:
         if not path.exists():
             return {"id": project_id, "name": project_id}
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def save_project_meta(self, project_id: str, meta: dict[str, Any]) -> None:
+        """Persist updated Project metadata to ``project_meta.json``."""
+        path = self._layout.project_meta_path(project_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._write_json(path, meta)
 
     def save_job(self, project_id: str, record: JobRecord) -> None:
         path = self._layout.job_record_path(project_id, record.job_id)
@@ -163,30 +174,64 @@ class FileStoreRepository:
             1 for f in jobs_root.iterdir() if f.is_file() and f.suffix == ".json"
         )
 
-    def _sorted_job_files(self, project_id: str) -> list[Path]:
-        """Return ``*.json`` files under *project_id*'s jobs dir sorted by
-        immutable Job creation order (#354).
+    def _sorted_job_files(
+        self, project_id: str
+    ) -> tuple[list[Path], dict[str, int]]:
+        """Return ``(sorted_paths, stable_index_map)`` for *project_id*.
 
-        Historical records without ``created_at`` sort first by stable job_id.
-        New records sort by their persisted creation timestamp, with job_id as
-        a deterministic tiebreaker.
+        Sorted for display: pinned Jobs first (most-recently-pinned first),
+        then by immutable creation order (#354).  Historical records without
+        ``created_at`` sort first by stable job_id.
+
+        *stable_index_map* is ``{job_id: 1-based creation-order index}`` so
+        that ``display_index`` does not change when a Job is pinned/unpinned.
+        Both values are derived from a **single** pass over the job files.
         """
         jobs_root = self._layout.control_jobs_dir(project_id)
         if not jobs_root.exists():
-            return []
+            return [], {}
+
         files = [f for f in jobs_root.iterdir() if f.is_file() and f.suffix == ".json"]
 
-        def creation_order(file: Path) -> tuple[int, str, str]:
+        # Single I/O pass: read every payload once.
+        entries: list[tuple[Path, dict[str, Any]]] = []
+        for f in files:
             try:
-                payload = json.loads(file.read_text(encoding="utf-8"))
-                created_at = payload.get("created_at")
-                if isinstance(created_at, str) and created_at:
-                    return (1, created_at, file.stem)
-            except (OSError, ValueError, TypeError):
-                pass
-            return (0, "", file.stem)
+                payload = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                payload = {}
+            entries.append((f, payload))
 
-        return sorted(files, key=creation_order)
+        def _creation_key(entry: tuple[Path, dict[str, Any]]) -> tuple[int, str, str]:
+            _, payload = entry
+            created_at = payload.get("created_at")
+            if isinstance(created_at, str) and created_at:
+                return (1, created_at, entry[0].stem)
+            return (0, "", entry[0].stem)
+
+        # Sort by creation order (stable base order).
+        entries.sort(key=_creation_key)
+
+        # Build stable 1‑based index map from creation-ordered entries.
+        index_map = {e[0].stem: idx for idx, e in enumerate(entries, start=1)}
+
+        # Extract pinned entries to the front, sorted by pinned_at desc.
+        pinned = [
+            e for e in entries
+            if e[1].get("is_pinned") and e[1].get("pinned_at")
+        ]
+        unpinned = [
+            e for e in entries
+            if not (e[1].get("is_pinned") and e[1].get("pinned_at"))
+        ]
+
+        def _pinned_at_desc(entry: tuple[Path, dict[str, Any]]) -> str:
+            pa = entry[1].get("pinned_at", "")
+            return pa if isinstance(pa, str) else ""
+
+        pinned.sort(key=_pinned_at_desc, reverse=True)
+
+        return [e[0] for e in pinned + unpinned], index_map
 
     def _build_job_summary(
         self, project_id: str, file: Path, display_index: str
@@ -218,6 +263,8 @@ class FileStoreRepository:
                 "skip_subtitle": record.skip_subtitle,
                 "auto_approve": record.auto_approve,
                 "asset_review_unresolved_count": asset_review_unresolved_count,
+                "is_pinned": record.is_pinned,
+                "pinned_at": record.pinned_at,
             }
         except Exception:
             return {
@@ -228,11 +275,11 @@ class FileStoreRepository:
             }
 
     def list_jobs(self, project_id: str) -> list[dict[str, Any]]:
-        """Return all Job summaries sorted by creation order (immutable)."""
-        files = self._sorted_job_files(project_id)
+        """Return all Job summaries sorted for display (pinned first)."""
+        files, index_map = self._sorted_job_files(project_id)
         results: list[dict[str, Any]] = []
-        for idx, f in enumerate(files, start=1):
-            display_index = f"{idx:03d}"
+        for f in files:
+            display_index = f"{index_map.get(f.stem, 1):03d}"
             results.append(self._build_job_summary(project_id, f, display_index))
         return results
 
@@ -241,15 +288,16 @@ class FileStoreRepository:
     ) -> tuple[list[dict[str, Any]], int]:
         """Return a (items, total) pair for the requested page.
 
-        Items are sorted by immutable Job creation order.  ``total`` is the
-        pre-slice count from a single directory snapshot.
+        Items are sorted for display (pinned first, then creation order).
+        ``display_index`` is the stable 1-based index in immutable creation
+        order — it does not change when a Job is pinned or unpinned.
         """
-        files = self._sorted_job_files(project_id)
+        files, index_map = self._sorted_job_files(project_id)
         total = len(files)
         start, end = slice_indices(total, page, page_size)
         results: list[dict[str, Any]] = []
-        for idx, f in enumerate(files[start:end], start=start + 1):
-            display_index = f"{idx:03d}"
+        for f in files[start:end]:
+            display_index = f"{index_map.get(f.stem, 1):03d}"
             results.append(self._build_job_summary(project_id, f, display_index))
         return results, total
 

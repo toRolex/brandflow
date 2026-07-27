@@ -34,6 +34,8 @@ export interface JobSummary {
 	mode?: ProductionMode;
 	artifacts?: Artifact[];
 	pending_unresolved_count?: number;
+	is_pinned?: boolean;
+	pinned_at?: string;
 }
 
 export interface JobDetail {

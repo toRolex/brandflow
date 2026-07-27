@@ -12,6 +12,7 @@ interface ProjectTabsProps {
 	onRetry: (jobId: string) => void;
 	onDeleteJob: (jobId: string) => void;
 	onRenameJob: (jobId: string, name: string) => Promise<void>;
+	onTogglePin?: (jobId: string) => void;
 }
 
 export default function ProjectTabs({
@@ -21,6 +22,7 @@ export default function ProjectTabs({
 	onRetry,
 	onDeleteJob,
 	onRenameJob,
+	onTogglePin,
 }: ProjectTabsProps) {
 	return (
 		<>
@@ -31,6 +33,7 @@ export default function ProjectTabs({
 				onRename={onRenameJob}
 				selectedJobIds={selectedJobIds}
 				onSelectionChange={onSelectionChange}
+				onTogglePin={onTogglePin}
 			/>
 		</>
 	);
