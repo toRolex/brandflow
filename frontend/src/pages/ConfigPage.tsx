@@ -18,6 +18,7 @@ const SECTIONS: SectionDef[] = [
 		cssVar: "--section-llm-color",
 		icon: (color: string) => (
 			<svg
+				aria-hidden="true"
 				viewBox="0 0 24 24"
 				width="18"
 				height="18"
@@ -40,6 +41,7 @@ const SECTIONS: SectionDef[] = [
 		cssVar: "--section-tts-color",
 		icon: (color: string) => (
 			<svg
+				aria-hidden="true"
 				viewBox="0 0 24 24"
 				width="18"
 				height="18"
@@ -62,6 +64,7 @@ const SECTIONS: SectionDef[] = [
 		cssVar: "--section-vision-color",
 		icon: (color: string) => (
 			<svg
+				aria-hidden="true"
 				viewBox="0 0 24 24"
 				width="18"
 				height="18"
@@ -83,6 +86,7 @@ const SECTIONS: SectionDef[] = [
 		cssVar: "--section-text_to_image-color",
 		icon: (color: string) => (
 			<svg
+				aria-hidden="true"
 				viewBox="0 0 24 24"
 				width="18"
 				height="18"
@@ -105,6 +109,7 @@ const SECTIONS: SectionDef[] = [
 		cssVar: "--section-image_to_video-color",
 		icon: (color: string) => (
 			<svg
+				aria-hidden="true"
 				viewBox="0 0 24 24"
 				width="18"
 				height="18"
@@ -127,6 +132,16 @@ const inputStyle: React.CSSProperties = {
 	color: "var(--input-text)",
 };
 
+const SECRET_MASK = "***";
+
+const FIELD_HINTS: Record<string, string> = {
+	api_key: "仅保存在 .env；更新后需重启后端生效",
+	endpoint: "非敏感运行配置，保存后立即生效",
+	model: "当前 provider 实际调用的模型",
+	thinking: "控制模型是否启用深度思考",
+	extra_headers: "JSON 对象，将随 provider 请求发送",
+};
+
 function selectFirstProviders(
 	c: ProviderConfig,
 	o: ProviderOptions,
@@ -135,6 +150,7 @@ function selectFirstProviders(
 	for (const { key } of SECTIONS) {
 		const section = next.providers[key];
 		const opts = o.providers[key];
+		if (!section || !opts) continue;
 		if (!section.selected && opts) {
 			const first = Object.keys(opts.providers)[0];
 			if (first) {
@@ -145,14 +161,29 @@ function selectFirstProviders(
 	return next;
 }
 
+function displayFieldValue(value: unknown, field: ProviderField): string {
+	if (field.secret && value === SECRET_MASK) return "";
+	if (field.kind === "json" && value && typeof value !== "string") {
+		return JSON.stringify(value, null, 2);
+	}
+	return typeof value === "string" ? value : "";
+}
+
 export default function ConfigPage() {
 	const [config, setConfig] = useState<ProviderConfig | null>(null);
+	const [savedConfig, setSavedConfig] = useState<ProviderConfig | null>(null);
 	const [options, setOptions] = useState<ProviderOptions | null>(null);
 	const [activeTab, setActiveTab] = useState<string>("llm");
+	const [loading, setLoading] = useState(true);
+	const [loadError, setLoadError] = useState<string | null>(null);
+	const [dirty, setDirty] = useState(false);
+	const [secretChanged, setSecretChanged] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
 	const load = useCallback(async () => {
+		setLoading(true);
+		setLoadError(null);
 		try {
 			const [c, o] = await Promise.all([
 				api.getConfig(),
@@ -160,9 +191,17 @@ export default function ConfigPage() {
 			]);
 			const initialized = selectFirstProviders(c, o);
 			setConfig(initialized);
+			setSavedConfig(structuredClone(initialized));
 			setOptions(o);
+			setDirty(false);
+			setSecretChanged(false);
+			setSaveMsg(null);
 		} catch (e) {
-			setSaveMsg("加载配置失败，请重试");
+			setLoadError(
+				`加载配置失败：${e instanceof Error ? e.message : "请检查后端服务"}`,
+			);
+		} finally {
+			setLoading(false);
 		}
 	}, []);
 
@@ -187,6 +226,9 @@ export default function ConfigPage() {
 			[field]: value,
 		} as Record<string, unknown>;
 		setConfig(next);
+		setDirty(true);
+		if (field === "api_key") setSecretChanged(true);
+		setSaveMsg(null);
 	};
 
 	const handleSave = async () => {
@@ -194,15 +236,24 @@ export default function ConfigPage() {
 		setSaving(true);
 		setSaveMsg(null);
 		try {
-			await api.saveConfig(config);
-			setSaveMsg("配置已保存");
+			const saved = await api.saveConfig(config);
+			const normalized = options ? selectFirstProviders(saved, options) : saved;
+			setConfig(normalized);
+			setSavedConfig(structuredClone(normalized));
+			setDirty(false);
+			setSaveMsg(
+				secretChanged
+					? "业务配置已生效；API Key 更新需重启后端后生效"
+					: "配置已保存并立即生效",
+			);
+			setSecretChanged(false);
 		} catch (e) {
 			setSaveMsg(`保存失败：${e instanceof Error ? e.message : "未知错误"}`);
 		}
 		setSaving(false);
 	};
 
-	if (!config || !options) {
+	if (loading) {
 		return (
 			<div
 				className="text-center py-12"
@@ -213,41 +264,140 @@ export default function ConfigPage() {
 		);
 	}
 
+	if (loadError || !config || !options) {
+		return (
+			<div
+				role="alert"
+				className="mx-auto max-w-lg rounded-xl border p-6 text-center"
+				style={{
+					background: "var(--bg-card)",
+					borderColor: "var(--danger)",
+					color: "var(--text-primary)",
+				}}
+			>
+				<div className="mb-2 font-semibold">无法加载系统配置</div>
+				<p className="mb-4 text-sm" style={{ color: "var(--text-secondary)" }}>
+					{loadError || "配置响应不完整"}
+				</p>
+				<button
+					type="button"
+					className="rounded-lg px-4 py-2 text-sm font-medium"
+					style={{ background: "var(--accent)", color: "var(--text-inverse)" }}
+					onClick={load}
+				>
+					重新加载
+				</button>
+			</div>
+		);
+	}
+
+	const availableSections = SECTIONS.filter(
+		(section) =>
+			Object.keys(options.providers[section.key]?.providers || {}).length > 0,
+	);
 	const activeSection =
-		SECTIONS.find((s) => s.key === activeTab) ?? SECTIONS[0];
+		availableSections.find((s) => s.key === activeTab) ?? availableSections[0];
+	if (!activeSection) {
+		return (
+			<div
+				className="py-12 text-center"
+				style={{ color: "var(--text-secondary)" }}
+			>
+				暂无可配置的 Provider
+			</div>
+		);
+	}
 	const key = activeSection.key;
 	const sectionData = config.providers[key];
 	const sectionOpts = options.providers[key];
 	const selected = sectionData?.selected || "";
+	const selectedProfile = sectionData?.providers[selected] || {};
+	const selectedFields =
+		sectionOpts?.providers[selected]?.fields || ([] as ProviderField[]);
+	const secretConfigured = selectedFields.some(
+		(field) =>
+			field.secret &&
+			typeof selectedProfile[field.name] === "string" &&
+			selectedProfile[field.name] !== "",
+	);
+	const selectedModel =
+		typeof selectedProfile.model === "string" ? selectedProfile.model : "";
 
 	return (
 		<div>
-			<div className="flex items-center justify-between mb-6">
-				<h1
-					className="text-xl font-bold"
-					style={{ color: "var(--text-primary)" }}
-				>
-					系统配置
-				</h1>
-				<button
-					className="px-4 py-2 rounded-md text-xs font-medium transition-colors"
-					style={
-						saving
-							? {
-									background: "var(--text-tertiary)",
-									color: "var(--text-inverse)",
-								}
-							: { background: "var(--accent)", color: "var(--text-inverse)" }
-					}
-					disabled={saving}
-					onClick={handleSave}
-				>
-					{saving ? "保存中..." : "保存配置"}
-				</button>
+			<div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+				<div>
+					<div className="flex items-center gap-3">
+						<h1
+							className="text-xl font-bold"
+							style={{ color: "var(--text-primary)" }}
+						>
+							系统配置
+						</h1>
+						{dirty && (
+							<span
+								className="rounded-full px-2 py-1 text-xs font-medium"
+								style={{
+									background: "var(--alert-yellow-muted)",
+									color: "var(--warning)",
+								}}
+							>
+								有未保存的更改
+							</span>
+						)}
+					</div>
+					<p
+						className="mt-1 text-sm"
+						style={{ color: "var(--text-secondary)" }}
+					>
+						统一管理各项 AI 能力的运行 Provider、模型与凭据
+					</p>
+				</div>
+				<div className="flex items-center gap-2">
+					{dirty && savedConfig && (
+						<button
+							type="button"
+							className="rounded-lg border px-3 py-2 text-xs font-medium"
+							style={{
+								borderColor: "var(--border-default)",
+								color: "var(--text-secondary)",
+							}}
+							onClick={() => {
+								setConfig(structuredClone(savedConfig));
+								setDirty(false);
+								setSecretChanged(false);
+								setSaveMsg(null);
+							}}
+						>
+							放弃更改
+						</button>
+					)}
+					<button
+						className="rounded-lg px-4 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+						style={
+							saving || !dirty
+								? {
+										background: "var(--text-tertiary)",
+										color: "var(--text-inverse)",
+									}
+								: {
+										background: "var(--accent)",
+										color: "var(--text-inverse)",
+									}
+						}
+						disabled={saving || !dirty}
+						title={dirty ? "保存所有配置更改" : "没有未保存的更改"}
+						onClick={handleSave}
+					>
+						{saving ? "保存中..." : "保存配置"}
+					</button>
+				</div>
 			</div>
 
 			{saveMsg && (
 				<div
+					role={saveMsg.includes("失败") ? "alert" : "status"}
+					aria-live="polite"
 					className="mb-4 px-4 py-3 rounded-lg text-sm border"
 					style={
 						saveMsg.includes("失败")
@@ -267,17 +417,66 @@ export default function ConfigPage() {
 				</div>
 			)}
 
+			<div className="mb-6 grid gap-3 md:grid-cols-3">
+				{[
+					{
+						title: "运行配置",
+						value: "app_config.json",
+						detail: "Provider、模型和 Endpoint 保存后立即生效",
+					},
+					{
+						title: "敏感凭据",
+						value: ".env",
+						detail: "API Key 不回显，更新后需重启后端",
+					},
+					{
+						title: "旧配置兼容",
+						value: "providers.yaml",
+						detail: "仅用于旧版本读取，不再作为运行配置源",
+					},
+				].map((item) => (
+					<div
+						key={item.title}
+						className="rounded-xl border p-3"
+						style={{
+							background: "var(--bg-card)",
+							borderColor: "var(--border-default)",
+						}}
+					>
+						<div
+							className="text-xs font-medium"
+							style={{ color: "var(--text-tertiary)" }}
+						>
+							{item.title}
+						</div>
+						<div
+							className="mt-1 font-mono text-sm font-semibold"
+							style={{ color: "var(--text-primary)" }}
+						>
+							{item.value}
+						</div>
+						<div
+							className="mt-1 text-xs"
+							style={{ color: "var(--text-secondary)" }}
+						>
+							{item.detail}
+						</div>
+					</div>
+				))}
+			</div>
+
 			<div
-				className="flex gap-2 mb-6 border-b"
+				className="mb-6 flex gap-2 overflow-x-auto border-b"
 				style={{ borderColor: "var(--border-default)" }}
 				role="tablist"
 			>
-				{SECTIONS.map(({ key: sectionKey, label, cssVar, icon }) => {
+				{availableSections.map(({ key: sectionKey, label, cssVar, icon }) => {
 					const active = activeTab === sectionKey;
 					const sectionColorVar = `var(${cssVar})`;
 					const sectionColorMutedVar = `var(${cssVar}-muted)`;
 					return (
 						<button
+							type="button"
 							key={sectionKey}
 							role="tab"
 							aria-selected={active}
@@ -300,32 +499,75 @@ export default function ConfigPage() {
 
 			<section
 				key={key}
-				className="border rounded-xl p-5"
+				className="rounded-xl border p-5"
 				style={{
-					background: "var(--bg-page)",
+					background: "var(--bg-card)",
 					borderColor: "var(--border-default)",
 				}}
 			>
-				<h2
-					className="font-semibold mb-4"
-					style={{ color: "var(--text-primary)" }}
-				>
-					{activeSection.label}
-				</h2>
+				<div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h2
+							className="font-semibold"
+							style={{ color: "var(--text-primary)" }}
+						>
+							{activeSection.label}
+						</h2>
+						<p
+							className="mt-1 text-xs"
+							style={{ color: "var(--text-secondary)" }}
+						>
+							选择运行时 Provider，并配置它实际使用的连接参数
+						</p>
+					</div>
+					{selected && (
+						<div className="flex flex-wrap items-center gap-2 text-xs">
+							{selectedModel && (
+								<span
+									className="rounded-full px-2 py-1"
+									style={{
+										background: "var(--bg-tag-blue)",
+										color: "var(--text-tag-blue)",
+									}}
+								>
+									模型：{selectedModel}
+								</span>
+							)}
+							<span
+								className="rounded-full px-2 py-1"
+								style={
+									secretConfigured
+										? {
+												background: "var(--bg-tag-green)",
+												color: "var(--text-tag-green)",
+											}
+										: {
+												background: "var(--badge-warning-bg)",
+												color: "var(--badge-warning-text)",
+											}
+								}
+							>
+								{secretConfigured ? "API Key 已配置" : "API Key 未配置"}
+							</span>
+						</div>
+					)}
+				</div>
 
 				<label
-					className="grid gap-1 text-xs mb-3"
+					className="mb-5 grid gap-1 text-xs"
 					style={{ color: "var(--text-secondary)" }}
 				>
-					Provider
+					运行 Provider
 					<select
-						className="border rounded-lg px-3 py-2 text-sm"
+						className="rounded-lg border px-3 py-2 text-sm"
 						style={inputStyle}
 						value={selected}
 						onChange={(e) => {
 							const next = structuredClone(config);
 							next.providers[key].selected = e.target.value;
 							setConfig(next);
+							setDirty(true);
+							setSaveMsg(null);
 						}}
 					>
 						<option value="">未选择</option>
@@ -339,52 +581,90 @@ export default function ConfigPage() {
 
 				{selected &&
 					sectionOpts?.providers[selected] &&
-					(
-						sectionOpts.providers[selected] as { fields: ProviderField[] }
-					).fields.map((field) => (
-						<label
-							key={field.name}
-							className="grid gap-1 text-xs mb-3"
-							style={{ color: "var(--text-secondary)" }}
-						>
-							{field.label}
-							{field.kind === "select" ? (
-								<select
-									className="border rounded-lg px-3 py-2 text-sm"
-									style={inputStyle}
-									value={
-										(sectionData?.providers[selected]?.[
-											field.name
-										] as string) || ""
-									}
-									onChange={(e) =>
-										updateField(key, selected, field.name, e.target.value)
-									}
-								>
-									{(field.options || []).map((o) => (
-										<option key={o} value={o}>
-											{o}
-										</option>
-									))}
-								</select>
-							) : (
-								<input
-									className="border rounded-lg px-3 py-2 text-sm"
-									style={inputStyle}
-									type={field.secret ? "password" : "text"}
-									placeholder="请输入"
-									value={
-										(sectionData?.providers[selected]?.[
-											field.name
-										] as string) || ""
-									}
-									onChange={(e) =>
-										updateField(key, selected, field.name, e.target.value)
-									}
-								/>
-							)}
-						</label>
-					))}
+					selectedFields.map((field) => {
+						const fieldId = `${key}-${selected}-${field.name}`;
+						const rawValue = selectedProfile[field.name];
+						const fieldValue = displayFieldValue(rawValue, field);
+						const secretIsConfigured =
+							field.secret &&
+							typeof rawValue === "string" &&
+							rawValue !== "" &&
+							rawValue !== "__CLEAR__";
+						return (
+							<div key={field.name} className="mb-4 grid gap-1">
+								<div className="flex items-center justify-between gap-3">
+									<label
+										htmlFor={fieldId}
+										className="text-xs font-medium"
+										style={{ color: "var(--text-secondary)" }}
+									>
+										{field.label}
+									</label>
+									{field.secret && secretIsConfigured && (
+										<span
+											className="text-xs"
+											style={{ color: "var(--success)" }}
+										>
+											已配置
+										</span>
+									)}
+								</div>
+								{field.kind === "select" ? (
+									<select
+										id={fieldId}
+										className="rounded-lg border px-3 py-2 text-sm"
+										style={inputStyle}
+										value={fieldValue}
+										onChange={(e) =>
+											updateField(key, selected, field.name, e.target.value)
+										}
+									>
+										{(field.options || []).map((o) => (
+											<option key={o} value={o}>
+												{o}
+											</option>
+										))}
+									</select>
+								) : field.kind === "json" ? (
+									<textarea
+										id={fieldId}
+										className="min-h-24 rounded-lg border px-3 py-2 font-mono text-sm"
+										style={inputStyle}
+										placeholder="{}"
+										value={fieldValue}
+										onChange={(e) =>
+											updateField(key, selected, field.name, e.target.value)
+										}
+									/>
+								) : (
+									<input
+										id={fieldId}
+										className="rounded-lg border px-3 py-2 text-sm"
+										style={inputStyle}
+										type={field.secret ? "password" : "text"}
+										autoComplete={field.secret ? "new-password" : undefined}
+										placeholder={
+											field.secret && secretIsConfigured
+												? "已配置 · 留空保持不变"
+												: "请输入"
+										}
+										value={fieldValue}
+										onChange={(e) =>
+											updateField(key, selected, field.name, e.target.value)
+										}
+									/>
+								)}
+								{FIELD_HINTS[field.name] && (
+									<p
+										className="text-xs"
+										style={{ color: "var(--text-tertiary)" }}
+									>
+										{FIELD_HINTS[field.name]}
+									</p>
+								)}
+							</div>
+						);
+					})}
 			</section>
 		</div>
 	);

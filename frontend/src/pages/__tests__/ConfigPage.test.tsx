@@ -187,10 +187,18 @@ describe("ConfigPage", () => {
 
 		const saveBtn = screen.getByRole("button", { name: /保存配置/i });
 		expect(saveBtn).toBeInTheDocument();
+		expect(saveBtn).toBeDisabled();
 
 		// Save button should be in header row area
-		const header = screen.getByText("系统配置").parentElement;
+		const header =
+			screen.getByText("系统配置").parentElement?.parentElement?.parentElement;
 		expect(header?.contains(saveBtn)).toBe(true);
+
+		fireEvent.change(screen.getAllByRole("combobox")[0], {
+			target: { value: "kimi" },
+		});
+		expect(saveBtn).toBeEnabled();
+		expect(screen.getByText("有未保存的更改")).toBeInTheDocument();
 
 		fireEvent.click(saveBtn);
 
@@ -210,11 +218,85 @@ describe("ConfigPage", () => {
 			).toBeInTheDocument();
 		});
 
+		fireEvent.change(screen.getAllByRole("combobox")[0], {
+			target: { value: "kimi" },
+		});
 		fireEvent.click(screen.getByRole("button", { name: /保存配置/i }));
 
 		await waitFor(() => {
 			expect(screen.getByText(/保存失败/i)).toBeInTheDocument();
 		});
+	});
+
+	it("Seam 10: 已配置的 Secret 不显示掩码值，修改后提示重启", async () => {
+		vi.mocked(api.getConfig).mockResolvedValue({
+			...MOCK_CONFIG,
+			providers: {
+				...MOCK_CONFIG.providers,
+				llm: {
+					selected: "deepseek",
+					providers: {
+						deepseek: {
+							model: "deepseek-v4-pro",
+							api_key: "***",
+						},
+					},
+				},
+			},
+		});
+		vi.mocked(api.saveConfig).mockResolvedValue(MOCK_CONFIG);
+
+		render(<ConfigPage />);
+
+		const secretInput = await screen.findByLabelText("API Key");
+		expect(secretInput).toHaveValue("");
+		expect(secretInput).toHaveAttribute(
+			"placeholder",
+			expect.stringMatching(/已配置/),
+		);
+
+		fireEvent.change(secretInput, { target: { value: "new-secret" } });
+		fireEvent.click(screen.getByRole("button", { name: /保存配置/i }));
+
+		await waitFor(() => {
+			expect(screen.getByText(/API Key.*重启后端/)).toBeInTheDocument();
+		});
+	});
+
+	it("Seam 11: 加载失败可直接重试", async () => {
+		vi.mocked(api.getConfig)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValueOnce(MOCK_CONFIG);
+
+		render(<ConfigPage />);
+
+		const retry = await screen.findByRole("button", { name: "重新加载" });
+		fireEvent.click(retry);
+
+		expect(
+			await screen.findByRole("tab", { name: /llm/i }),
+		).toBeInTheDocument();
+	});
+
+	it("Seam 12: 没有可用 provider 的能力不显示为空 Tab", async () => {
+		vi.mocked(api.getConfigOptions).mockResolvedValue({
+			...MOCK_OPTIONS,
+			providers: {
+				...MOCK_OPTIONS.providers,
+				text_to_image: { providers: {} },
+				image_to_video: { providers: {} },
+			},
+		});
+
+		render(<ConfigPage />);
+
+		await screen.findByRole("tab", { name: /llm/i });
+		expect(
+			screen.queryByRole("tab", { name: /文生图/i }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("tab", { name: /图生视频/i }),
+		).not.toBeInTheDocument();
 	});
 
 	it("Seam 4: 页面加载时自动选中每个 section 的第一个 provider", async () => {
