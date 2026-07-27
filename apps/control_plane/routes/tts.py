@@ -85,7 +85,6 @@ class TTSConfigRequest(BaseModel):
     bitrate: str | None = None
     channel: str | None = None
     group_id: str | None = None
-    voice_id: str | None = None
     endpoint: str | None = None
     extra_headers: str | None = None
 
@@ -123,7 +122,6 @@ class TTSConfigResponse(BaseModel):
     bitrate: str | None = None
     channel: str | None = None
     group_id: str | None = None
-    voice_id: str | None = None
     endpoint: str | None = None
     extra_headers: str | None = None
 
@@ -160,6 +158,24 @@ _INSTRUCT_UNSUPPORTED_VOICES = {"Jennifer", "Ryan", "Katerina"}
 async def get_tts_config(product_id: str | None = None):
     config = config_manager.get_config(product_id)
     return TTSConfigResponse(**config.to_dict())
+
+
+@router.get("/models")
+async def get_tts_models():
+    """Catalog-driven model cards and per-provider connection fields (#386)."""
+    from packages.provider_config.catalog import (
+        tts_connection_fields,
+        tts_models,
+        tts_runtime_providers,
+    )
+
+    return {
+        "models": tts_models(),
+        "connection_fields": {
+            provider: tts_connection_fields(provider)
+            for provider in sorted(tts_runtime_providers())
+        },
+    }
 
 
 @router.put("/config")

@@ -3,6 +3,8 @@ from packages.provider_config.catalog import (
     default_runtime_settings,
     provider_field_to_runtime_field,
     provider_options_payload,
+    tts_connection_fields,
+    tts_models,
     tts_provider_for_model,
     tts_runtime_providers,
 )
@@ -49,3 +51,38 @@ def test_user_configurable_runtime_defaults_have_one_catalog_source() -> None:
     for section in ("embedding", "media", "asset_library", "scene"):
         for field, value in settings[section].items():
             assert DEFAULTS[section][field] == value
+
+
+def test_tts_models_are_served_from_catalog() -> None:
+    models = tts_models()
+
+    by_model = {m["model"]: m for m in models}
+    assert set(by_model) == {
+        "qwen3-tts-flash",
+        "qwen3-tts-instruct-flash",
+        "mimo-v2.5-tts",
+        "mimo-v2.5-tts-voicedesign",
+        "mimo-v2.5-tts-voiceclone",
+    }
+    assert by_model["qwen3-tts-flash"]["provider"] == "qwen"
+    assert "preset_voice" in by_model["qwen3-tts-flash"]["features"]
+    assert "instruct" in by_model["qwen3-tts-instruct-flash"]["features"]
+    assert "voice_design" in by_model["mimo-v2.5-tts-voicedesign"]["features"]
+    assert "voice_clone" in by_model["mimo-v2.5-tts-voiceclone"]["features"]
+    # Every declared model must route back to its provider.
+    for m in models:
+        assert tts_provider_for_model(m["model"]) == m["provider"]
+
+
+def test_tts_connection_fields_are_derived_from_catalog() -> None:
+    assert tts_connection_fields("qwen") == ["endpoint", "extra_headers"]
+    assert tts_connection_fields("mimo") == [
+        "endpoint",
+        "group_id",
+        "speed",
+        "vol",
+        "pitch",
+        "emotion",
+        "extra_headers",
+    ]
+    assert tts_connection_fields("unknown") == []

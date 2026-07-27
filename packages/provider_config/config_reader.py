@@ -7,6 +7,7 @@ All ``get_*()`` methods are O(1) dict lookups after construction.
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from typing import Any, cast
@@ -21,6 +22,8 @@ from packages.provider_config.config_constants import (
     _set_nested,
 )
 from packages.provider_config.config_io import load_config, save_config
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigReader:
@@ -311,6 +314,15 @@ class ConfigReader:
         tts_sections.extend(product.get("tts") for product in products)
         for section in tts_sections:
             if not isinstance(section, dict):
+                continue
+            # Retired model alias: mimo-v2-tts -> qwen3-tts-flash (load-time,
+            # so the write path never silently rewrites the user's choice).
+            if section.get("model") == "mimo-v2-tts":
+                logger.warning("Auto-migrating mimo-v2-tts -> qwen3-tts-flash")
+                section["provider"] = "qwen"
+                section["model"] = "qwen3-tts-flash"
+                section["voice"] = "Rocky"
+                changed = True
                 continue
             model = str(section.get("model") or "")
             inferred = tts_provider_for_model(model)

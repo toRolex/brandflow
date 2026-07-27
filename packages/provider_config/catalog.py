@@ -117,3 +117,61 @@ def tts_preset_voices(provider_name: str) -> list[dict]:
     if provider is None:
         return []
     return list(provider.get("preset_voices", []))
+
+
+def tts_models() -> list[dict]:
+    """Return runtime TTS model cards declared in the catalog.
+
+    Each entry: {provider, model, label, description, features}.
+    Drives the frontend model picker and per-model capability checks.
+    """
+    providers = _DATA["provider_options"]["providers"]["tts"]["providers"]
+    result: list[dict] = []
+    for provider_name, provider in providers.items():
+        if provider_name not in _SUPPORTED_TTS_PROVIDERS:
+            continue
+        for model in provider.get("models", []):
+            result.append(
+                {
+                    "provider": provider_name,
+                    "model": model["id"],
+                    "label": model.get("label", model["id"]),
+                    "description": model.get("description", ""),
+                    "features": list(model.get("features", [])),
+                }
+            )
+    return result
+
+
+# Provider form fields that are NOT connection parameters — they are either
+# secrets, identity (model/voice), or business fields owned by other sections.
+_TTS_NON_CONNECTION_FIELDS = frozenset(
+    {
+        "api_key",
+        "model",
+        "voice",
+        "style",
+        "audio_format",
+        "instructions",
+        "language_type",
+    }
+)
+
+
+def tts_connection_fields(provider_name: str) -> list[str]:
+    """Return the connection-parameter field names for a TTS provider.
+
+    Derived from the catalog field list minus secrets/identity/business fields,
+    so adding a field to the catalog automatically surfaces it in the UI.
+    """
+    providers = _DATA["provider_options"]["providers"]["tts"]["providers"]
+    if provider_name not in _SUPPORTED_TTS_PROVIDERS:
+        return []
+    provider = providers.get(provider_name)
+    if provider is None:
+        return []
+    return [
+        field["name"]
+        for field in provider.get("fields", [])
+        if field["name"] not in _TTS_NON_CONNECTION_FIELDS
+    ]

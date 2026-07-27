@@ -68,7 +68,7 @@ def test_custom_random_voices() -> None:
 def test_to_dict_returns_all_fields() -> None:
     config = TTSConfig()
     data = config.to_dict()
-    assert len(data) == 32
+    assert len(data) == 31
 
 
 def test_to_dict_values_match_defaults() -> None:
@@ -449,7 +449,7 @@ def test_tts_config_voiceclone_from_dict() -> None:
 
 
 def test_new_provider_fields_default_to_none() -> None:
-    """新建 TTSConfig() 后 11 个新 provider 连接字段均为 None"""
+    """新建 TTSConfig() 后 10 个新 provider 连接字段均为 None"""
     config = TTSConfig()
     assert config.speed is None
     assert config.vol is None
@@ -459,7 +459,6 @@ def test_new_provider_fields_default_to_none() -> None:
     assert config.bitrate is None
     assert config.channel is None
     assert config.group_id is None
-    assert config.voice_id is None
     assert config.endpoint is None
     assert config.extra_headers is None
 
@@ -475,7 +474,6 @@ def test_new_provider_fields_roundtrip_to_dict() -> None:
         bitrate="128",
         channel="1",
         group_id="group-123",
-        voice_id="voice-456",
         endpoint="https://custom.example.com/v1",
         extra_headers='{"X-Custom": "value"}',
     )
@@ -488,7 +486,6 @@ def test_new_provider_fields_roundtrip_to_dict() -> None:
     assert data["bitrate"] == "128"
     assert data["channel"] == "1"
     assert data["group_id"] == "group-123"
-    assert data["voice_id"] == "voice-456"
     assert data["endpoint"] == "https://custom.example.com/v1"
     assert data["extra_headers"] == '{"X-Custom": "value"}'
 
@@ -497,6 +494,20 @@ def test_new_provider_fields_roundtrip_to_dict() -> None:
     assert restored.vol == "0.8"
     assert restored.pitch == "0.0"
     assert restored.emotion == "happy"
+
+
+def test_from_dict_coerces_numeric_string_fields() -> None:
+    """数值形式的连接参数（如 sample_rate: 44100）规范化为字符串"""
+    config = TTSConfig.from_dict({"sample_rate": 44100, "bitrate": 192000, "channel": 2})
+    assert config.sample_rate == "44100"
+    assert config.bitrate == "192000"
+    assert config.channel == "2"
+
+
+def test_from_dict_ignores_removed_voice_id() -> None:
+    """已移除的 voice_id 字段被静默忽略"""
+    config = TTSConfig.from_dict({"voice_id": "voice-456"})
+    assert not hasattr(config, "voice_id")
 
 
 def test_with_defaults_fills_provider_params() -> None:
@@ -510,10 +521,10 @@ def test_with_defaults_fills_provider_params() -> None:
 
 
 def test_to_dict_field_count_updated() -> None:
-    """field count 反映新增的 11 个 provider 连接字段（21 → 32）"""
+    """field count 反映新增的 10 个 provider 连接字段（21 → 31）"""
     config = TTSConfig()
     data = config.to_dict()
-    assert len(data) == 32
+    assert len(data) == 31
 
 
 def test_save_and_load_preserves_provider_params() -> None:
@@ -576,3 +587,52 @@ def test_from_dict_ignores_dead_provider_profile_fields() -> None:
     assert config.model == "test"
     assert config.sample_rate == "48000"  # valid new field
     assert not hasattr(config, "some_dead_field")
+
+
+# ---------------------------------------------------------------------------
+# resolve_tts_config — single runtime entry point (#386)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_tts_config_infers_provider_from_model() -> None:
+    from packages.provider_config.tts_config import resolve_tts_config
+
+    config = resolve_tts_config({"model": "mimo-v2.5-tts"})
+    assert config.provider == "mimo"
+    assert config.model == "mimo-v2.5-tts"
+
+
+def test_resolve_tts_config_applies_overrides() -> None:
+    from packages.provider_config.tts_config import resolve_tts_config
+
+    config = resolve_tts_config(
+        {"provider": "qwen", "model": "qwen3-tts-flash", "voice": "Cherry"},
+        {"model": "mimo-v2.5-tts", "voice": "Mia"},
+    )
+    assert config.model == "mimo-v2.5-tts"
+    assert config.voice == "Mia"
+    # Explicit provider in the base dict is kept (overrides didn't touch it).
+    assert config.provider == "qwen"
+
+
+def test_resolve_tts_config_override_model_reinfers_provider() -> None:
+    from packages.provider_config.tts_config import resolve_tts_config
+
+    # Base dict has no provider; override model drives inference.
+    config = resolve_tts_config({}, {"model": "mimo-v2.5-tts"})
+    assert config.provider == "mimo"
+
+
+def test_resolve_tts_config_flattens_nested_keys() -> None:
+    from packages.provider_config.tts_config import resolve_tts_config
+
+    config = resolve_tts_config(
+        {
+            "model": "qwen3-tts-flash",
+            "director": {"character": "女主播", "scene": "直播间", "guidance": "语速适中"},
+            "audio_tags": {"enabled": True, "tags": "(温柔)"},
+        }
+    )
+    assert config.director_character == "女主播"
+    assert config.audio_tags_enabled is True
+    assert config.audio_tags == "(温柔)"

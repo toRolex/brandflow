@@ -719,3 +719,34 @@ class TestTTSPreviewResponse:
             assert response.headers["content-type"] == "audio/L16;rate=24000;channels=1"
             assert "preview.pcm" in response.headers["content-disposition"]
             assert response.content == source_audio
+
+
+class TestTTSModelsAPI:
+    def test_models_endpoint_returns_catalog_models(self, client):
+        response = client.get("/api/tts/models")
+        assert response.status_code == 200
+        data = response.json()
+
+        by_model = {m["model"]: m for m in data["models"]}
+        assert set(by_model) == {
+            "qwen3-tts-flash",
+            "qwen3-tts-instruct-flash",
+            "mimo-v2.5-tts",
+            "mimo-v2.5-tts-voicedesign",
+            "mimo-v2.5-tts-voiceclone",
+        }
+        for m in data["models"]:
+            assert m["provider"] in ("qwen", "mimo")
+            assert m["label"]
+            assert isinstance(m["features"], list)
+
+    def test_models_endpoint_returns_connection_fields(self, client):
+        response = client.get("/api/tts/models")
+        assert response.status_code == 200
+        fields = response.json()["connection_fields"]
+
+        assert fields["qwen"] == ["endpoint", "extra_headers"]
+        assert "speed" in fields["mimo"]
+        assert "group_id" in fields["mimo"]
+        assert "api_key" not in fields["mimo"]
+        assert "model" not in fields["mimo"]

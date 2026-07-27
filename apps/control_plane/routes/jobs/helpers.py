@@ -17,7 +17,6 @@ from packages.file_store.layout import (
     WorkspaceLayout,
 )
 from packages.file_store.repository import FileStoreRepository
-from packages.provider_config.catalog import tts_provider_for_model
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
 
@@ -296,22 +295,21 @@ def _resolve_tts_preview_config(
     secret_store: SecretStore,
 ):
     """Resolve TTS config and build provider for preview."""
-    tts_cfg = {**config_reader.get_tts_config(product_id=record.product or None)}
+    overrides = {}
     if record.tts_model:
-        tts_cfg["model"] = record.tts_model
-        inferred_provider = tts_provider_for_model(record.tts_model)
-        if inferred_provider:
-            tts_cfg["provider"] = inferred_provider
+        overrides["model"] = record.tts_model
     if record.tts_voice:
-        tts_cfg["voice"] = record.tts_voice
-
-    # Preview must resolve the same voice as formal synthesis — never randomize (#252)
-    tts_cfg["randomize_voice"] = False
+        overrides["voice"] = record.tts_voice
 
     from packages.pipeline_services.tts_provider import create_tts_provider
-    from packages.provider_config.tts_config import TTSConfig
+    from packages.provider_config.tts_config import resolve_tts_config
 
-    config = TTSConfig.from_dict(tts_cfg).with_defaults()
+    config = resolve_tts_config(
+        config_reader.get_tts_config(product_id=record.product or None), overrides
+    )
+    # Preview must resolve the same voice as formal synthesis — never randomize (#252)
+    config.randomize_voice = False
+
     provider = create_tts_provider(config, secret_store)
     return provider, config
 

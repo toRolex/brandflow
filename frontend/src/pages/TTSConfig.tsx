@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
+import type { TtsModelInfo } from "../api/tts";
 import { useProducts } from "../ProductContext";
 
 interface TtsConfig {
@@ -33,7 +34,6 @@ interface TtsConfig {
 	bitrate?: string | null;
 	channel?: string | null;
 	group_id?: string | null;
-	voice_id?: string | null;
 	endpoint?: string | null;
 	extra_headers?: string | null;
 }
@@ -44,7 +44,17 @@ interface Voice {
 	note: string;
 }
 
-type ConnectionField = "endpoint" | "speed" | "vol" | "pitch" | "emotion" | "group_id" | "extra_headers";
+type ConnectionField =
+	| "endpoint"
+	| "speed"
+	| "vol"
+	| "pitch"
+	| "emotion"
+	| "group_id"
+	| "sample_rate"
+	| "bitrate"
+	| "channel"
+	| "extra_headers";
 
 const CONNECTION_FIELDS: Record<ConnectionField, { label: string; placeholder: string }> = {
 	endpoint: { label: "API Endpoint", placeholder: "留空使用环境变量默认地址" },
@@ -53,6 +63,9 @@ const CONNECTION_FIELDS: Record<ConnectionField, { label: string; placeholder: s
 	pitch: { label: "音调", placeholder: "例如 0.0" },
 	emotion: { label: "情感", placeholder: "可选" },
 	group_id: { label: "Group ID", placeholder: "MiMo 可选" },
+	sample_rate: { label: "采样率", placeholder: "例如 24000" },
+	bitrate: { label: "比特率", placeholder: "例如 128000" },
+	channel: { label: "声道数", placeholder: "例如 1" },
 	extra_headers: { label: "额外请求头", placeholder: '{"X-Custom": "value"}' },
 };
 
@@ -165,6 +178,10 @@ const AUDIO_TAGS = [
 export default function TTSConfigPage() {
 	const { activeProductId, activeProductName } = useProducts();
 	const [config, setConfig] = useState<TtsConfig | null>(null);
+	const [models, setModels] = useState<TtsModelInfo[]>([]);
+	const [connectionFieldsMap, setConnectionFieldsMap] = useState<
+		Record<string, string[]>
+	>({});
 	const [previewText, setPreviewText] = useState(
 		"这是产品展示的示例语音，用于测试语音合成效果和音色表现。",
 	);
@@ -174,6 +191,18 @@ export default function TTSConfigPage() {
 	const [loading, setLoading] = useState(false);
 	const [saveMsg, setSaveMsg] = useState<string | null>(null);
 	const prevModelRef = useRef<string | undefined>(undefined);
+
+	useEffect(() => {
+		api
+			.getTTSModels()
+			.then((data) => {
+				setModels(data.models);
+				setConnectionFieldsMap(data.connection_fields);
+			})
+			.catch(() => {
+				setModels([]);
+			});
+	}, []);
 
 	useEffect(() => {
 		prevModelRef.current = undefined;
@@ -200,21 +229,18 @@ export default function TTSConfigPage() {
 			const data = await api.getTTSVoices(undefined, model);
 			const loadedVoices = data.preset_voices;
 			setVoices(loadedVoices);
-			if (setDefault && loadedVoices.length > 0) {
-				const isPresetModel =
-					model === "mimo-v2.5-tts" ||
-					model === "qwen3-tts-flash" ||
-					model === "qwen3-tts-instruct-flash";
-				if (isPresetModel) {
-					setConfig((prev) => {
-						if (!prev) return prev;
-						const voiceExists = loadedVoices.some((v) => v.id === prev.voice);
-						if (!voiceExists) {
-							return { ...prev, voice: "Cherry" };
-						}
-						return prev;
-					});
-				}
+			const isPresetModel = models
+				.find((m) => m.model === model)
+				?.features.includes("preset_voice");
+			if (setDefault && isPresetModel && loadedVoices.length > 0) {
+				setConfig((prev) => {
+					if (!prev) return prev;
+					const voiceExists = loadedVoices.some((v) => v.id === prev.voice);
+					if (!voiceExists) {
+						return { ...prev, voice: loadedVoices[0].id };
+					}
+					return prev;
+				});
 			}
 		} catch {
 			setVoices([]);
@@ -260,39 +286,20 @@ export default function TTSConfigPage() {
 							Math.floor(Math.random() * config.random_voices.length)
 						]
 					: config.voice;
-			const requestBody: {
-				text: string;
-				provider?: string;
-				model?: string;
-				voice?: string;
-				style_prompt?: string;
-				voice_design_prompt?: string;
-				instructions?: string;
-				optimize_instructions?: boolean;
-				language_type?: string;
-				speed?: string;
-				vol?: string;
-				pitch?: string;
-				emotion?: string;
-				group_id?: string;
-				endpoint?: string;
-				extra_headers?: string;
-			} = {
+			const requestBody: Record<string, unknown> = {
 				text: previewText,
 				provider: config.provider,
 				model: config.model,
 				voice,
 				style_prompt: config.style_prompt,
 				voice_design_prompt: config.voice_design_prompt,
-				speed: config.speed ?? undefined,
-				vol: config.vol ?? undefined,
-				pitch: config.pitch ?? undefined,
-				emotion: config.emotion ?? undefined,
-				group_id: config.group_id ?? undefined,
-				endpoint: config.endpoint ?? undefined,
-				extra_headers: config.extra_headers ?? undefined,
 			};
-			if (config.model?.startsWith("qwen3-tts")) {
+			// Connection params follow the provider's catalog field list.
+			for (const field of connectionFieldsMap[config.provider] ?? []) {
+				const value = config[field as ConnectionField];
+				if (value) requestBody[field] = value;
+			}
+			if (config.provider === "qwen") {
 				if (config.instructions) requestBody.instructions = config.instructions;
 				if (config.optimize_instructions != null)
 					requestBody.optimize_instructions = config.optimize_instructions;
@@ -332,10 +339,14 @@ export default function TTSConfigPage() {
 		);
 	}
 
-	const connectionFields: ConnectionField[] =
-		config.provider === "mimo"
-			? ["endpoint", "speed", "vol", "pitch", "emotion", "group_id", "extra_headers"]
-			: ["endpoint", "extra_headers"];
+	const currentFeatures =
+		models.find((m) => m.model === config.model)?.features ?? [];
+	const hasFeature = (feature: string) => currentFeatures.includes(feature);
+
+	const connectionFields = (connectionFieldsMap[config.provider] ?? [
+		"endpoint",
+		"extra_headers",
+	]) as ConnectionField[];
 
 	return (
 		<div>
@@ -363,92 +374,23 @@ export default function TTSConfigPage() {
 					<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
 						<h2 className="text-lg font-semibold mb-4">TTS 模型选择</h2>
 						<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-							<div
-								className={`border-2 rounded-xl p-4 cursor-pointer ${
-									config.model === "mimo-v2.5-tts"
-										? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
-										: "border-[var(--border-default)] hover:border-[var(--text-tertiary)]"
-								}`}
-								onClick={() => selectModel("mimo", "mimo-v2.5-tts")}
-							>
-								<h3 className="font-semibold">预置音色</h3>
-								<p className="text-sm text-[var(--text-tertiary)]">
-									mimo-v2.5-tts
-								</p>
-								<p className="text-sm text-[var(--text-secondary)] mt-2">
-									使用官方精选音色
-								</p>
-							</div>
-							<div
-								className={`border-2 rounded-xl p-4 cursor-pointer ${
-									config.model === "mimo-v2.5-tts-voicedesign"
-										? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
-										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
-								}`}
-								onClick={() =>
-									selectModel("mimo", "mimo-v2.5-tts-voicedesign")
-								}
-							>
-								<h3 className="font-semibold">音色设计</h3>
-								<p className="text-sm text-[var(--text-tertiary)]">
-									mimo-v2.5-tts-voicedesign
-								</p>
-								<p className="text-sm text-[var(--text-secondary)] mt-2">
-									通过文字描述自定义音色
-								</p>
-							</div>
-							<div
-								className={`border-2 rounded-xl p-4 cursor-pointer ${
-									config.model === "mimo-v2.5-tts-voiceclone"
-										? "border-[var(--success)] bg-[var(--success-bg)]"
-										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
-								}`}
-								onClick={() =>
-									selectModel("mimo", "mimo-v2.5-tts-voiceclone")
-								}
-							>
-								<h3 className="font-semibold">音色克隆</h3>
-								<p className="text-sm text-[var(--text-tertiary)]">
-									mimo-v2.5-tts-voiceclone
-								</p>
-								<p className="text-sm text-[var(--text-secondary)] mt-2">
-									通过音频样本克隆音色
-								</p>
-							</div>
-							<div
-								className={`border-2 rounded-xl p-4 cursor-pointer ${
-									config.model === "qwen3-tts-flash"
-										? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
-										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
-								}`}
-								onClick={() => selectModel("qwen", "qwen3-tts-flash")}
-							>
-								<h3 className="font-semibold">Qwen Flash</h3>
-								<p className="text-sm text-[var(--text-tertiary)]">
-									qwen3-tts-flash
-								</p>
-								<p className="text-sm text-[var(--text-secondary)] mt-2">
-									基础非实时合成
-								</p>
-							</div>
-							<div
-								className={`border-2 rounded-xl p-4 cursor-pointer ${
-									config.model === "qwen3-tts-instruct-flash"
-										? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
-										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
-								}`}
-								onClick={() =>
-									selectModel("qwen", "qwen3-tts-instruct-flash")
-								}
-							>
-								<h3 className="font-semibold">Qwen Instruct</h3>
-								<p className="text-sm text-[var(--text-tertiary)]">
-									qwen3-tts-instruct-flash
-								</p>
-								<p className="text-sm text-[var(--text-secondary)] mt-2">
-									指令控制风格
-								</p>
-							</div>
+							{models.map((m) => (
+								<div
+									key={m.model}
+									className={`border-2 rounded-xl p-4 cursor-pointer ${
+										config.model === m.model
+											? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
+											: "border-[var(--border-default)] hover:border-[var(--text-tertiary)]"
+									}`}
+									onClick={() => selectModel(m.provider, m.model)}
+								>
+									<h3 className="font-semibold">{m.label}</h3>
+									<p className="text-sm text-[var(--text-tertiary)]">{m.model}</p>
+									<p className="text-sm text-[var(--text-secondary)] mt-2">
+										{m.description}
+									</p>
+								</div>
+							))}
 						</div>
 					</section>
 
@@ -475,8 +417,7 @@ export default function TTSConfigPage() {
 						</div>
 					</section>
 
-					{(config.model === "mimo-v2.5-tts" ||
-						config.model?.startsWith("qwen3-tts")) && (
+					{hasFeature("preset_voice") && (
 						<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
 							<h2 className="text-lg font-semibold mb-4">预置音色配置</h2>
 							{(() => {
@@ -587,7 +528,7 @@ export default function TTSConfigPage() {
 						</section>
 					)}
 
-					{config.model === "mimo-v2.5-tts-voicedesign" && (
+					{hasFeature("voice_design") && (
 						<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
 							<h2 className="text-lg font-semibold mb-4">音色设计配置</h2>
 							<div>
@@ -633,7 +574,7 @@ export default function TTSConfigPage() {
 						</section>
 					)}
 
-					{config.model === "mimo-v2.5-tts-voiceclone" && (
+					{hasFeature("voice_clone") && (
 						<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
 							<h2 className="text-lg font-semibold mb-4">音色克隆配置</h2>
 							<div className="border-2 border-dashed border-[var(--border-default)] rounded-lg p-6 text-center">
@@ -709,7 +650,7 @@ export default function TTSConfigPage() {
 						</section>
 					)}
 
-					{config.model?.startsWith("qwen3-tts") && (
+					{config.provider === "qwen" && (
 						<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
 							<h2 className="text-lg font-semibold mb-4">Qwen TTS 配置</h2>
 							<div className="grid grid-cols-1 gap-4 mb-4">
@@ -738,7 +679,7 @@ export default function TTSConfigPage() {
 									</select>
 								</div>
 							</div>
-							{config.model === "qwen3-tts-instruct-flash" && (
+							{hasFeature("instruct") && (
 								<div className="space-y-4">
 									<div>
 										<label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
@@ -779,7 +720,7 @@ export default function TTSConfigPage() {
 						</section>
 					)}
 
-					{!config.model?.startsWith("qwen3-tts") && (
+					{hasFeature("style_control") && (
 						<section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-default)] p-6">
 							<h2 className="text-lg font-semibold mb-4">风格控制</h2>
 							{/* 风格控制模式选择 */}

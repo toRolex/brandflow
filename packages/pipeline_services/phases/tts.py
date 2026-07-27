@@ -14,7 +14,6 @@ from packages.pipeline_services.force_align_service import (
 )
 from packages.pipeline_services.script_sentence import parse_script_sentences
 from packages.pipeline_services.sentence_tts_service import SentenceTTSService
-from packages.provider_config.catalog import tts_provider_for_model
 
 from .shared import _discover_script, _job_dir, _to_artifact
 
@@ -109,35 +108,26 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             flush=True,
         )
         if existing_script:
-            # Copy the resolved config dict so per-job overrides do not
-            # mutate the shared ConfigReader cache and leak into other
-            # jobs running concurrently or in subsequent ticks.
-            tts_cfg = dict(orchestrator._resolve_tts_config(ctx))
-            if not tts_cfg.get("provider"):
-                inferred_provider = tts_provider_for_model(
-                    str(tts_cfg.get("model") or "")
-                )
-                if inferred_provider:
-                    tts_cfg["provider"] = inferred_provider
+            # Resolve via the single runtime entry point: raw dict + job-level
+            # overrides (tts_model / tts_voice) -> TTSConfig, with provider
+            # inferred from the final model.
+            from packages.provider_config.tts_config import resolve_tts_config
 
-            # Apply job-level TTS overrides (tts_model / tts_voice)
-            # Priority: job override > provider defaults > global/product config
+            overrides: dict[str, Any] = {}
             job_tts_model: str = ctx.options.get("tts_model", "")
             job_tts_voice: str = ctx.options.get("tts_voice", "")
             if job_tts_model:
-                tts_cfg["model"] = job_tts_model
-                inferred_provider = tts_provider_for_model(job_tts_model)
-                if inferred_provider:
-                    tts_cfg["provider"] = inferred_provider
+                overrides["model"] = job_tts_model
             if job_tts_voice:
-                tts_cfg["voice"] = job_tts_voice
+                overrides["voice"] = job_tts_voice
 
+            config = resolve_tts_config(
+                dict(orchestrator._resolve_tts_config(ctx)), overrides
+            )
             # Qwen uses language_type=Chinese for Cantonese; MiMo ignores it.
-            if (
-                ctx.options.get("language", "") == "cantonese"
-                and tts_cfg.get("provider") == "qwen"
-            ):
-                tts_cfg["language_type"] = "Chinese"
+            if ctx.options.get("language", "") == "cantonese" and config.provider == "qwen":
+                config.language_type = "Chinese"
+            tts_cfg = config.to_dict()
 
             tts_provider = orchestrator._build_tts_provider(tts_cfg)
             service = orchestrator._create_sentence_tts_service(
