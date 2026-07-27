@@ -161,7 +161,10 @@ export default function JobPipeline() {
 		if (!job) return;
 		const scriptArtifact = job.artifacts?.find((a) => a.kind === "script");
 		if (scriptArtifact?.url) {
-			fetch(scriptArtifact.url)
+			// Bust browser cache so edits / retries always show the latest artifact.
+			const url = new URL(scriptArtifact.url, window.location.href);
+			url.searchParams.set("_", String(Date.now()));
+			fetch(url.toString())
 				.then((r) => r.text())
 				.then(setScriptContent)
 				.catch(() => setScriptContent(""));
@@ -177,7 +180,10 @@ export default function JobPipeline() {
 		);
 		if (clipsArtifact?.url) {
 			setSelectedClipsLoadState("loading");
-			fetch(clipsArtifact.url)
+			// Bust browser cache so re-searched clips always refresh.
+			const url = new URL(clipsArtifact.url, window.location.href);
+			url.searchParams.set("_", String(Date.now()));
+			fetch(url.toString())
 				.then((r) => r.json())
 				.then((data) => {
 					setSelectedClips(Array.isArray(data) ? data : []);

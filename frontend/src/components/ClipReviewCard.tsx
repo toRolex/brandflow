@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface ClipData {
 	sentence: string;
@@ -68,6 +68,9 @@ export default function ClipReviewCard({
 	readOnly = false,
 }: Props) {
 	const [imgError, setImgError] = useState(false);
+	useEffect(() => {
+		setImgError(false);
+	}, [clip.asset_id]);
 	const visualType = clip.visual_type || "unresolved";
 	const vtInfo = visualTypeInfo(visualType);
 	const thumbnailUrl = clip.asset_id

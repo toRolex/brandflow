@@ -159,23 +159,36 @@ export default function AssetReviewPanel({
 							</p>
 						) : (
 							<div className="grid gap-2 sm:grid-cols-2">
-								{pickerAssets.map((asset) => (
-									<button
-										key={asset.asset_id}
-										className="rounded border p-3 text-left hover:bg-[var(--bg-table-head)]"
-										onClick={() => {
-											onSelectAsset(pickerIndex, asset.asset_id);
-											setPickerIndex(null);
-										}}
-									>
-										<div className="text-sm font-medium">
-											{asset.file_path.split("/").pop()}
-										</div>
-										<div className="text-xs text-[var(--text-secondary)]">
-											{asset.category} · {asset.duration_seconds.toFixed(1)}s
-										</div>
-									</button>
-								))}
+								{pickerAssets.map((asset) => {
+									const fileName = asset.file_path.split("/").pop() || asset.asset_id;
+									return (
+										<button
+											key={asset.asset_id}
+											className="rounded border p-3 text-left hover:bg-[var(--bg-table-head)]"
+											onClick={() => {
+												onSelectAsset(pickerIndex, asset.asset_id);
+												setPickerIndex(null);
+											}}
+										>
+											<div className="relative h-28 bg-[var(--bg-page)] flex items-center justify-center overflow-hidden rounded mb-2">
+												<span className="text-2xl">{"🎬"}</span>
+												<img
+													src={`/api/assets/${asset.asset_id}/thumbnail`}
+													alt={fileName}
+													className="absolute inset-0 w-full h-full object-cover"
+													loading="lazy"
+													onError={(e) => {
+														e.currentTarget.style.display = "none";
+													}}
+												/>
+											</div>
+											<div className="text-sm font-medium">{fileName}</div>
+											<div className="text-xs text-[var(--text-secondary)]">
+												{asset.category} · {asset.duration_seconds.toFixed(1)}s
+											</div>
+										</button>
+									);
+								})}
 							</div>
 						)}
 					</div>
