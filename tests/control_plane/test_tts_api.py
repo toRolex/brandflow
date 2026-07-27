@@ -216,6 +216,34 @@ class TestTTSPreviewAPI:
         response = client.post("/api/tts/preview", json={})
         assert response.status_code == 422
 
+    def test_preview_without_overrides_uses_saved_provider_and_model(self, client):
+        config = TTSConfig(
+            provider="mimo",
+            model="mimo-v2.5-tts",
+            voice="Mia",
+            audio_format="pcm16",
+        ).with_defaults()
+        with (
+            patch("apps.control_plane.routes.tts.app_config") as mock_app_config,
+            patch("apps.control_plane.routes.tts.config_manager") as mock_manager,
+            patch(
+                "packages.pipeline_services.tts_provider.create_tts_provider"
+            ) as mock_factory,
+        ):
+            mock_manager.get_config.return_value.with_defaults.return_value = config
+            mock_app_config.get_api_key.return_value = "test-api-key"
+            mock_factory.return_value.synthesize.return_value = b"\x00\x00"
+
+            response = client.post("/api/tts/preview", json={"text": "测试"})
+
+            assert response.status_code == 200
+            mock_app_config.get_api_key.assert_called_once_with(
+                "mimo", section="tts"
+            )
+            provider_config = mock_factory.call_args.args[0]
+            assert provider_config["provider"] == "mimo"
+            assert provider_config["model"] == "mimo-v2.5-tts"
+
     def test_preview_with_valid_text(self, client):
         response = client.post(
             "/api/tts/preview",

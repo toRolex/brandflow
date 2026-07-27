@@ -170,14 +170,15 @@ def load_provider_config(root_dir: Path) -> dict:
     from packages.provider_config.config_io import load_config
 
     root = Path(root_dir)
+    app_config_path = root / "config" / "app_config.json"
     legacy_path = root / "config" / "providers.yaml"
-    if legacy_path.exists():
+    if not app_config_path.exists() and legacy_path.exists():
         legacy = yaml.safe_load(legacy_path.read_text(encoding="utf-8"))
         merged = _merge_payload(legacy)
     else:
         merged = default_provider_document()
 
-    app_config = load_config(root / "config" / "app_config.json")
+    app_config = load_config(app_config_path)
     profiles = app_config.get("provider_profiles", {})
     if isinstance(profiles, dict):
         for section_name, provider_profiles in profiles.items():

@@ -316,7 +316,7 @@ class ConfigResolver:
         configured base URL does not already end with it.
         """
         config = self._reader.get_llm_config(product_id=self._product_id(product_id))
-        provider = config.get("provider", "deepseek")
+        provider = config.get("provider", DEFAULTS["llm"]["provider"])
         api_key = self._api_key_for(provider)
         api_url = self._chat_completions_url_for(
             provider, configured_url=str(config.get("endpoint") or "")

@@ -21,6 +21,7 @@ export interface ProviderOption {
 }
 
 export interface ProviderOptions {
+	field_hints?: Record<string, string>;
 	providers: Record<
 		string,
 		{

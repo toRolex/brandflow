@@ -134,14 +134,6 @@ const inputStyle: React.CSSProperties = {
 
 const SECRET_MASK = "***";
 
-const FIELD_HINTS: Record<string, string> = {
-	api_key: "仅保存在 .env；更新后需重启后端生效",
-	endpoint: "非敏感运行配置，保存后立即生效",
-	model: "当前 provider 实际调用的模型",
-	thinking: "控制模型是否启用深度思考",
-	extra_headers: "JSON 对象，将随 provider 请求发送",
-};
-
 function selectFirstProviders(
 	c: ProviderConfig,
 	o: ProviderOptions,
@@ -338,8 +330,8 @@ export default function ConfigPage() {
 							<span
 								className="rounded-full px-2 py-1 text-xs font-medium"
 								style={{
-									background: "var(--alert-yellow-muted)",
-									color: "var(--warning)",
+									background: "var(--badge-warning-bg)",
+									color: "var(--badge-warning-text)",
 								}}
 							>
 								有未保存的更改
@@ -373,6 +365,7 @@ export default function ConfigPage() {
 						</button>
 					)}
 					<button
+						type="button"
 						className="rounded-lg px-4 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
 						style={
 							saving || !dirty
@@ -471,7 +464,7 @@ export default function ConfigPage() {
 				role="tablist"
 			>
 				{availableSections.map(({ key: sectionKey, label, cssVar, icon }) => {
-					const active = activeTab === sectionKey;
+					const active = activeSection.key === sectionKey;
 					const sectionColorVar = `var(${cssVar})`;
 					const sectionColorMutedVar = `var(${cssVar}-muted)`;
 					return (
@@ -654,12 +647,12 @@ export default function ConfigPage() {
 										}
 									/>
 								)}
-								{FIELD_HINTS[field.name] && (
+								{options.field_hints?.[field.name] && (
 									<p
 										className="text-xs"
 										style={{ color: "var(--text-tertiary)" }}
 									>
-										{FIELD_HINTS[field.name]}
+										{options.field_hints[field.name]}
 									</p>
 								)}
 							</div>

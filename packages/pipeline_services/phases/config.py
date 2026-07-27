@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from packages.provider_config.config_constants import DEFAULTS
+
 if TYPE_CHECKING:
     from packages.pipeline_services.phase_orchestrator import (
         PhaseContext,
@@ -48,7 +50,7 @@ def _resolve_api_key(
     orchestrator: PhaseOrchestrator, llm_config: dict[str, Any]
 ) -> str:
     """Resolve API key via SecretStore."""
-    provider = llm_config.get("provider", "deepseek")
+    provider = llm_config.get("provider", DEFAULTS["llm"]["provider"])
     return orchestrator._secrets.get_api_key(provider, section="llm")
 
 
@@ -56,7 +58,7 @@ def _resolve_api_url(
     orchestrator: PhaseOrchestrator, llm_config: dict[str, Any]
 ) -> str:
     """Resolve non-secret endpoint from config, with legacy env fallback."""
-    provider = llm_config.get("provider", "deepseek")
+    provider = llm_config.get("provider", DEFAULTS["llm"]["provider"])
     return str(llm_config.get("endpoint") or "").strip().rstrip(
         "/"
     ) or orchestrator._secrets.get_api_base_url(provider, section="llm")

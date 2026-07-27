@@ -299,6 +299,23 @@ describe("ConfigPage", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("Seam 13: 默认能力不可用时首个可用 Tab 保持选中状态", async () => {
+		vi.mocked(api.getConfigOptions).mockResolvedValue({
+			...MOCK_OPTIONS,
+			providers: {
+				...MOCK_OPTIONS.providers,
+				llm: { providers: {} },
+			},
+		});
+
+		render(<ConfigPage />);
+
+		expect(await screen.findByRole("tab", { name: /tts/i })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+	});
+
 	it("Seam 4: 页面加载时自动选中每个 section 的第一个 provider", async () => {
 		render(<ConfigPage />);
 

@@ -1,5 +1,12 @@
 {
   "provider_options": {
+    "field_hints": {
+      "api_key": "仅保存在 .env；更新后需重启后端生效",
+      "endpoint": "非敏感运行配置，保存后立即生效",
+      "model": "当前 provider 实际调用的模型",
+      "thinking": "控制模型是否启用深度思考",
+      "extra_headers": "JSON 对象，将随 provider 请求发送"
+    },
     "providers": {
       "llm": {
         "label": "LLM",

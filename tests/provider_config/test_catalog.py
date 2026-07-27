@@ -30,3 +30,10 @@ def test_tts_runtime_contract_is_declared_by_catalog() -> None:
     assert tts_provider_for_model("mimo-v2.5-tts-voiceclone") == "mimo"
     assert tts_provider_for_model("speech-2.8-hd") is None
     assert provider_field_to_runtime_field("style") == "style_prompt"
+
+
+def test_provider_form_hints_are_served_from_catalog() -> None:
+    hints = provider_options_payload()["field_hints"]
+
+    assert hints["api_key"].startswith("仅保存在 .env")
+    assert hints["model"] == "当前 provider 实际调用的模型"

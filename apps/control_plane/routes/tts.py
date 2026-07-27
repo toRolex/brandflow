@@ -89,7 +89,7 @@ class TTSConfigResponse(BaseModel):
 class TTSPreviewRequest(BaseModel):
     text: str
     provider: str | None = None
-    model: str = DEFAULTS["tts"]["model"]
+    model: str | None = None
     voice: str | None = None
     style_prompt: str | None = None
     voice_design_prompt: str | None = None
@@ -513,7 +513,13 @@ async def preview_tts(request: TTSPreviewRequest):
         config.randomize_voice = False
 
         model = config.model or ""
-        provider_name = request.provider or tts_provider_for_model(model)
+        provider_name = request.provider
+        if provider_name is None and request.model is not None:
+            provider_name = tts_provider_for_model(model)
+        if provider_name is None:
+            provider_name = config.provider
+        if provider_name is None:
+            provider_name = tts_provider_for_model(model)
         if provider_name is None:
             raise HTTPException(status_code=400, detail=f"不支持的 TTS model: {model}")
         api_key = app_config.get_api_key(provider_name, section="tts")

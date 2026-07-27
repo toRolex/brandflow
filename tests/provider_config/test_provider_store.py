@@ -71,6 +71,27 @@ def test_app_config_wins_over_stale_legacy_provider_yaml(tmp_path) -> None:
     )
 
 
+def test_existing_app_config_uses_catalog_defaults_for_missing_sections(
+    tmp_path,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    legacy = default_provider_document()
+    legacy["providers"]["tts"]["selected"] = "mimo"
+    (config_dir / "providers.yaml").write_text(
+        yaml.safe_dump(legacy, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    (config_dir / "app_config.json").write_text(
+        json.dumps({"media": {"ffmpeg_path": "custom-ffmpeg"}}),
+        encoding="utf-8",
+    )
+
+    loaded = load_provider_config(tmp_path)
+
+    assert loaded["providers"]["tts"]["selected"] == "qwen"
+
+
 def test_save_provider_config_keeps_secret_only_in_env(tmp_path) -> None:
     payload = default_provider_document()
     payload["providers"]["tts"]["selected"] = "qwen"
