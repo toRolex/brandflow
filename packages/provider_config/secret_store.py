@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 
+from packages.provider_config.catalog import setting_secret_env_var
 from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.runtime_env import (
@@ -31,7 +32,7 @@ class SecretStore:
         "openai": "VISION_API_KEY",
         "claude": "VISION_API_KEY",
         "custom": "CUSTOM_API_KEY",
-        "embedding": "EMBEDDING_API_KEY",
+        "embedding": setting_secret_env_var("embedding", "api_key"),
     }
 
     API_BASE_URL_ENV_MAP = {

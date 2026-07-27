@@ -13,7 +13,7 @@
         "description": "检索与素材匹配使用的向量服务",
         "fields": [
           { "name": "api_key", "label": "API Key", "kind": "text", "secret": true, "env_var": "EMBEDDING_API_KEY" },
-          { "name": "endpoint", "label": "Endpoint", "kind": "text", "hint": "留空时使用当前 LLM Endpoint" },
+          { "name": "endpoint", "label": "Endpoint", "kind": "text", "hint": "留空时仅兼容回退 EMBEDDING_API_URL 环境变量" },
           { "name": "model", "label": "嵌入模型", "kind": "text" }
         ]
       },
@@ -30,15 +30,15 @@
         "description": "AI 分类建议使用的模型与采样数量",
         "fields": [
           { "name": "category_suggestion_model", "label": "分类建议模型", "kind": "text" },
-          { "name": "category_suggestion_sample_size", "label": "采样数量", "kind": "number", "min": 1, "max": 500, "step": 1 }
+          { "name": "category_suggestion_sample_size", "label": "采样数量", "kind": "number", "integer": true, "min": 1, "max": 500, "step": 1 }
         ]
       },
       "scene": {
         "label": "场景导入",
         "description": "Import 模式的场景素材目录与默认转场",
         "fields": [
-          { "name": "folders", "label": "场景目录", "kind": "json", "hint": "JSON 数组，每项包含 name 与相对 workspace 的 path" },
-          { "name": "transition_duration_ms", "label": "转场时长（毫秒）", "kind": "number", "min": 0, "max": 10000, "step": 50 }
+          { "name": "folders", "label": "场景目录", "kind": "json", "json_type": "array", "item_type": "object", "required_item_keys": ["path"], "hint": "JSON 数组，每项包含 name 与相对 workspace 的 path" },
+          { "name": "transition_duration_ms", "label": "转场时长（毫秒）", "kind": "number", "integer": true, "min": 0, "max": 10000, "step": 50 }
         ]
       }
     },

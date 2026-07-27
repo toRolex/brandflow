@@ -54,6 +54,17 @@ def provider_options_payload() -> dict:
     return deepcopy(_DATA["provider_options"])
 
 
+def setting_secret_env_var(section_name: str, field_name: str) -> str:
+    """Return the catalog-declared env variable for a settings secret."""
+    section = _DATA["provider_options"].get("settings", {}).get(section_name, {})
+    for field in section.get("fields", []):
+        if field["name"] == field_name and field.get("secret"):
+            env_var = field.get("env_var")
+            if isinstance(env_var, str):
+                return env_var
+    raise KeyError(f"missing settings secret env mapping: {section_name}.{field_name}")
+
+
 def provider_field_to_runtime_field(field_name: str) -> str:
     """Map a provider-form field name to its app_config runtime name."""
     return _RUNTIME_FIELD_ALIASES.get(field_name, field_name)

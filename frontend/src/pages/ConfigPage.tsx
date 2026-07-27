@@ -3,111 +3,108 @@ import { api } from "../api/client";
 import type { ProviderConfig, ProviderField, ProviderOptions } from "../types";
 import { ConfigSettingsPanel } from "./ConfigSettingsPanel";
 
-interface SectionDef {
-	key: string;
-	icon: (color: string) => React.ReactNode;
-}
+type IconRenderer = (color: string) => React.ReactNode;
 
-const SECTIONS: SectionDef[] = [
-	{
-		key: "llm",
-		icon: (color: string) => (
-			<svg
-				aria-hidden="true"
-				viewBox="0 0 24 24"
-				width="18"
-				height="18"
-				fill="none"
-				stroke={color}
-				strokeWidth="2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<path d="M12 2L2 7l10 5 10-5-10-5z" />
-				<path d="M2 17l10 5 10-5" />
-				<path d="M2 12l10 5 10-5" />
-			</svg>
-		),
-	},
-	{
-		key: "tts",
-		icon: (color: string) => (
-			<svg
-				aria-hidden="true"
-				viewBox="0 0 24 24"
-				width="18"
-				height="18"
-				fill="none"
-				stroke={color}
-				strokeWidth="2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-				<path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-				<path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-			</svg>
-		),
-	},
-	{
-		key: "vision",
-		icon: (color: string) => (
-			<svg
-				aria-hidden="true"
-				viewBox="0 0 24 24"
-				width="18"
-				height="18"
-				fill="none"
-				stroke={color}
-				strokeWidth="2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-				<circle cx="12" cy="12" r="3" />
-			</svg>
-		),
-	},
-	{
-		key: "text_to_image",
-		icon: (color: string) => (
-			<svg
-				aria-hidden="true"
-				viewBox="0 0 24 24"
-				width="18"
-				height="18"
-				fill="none"
-				stroke={color}
-				strokeWidth="2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-				<circle cx="9" cy="9" r="2" />
-				<path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-			</svg>
-		),
-	},
-	{
-		key: "image_to_video",
-		icon: (color: string) => (
-			<svg
-				aria-hidden="true"
-				viewBox="0 0 24 24"
-				width="18"
-				height="18"
-				fill="none"
-				stroke={color}
-				strokeWidth="2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<rect x="2" y="6" width="20" height="12" rx="2" ry="2" />
-				<path d="m10 10 4 2-4 2z" />
-			</svg>
-		),
-	},
-];
+const SECTION_ICONS: Record<string, IconRenderer> = {
+	llm: (color: string) => (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			width="18"
+			height="18"
+			fill="none"
+			stroke={color}
+			strokeWidth="2"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M12 2L2 7l10 5 10-5-10-5z" />
+			<path d="M2 17l10 5 10-5" />
+			<path d="M2 12l10 5 10-5" />
+		</svg>
+	),
+	tts: (color: string) => (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			width="18"
+			height="18"
+			fill="none"
+			stroke={color}
+			strokeWidth="2"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+			<path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+			<path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+		</svg>
+	),
+	vision: (color: string) => (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			width="18"
+			height="18"
+			fill="none"
+			stroke={color}
+			strokeWidth="2"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+			<circle cx="12" cy="12" r="3" />
+		</svg>
+	),
+	text_to_image: (color: string) => (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			width="18"
+			height="18"
+			fill="none"
+			stroke={color}
+			strokeWidth="2"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+			<circle cx="9" cy="9" r="2" />
+			<path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+		</svg>
+	),
+	image_to_video: (color: string) => (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			width="18"
+			height="18"
+			fill="none"
+			stroke={color}
+			strokeWidth="2"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<rect x="2" y="6" width="20" height="12" rx="2" ry="2" />
+			<path d="m10 10 4 2-4 2z" />
+		</svg>
+	),
+};
+
+const DEFAULT_SECTION_ICON: IconRenderer = (color) => (
+	<svg
+		aria-hidden="true"
+		viewBox="0 0 24 24"
+		width="18"
+		height="18"
+		fill="none"
+		stroke={color}
+		strokeWidth="2"
+	>
+		<circle cx="12" cy="12" r="8" />
+		<path d="M8 12h8M12 8v8" />
+	</svg>
+);
 
 const inputStyle: React.CSSProperties = {
 	backgroundColor: "var(--bg-input)",
@@ -122,7 +119,7 @@ function selectFirstProviders(
 	o: ProviderOptions,
 ): ProviderConfig {
 	const next = structuredClone(c);
-	for (const { key } of SECTIONS) {
+	for (const key of Object.keys(o.providers)) {
 		const section = next.providers[key];
 		const opts = o.providers[key];
 		if (!section || !opts) continue;
@@ -286,14 +283,14 @@ export default function ConfigPage() {
 		);
 	}
 
-	const availableSections = SECTIONS.filter(
-		(section) =>
-			Object.keys(options.providers[section.key]?.providers || {}).length > 0,
-	).map((section) => ({
-		...section,
-		label: options.providers[section.key]?.label || section.key,
-		cssVar: `--section-${section.key}-color`,
-	}));
+	const availableSections = Object.entries(options.providers)
+		.filter(([, section]) => Object.keys(section.providers).length > 0)
+		.map(([key, section]) => ({
+			key,
+			label: section.label || key,
+			icon: SECTION_ICONS[key] || DEFAULT_SECTION_ICON,
+			cssVar: `--section-${key}-color`,
+		}));
 	const activeSection =
 		availableSections.find((s) => s.key === activeTab) ?? availableSections[0];
 	if (!activeSection) {
@@ -508,8 +505,8 @@ export default function ConfigPage() {
 						{availableSections.map(
 							({ key: sectionKey, label, cssVar, icon }) => {
 								const active = activeSection.key === sectionKey;
-								const sectionColorVar = `var(${cssVar})`;
-								const sectionColorMutedVar = `var(${cssVar}-muted)`;
+								const sectionColorVar = `var(${cssVar}, var(--accent))`;
+								const sectionColorMutedVar = `var(${cssVar}-muted, var(--bg-tag-blue))`;
 								return (
 									<button
 										type="button"

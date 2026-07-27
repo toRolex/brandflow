@@ -136,6 +136,9 @@ def _normalize_runtime_settings(payload: dict) -> None:
                         status_code=400,
                         detail=f"invalid json field: {qualified_name}",
                     ) from exc
+                value = section[field_name]
+            if field.get("kind") == "json":
+                _validate_json_setting(qualified_name, value, field)
                 continue
             if field.get("kind") != "number":
                 continue
@@ -143,6 +146,11 @@ def _normalize_runtime_settings(payload: dict) -> None:
                 raise HTTPException(
                     status_code=400,
                     detail=f"invalid number field: {qualified_name}",
+                )
+            if field.get("integer") and not float(value).is_integer():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"integer required: {qualified_name}",
                 )
             minimum = field.get("min")
             maximum = field.get("max")
@@ -156,6 +164,29 @@ def _normalize_runtime_settings(payload: dict) -> None:
                     status_code=400,
                     detail=f"value above maximum: {qualified_name}",
                 )
+
+
+def _validate_json_setting(qualified_name: str, value: object, field: dict) -> None:
+    if field.get("json_type") == "array" and not isinstance(value, list):
+        raise HTTPException(
+            status_code=400,
+            detail=f"array required: {qualified_name}",
+        )
+    if not isinstance(value, list) or field.get("item_type") != "object":
+        return
+    required_keys = field.get("required_item_keys", [])
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"object item required: {qualified_name}[{index}]",
+            )
+        missing = [key for key in required_keys if not item.get(key)]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"missing {missing[0]}: {qualified_name}[{index}]",
+            )
 
 
 def _resolve_product_config(reader) -> dict:

@@ -19,6 +19,10 @@ export interface ProviderField {
 	max?: number;
 	step?: number;
 	env_var?: string;
+	integer?: boolean;
+	json_type?: "array" | "object";
+	item_type?: "object";
+	required_item_keys?: string[];
 }
 
 export interface ProviderOption {

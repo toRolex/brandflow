@@ -152,11 +152,11 @@ describe("ConfigPage", () => {
 
 		const tabs = ["llm", "tts", "vision", "text_to_image", "image_to_video"];
 		const expectedColorVars = {
-			llm: "var(--section-llm-color)",
-			tts: "var(--section-tts-color)",
-			vision: "var(--section-vision-color)",
-			text_to_image: "var(--section-text_to_image-color)",
-			image_to_video: "var(--section-image_to_video-color)",
+			llm: "--section-llm-color",
+			tts: "--section-tts-color",
+			vision: "--section-vision-color",
+			text_to_image: "--section-text_to_image-color",
+			image_to_video: "--section-image_to_video-color",
 		};
 
 		for (const key of tabs) {
@@ -173,7 +173,7 @@ describe("ConfigPage", () => {
 			const iconWrapper = tab.querySelector("span");
 			expect(iconWrapper).toBeInTheDocument();
 			// Tab icons use CSS variables for theming
-			expect(iconWrapper?.style.color).toBe(
+			expect(iconWrapper?.style.color).toContain(
 				expectedColorVars[key as keyof typeof expectedColorVars],
 			);
 		}
@@ -386,6 +386,37 @@ describe("ConfigPage", () => {
 		});
 	});
 
+	it("Seam 15: catalog 新增 Provider section 时无需前端白名单", async () => {
+		vi.mocked(api.getConfig).mockResolvedValue({
+			...MOCK_CONFIG,
+			providers: {
+				...MOCK_CONFIG.providers,
+				speech_to_text: { selected: "", providers: {} },
+			},
+		});
+		vi.mocked(api.getConfigOptions).mockResolvedValue({
+			...MOCK_OPTIONS,
+			providers: {
+				...MOCK_OPTIONS.providers,
+				speech_to_text: {
+					label: "语音识别",
+					providers: {
+						whisper: {
+							label: "Whisper",
+							fields: [{ name: "model", label: "模型", kind: "text" }],
+						},
+					},
+				},
+			},
+		});
+
+		render(<ConfigPage />);
+
+		expect(
+			await screen.findByRole("tab", { name: "语音识别" }),
+		).toBeInTheDocument();
+	});
+
 	it("Seam 4: 页面加载时自动选中每个 section 的第一个 provider", async () => {
 		render(<ConfigPage />);
 
@@ -435,12 +466,12 @@ describe("ConfigPage", () => {
 		const visionTab = screen.getByRole("tab", { name: /vision/i });
 		const visionSpan = visionTab.querySelector("span");
 		expect(visionSpan).toBeInTheDocument();
-		expect(visionSpan!.style.color).toBe("var(--section-vision-color)");
+		expect(visionSpan!.style.color).toContain("--section-vision-color");
 
 		const i2vTab = screen.getByRole("tab", { name: /图生视频/i });
 		const i2vSpan = i2vTab.querySelector("span");
 		expect(i2vSpan).toBeInTheDocument();
-		expect(i2vSpan!.style.color).toBe("var(--section-image_to_video-color)");
+		expect(i2vSpan!.style.color).toContain("--section-image_to_video-color");
 	});
 
 	// ---- Seam 7: 深色模式 Tab 颜色适配 ----
@@ -458,7 +489,7 @@ describe("ConfigPage", () => {
 		const activeTab = screen.getByRole("tab", { name: /llm/i });
 		const style = activeTab.getAttribute("style") || "";
 		// 在深色模式下，激活 Tab 样式应使用 CSS 自定义属性以支持主题适配
-		expect(style).toContain("var(--section-llm-color)");
+		expect(style).toContain("--section-llm-color");
 	});
 
 	// ---- Seam 8: 紧凑模式 Tab 间距 ----

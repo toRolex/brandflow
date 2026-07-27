@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest import mock
 
@@ -17,6 +18,35 @@ from packages.pipeline_services.media_utils import (
 
 
 class TestResolveFfmpegPath:
+    def test_app_config_path_is_used_without_injected_reader(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.delenv("FFMPEG_PATH", raising=False)
+        executable = tmp_path / "configured-ffmpeg"
+        executable.write_text("")
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "app_config.json").write_text(
+            json.dumps({"media": {"ffmpeg_path": str(executable)}}),
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+
+        result = _resolve_ffmpeg_path()
+
+        assert result == str(executable)
+
+    def test_app_config_path_is_used(self, monkeypatch, tmp_path: Path) -> None:
+        monkeypatch.delenv("FFMPEG_PATH", raising=False)
+        executable = tmp_path / "configured-ffmpeg"
+        executable.write_text("")
+        reader = mock.Mock()
+        reader.get_media_config.return_value = {"ffmpeg_path": str(executable)}
+
+        result = _resolve_ffmpeg_path(reader)
+
+        assert result == str(executable)
+
     def test_env_var_absolute_path(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:

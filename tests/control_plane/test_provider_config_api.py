@@ -74,6 +74,17 @@ def test_runtime_settings_reject_invalid_catalog_constraints(tmp_path) -> None:
     assert "scene.transition_duration_ms" in response.json()["detail"]
 
 
+def test_runtime_settings_reject_fractional_integer_field(tmp_path) -> None:
+    payload = default_provider_document()
+    payload["settings"]["asset_library"]["category_suggestion_sample_size"] = 20.9
+
+    with TestClient(create_app(root_dir=tmp_path)) as client:
+        response = client.put("/api/config", json=payload)
+
+    assert response.status_code == 400
+    assert "asset_library.category_suggestion_sample_size" in response.json()["detail"]
+
+
 def test_runtime_settings_reject_invalid_json(tmp_path) -> None:
     payload = default_provider_document()
     payload["settings"]["scene"]["folders"] = "not-json"
@@ -83,6 +94,17 @@ def test_runtime_settings_reject_invalid_json(tmp_path) -> None:
 
     assert response.status_code == 400
     assert "scene.folders" in response.json()["detail"]
+
+
+def test_runtime_settings_reject_invalid_scene_folder_shape(tmp_path) -> None:
+    payload = default_provider_document()
+    payload["settings"]["scene"]["folders"] = '["not-an-object"]'
+
+    with TestClient(create_app(root_dir=tmp_path)) as client:
+        response = client.put("/api/config", json=payload)
+
+    assert response.status_code == 400
+    assert "scene.folders[0]" in response.json()["detail"]
 
 
 def test_embedding_secret_is_saved_only_to_env(tmp_path) -> None:

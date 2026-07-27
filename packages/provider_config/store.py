@@ -98,6 +98,8 @@ def _merge_settings(payload: Any, merged: dict) -> None:
                         continue
                 if not isinstance(value, (int, float)):
                     continue
+                if fields[field_name].get("integer") and not float(value).is_integer():
+                    continue
                 if isinstance(default_value, int):
                     value = int(value)
             if kind in {"text", "select"} and not isinstance(value, str):

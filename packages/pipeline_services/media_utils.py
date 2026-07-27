@@ -37,6 +37,14 @@ class ToolNotFoundError(FileNotFoundError):
         super().__init__(message)
 
 
+def _get_media_config(reader: ConfigReader | None) -> dict:
+    if reader is not None:
+        return reader.get_media_config()
+    from packages.provider_config.config_reader import ConfigReader
+
+    return ConfigReader().get_media_config()
+
+
 def _resolve_tool_path(
     tool_name: str,
     env_var: str,
@@ -76,7 +84,7 @@ def _resolve_tool_path(
         path = Path(candidate)
         if not path.is_absolute():
             path = cwd / path
-        attempted.append(str(path))
+        attempted.append(path.as_posix())
         if path.exists():
             return str(path)
 
@@ -101,10 +109,8 @@ def _resolve_ffmpeg_path(reader: ConfigReader | None = None) -> str:
     Priority: ``FFMPEG_PATH`` env > ``app_config.json`` media.ffmpeg_path >
     ``tools/bin/ffmpeg(.exe)`` > ``shutil.which('ffmpeg')``.
     """
-    config_path: str | None = None
-    if reader is not None:
-        media = reader.get_media_config()
-        config_path = media.get("ffmpeg_path") or None
+    media = _get_media_config(reader)
+    config_path = media.get("ffmpeg_path") or None
     return _resolve_tool_path(
         tool_name="ffmpeg",
         env_var="FFMPEG_PATH",
@@ -119,10 +125,8 @@ def _resolve_ffprobe_path(reader: ConfigReader | None = None) -> str:
     Priority: ``FFPROBE_PATH`` env > ``app_config.json`` media.ffprobe_path >
     ``tools/bin/ffprobe(.exe)`` > ``shutil.which('ffprobe')``.
     """
-    config_path: str | None = None
-    if reader is not None:
-        media = reader.get_media_config()
-        config_path = media.get("ffprobe_path") or None
+    media = _get_media_config(reader)
+    config_path = media.get("ffprobe_path") or None
     return _resolve_tool_path(
         tool_name="ffprobe",
         env_var="FFPROBE_PATH",
