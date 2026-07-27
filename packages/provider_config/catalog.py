@@ -15,6 +15,17 @@ def default_provider_document() -> dict:
     return deepcopy(_DATA["default_document"])
 
 
+def default_runtime_settings() -> dict:
+    """Return user-configurable non-provider defaults from the catalog."""
+    settings = deepcopy(_DATA["default_document"]["settings"])
+    options = _DATA["provider_options"].get("settings", {})
+    for section_name, section in options.items():
+        for field in section.get("fields", []):
+            if field.get("secret"):
+                settings.get(section_name, {}).pop(field["name"], None)
+    return settings
+
+
 def default_runtime_provider_config() -> dict:
     """Return runtime defaults derived from the selected catalog profiles."""
     document = _DATA["default_document"]["providers"]

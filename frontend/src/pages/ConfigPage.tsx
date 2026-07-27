@@ -1,21 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { ProviderConfig, ProviderField, ProviderOptions } from "../types";
+import { ConfigSettingsPanel } from "./ConfigSettingsPanel";
 
 interface SectionDef {
 	key: string;
-	label: string;
-	color: string;
 	icon: (color: string) => React.ReactNode;
-	cssVar: string;
 }
 
 const SECTIONS: SectionDef[] = [
 	{
 		key: "llm",
-		label: "LLM",
-		color: "#3b82f6",
-		cssVar: "--section-llm-color",
 		icon: (color: string) => (
 			<svg
 				aria-hidden="true"
@@ -36,9 +31,6 @@ const SECTIONS: SectionDef[] = [
 	},
 	{
 		key: "tts",
-		label: "TTS",
-		color: "#22c55e",
-		cssVar: "--section-tts-color",
 		icon: (color: string) => (
 			<svg
 				aria-hidden="true"
@@ -59,9 +51,6 @@ const SECTIONS: SectionDef[] = [
 	},
 	{
 		key: "vision",
-		label: "Vision",
-		color: "#7c3aed",
-		cssVar: "--section-vision-color",
 		icon: (color: string) => (
 			<svg
 				aria-hidden="true"
@@ -81,9 +70,6 @@ const SECTIONS: SectionDef[] = [
 	},
 	{
 		key: "text_to_image",
-		label: "文生图",
-		color: "#f59e0b",
-		cssVar: "--section-text_to_image-color",
 		icon: (color: string) => (
 			<svg
 				aria-hidden="true"
@@ -104,9 +90,6 @@ const SECTIONS: SectionDef[] = [
 	},
 	{
 		key: "image_to_video",
-		label: "图生视频",
-		color: "#0891b2",
-		cssVar: "--section-image_to_video-color",
 		icon: (color: string) => (
 			<svg
 				aria-hidden="true"
@@ -166,6 +149,9 @@ export default function ConfigPage() {
 	const [savedConfig, setSavedConfig] = useState<ProviderConfig | null>(null);
 	const [options, setOptions] = useState<ProviderOptions | null>(null);
 	const [activeTab, setActiveTab] = useState<string>("llm");
+	const [activeView, setActiveView] = useState<"providers" | "settings">(
+		"providers",
+	);
 	const [loading, setLoading] = useState(true);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [dirty, setDirty] = useState(false);
@@ -220,6 +206,23 @@ export default function ConfigPage() {
 		setConfig(next);
 		setDirty(true);
 		if (field === "api_key") setSecretChanged(true);
+		setSaveMsg(null);
+	};
+
+	const updateSetting = (section: string, field: string, value: unknown) => {
+		if (!config) return;
+		const next = structuredClone(config);
+		next.settings ??= {};
+		next.settings[section] ??= {};
+		next.settings[section][field] = value;
+		setConfig(next);
+		setDirty(true);
+		const fieldOptions = options?.settings?.[section]?.fields.find(
+			(candidate) => candidate.name === field,
+		);
+		if (fieldOptions?.secret) {
+			setSecretChanged(true);
+		}
 		setSaveMsg(null);
 	};
 
@@ -286,7 +289,11 @@ export default function ConfigPage() {
 	const availableSections = SECTIONS.filter(
 		(section) =>
 			Object.keys(options.providers[section.key]?.providers || {}).length > 0,
-	);
+	).map((section) => ({
+		...section,
+		label: options.providers[section.key]?.label || section.key,
+		cssVar: `--section-${section.key}-color`,
+	}));
 	const activeSection =
 		availableSections.find((s) => s.key === activeTab) ?? availableSections[0];
 	if (!activeSection) {
@@ -458,207 +465,252 @@ export default function ConfigPage() {
 				))}
 			</div>
 
-			<div
-				className="mb-6 flex gap-2 overflow-x-auto border-b"
-				style={{ borderColor: "var(--border-default)" }}
-				role="tablist"
-			>
-				{availableSections.map(({ key: sectionKey, label, cssVar, icon }) => {
-					const active = activeSection.key === sectionKey;
-					const sectionColorVar = `var(${cssVar})`;
-					const sectionColorMutedVar = `var(${cssVar}-muted)`;
-					return (
-						<button
-							type="button"
-							key={sectionKey}
-							role="tab"
-							aria-selected={active}
-							className="flex items-center gap-[var(--tab-gap,8px)] px-[var(--tab-padding-x,16px)] py-[var(--tab-padding-y,10px)] text-[var(--tab-font-size,0.875rem)] font-medium border-b-2 transition-colors"
-							style={{
-								borderColor: active ? sectionColorVar : "transparent",
-								color: active ? sectionColorVar : "var(--text-secondary)",
-								background: active ? sectionColorMutedVar : "transparent",
-							}}
-							onClick={() => setActiveTab(sectionKey)}
-						>
-							<span style={{ color: sectionColorVar }}>
-								{icon(sectionColorVar)}
-							</span>
-							{label}
-						</button>
-					);
-				})}
-			</div>
-
-			<section
-				key={key}
-				className="rounded-xl border p-5"
-				style={{
-					background: "var(--bg-card)",
-					borderColor: "var(--border-default)",
-				}}
-			>
-				<div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<h2
-							className="font-semibold"
-							style={{ color: "var(--text-primary)" }}
-						>
-							{activeSection.label}
-						</h2>
-						<p
-							className="mt-1 text-xs"
-							style={{ color: "var(--text-secondary)" }}
-						>
-							选择运行时 Provider，并配置它实际使用的连接参数
-						</p>
-					</div>
-					{selected && (
-						<div className="flex flex-wrap items-center gap-2 text-xs">
-							{selectedModel && (
-								<span
-									className="rounded-full px-2 py-1"
-									style={{
-										background: "var(--bg-tag-blue)",
-										color: "var(--text-tag-blue)",
-									}}
-								>
-									模型：{selectedModel}
-								</span>
-							)}
-							<span
-								className="rounded-full px-2 py-1"
-								style={
-									secretConfigured
-										? {
-												background: "var(--bg-tag-green)",
-												color: "var(--text-tag-green)",
-											}
-										: {
-												background: "var(--badge-warning-bg)",
-												color: "var(--badge-warning-text)",
-											}
-								}
-							>
-								{secretConfigured ? "API Key 已配置" : "API Key 未配置"}
-							</span>
-						</div>
-					)}
-				</div>
-
-				<label
-					className="mb-5 grid gap-1 text-xs"
-					style={{ color: "var(--text-secondary)" }}
+			{options.settings && Object.keys(options.settings).length > 0 && (
+				<div
+					className="mb-6 inline-flex rounded-lg border p-1"
+					style={{
+						background: "var(--bg-card)",
+						borderColor: "var(--border-default)",
+					}}
 				>
-					运行 Provider
-					<select
-						className="rounded-lg border px-3 py-2 text-sm"
-						style={inputStyle}
-						value={selected}
-						onChange={(e) => {
-							const next = structuredClone(config);
-							next.providers[key].selected = e.target.value;
-							setConfig(next);
-							setDirty(true);
-							setSaveMsg(null);
+					{[
+						{ key: "providers" as const, label: "AI Provider" },
+						{ key: "settings" as const, label: "运行参数" },
+					].map((view) => (
+						<button
+							key={view.key}
+							type="button"
+							aria-pressed={activeView === view.key}
+							className="rounded-md px-4 py-2 text-sm font-medium transition-colors"
+							style={{
+								background:
+									activeView === view.key ? "var(--accent)" : "transparent",
+								color:
+									activeView === view.key
+										? "var(--text-inverse)"
+										: "var(--text-secondary)",
+							}}
+							onClick={() => setActiveView(view.key)}
+						>
+							{view.label}
+						</button>
+					))}
+				</div>
+			)}
+
+			{activeView === "providers" ? (
+				<>
+					<div
+						className="mb-6 flex gap-2 overflow-x-auto border-b"
+						style={{ borderColor: "var(--border-default)" }}
+						role="tablist"
+					>
+						{availableSections.map(
+							({ key: sectionKey, label, cssVar, icon }) => {
+								const active = activeSection.key === sectionKey;
+								const sectionColorVar = `var(${cssVar})`;
+								const sectionColorMutedVar = `var(${cssVar}-muted)`;
+								return (
+									<button
+										type="button"
+										key={sectionKey}
+										role="tab"
+										aria-selected={active}
+										className="flex items-center gap-[var(--tab-gap,8px)] px-[var(--tab-padding-x,16px)] py-[var(--tab-padding-y,10px)] text-[var(--tab-font-size,0.875rem)] font-medium border-b-2 transition-colors"
+										style={{
+											borderColor: active ? sectionColorVar : "transparent",
+											color: active ? sectionColorVar : "var(--text-secondary)",
+											background: active ? sectionColorMutedVar : "transparent",
+										}}
+										onClick={() => setActiveTab(sectionKey)}
+									>
+										<span style={{ color: sectionColorVar }}>
+											{icon(sectionColorVar)}
+										</span>
+										{label}
+									</button>
+								);
+							},
+						)}
+					</div>
+
+					<section
+						key={key}
+						className="rounded-xl border p-5"
+						style={{
+							background: "var(--bg-card)",
+							borderColor: "var(--border-default)",
 						}}
 					>
-						<option value="">未选择</option>
-						{Object.entries(sectionOpts?.providers || {}).map(([k, v]) => (
-							<option key={k} value={k}>
-								{(v as { label: string }).label || k}
-							</option>
-						))}
-					</select>
-				</label>
-
-				{selected &&
-					sectionOpts?.providers[selected] &&
-					selectedFields.map((field) => {
-						const fieldId = `${key}-${selected}-${field.name}`;
-						const rawValue = selectedProfile[field.name];
-						const fieldValue = displayFieldValue(rawValue, field);
-						const secretIsConfigured =
-							field.secret &&
-							typeof rawValue === "string" &&
-							rawValue !== "" &&
-							rawValue !== "__CLEAR__";
-						return (
-							<div key={field.name} className="mb-4 grid gap-1">
-								<div className="flex items-center justify-between gap-3">
-									<label
-										htmlFor={fieldId}
-										className="text-xs font-medium"
-										style={{ color: "var(--text-secondary)" }}
-									>
-										{field.label}
-									</label>
-									{field.secret && secretIsConfigured && (
+						<div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+							<div>
+								<h2
+									className="font-semibold"
+									style={{ color: "var(--text-primary)" }}
+								>
+									{activeSection.label}
+								</h2>
+								<p
+									className="mt-1 text-xs"
+									style={{ color: "var(--text-secondary)" }}
+								>
+									选择运行时 Provider，并配置它实际使用的连接参数
+								</p>
+							</div>
+							{selected && (
+								<div className="flex flex-wrap items-center gap-2 text-xs">
+									{selectedModel && (
 										<span
-											className="text-xs"
-											style={{ color: "var(--success)" }}
+											className="rounded-full px-2 py-1"
+											style={{
+												background: "var(--bg-tag-blue)",
+												color: "var(--text-tag-blue)",
+											}}
 										>
-											已配置
+											模型：{selectedModel}
 										</span>
 									)}
+									<span
+										className="rounded-full px-2 py-1"
+										style={
+											secretConfigured
+												? {
+														background: "var(--bg-tag-green)",
+														color: "var(--text-tag-green)",
+													}
+												: {
+														background: "var(--badge-warning-bg)",
+														color: "var(--badge-warning-text)",
+													}
+										}
+									>
+										{secretConfigured ? "API Key 已配置" : "API Key 未配置"}
+									</span>
 								</div>
-								{field.kind === "select" ? (
-									<select
-										id={fieldId}
-										className="rounded-lg border px-3 py-2 text-sm"
-										style={inputStyle}
-										value={fieldValue}
-										onChange={(e) =>
-											updateField(key, selected, field.name, e.target.value)
-										}
-									>
-										{(field.options || []).map((o) => (
-											<option key={o} value={o}>
-												{o}
-											</option>
-										))}
-									</select>
-								) : field.kind === "json" ? (
-									<textarea
-										id={fieldId}
-										className="min-h-24 rounded-lg border px-3 py-2 font-mono text-sm"
-										style={inputStyle}
-										placeholder="{}"
-										value={fieldValue}
-										onChange={(e) =>
-											updateField(key, selected, field.name, e.target.value)
-										}
-									/>
-								) : (
-									<input
-										id={fieldId}
-										className="rounded-lg border px-3 py-2 text-sm"
-										style={inputStyle}
-										type={field.secret ? "password" : "text"}
-										autoComplete={field.secret ? "new-password" : undefined}
-										placeholder={
-											field.secret && secretIsConfigured
-												? "已配置 · 留空保持不变"
-												: "请输入"
-										}
-										value={fieldValue}
-										onChange={(e) =>
-											updateField(key, selected, field.name, e.target.value)
-										}
-									/>
-								)}
-								{options.field_hints?.[field.name] && (
-									<p
-										className="text-xs"
-										style={{ color: "var(--text-tertiary)" }}
-									>
-										{options.field_hints[field.name]}
-									</p>
-								)}
-							</div>
-						);
-					})}
-			</section>
+							)}
+						</div>
+
+						<label
+							className="mb-5 grid gap-1 text-xs"
+							style={{ color: "var(--text-secondary)" }}
+						>
+							运行 Provider
+							<select
+								className="rounded-lg border px-3 py-2 text-sm"
+								style={inputStyle}
+								value={selected}
+								onChange={(e) => {
+									const next = structuredClone(config);
+									next.providers[key].selected = e.target.value;
+									setConfig(next);
+									setDirty(true);
+									setSaveMsg(null);
+								}}
+							>
+								<option value="">未选择</option>
+								{Object.entries(sectionOpts?.providers || {}).map(([k, v]) => (
+									<option key={k} value={k}>
+										{(v as { label: string }).label || k}
+									</option>
+								))}
+							</select>
+						</label>
+
+						{selected &&
+							sectionOpts?.providers[selected] &&
+							selectedFields.map((field) => {
+								const fieldId = `${key}-${selected}-${field.name}`;
+								const rawValue = selectedProfile[field.name];
+								const fieldValue = displayFieldValue(rawValue, field);
+								const secretIsConfigured =
+									field.secret &&
+									typeof rawValue === "string" &&
+									rawValue !== "" &&
+									rawValue !== "__CLEAR__";
+								return (
+									<div key={field.name} className="mb-4 grid gap-1">
+										<div className="flex items-center justify-between gap-3">
+											<label
+												htmlFor={fieldId}
+												className="text-xs font-medium"
+												style={{ color: "var(--text-secondary)" }}
+											>
+												{field.label}
+											</label>
+											{field.secret && secretIsConfigured && (
+												<span
+													className="text-xs"
+													style={{ color: "var(--success)" }}
+												>
+													已配置
+												</span>
+											)}
+										</div>
+										{field.kind === "select" ? (
+											<select
+												id={fieldId}
+												className="rounded-lg border px-3 py-2 text-sm"
+												style={inputStyle}
+												value={fieldValue}
+												onChange={(e) =>
+													updateField(key, selected, field.name, e.target.value)
+												}
+											>
+												{(field.options || []).map((o) => (
+													<option key={o} value={o}>
+														{o}
+													</option>
+												))}
+											</select>
+										) : field.kind === "json" ? (
+											<textarea
+												id={fieldId}
+												className="min-h-24 rounded-lg border px-3 py-2 font-mono text-sm"
+												style={inputStyle}
+												placeholder="{}"
+												value={fieldValue}
+												onChange={(e) =>
+													updateField(key, selected, field.name, e.target.value)
+												}
+											/>
+										) : (
+											<input
+												id={fieldId}
+												className="rounded-lg border px-3 py-2 text-sm"
+												style={inputStyle}
+												type={field.secret ? "password" : "text"}
+												autoComplete={field.secret ? "new-password" : undefined}
+												placeholder={
+													field.secret && secretIsConfigured
+														? "已配置 · 留空保持不变"
+														: "请输入"
+												}
+												value={fieldValue}
+												onChange={(e) =>
+													updateField(key, selected, field.name, e.target.value)
+												}
+											/>
+										)}
+										{options.field_hints?.[field.name] && (
+											<p
+												className="text-xs"
+												style={{ color: "var(--text-tertiary)" }}
+											>
+												{options.field_hints[field.name]}
+											</p>
+										)}
+									</div>
+								);
+							})}
+					</section>
+				</>
+			) : (
+				<ConfigSettingsPanel
+					settings={config.settings || {}}
+					options={options.settings || {}}
+					onChange={updateSetting}
+				/>
+			)}
 		</div>
 	);
 }

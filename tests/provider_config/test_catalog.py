@@ -1,5 +1,6 @@
 from packages.provider_config.catalog import (
     default_runtime_provider_config,
+    default_runtime_settings,
     provider_field_to_runtime_field,
     provider_options_payload,
     tts_provider_for_model,
@@ -37,3 +38,11 @@ def test_provider_form_hints_are_served_from_catalog() -> None:
 
     assert hints["api_key"].startswith("仅保存在 .env")
     assert hints["model"] == "当前 provider 实际调用的模型"
+
+
+def test_user_configurable_runtime_defaults_have_one_catalog_source() -> None:
+    settings = default_runtime_settings()
+
+    for section in ("embedding", "media", "asset_library", "scene"):
+        for field, value in settings[section].items():
+            assert DEFAULTS[section][field] == value

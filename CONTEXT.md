@@ -29,6 +29,7 @@ Job 生命周期中的一个离散步骤。系统根据脚本来源模式使用�
 
 ### ConfigReader
 唯一非 secret 配置读取器，读取 `config/app_config.json` 并合并 catalog/业务默认配置及 product 级覆盖。旧 TTS model-only 配置会一次性补齐一致的 provider。
+系统配置页的 AI Provider 与运行参数表单均由 catalog 描述；当前运行参数包括 Embedding、媒体工具、素材分类建议和场景导入。
 
 ### ProductStore
 product 级配置的 CRUD 存储，与 `ConfigReader` 协同持久化并刷新配置缓存。

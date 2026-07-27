@@ -32,6 +32,7 @@ from packages.pipeline_services.asset_snapshot import (
     validate_assets,
     write_reviewed_snapshot,
 )
+from packages.provider_config.config_constants import DEFAULTS
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
@@ -721,7 +722,7 @@ class JobTickService:
 
         layout = WorkspaceLayout(root_dir)
         scene_folder_paths: list[str] = []
-        transition_duration_ms = 500
+        transition_duration_ms = DEFAULTS["scene"]["transition_duration_ms"]
         scene_config: dict[str, Any] = {}
         if record.mode == "import":
             if self._config is not None:
@@ -736,7 +737,10 @@ class JobTickService:
                 for entry in scene_cfg.get("folders", [])
                 if entry.get("path")
             ]
-            transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
+            transition_duration_ms = scene_cfg.get(
+                "transition_duration_ms",
+                DEFAULTS["scene"]["transition_duration_ms"],
+            )
 
             if record.manual_script:
                 job_dir = layout.job_runtime_dir(project_id, job_id)

@@ -31,6 +31,20 @@ def _options_sections() -> dict:
     return provider_options_payload()["providers"]
 
 
+def _settings_options() -> dict:
+    return provider_options_payload().get("settings", {})
+
+
+def _settings_secret_env_map() -> dict[tuple[str, str], str]:
+    result: dict[tuple[str, str], str] = {}
+    for section_name, section in _settings_options().items():
+        for field in section.get("fields", []):
+            env_var = field.get("env_var")
+            if field.get("secret") and isinstance(env_var, str):
+                result[(section_name, field["name"])] = env_var
+    return result
+
+
 def _known_secret_fields() -> set[str]:
     secrets: set[str] = set()
     for section in _options_sections().values():
@@ -51,12 +65,53 @@ def _known_json_fields() -> set[str]:
     return json_fields
 
 
+def _merge_settings(payload: Any, merged: dict) -> None:
+    incoming_settings = payload.get("settings") if isinstance(payload, dict) else None
+    if not isinstance(incoming_settings, dict):
+        return
+
+    for section_name, section_default in merged.get("settings", {}).items():
+        incoming_section = incoming_settings.get(section_name)
+        if not isinstance(incoming_section, dict):
+            continue
+        fields = {
+            field["name"]: field
+            for field in _settings_options().get(section_name, {}).get("fields", [])
+        }
+        for field_name, default_value in section_default.items():
+            if field_name not in incoming_section or field_name not in fields:
+                continue
+            value = incoming_section[field_name]
+            kind = fields[field_name].get("kind")
+            if kind == "json" and isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                except json.JSONDecodeError:
+                    continue
+            if kind == "number":
+                if isinstance(value, bool):
+                    continue
+                if isinstance(value, str):
+                    try:
+                        value = float(value) if "." in value else int(value)
+                    except ValueError:
+                        continue
+                if not isinstance(value, (int, float)):
+                    continue
+                if isinstance(default_value, int):
+                    value = int(value)
+            if kind in {"text", "select"} and not isinstance(value, str):
+                continue
+            merged["settings"][section_name][field_name] = deepcopy(value)
+
+
 def _merge_payload(payload: Any, previous: dict | None = None) -> dict:
     merged = default_provider_document()
     merged_sections = merged["providers"]
     previous_sections = (previous or default_provider_document()).get("providers", {})
     incoming_sections = payload.get("providers") if isinstance(payload, dict) else None
     if not isinstance(incoming_sections, dict):
+        _merge_settings(payload, merged)
         return merged
 
     secret_fields = _known_secret_fields()
@@ -126,6 +181,7 @@ def _merge_payload(payload: Any, previous: dict | None = None) -> dict:
                 merged_sections[section_name]["providers"][provider_name][
                     field_name
                 ] = value
+    _merge_settings(payload, merged)
     return merged
 
 
@@ -155,6 +211,11 @@ def _inject_env_secrets(payload: dict, root_dir: Path) -> dict:
             )
             if isinstance(provider, dict) and field_name in provider:
                 provider[field_name] = SECRET_MASK
+    for (section_name, field_name), env_key in _SETTINGS_SECRET_ENV_MAP.items():
+        if env_values.get(env_key, ""):
+            section = result.get("settings", {}).get(section_name, {})
+            if isinstance(section, dict) and field_name in section:
+                section[field_name] = SECRET_MASK
 
     return result
 
@@ -205,6 +266,14 @@ def load_provider_config(root_dir: Path) -> dict:
             if runtime_name in runtime:
                 selected_profile[field_name] = deepcopy(runtime[runtime_name])
 
+    for section_name, section in merged.get("settings", {}).items():
+        runtime = app_config.get(section_name)
+        if not isinstance(runtime, dict):
+            continue
+        for field_name in section:
+            if field_name in runtime:
+                section[field_name] = deepcopy(runtime[field_name])
+
     return _inject_env_secrets(merged, root)
 
 
@@ -226,6 +295,7 @@ def _build_secret_env_map() -> dict[tuple[str, str, str], str]:
 
 
 _SECRET_ENV_MAP = _build_secret_env_map()
+_SETTINGS_SECRET_ENV_MAP = _settings_secret_env_map()
 
 
 def _sync_secrets_to_env(root_dir: Path, payload: dict) -> dict:
@@ -253,6 +323,18 @@ def _sync_secrets_to_env(root_dir: Path, payload: dict) -> dict:
                 env_key = _SECRET_ENV_MAP.get((section_name, provider_name, field_name))
                 if env_key is None:
                     continue
+                secret_updates[env_key] = value
+    for section_name, section in payload.get("settings", {}).items():
+        if not isinstance(section, dict):
+            continue
+        for field_name, value in section.items():
+            env_key = _SETTINGS_SECRET_ENV_MAP.get((section_name, field_name))
+            if env_key is None:
+                continue
+            if value == CLEAR_SECRET_SENTINEL:
+                secrets_to_clear.add(env_key)
+                continue
+            if isinstance(value, str) and value not in {"", SECRET_MASK}:
                 secret_updates[env_key] = value
 
     if not secret_updates and not secrets_to_clear:
@@ -348,6 +430,19 @@ def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
 
     app_config["provider_profiles"] = profiles
 
+    for section_name, section in providers_payload.get("settings", {}).items():
+        if section_name not in _settings_options() or not isinstance(section, dict):
+            continue
+        runtime = app_config.setdefault(section_name, {})
+        known_fields = {
+            field["name"]
+            for field in _settings_options()[section_name]["fields"]
+            if not field.get("secret")
+        }
+        for field_name, value in section.items():
+            if field_name in known_fields:
+                runtime[field_name] = deepcopy(value)
+
     save_config(config_path, app_config)
 
 
@@ -371,6 +466,12 @@ def mask_provider_config(payload: dict) -> dict:
                 value = provider.get(field_name)
                 if isinstance(value, str) and value:
                     provider[field_name] = SECRET_MASK
+    for (section_name, field_name), _env_key in _SETTINGS_SECRET_ENV_MAP.items():
+        section = masked.get("settings", {}).get(section_name, {})
+        if isinstance(section, dict):
+            value = section.get(field_name)
+            if isinstance(value, str) and value:
+                section[field_name] = SECRET_MASK
     return masked
 
 

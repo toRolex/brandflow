@@ -46,6 +46,14 @@
     "endpoint": "",
     "model": "text-embedding-ada-002"
   },
+  "asset_library": {
+    "category_suggestion_model": "deepseek-v4-flash",
+    "category_suggestion_sample_size": 20
+  },
+  "scene": {
+    "folders": [],
+    "transition_duration_ms": 500
+  },
   "media": {
     "ffmpeg_path": "ffmpeg",
     "ffprobe_path": "ffprobe",

@@ -8,10 +8,14 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from packages.provider_config.catalog import default_runtime_provider_config
+from packages.provider_config.catalog import (
+    default_runtime_provider_config,
+    default_runtime_settings,
+)
 
 
 _PROVIDER_DEFAULTS = default_runtime_provider_config()
+_SETTINGS_DEFAULTS = default_runtime_settings()
 
 DEFAULTS: dict[str, Any] = {
     "llm": _PROVIDER_DEFAULTS["llm"],
@@ -34,21 +38,16 @@ DEFAULTS: dict[str, Any] = {
         },
     },
     "vision": _PROVIDER_DEFAULTS["vision"],
-    "embedding": {
-        "endpoint": "",
-        "model": "text-embedding-ada-002",
-    },
+    "embedding": _SETTINGS_DEFAULTS["embedding"],
     "media": {
-        "ffmpeg_path": "ffmpeg",
-        "ffprobe_path": "ffprobe",
+        **_SETTINGS_DEFAULTS["media"],
         "subtitle_mode": "script_timed",
         "max_retry": 3,
         "retry_delay_seconds": 60,
     },
     "asset_library": {
+        **_SETTINGS_DEFAULTS["asset_library"],
         "categories": [],
-        "category_suggestion_model": "deepseek-v4-flash",
-        "category_suggestion_sample_size": 20,
     },
     "video": {
         "cover_title_style": {
@@ -60,8 +59,7 @@ DEFAULTS: dict[str, Any] = {
         }
     },
     "scene": {
-        "folders": [],
-        "transition_duration_ms": 500,
+        **_SETTINGS_DEFAULTS["scene"],
     },
     "product": {
         "default_name": "",

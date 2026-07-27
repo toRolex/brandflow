@@ -58,6 +58,7 @@ const MOCK_OPTIONS = {
 			},
 		},
 		text_to_image: {
+			label: "文生图",
 			providers: {
 				dalle: {
 					label: "DALL-E",
@@ -70,6 +71,7 @@ const MOCK_OPTIONS = {
 			},
 		},
 		image_to_video: {
+			label: "图生视频",
 			providers: {
 				runway: {
 					label: "Runway",
@@ -314,6 +316,74 @@ describe("ConfigPage", () => {
 			"aria-selected",
 			"true",
 		);
+	});
+
+	it("Seam 14: catalog 声明的运行参数可在页面编辑并保存", async () => {
+		const configWithSettings = {
+			...MOCK_CONFIG,
+			settings: {
+				embedding: {
+					api_key: "***",
+					endpoint: "",
+					model: "text-embedding-ada-002",
+				},
+				scene: { transition_duration_ms: 500 },
+			},
+		};
+		vi.mocked(api.getConfig).mockResolvedValue(configWithSettings);
+		vi.mocked(api.getConfigOptions).mockResolvedValue({
+			...MOCK_OPTIONS,
+			settings: {
+				embedding: {
+					label: "Embedding",
+					description: "检索向量模型",
+					fields: [
+						{
+							name: "api_key",
+							label: "Embedding API Key",
+							kind: "text",
+							secret: true,
+						},
+						{ name: "model", label: "嵌入模型", kind: "text" },
+					],
+				},
+				scene: {
+					label: "场景",
+					description: "导入模式场景参数",
+					fields: [
+						{
+							name: "transition_duration_ms",
+							label: "转场时长（毫秒）",
+							kind: "number",
+							min: 0,
+						},
+					],
+				},
+			},
+		});
+		vi.mocked(api.saveConfig).mockResolvedValue(configWithSettings);
+
+		render(<ConfigPage />);
+		fireEvent.click(await screen.findByRole("button", { name: "运行参数" }));
+
+		expect(screen.getByLabelText("嵌入模型")).toHaveValue(
+			"text-embedding-ada-002",
+		);
+		expect(screen.getByLabelText("Embedding API Key")).toHaveValue("");
+		fireEvent.change(screen.getByLabelText("转场时长（毫秒）"), {
+			target: { value: "750" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: /保存配置/i }));
+
+		await waitFor(() => {
+			expect(api.saveConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					settings: expect.objectContaining({
+						scene: { transition_duration_ms: 750 },
+					}),
+				}),
+			);
+		});
 	});
 
 	it("Seam 4: 页面加载时自动选中每个 section 的第一个 provider", async () => {

@@ -16,7 +16,7 @@ def test_save_provider_config_uses_app_config_as_runtime_source(tmp_path) -> Non
         json.dumps({"media": {"ffmpeg_path": "custom-ffmpeg"}}),
         encoding="utf-8",
     )
-    payload = default_provider_document()
+    payload = load_provider_config(tmp_path)
     payload["providers"]["tts"]["selected"] = "qwen"
     payload["providers"]["tts"]["providers"]["qwen"].update(
         {

@@ -8,6 +8,7 @@ from apps.control_plane.routes.jobs.helpers import (
 )
 from packages.domain_core.models import PhaseExecutionState
 from packages.file_store.repository import FileStoreRepository
+from packages.provider_config.config_constants import DEFAULTS
 
 router = APIRouter(tags=["api-jobs"])
 
@@ -69,7 +70,10 @@ def retry_job(request: Request, job_id: str):
             "mode": record.mode,
         },
         scene_folder_paths=scene_folder_paths,
-        transition_duration_ms=scene_config.get("transition_duration_ms", 500),
+        transition_duration_ms=scene_config.get(
+            "transition_duration_ms",
+            DEFAULTS["scene"]["transition_duration_ms"],
+        ),
         scene_config=scene_config,
     )
     from apps.control_plane.app import _get_orchestrator

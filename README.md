@@ -90,13 +90,14 @@ cp .env.example .env
 配置职责：
 - `.env` — 只保存 API Key 等 secret
 - `config/app_config.json` — 唯一非 secret 配置源，保存 provider、model、endpoint、voice、thinking 等
-- `packages/provider_config/catalog.json` — 系统配置页字段目录与 provider 默认资料
+- `packages/provider_config/catalog.json` — 系统配置页字段目录，以及 provider 和可编辑运行参数的默认资料
 - `config/providers.yaml` — 旧版本兼容输入；新版本只读、不再写入
 
 常见配置项：
 - `LLM_API_KEY` / `TTS_API_KEY` / `VISION_API_KEY` — 通用 key，适合单 provider 场景
 - `DEEPSEEK_API_KEY` / `MIMO_API_KEY` / `XIAOMI_VISION_API_KEY` — provider 专用 key，优先级高于通用 key
-- provider、model、voice、thinking 等业务参数 — 通常通过前端”系统配置”页面写入 `config/app_config.json`
+- provider、model、voice、thinking 等业务参数 — 通过前端“系统配置 → AI Provider”写入 `config/app_config.json`
+- Embedding（含 API Key）、FFmpeg/FFprobe、素材分类建议与场景导入参数 — 通过“系统配置 → 运行参数”编辑
 
 TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
 - `voice_clone_sample_path` — 音色克隆样本路径（由上传接口自动写入）

@@ -71,6 +71,7 @@ def _ensure_selected_providers_are_valid(payload: dict) -> None:
 
 def _normalize_payload(payload: dict) -> dict:
     normalized = deepcopy(payload)
+    _normalize_runtime_settings(normalized)
     sections = normalized.get("providers") if isinstance(normalized, dict) else None
     if not isinstance(sections, dict):
         return normalized
@@ -109,6 +110,52 @@ def _normalize_payload(payload: dict) -> dict:
                         status_code=400, detail="invalid json field"
                     ) from exc
     return normalized
+
+
+def _normalize_runtime_settings(payload: dict) -> None:
+    settings = payload.get("settings")
+    if not isinstance(settings, dict):
+        return
+
+    options = provider_options_payload().get("settings", {})
+    for section_name, section_options in options.items():
+        section = settings.get(section_name)
+        if not isinstance(section, dict):
+            continue
+        for field in section_options.get("fields", []):
+            field_name = field["name"]
+            if field_name not in section:
+                continue
+            value = section[field_name]
+            qualified_name = f"{section_name}.{field_name}"
+            if field.get("kind") == "json" and isinstance(value, str):
+                try:
+                    section[field_name] = json.loads(value)
+                except json.JSONDecodeError as exc:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"invalid json field: {qualified_name}",
+                    ) from exc
+                continue
+            if field.get("kind") != "number":
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"invalid number field: {qualified_name}",
+                )
+            minimum = field.get("min")
+            maximum = field.get("max")
+            if minimum is not None and value < minimum:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"value below minimum: {qualified_name}",
+                )
+            if maximum is not None and value > maximum:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"value above maximum: {qualified_name}",
+                )
 
 
 def _resolve_product_config(reader) -> dict:

@@ -122,12 +122,18 @@ class ConfigReader:
     def get_category_suggestion_model(self) -> str:
         """Return the model used for category suggestions."""
         al = self.get_asset_library_config()
-        return al.get("category_suggestion_model", "deepseek-v4-flash")
+        return al.get(
+            "category_suggestion_model",
+            DEFAULTS["asset_library"]["category_suggestion_model"],
+        )
 
     def get_category_suggestion_sample_size(self) -> int:
         """Return the sample size for category suggestions."""
         al = self.get_asset_library_config()
-        return al.get("category_suggestion_sample_size", 20)
+        return al.get(
+            "category_suggestion_sample_size",
+            DEFAULTS["asset_library"]["category_suggestion_sample_size"],
+        )
 
     # ------------------------------------------------------------------
     # Reload
