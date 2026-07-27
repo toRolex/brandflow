@@ -1,4 +1,5 @@
 export type ExportTaskStatus =
+	| "not_started"
 	| "queued"
 	| "running"
 	| "ready"
@@ -6,7 +7,7 @@ export type ExportTaskStatus =
 	| "stale";
 
 export interface ExportTaskState {
-	task_id: string;
+	task_id: string | null;
 	status: ExportTaskStatus;
 	progress: number;
 	error: string | null;
@@ -14,5 +15,5 @@ export interface ExportTaskState {
 
 export interface CreateExportResponse {
 	task_id: string;
-	status: ExportTaskStatus;
+	status: Exclude<ExportTaskStatus, "not_started">;
 }

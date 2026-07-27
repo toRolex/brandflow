@@ -473,6 +473,20 @@ describe("JobPipeline asset phase states", () => {
 			expect(screen.getByText("导出")).toBeInTheDocument();
 		});
 
+		it("shows export button when the backend reports export not started", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: null,
+				status: "not_started",
+				progress: 0,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
+		});
+
 		it("shows creating state after clicking export", async () => {
 			// Start with no existing task so we see the export button
 			let statusCalls = 0;

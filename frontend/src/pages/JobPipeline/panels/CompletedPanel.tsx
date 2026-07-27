@@ -41,38 +41,41 @@ export default function CompletedPanel({
 					<div className="text-sm text-[var(--text-tertiary)]">正在创建...</div>
 				)}
 
-				{exportTask && !exportCreating && (
-					<ExportTaskControls
-						task={exportTask}
-						downloading={exportDownloading}
-						onDownload={onDownloadExport}
-						onRecreate={onCreateExport}
-					/>
-				)}
+				{exportTask &&
+					exportTask.status !== "not_started" &&
+					!exportCreating && (
+						<ExportTaskControls
+							task={exportTask}
+							downloading={exportDownloading}
+							onDownload={onDownloadExport}
+							onRecreate={onCreateExport}
+						/>
+					)}
 
-				{!exportTask && !exportCreating && (
-					<button
-						className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
-						onClick={onCreateExport}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="2"
-							strokeLinecap="round"
-							strokeLinejoin="round"
+				{(!exportTask || exportTask.status === "not_started") &&
+					!exportCreating && (
+						<button
+							className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-6 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
+							onClick={onCreateExport}
 						>
-							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-							<polyline points="7 10 12 15 17 10" />
-							<line x1="12" y1="15" x2="12" y2="3" />
-						</svg>
-						导出
-					</button>
-				)}
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2"
+								strokeLinecap="round"
+								strokeLinejoin="round"
+							>
+								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+								<polyline points="7 10 12 15 17 10" />
+								<line x1="12" y1="15" x2="12" y2="3" />
+							</svg>
+							导出
+						</button>
+					)}
 			</div>
 		</div>
 	);
