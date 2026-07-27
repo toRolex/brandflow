@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import { useProducts } from "../ProductContext";
 
 interface TtsConfig {
+	provider: "qwen" | "mimo";
 	model: string;
 	voice: string;
 	fallback_voice: string;
@@ -234,7 +235,7 @@ export default function TTSConfigPage() {
 				language_type?: string;
 			} = {
 				text: previewText,
-				provider: config.model?.startsWith("qwen") ? "qwen" : "mimo",
+				provider: config.provider,
 				model: config.model,
 				voice,
 				style_prompt: config.style_prompt,
@@ -312,7 +313,13 @@ export default function TTSConfigPage() {
 										? "border-[var(--accent)] bg-[var(--bg-nav-active)]"
 										: "border-[var(--border-default)] hover:border-[var(--text-tertiary)]"
 								}`}
-								onClick={() => setConfig({ ...config, model: "mimo-v2.5-tts" })}
+								onClick={() =>
+									setConfig({
+										...config,
+										provider: "mimo",
+										model: "mimo-v2.5-tts",
+									})
+								}
 							>
 								<h3 className="font-semibold">预置音色</h3>
 								<p className="text-sm text-[var(--text-tertiary)]">
@@ -329,7 +336,11 @@ export default function TTSConfigPage() {
 										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
 								}`}
 								onClick={() =>
-									setConfig({ ...config, model: "mimo-v2.5-tts-voicedesign" })
+									setConfig({
+										...config,
+										provider: "mimo",
+										model: "mimo-v2.5-tts-voicedesign",
+									})
 								}
 							>
 								<h3 className="font-semibold">音色设计</h3>
@@ -347,7 +358,11 @@ export default function TTSConfigPage() {
 										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
 								}`}
 								onClick={() =>
-									setConfig({ ...config, model: "mimo-v2.5-tts-voiceclone" })
+									setConfig({
+										...config,
+										provider: "mimo",
+										model: "mimo-v2.5-tts-voiceclone",
+									})
 								}
 							>
 								<h3 className="font-semibold">音色克隆</h3>
@@ -365,7 +380,11 @@ export default function TTSConfigPage() {
 										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
 								}`}
 								onClick={() =>
-									setConfig({ ...config, model: "qwen3-tts-flash" })
+									setConfig({
+										...config,
+										provider: "qwen",
+										model: "qwen3-tts-flash",
+									})
 								}
 							>
 								<h3 className="font-semibold">Qwen Flash</h3>
@@ -383,7 +402,11 @@ export default function TTSConfigPage() {
 										: "border-[var(--border-default)] hover:border-[var(--border-default)]"
 								}`}
 								onClick={() =>
-									setConfig({ ...config, model: "qwen3-tts-instruct-flash" })
+									setConfig({
+										...config,
+										provider: "qwen",
+										model: "qwen3-tts-instruct-flash",
+									})
 								}
 							>
 								<h3 className="font-semibold">Qwen Instruct</h3>

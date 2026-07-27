@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 from typing import Any, cast
 
+from packages.provider_config.catalog import tts_provider_for_model
 from packages.provider_config.config_constants import (
     DEFAULTS,
     _deep_merge,
@@ -265,13 +266,7 @@ class ConfigReader:
             if not isinstance(section, dict):
                 continue
             model = str(section.get("model") or "")
-            inferred = (
-                "qwen"
-                if model.startswith("qwen")
-                else "mimo"
-                if model.startswith("mimo")
-                else ""
-            )
+            inferred = tts_provider_for_model(model)
             if inferred and section.get("provider") != inferred:
                 section["provider"] = inferred
                 changed = True

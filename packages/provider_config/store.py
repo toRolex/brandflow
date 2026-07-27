@@ -10,6 +10,7 @@ import yaml
 
 from packages.provider_config.catalog import (
     default_provider_document,
+    provider_field_to_runtime_field,
     provider_options_payload,
 )
 from packages.provider_config.runtime_env import (
@@ -199,7 +200,7 @@ def load_provider_config(root_dir: Path) -> dict:
         section["selected"] = selected
         selected_profile = section["providers"][selected]
         for field_name in selected_profile:
-            runtime_name = "style_prompt" if field_name == "style" else field_name
+            runtime_name = provider_field_to_runtime_field(field_name)
             if runtime_name in runtime:
                 selected_profile[field_name] = deepcopy(runtime[runtime_name])
 
@@ -309,7 +310,7 @@ def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
         names: set[str] = set()
         for provider in providers.get(section_name, {}).get("providers", {}).values():
             names.update(
-                "style_prompt" if name == "style" else name
+                provider_field_to_runtime_field(name)
                 for name in provider
                 if name not in secret_fields
             )
@@ -341,7 +342,7 @@ def _sync_to_app_config(root_dir: Path, providers_payload: dict) -> None:
         for field_name, value in provider_values[selected].items():
             if field_name in secret_fields:
                 continue
-            runtime_name = "style_prompt" if field_name == "style" else field_name
+            runtime_name = provider_field_to_runtime_field(field_name)
             runtime[runtime_name] = deepcopy(value)
 
     app_config["provider_profiles"] = profiles

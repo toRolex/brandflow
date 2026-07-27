@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from packages.domain_core.models import ExecutionFailure, JobRecord
 from packages.file_store.layout import AmbiguousJobError, WorkspaceLayout
 from packages.file_store.repository import FileStoreRepository
+from packages.provider_config.catalog import tts_provider_for_model
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
 
@@ -287,6 +288,9 @@ def _resolve_tts_preview_config(
     tts_cfg = {**config_reader.get_tts_config(product_id=record.product or None)}
     if record.tts_model:
         tts_cfg["model"] = record.tts_model
+        inferred_provider = tts_provider_for_model(record.tts_model)
+        if inferred_provider:
+            tts_cfg["provider"] = inferred_provider
     if record.tts_voice:
         tts_cfg["voice"] = record.tts_voice
 

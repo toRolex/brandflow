@@ -932,11 +932,21 @@ class TestRunTTSPerSentence:
 
         mock_tts = MagicMock()
         mock_tts.synthesize.return_value = b""
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = _make_orchestrator_with_tts_config(
+            tts_provider=mock_tts,
+            tts_config={
+                **_FAKE_TTS_CONFIG,
+                "provider": "mimo",
+                "model": "mimo-v2.5-tts",
+            },
+        )
+        resolved_config = {}
+        orch._build_tts_provider = lambda cfg: resolved_config.update(cfg) or mock_tts
 
         orch.run_phase("tts_generating", ctx)
 
         config_obj = mock_tts.synthesize.call_args.args[1]
+        assert resolved_config["provider"] == "qwen"
         assert config_obj.model == "qwen3-tts-flash"
         assert config_obj.voice == "Rocky"
 

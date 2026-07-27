@@ -5,6 +5,7 @@ from copy import deepcopy
 from pathlib import Path
 
 _CATALOG_PATH = Path(__file__).with_name("catalog.json")
+_RUNTIME_FIELD_ALIASES = {"style": "style_prompt"}
 
 with _CATALOG_PATH.open(encoding="utf-8") as _fh:
     _DATA: dict = json.load(_fh)
@@ -32,7 +33,7 @@ def default_runtime_provider_config() -> dict:
         for field_name, value in profile.items():
             if field_name in secret_fields:
                 continue
-            runtime_name = "style_prompt" if field_name == "style" else field_name
+            runtime_name = provider_field_to_runtime_field(field_name)
             runtime[runtime_name] = deepcopy(value)
         result[section_name] = runtime
     return result
@@ -40,3 +41,28 @@ def default_runtime_provider_config() -> dict:
 
 def provider_options_payload() -> dict:
     return deepcopy(_DATA["provider_options"])
+
+
+def provider_field_to_runtime_field(field_name: str) -> str:
+    """Map a provider-form field name to its app_config runtime name."""
+    return _RUNTIME_FIELD_ALIASES.get(field_name, field_name)
+
+
+def tts_provider_for_model(model: str) -> str | None:
+    """Return the catalog TTS provider whose declared prefix owns *model*."""
+    providers = _DATA["provider_options"]["providers"]["tts"]["providers"]
+    for provider_name, provider in providers.items():
+        prefixes = provider.get("model_prefixes", [])
+        if any(model.startswith(prefix) for prefix in prefixes):
+            return provider_name
+    return None
+
+
+def tts_runtime_providers() -> frozenset[str]:
+    """Return TTS providers with a declared runtime model contract."""
+    providers = _DATA["provider_options"]["providers"]["tts"]["providers"]
+    return frozenset(
+        provider_name
+        for provider_name, provider in providers.items()
+        if provider.get("model_prefixes")
+    )

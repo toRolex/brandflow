@@ -194,6 +194,7 @@ class TTSConfigManager:
 
             logger = logging.getLogger(__name__)
             logger.warning("Auto-migrating mimo-v2-tts -> qwen3-tts-flash")
+            config.provider = "qwen"
             config.model = "qwen3-tts-flash"
             config.voice = "Rocky"
         if product_id is None:

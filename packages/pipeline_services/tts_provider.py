@@ -5,8 +5,12 @@ from typing import Any
 
 import requests
 
-from packages.provider_config.secret_store import SecretStore
+from packages.provider_config.catalog import (
+    tts_provider_for_model,
+    tts_runtime_providers,
+)
 from packages.provider_config.config_constants import DEFAULTS
+from packages.provider_config.secret_store import SecretStore
 
 
 class TTSError(Exception):
@@ -438,19 +442,17 @@ def resolve_tts_provider_name(config: dict[str, Any]) -> str:
     """Return and validate the provider selected by a TTS config."""
     tts_model = str(config.get("model", DEFAULTS["tts"]["model"]) or "")
     configured_provider = str(config.get("provider") or "").strip().lower()
+    inferred_provider = tts_provider_for_model(tts_model)
     if configured_provider:
         provider_name = configured_provider
-    elif tts_model.startswith("qwen"):
-        provider_name = "qwen"
-    elif tts_model.startswith("mimo"):
-        provider_name = "mimo"
+    elif inferred_provider:
+        provider_name = inferred_provider
     else:
         provider_name = str(DEFAULTS["tts"]["provider"])
 
-    expected_prefix = {"qwen": "qwen", "mimo": "mimo"}.get(provider_name)
-    if expected_prefix is None:
+    if provider_name not in tts_runtime_providers():
         raise ValueError(f"Unsupported TTS provider: {provider_name}")
-    if tts_model and not tts_model.startswith(expected_prefix):
+    if tts_model and inferred_provider != provider_name:
         raise ValueError(
             f"TTS provider/model mismatch: provider={provider_name}, model={tts_model}"
         )

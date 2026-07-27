@@ -8,8 +8,9 @@ from fastapi.responses import Response
 from pathlib import Path
 from pydantic import BaseModel
 
-from packages.provider_config.secret_store import SecretStore
+from packages.provider_config.catalog import tts_provider_for_model
 from packages.provider_config.config_constants import DEFAULTS
+from packages.provider_config.secret_store import SecretStore
 from packages.provider_config.tts_config import TTSConfigManager
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
@@ -381,8 +382,19 @@ async def save_tts_config(
     for key, value in update_data.items():
         setattr(current, key, value)
 
-    if current.model in MODEL_TO_PROVIDER:
-        current.provider = MODEL_TO_PROVIDER[current.model]
+    from packages.pipeline_services.tts_provider import resolve_tts_provider_name
+
+    # Compatibility for pre-provider clients: normalize a model-only update at
+    # the API boundary.  New clients send both fields; an explicit mismatch is
+    # never rewritten and is rejected below.
+    if "model" in update_data and "provider" not in update_data:
+        inferred_provider = tts_provider_for_model(str(current.model or ""))
+        if inferred_provider:
+            current.provider = inferred_provider
+    try:
+        resolve_tts_provider_name(current.to_dict())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     validate_voice_for_model(current.model, current.voice)
 
     config_manager.save_config(current, product_id)
@@ -393,15 +405,6 @@ async def save_tts_config(
     return {"success": True}
 
 
-MODEL_TO_PROVIDER = {
-    "mimo-v2.5-tts": "mimo",
-    "mimo-v2.5-tts-voicedesign": "mimo",
-    "mimo-v2.5-tts-voiceclone": "mimo",
-    "qwen3-tts-flash": "qwen",
-    "qwen3-tts-instruct-flash": "qwen",
-}
-
-
 def get_valid_preset_voice_ids(model: str) -> set[str] | None:
     """Return valid preset voice IDs for a model, or None if the model doesn't use preset voices.
 
@@ -410,7 +413,7 @@ def get_valid_preset_voice_ids(model: str) -> set[str] | None:
     """
     if not model:
         return None
-    provider = MODEL_TO_PROVIDER.get(model)
+    provider = tts_provider_for_model(model)
     if provider is None:
         return None
     # VoiceDesign/VoiceClone sub-models have no preset voice concept
@@ -442,7 +445,7 @@ def validate_voice_for_model(model: str | None, voice: str | None) -> None:
         return
     if voice in valid_ids:
         return
-    provider = MODEL_TO_PROVIDER.get(model, "unknown")
+    provider = tts_provider_for_model(model) or "unknown"
     sorted_ids = sorted(valid_ids)
     preview = sorted_ids[:12]
     detail = (
@@ -454,15 +457,17 @@ def validate_voice_for_model(model: str | None, voice: str | None) -> None:
 
 
 @router.get("/voices")
-async def get_voices(provider: str = "mimo", model: str | None = None):
+async def get_voices(provider: str | None = None, model: str | None = None):
     if model is not None:
-        resolved = MODEL_TO_PROVIDER.get(model)
+        resolved = tts_provider_for_model(model)
         if resolved is None:
             raise HTTPException(
                 status_code=400,
                 detail=f"Unknown TTS model: {model}",
             )
         provider = resolved
+    elif provider is None:
+        provider = str(DEFAULTS["tts"]["provider"])
     elif provider not in ("mimo", "qwen"):
         raise HTTPException(
             status_code=400, detail=f"Unsupported TTS provider: {provider}"
@@ -508,7 +513,7 @@ async def preview_tts(request: TTSPreviewRequest):
         config.randomize_voice = False
 
         model = config.model or ""
-        provider_name = request.provider or MODEL_TO_PROVIDER.get(model)
+        provider_name = request.provider or tts_provider_for_model(model)
         if provider_name is None:
             raise HTTPException(status_code=400, detail=f"不支持的 TTS model: {model}")
         api_key = app_config.get_api_key(provider_name, section="tts")

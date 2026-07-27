@@ -14,6 +14,7 @@ from packages.pipeline_services.force_align_service import (
 )
 from packages.pipeline_services.script_sentence import parse_script_sentences
 from packages.pipeline_services.sentence_tts_service import SentenceTTSService
+from packages.provider_config.catalog import tts_provider_for_model
 
 from .shared import _discover_script, _job_dir, _to_artifact
 
@@ -112,6 +113,12 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             # mutate the shared ConfigReader cache and leak into other
             # jobs running concurrently or in subsequent ticks.
             tts_cfg = dict(orchestrator._resolve_tts_config(ctx))
+            if not tts_cfg.get("provider"):
+                inferred_provider = tts_provider_for_model(
+                    str(tts_cfg.get("model") or "")
+                )
+                if inferred_provider:
+                    tts_cfg["provider"] = inferred_provider
 
             # Apply job-level TTS overrides (tts_model / tts_voice)
             # Priority: job override > provider defaults > global/product config
@@ -119,13 +126,16 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             job_tts_voice: str = ctx.options.get("tts_voice", "")
             if job_tts_model:
                 tts_cfg["model"] = job_tts_model
+                inferred_provider = tts_provider_for_model(job_tts_model)
+                if inferred_provider:
+                    tts_cfg["provider"] = inferred_provider
             if job_tts_voice:
                 tts_cfg["voice"] = job_tts_voice
 
-            # ponytail: qwen model uses language_type=Chinese for cantonese,
-            # MiMo ignores it, so model gate prevents pointless assignment
-            if ctx.options.get("language", "") == "cantonese" and "qwen" in tts_cfg.get(
-                "model", ""
+            # Qwen uses language_type=Chinese for Cantonese; MiMo ignores it.
+            if (
+                ctx.options.get("language", "") == "cantonese"
+                and tts_cfg.get("provider") == "qwen"
             ):
                 tts_cfg["language_type"] = "Chinese"
 

@@ -359,15 +359,12 @@ def test_defaults_consistent_between_reader_and_manager() -> None:
 
 
 def test_factory_default_model_is_valid() -> None:
-    """config_constants.DEFAULTS[\"tts\"][\"model\"] 是 MODEL_TO_PROVIDER 中存在的有效 model"""
-    from apps.control_plane.routes.tts import MODEL_TO_PROVIDER
+    """默认 TTS model 应由 catalog 映射到默认 provider。"""
+    from packages.provider_config.catalog import tts_provider_for_model
     from packages.provider_config.config_constants import DEFAULTS
 
     model = DEFAULTS["tts"]["model"]
-    assert model in MODEL_TO_PROVIDER, (
-        f"Default TTS model '{model}' is not recognised by MODEL_TO_PROVIDER. "
-        f"Valid models: {list(MODEL_TO_PROVIDER)}"
-    )
+    assert tts_provider_for_model(model) == DEFAULTS["tts"]["provider"]
 
 
 # ---------------------------------------------------------------------------

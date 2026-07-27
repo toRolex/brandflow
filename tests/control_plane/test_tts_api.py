@@ -57,11 +57,20 @@ class TestTTSConfigAPI:
             assert loaded[key] == value
 
     def test_save_config_with_partial_fields(self, client):
-        response = client.put("/api/tts/config", json={"model": "custom-model"})
+        response = client.put(
+            "/api/tts/config", json={"model": "qwen3-tts-instruct-flash"}
+        )
         assert response.status_code == 200
-
         loaded = client.get("/api/tts/config").json()
-        assert loaded["model"] == "custom-model"
+        assert loaded["model"] == "qwen3-tts-instruct-flash"
+
+    def test_save_config_rejects_explicit_provider_model_mismatch(self, client):
+        response = client.put(
+            "/api/tts/config",
+            json={"provider": "mimo", "model": "qwen3-tts-flash"},
+        )
+        assert response.status_code == 422
+        assert "provider/model mismatch" in response.json()["detail"]
 
     def test_get_voices_default(self, client):
         response = client.get("/api/tts/voices")

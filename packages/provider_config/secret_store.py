@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 
+from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.runtime_env import (
     LLM_ENV_MAPPINGS,
@@ -44,12 +45,6 @@ class SecretStore:
         "claude": "VISION_API_URL",
         "custom": "CUSTOM_API_URL",
         "embedding": "EMBEDDING_API_URL",
-    }
-
-    VISION_MODEL_ENV_MAP = {
-        "xiaomi": "XIAOMI_VISION_MODEL",
-        "openai": "VISION_MODEL",
-        "claude": "VISION_MODEL",
     }
 
     _TTS_PROVIDERS = frozenset({"mimo", "minimax", "qwen"})
@@ -123,7 +118,7 @@ class SecretStore:
     ) -> str:
         """Return the LLM API key by reading the active provider from config."""
         config = reader.get_llm_config(product_id=product_id)
-        provider = config.get("provider", "deepseek")
+        provider = config.get("provider", DEFAULTS["llm"]["provider"])
         return self.get_api_key(provider, section="llm")
 
     def get_llm_endpoint(
@@ -131,7 +126,7 @@ class SecretStore:
     ) -> str:
         """Return the configured LLM endpoint, with legacy env fallback."""
         config = reader.get_llm_config(product_id=product_id)
-        provider = config.get("provider", "deepseek")
+        provider = config.get("provider", DEFAULTS["llm"]["provider"])
         return str(config.get("endpoint") or "").strip().rstrip(
             "/"
         ) or self.get_api_base_url(provider, section="llm")
@@ -141,7 +136,7 @@ class SecretStore:
     ) -> str:
         """Return the Vision API key by reading the active provider from config."""
         config = reader.get_vision_config(product_id=product_id)
-        provider = config.get("provider", "xiaomi")
+        provider = config.get("provider", DEFAULTS["vision"]["provider"])
         return self.get_api_key(provider, section="vision")
 
     def get_vision_endpoint(
@@ -149,7 +144,7 @@ class SecretStore:
     ) -> str:
         """Return the configured Vision endpoint, with legacy env fallback."""
         config = reader.get_vision_config(product_id=product_id)
-        provider = config.get("provider", "xiaomi")
+        provider = config.get("provider", DEFAULTS["vision"]["provider"])
         return str(config.get("endpoint") or "").strip().rstrip(
             "/"
         ) or self.get_api_base_url(provider, section="vision")
