@@ -378,6 +378,91 @@ class TestRejectClip:
         assert diagnostics["total"] == 1
         assert diagnostics["same_id"] == 1
 
+    def test_set_blank_decrements_usage(self, tmp_path: Path) -> None:
+        """Setting a clip to blank should free its asset usage."""
+        ctx = _setup(tmp_path, [dict(CLIP)], [("a1", "intro"), ("alt1", "intro")])
+        db_path = ctx["root_dir"] / "workspace" / "shared_assets" / "asset_index.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("UPDATE assets SET usage_count = 1 WHERE asset_id = 'a1'")
+        conn.commit()
+        conn.close()
+
+        app = create_app(root_dir=ctx["root_dir"])
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-blank?project_id={ctx['project_id']}",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+
+        assert _usage_count(ctx, "a1") == 0
+        entry = _clips(ctx)[0]
+        assert entry["visual_type"] == "blank"
+        assert entry["asset_id"] == ""
+
+    def test_set_asset_updates_usage(self, tmp_path: Path) -> None:
+        """Manually assigning an asset should swap usage counts."""
+        ctx = _setup(tmp_path, [dict(CLIP)], [("a1", "intro"), ("alt1", "intro")])
+        db_path = ctx["root_dir"] / "workspace" / "shared_assets" / "asset_index.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("UPDATE assets SET usage_count = 1 WHERE asset_id = 'a1'")
+        conn.commit()
+        conn.close()
+
+        app = create_app(root_dir=ctx["root_dir"])
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/set-asset?project_id={ctx['project_id']}",
+                json={"clip_index": 0, "asset_id": "alt1"},
+            )
+            assert resp.status_code == 200
+
+        assert _usage_count(ctx, "a1") == 0
+        assert _usage_count(ctx, "alt1") == 1
+        entry = _clips(ctx)[0]
+        assert entry["asset_id"] == "alt1"
+        assert entry["method"] == "manual"
+
+    def test_restore_updates_usage(self, tmp_path: Path) -> None:
+        """Restoring the original asset should swap usage counts back."""
+        restored_clip = {
+            **CLIP,
+            "asset_id": "alt1",
+            "file_path": "/data/alt1.mp4",
+            "method": "manual",
+            "visual_type": "clip",
+            "_original": {
+                "sentence": CLIP["sentence"],
+                "category": CLIP["category"],
+                "file_path": CLIP["file_path"],
+                "asset_id": CLIP["asset_id"],
+                "duration_seconds": CLIP["duration_seconds"],
+                "method": CLIP["method"],
+                "visual_type": CLIP["visual_type"],
+            },
+        }
+        ctx = _setup(tmp_path, [restored_clip], [("a1", "intro"), ("alt1", "intro")])
+        db_path = ctx["root_dir"] / "workspace" / "shared_assets" / "asset_index.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("UPDATE assets SET usage_count = 0 WHERE asset_id = 'a1'")
+        conn.execute("UPDATE assets SET usage_count = 1 WHERE asset_id = 'alt1'")
+        conn.commit()
+        conn.close()
+
+        app = create_app(root_dir=ctx["root_dir"])
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/asset/restore?project_id={ctx['project_id']}",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+
+        assert _usage_count(ctx, "a1") == 1
+        assert _usage_count(ctx, "alt1") == 0
+        entry = _clips(ctx)[0]
+        assert entry["asset_id"] == "a1"
+        assert entry["method"] == CLIP["method"]
+
 
 class TestAssetReSearchRemoved:
     def test_re_search_endpoint_returns_404(self, tmp_path: Path) -> None:
@@ -393,4 +478,6 @@ class TestAssetReSearchRemoved:
                 f"/api/reviews/{ctx['job_id']}/asset/re-search?project_id={ctx['project_id']}",
                 json={"clip_index": 0},
             )
-            assert resp.status_code == 404
+            # When the SPA catch-all is mounted, an unknown API path with POST
+            # becomes 405; otherwise it is 404. Both mean the endpoint is gone.
+            assert resp.status_code in (404, 405)

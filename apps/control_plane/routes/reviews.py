@@ -293,11 +293,17 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         }
 
     asset_repo = _asset_repo(root_dir)
+    current_asset_ids = [
+        c.get("asset_id")
+        for i, c in enumerate(clips)
+        if i != payload.clip_index and c.get("asset_id")
+    ]
     decision = select_replacement(
         asset_repo,
         product=product,
         category=category,
         exclude_asset_id=rejected_asset_id,
+        current_asset_ids=current_asset_ids,
     )
 
     if decision.chosen is None:
@@ -529,7 +535,9 @@ def asset_set_blank(job_id: str, payload: AssetIndexRequest, request: Request) -
     clips = _load_clips(job_dir, payload.clip_index)
 
     _ensure_original(clips, payload.clip_index)
-    clips[payload.clip_index].update(
+    entry = clips[payload.clip_index]
+    old_asset_id = entry.get("asset_id", "")
+    entry.update(
         {
             "file_path": "",
             "asset_id": "",
@@ -538,6 +546,9 @@ def asset_set_blank(job_id: str, payload: AssetIndexRequest, request: Request) -
             "visual_type": "blank",
         }
     )
+    if old_asset_id:
+        asset_repo = _asset_repo(root_dir)
+        asset_repo.decrement_usage(old_asset_id)
     _save_clips(job_dir, clips)
     logger.info(f"[AssetReview] set-blank: job={job_id}, index={payload.clip_index}")
     return {"status": "set_blank", "job_id": job_id, "clip_index": payload.clip_index}
@@ -577,10 +588,12 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
 
     _ensure_original(clips, payload.clip_index)
     entry = clips[payload.clip_index]
+    old_asset_id = entry.get("asset_id", "")
+    new_asset_id = asset.asset_id
     entry.update(
         {
             "file_path": asset.file_path,
-            "asset_id": asset.asset_id,
+            "asset_id": new_asset_id,
             "duration_seconds": asset.duration_seconds,
             "category": asset.category,
             "method": "manual",
@@ -589,6 +602,10 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
     )
     # Preserve business fields that are not part of the asset metadata.
     entry.setdefault("requested_category", entry.get("category", ""))
+    if old_asset_id and old_asset_id != new_asset_id:
+        asset_repo.decrement_usage(old_asset_id)
+    if old_asset_id != new_asset_id:
+        asset_repo.increment_usage(new_asset_id)
     _save_clips(job_dir, clips)
     logger.info(
         f"[AssetReview] set-asset: job={job_id}, index={payload.clip_index}, "
@@ -613,8 +630,16 @@ def asset_restore(job_id: str, payload: AssetIndexRequest, request: Request) -> 
     if "_original" not in entry:
         raise HTTPException(status_code=400, detail="no original state to restore")
 
+    current_asset_id = entry.get("asset_id", "")
     original = entry.pop("_original")
+    original_asset_id = original.get("asset_id", "")
     clips[payload.clip_index].update(original)
+    if current_asset_id and current_asset_id != original_asset_id:
+        asset_repo = _asset_repo(root_dir)
+        asset_repo.decrement_usage(current_asset_id)
+    if original_asset_id and original_asset_id != current_asset_id:
+        asset_repo = _asset_repo(root_dir)
+        asset_repo.increment_usage(original_asset_id)
     _save_clips(job_dir, clips)
     logger.info(f"[AssetReview] restore: job={job_id}, index={payload.clip_index}")
     return {

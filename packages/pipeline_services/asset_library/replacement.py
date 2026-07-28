@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import random
+from collections import Counter
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from packages.pipeline_services.asset_library.models import AssetRecord
@@ -18,6 +20,7 @@ class ReplacementDiagnostics:
     same_id: int = 0
     overused: int = 0
     bad_duration: int = 0
+    job_overused: int = 0
 
 
 @dataclass
@@ -38,24 +41,27 @@ def select_replacement(
     product: str,
     category: str,
     exclude_asset_id: str,
+    current_asset_ids: Collection[str] | None = None,
 ) -> ReplacementDecision:
     """Select a replacement asset for a clip position.
 
     The function is side-effect free: it does not update ``selected_clips.json``
     or ``usage_count``. Callers are responsible for persisting any changes.
 
-    Selection rules (mirroring the legacy ``reject-clip`` / ``re-search``
-    behavior but unified):
+    Selection rules:
 
     - Query the asset index for ``product`` + ``category``.
     - Exclude the currently assigned ``asset_id``.
-    - Exclude assets whose ``usage_count >= MAX_CLIP_REUSE``.
     - Exclude assets with unusable duration (shorter than
       ``MIN_CLIP_DURATION_SECONDS`` when a duration is present).
-    - Pick uniformly at random from the remaining candidates.
-
-    Known limitation: ``set-blank``, ``set-asset`` and ``restore`` currently do
-    not adjust ``usage_count``. This helper only covers the re-search path.
+    - Prefer assets that are not already heavily used inside the current job
+      (``current_asset_ids``). The hard reuse limit is applied per-job, not
+      globally, so a material that was used in earlier jobs can still be used
+      as long as it is fresh in this video.
+    - If every candidate is already used in the current job, fall back to the
+      least-used material globally so the user still gets a replacement rather
+      than an error.
+    - Ties are broken uniformly at random.
     """
     if not product:
         return ReplacementDecision(
@@ -69,16 +75,36 @@ def select_replacement(
         )
 
     all_candidates = asset_repo.query_by_category_name(product, category)
-    candidates = [
+    job_counts = Counter(current_asset_ids or ())
+
+    # Base pool: same category, not the rejected asset, duration OK.
+    base_candidates = [
         c
         for c in all_candidates
-        if c.asset_id != exclude_asset_id
-        and c.usage_count < MAX_CLIP_REUSE
-        and _has_usable_duration(c)
+        if c.asset_id != exclude_asset_id and _has_usable_duration(c)
+    ]
+
+    # Prefer candidates that are still fresh inside this job.
+    candidates = [
+        c
+        for c in base_candidates
+        if job_counts[c.asset_id] < MAX_CLIP_REUSE
     ]
 
     if candidates:
-        return ReplacementDecision(chosen=random.choice(candidates))
+        # Prefer fewer in-job uses, then lower global usage_count.
+        candidates.sort(key=lambda c: (job_counts[c.asset_id], c.usage_count))
+        min_key = (job_counts[candidates[0].asset_id], candidates[0].usage_count)
+        best = [c for c in candidates if (job_counts[c.asset_id], c.usage_count) == min_key]
+        return ReplacementDecision(chosen=random.choice(best))
+
+    # Fallback: every candidate is already used in this job. Pick the least-used
+    # globally so the user always gets a different asset when one exists.
+    if base_candidates:
+        base_candidates.sort(key=lambda c: c.usage_count)
+        min_usage = base_candidates[0].usage_count
+        best = [c for c in base_candidates if c.usage_count == min_usage]
+        return ReplacementDecision(chosen=random.choice(best))
 
     diagnostics = ReplacementDiagnostics(
         total=len(all_candidates),
@@ -88,6 +114,13 @@ def select_replacement(
         ),
         bad_duration=sum(
             1 for c in all_candidates if not _has_usable_duration(c)
+        ),
+        job_overused=sum(
+            1
+            for c in all_candidates
+            if c.asset_id != exclude_asset_id
+            and _has_usable_duration(c)
+            and job_counts[c.asset_id] >= MAX_CLIP_REUSE
         ),
     )
 
@@ -109,6 +142,7 @@ def _build_no_replacement_reason(
     same_id = diagnostics.same_id
     overused = diagnostics.overused
     bad_duration = diagnostics.bad_duration
+    job_overused = diagnostics.job_overused
 
     if total == 0:
         return f"no assets found for product={product}, category={category}"
@@ -119,8 +153,10 @@ def _build_no_replacement_reason(
         )
 
     parts: list[str] = []
+    if job_overused:
+        parts.append(f"{job_overused} already used in this job (>= {MAX_CLIP_REUSE})")
     if overused:
-        parts.append(f"{overused} overused (>= {MAX_CLIP_REUSE})")
+        parts.append(f"{overused} overused globally (>= {MAX_CLIP_REUSE})")
     if bad_duration:
         parts.append(f"{bad_duration} with unusable duration")
     if same_id:
