@@ -95,10 +95,10 @@ export default function ClipReviewCard({
 			className={`border rounded-lg overflow-hidden transition-colors max-w-full ${
 				searching
 					? "border-[var(--color-caution-amber)] bg-[var(--color-caution-amber)]/5"
-					: rejected
-						? "border-[var(--danger-border)] bg-[var(--danger-bg)]"
-						: isBlank
-							? "border-gray-600 bg-gray-950"
+					: isBlank
+						? "border-gray-600 bg-gray-950"
+						: rejected
+							? "border-[var(--danger-border)] bg-[var(--danger-bg)]"
 							: isUnresolved
 								? "border-[var(--color-caution-amber)] bg-[var(--color-caution-amber)]/5"
 								: "border-[var(--border-default)] bg-white"

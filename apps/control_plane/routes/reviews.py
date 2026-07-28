@@ -1,6 +1,5 @@
 import json
 import logging
-import random
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -10,11 +9,13 @@ from packages.domain_core.models import REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
 from apps.control_plane.routes.jobs.helpers import _resolve_job_project
 from packages.file_store.layout import WorkspaceLayout
+from packages.log_service.log_writer import log_error
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
     validate_assets,
     write_reviewed_snapshot,
 )
+from packages.pipeline_services.asset_library.replacement import select_replacement
 from packages.pipeline_services.script_service import generate_script
 from packages.provider_config.config_reader import ConfigReader, ConfigResolver
 from packages.provider_config.secret_store import SecretStore
@@ -256,142 +257,122 @@ class RejectClipRequest(BaseModel):
 
 @router.post("/{job_id}/reject-clip")
 def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> dict:
-    root_dir = Path(request.app.state.root_dir)
-    layout = WorkspaceLayout(root_dir)
+    """Reject a single clip and replace it with an alternative asset if available.
 
-    # Resolve project_id and product from the canonical job record instead of
-    # relying solely on the query param. This keeps reject-clip working when the
-    # caller omits project_id or when the runtime directory exists under a
-    # different project than the control record.
-    repo = FileStoreRepository(root_dir)
-    project_id = _resolve_job_project(repo, job_id)
-    record = repo.load_job(project_id, job_id)
+    This endpoint now serves as the single backend entry point for per-clip
+    re-search. It reuses the shared ``select_replacement`` helper and always
+    requires the job to be in the ``asset_review`` phase.
+    """
+    root_dir, _, job_dir = _resolve_job_context(request, job_id)
+    record = _check_asset_review_phase(root_dir, job_id)
+    clips = _load_clips(job_dir, payload.clip_index)
+
+    entry = clips[payload.clip_index]
+    sentence = entry.get("sentence", "")
+    category = entry.get("category", "")
+    rejected_asset_id = entry.get("asset_id", "")
     product = record.product or ""
 
-    job_dir = _find_job_dir(layout, project_id, job_id)
-    clips_path = job_dir / "selected_clips.json"
-
-    if not clips_path.exists():
-        raise HTTPException(status_code=404, detail="selected_clips.json not found")
-
-    try:
-        clips = json.loads(clips_path.read_text(encoding="utf-8"))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read clips: {e}")
-
-    if payload.clip_index < 0 or payload.clip_index >= len(clips):
-        raise HTTPException(
-            status_code=400, detail=f"Invalid clip index: {payload.clip_index}"
-        )
-
-    rejected_clip = clips[payload.clip_index]
-    sentence = rejected_clip.get("sentence", "")
-    category = rejected_clip.get("category", "")
-    rejected_asset_id = rejected_clip.get("asset_id", "")
-
     logger.info(
-        f"[Review] 打回单个素材: job={job_id}, index={payload.clip_index}, sentence={sentence[:30]}..., asset={rejected_asset_id}, product={product}, category={category}"
+        f"[Review] 打回单个素材: job={job_id}, index={payload.clip_index}, "
+        f"sentence={sentence[:30]}..., asset={rejected_asset_id}, "
+        f"product={product}, category={category}"
     )
 
-    replaced = False
-    reason = ""
+    # Blank clips are explicitly left empty by the user; do not overwrite them
+    # with a random asset during re-search.
+    if entry.get("visual_type") == "blank":
+        return {
+            "status": "clip_rejected",
+            "job_id": job_id,
+            "clip_index": payload.clip_index,
+            "sentence": sentence,
+            "replaced": False,
+            "reason": "blank clip unchanged by re-search",
+            "clip": entry,
+        }
+
+    asset_repo = _asset_repo(root_dir)
+    decision = select_replacement(
+        asset_repo,
+        product=product,
+        category=category,
+        exclude_asset_id=rejected_asset_id,
+    )
+
+    if decision.chosen is None:
+        logger.warning(
+            f"[Review] 无替代素材: sentence={sentence[:30]}..., "
+            f"category={category}, {decision.reason}"
+        )
+        _log_no_replacement(
+            job_id,
+            payload.clip_index,
+            category,
+            decision.reason,
+            decision.diagnostics,
+        )
+        return {
+            "status": "clip_rejected",
+            "job_id": job_id,
+            "clip_index": payload.clip_index,
+            "sentence": sentence,
+            "replaced": False,
+            "reason": decision.reason,
+            "diagnostics": (
+                decision.diagnostics.__dict__ if decision.diagnostics else {}
+            ),
+            "clip": entry,
+        }
 
     try:
-        from packages.pipeline_services.asset_library import AssetRepository
-        from packages.pipeline_services.asset_library.retriever import (
-            MAX_CLIP_REUSE,
-            _has_usable_duration,
+        chosen = decision.chosen
+        _ensure_original(clips, payload.clip_index)
+        clips[payload.clip_index].update(
+            {
+                "file_path": chosen.file_path,
+                "asset_id": chosen.asset_id,
+                "duration_seconds": chosen.duration_seconds,
+                "visual_type": "clip",
+                "method": "re_search",
+            }
         )
-
-        db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        asset_repo = AssetRepository(db_path)
-
-        if not product:
-            reason = "job product is empty; cannot query asset library"
-        elif not category:
-            reason = "clip category is empty; cannot query asset library"
-        else:
-            all_candidates = asset_repo.query_by_category_name(product, category)
-            candidates = [
-                c
-                for c in all_candidates
-                if c.asset_id != rejected_asset_id
-                and c.usage_count < MAX_CLIP_REUSE
-                and _has_usable_duration(c)
-            ]
-            if candidates:
-                chosen = random.choice(candidates)
-                _ensure_original(clips, payload.clip_index)
-                # Update in place: keep sentence_index / requested_category /
-                # visual_type etc. so the review card still renders as a clip.
-                clips[payload.clip_index].update(
-                    {
-                        "file_path": chosen.file_path,
-                        "asset_id": chosen.asset_id,
-                        "duration_seconds": chosen.duration_seconds,
-                        "visual_type": "clip",
-                        "method": "rejected_replaced",
-                    }
-                )
-                asset_repo.decrement_usage(rejected_asset_id)
-                asset_repo.increment_usage(chosen.asset_id)
-                replaced = True
-                logger.info(f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}")
-            else:
-                # Build a diagnostic reason so the UI can explain *why* no
-                # replacement was found instead of a generic message.
-                total = len(all_candidates)
-                same_id = sum(1 for c in all_candidates if c.asset_id == rejected_asset_id)
-                overused = sum(
-                    1 for c in all_candidates if c.usage_count >= MAX_CLIP_REUSE
-                )
-                bad_duration = sum(
-                    1 for c in all_candidates if not _has_usable_duration(c)
-                )
-                if total == 0:
-                    reason = f"no assets found for product={product}, category={category}"
-                elif total == same_id:
-                    reason = f"only the current asset exists in product={product}, category={category}"
-                else:
-                    parts = []
-                    if overused:
-                        parts.append(f"{overused} overused (>= {MAX_CLIP_REUSE})")
-                    if bad_duration:
-                        parts.append(f"{bad_duration} with unusable duration")
-                    if same_id:
-                        parts.append(f"{same_id} is the current asset")
-                    reason = (
-                        f"no usable alternative in product={product}, category={category}"
-                        f" ({'; '.join(parts)})"
-                    )
-                logger.warning(
-                    f"[Review] 无替代素材: sentence={sentence[:30]}..., category={category}, {reason}"
-                )
-
-        clips_path.write_text(
-            json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
+        # Maintain the usage_count invariant: old asset is no longer referenced,
+        # new asset is now referenced.
+        asset_repo.decrement_usage(rejected_asset_id)
+        asset_repo.increment_usage(chosen.asset_id)
+        _save_clips(job_dir, clips)
+        logger.info(
+            f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}"
         )
-
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"[Review] 替换素材失败: {e}")
-        clips[payload.clip_index]["method"] = "rejected_error"
-        clips_path.write_text(
-            json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
+        _log_replacement_error(
+            job_id, payload.clip_index, category, e
         )
-        raise HTTPException(status_code=500, detail=f"asset replacement failed: {e}")
+        # Best-effort: record that replacement failed. If this secondary write
+        # also fails we still raise a 500 so the client sees an error rather
+        # than an unhandled exception.
+        try:
+            clips[payload.clip_index]["method"] = "rejected_error"
+            _save_clips(job_dir, clips)
+        except Exception as save_exc:  # noqa: BLE001
+            logger.warning(
+                f"[Review] 标记 rejected_error 失败: {save_exc}"
+            )
+        raise HTTPException(
+            status_code=500, detail=f"asset replacement failed: {e}"
+        )
 
     return {
         "status": "clip_rejected",
         "job_id": job_id,
         "clip_index": payload.clip_index,
         "sentence": sentence,
-        # Updated entry lets the frontend patch the single card in place,
-        # skipping a full job + clip-list reload round trip.
-        "replaced": replaced,
-        "reason": reason,
+        "replaced": True,
+        "reason": "",
         "clip": clips[payload.clip_index],
     }
 
@@ -468,6 +449,78 @@ def _ensure_original(clips: list[dict], index: int) -> None:
         }
 
 
+def _asset_repo(root_dir: Path):
+    """Return an AssetRepository pointing at the workspace shared asset index."""
+    from packages.pipeline_services.asset_library import AssetRepository
+
+    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    return AssetRepository(db_path)
+
+
+def _log_no_replacement(
+    job_id: str,
+    clip_index: int,
+    category: str,
+    reason: str,
+    diagnostics,
+    log_dir: Path | None = None,
+) -> None:
+    """Persist a structured warning when no replacement asset is found."""
+    log_error(
+        {
+            "source": "backend",
+            "level": "warn",
+            "message": (
+                f"[AssetReview] 无替代素材: job={job_id}, "
+                f"clip_index={clip_index}, category={category}, reason={reason}"
+            ),
+            "path": f"/api/reviews/{job_id}/reject-clip",
+            "extra": {
+                "job_id": job_id,
+                "clip_index": clip_index,
+                "category": category,
+                "reason": reason,
+                "diagnostics": (
+                    diagnostics.__dict__ if diagnostics else {}
+                ),
+            },
+        },
+        log_dir=log_dir,
+    )
+
+
+def _log_replacement_error(
+    job_id: str,
+    clip_index: int,
+    category: str,
+    exc: Exception,
+    log_dir: Path | None = None,
+) -> None:
+    """Persist a structured error log when replacement fails unexpectedly."""
+    import traceback
+
+    log_error(
+        {
+            "source": "backend",
+            "level": "error",
+            "message": (
+                f"[AssetReview] 替换素材失败: job={job_id}, "
+                f"clip_index={clip_index}, category={category}, error={exc}"
+            ),
+            "path": f"/api/reviews/{job_id}/reject-clip",
+            "stack_trace": traceback.format_exc(),
+            "extra": {
+                "job_id": job_id,
+                "clip_index": clip_index,
+                "category": category,
+                "error": str(exc),
+            },
+        },
+        log_dir=log_dir,
+    )
+
+
 @router.post("/{job_id}/asset/set-blank")
 def asset_set_blank(job_id: str, payload: AssetIndexRequest, request: Request) -> dict:
     """Set a clip position to blank (black frame, no asset)."""
@@ -498,46 +551,20 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
     the asset metadata against the shared asset index.
     """
     root_dir, _, job_dir = _resolve_job_context(request, job_id)
-    _check_asset_review_phase(root_dir, job_id)
-
-    repo = FileStoreRepository(root_dir)
-    project_id = _resolve_job_project(repo, job_id)
-    record = repo.load_job(project_id, job_id)
-    job_product = record.product or ""
-
+    record = _check_asset_review_phase(root_dir, job_id)
     clips = _load_clips(job_dir, payload.clip_index)
-    repo = FileStoreRepository(root_dir)
-    project_id = _resolve_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
-    product = repo.load_job(project_id, job_id).product
 
-    from packages.pipeline_services.asset_library import AssetRepository
-
-    asset_db = root_dir / "workspace" / "shared_assets" / "asset_index.db"
-    asset_db.parent.mkdir(parents=True, exist_ok=True)
-    asset_repo = AssetRepository(asset_db)
+    job_product = record.product or ""
+    asset_repo = _asset_repo(root_dir)
     asset = asset_repo.query_one(payload.asset_id)
     if asset is None:
-        raise HTTPException(status_code=404, detail="asset not found")
-    if asset.status != "available":
-        raise HTTPException(status_code=409, detail="asset is not available")
-    if asset.product != product:
-        raise HTTPException(status_code=409, detail="asset is outside the job product")
-
-    db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    arepo = AssetRepository(db_path)
-    asset = arepo.query_one(payload.asset_id)
-    if asset is None:
         raise HTTPException(
-            status_code=404,
-            detail=f"asset {payload.asset_id} not found in index",
+            status_code=404, detail=f"asset {payload.asset_id} not found in index"
         )
-    if asset.status == "disabled":
+    if asset.status != "available":
         raise HTTPException(
             status_code=409,
-            detail=f"asset {payload.asset_id} is disabled",
+            detail=f"asset {payload.asset_id} is not available",
         )
     if job_product and asset.product and job_product != asset.product:
         raise HTTPException(
@@ -564,99 +591,14 @@ def asset_set_asset(job_id: str, payload: SetAssetRequest, request: Request) -> 
     entry.setdefault("requested_category", entry.get("category", ""))
     _save_clips(job_dir, clips)
     logger.info(
-        f"[AssetReview] set-asset: job={job_id}, index={payload.clip_index}, asset={asset.asset_id}"
+        f"[AssetReview] set-asset: job={job_id}, index={payload.clip_index}, "
+        f"asset={asset.asset_id}"
     )
     return {
         "status": "set_asset",
         "job_id": job_id,
         "clip_index": payload.clip_index,
         "visual_type": "clip",
-    }
-
-
-@router.post("/{job_id}/asset/re-search")
-def asset_re_search(job_id: str, payload: AssetIndexRequest, request: Request) -> dict:
-    """Re-search for an asset at a clip position.
-
-    Does NOT overwrite clips that are explicitly blank.
-    """
-    root_dir, _, job_dir = _resolve_job_context(request, job_id)
-    record = _check_asset_review_phase(root_dir, job_id)
-    clips = _load_clips(job_dir, payload.clip_index)
-
-    entry = clips[payload.clip_index]
-    if entry.get("visual_type") == "blank":
-        logger.info(
-            f"[AssetReview] re-search skipped for blank: job={job_id}, index={payload.clip_index}"
-        )
-        return {
-            "status": "re_searched",
-            "job_id": job_id,
-            "clip_index": payload.clip_index,
-            "visual_type": "blank",
-            "note": "blank clip unchanged by re-search",
-        }
-
-    category = entry.get("category", "")
-    current_asset_id = entry.get("asset_id", "")
-
-    try:
-        from packages.pipeline_services.asset_library import AssetRepository
-        from packages.pipeline_services.asset_library.retriever import (
-            MAX_CLIP_REUSE,
-            _has_usable_duration,
-        )
-
-        db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
-        arepo = AssetRepository(db_path)
-
-        candidates = (
-            arepo.query_by_category_name(record.product, category) if category else []
-        )
-        candidates = [
-            c
-            for c in candidates
-            if c.asset_id != current_asset_id
-            and c.usage_count < MAX_CLIP_REUSE
-            and _has_usable_duration(c)
-        ]
-        if candidates:
-            chosen = random.choice(candidates)
-            _ensure_original(clips, payload.clip_index)
-            clips[payload.clip_index].update(
-                {
-                    "file_path": chosen.file_path,
-                    "asset_id": chosen.asset_id,
-                    "duration_seconds": chosen.duration_seconds,
-                    "visual_type": "clip",
-                    "method": "re_search",
-                }
-            )
-            logger.info(
-                f"[AssetReview] re-search: job={job_id}, index={payload.clip_index}, asset={chosen.asset_id}"
-            )
-        else:
-            clips[payload.clip_index].update(
-                {
-                    "file_path": "",
-                    "asset_id": "",
-                    "visual_type": "unresolved",
-                    "method": "re_search_no_result",
-                }
-            )
-            logger.info(
-                f"[AssetReview] re-search no result: job={job_id}, index={payload.clip_index}"
-            )
-    except Exception as e:
-        logger.error(f"[AssetReview] re-search failed: {e}")
-        clips[payload.clip_index]["visual_type"] = "unresolved"
-
-    _save_clips(job_dir, clips)
-    return {
-        "status": "re_searched",
-        "job_id": job_id,
-        "clip_index": payload.clip_index,
-        "visual_type": clips[payload.clip_index].get("visual_type"),
     }
 
 

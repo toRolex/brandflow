@@ -14,6 +14,8 @@ import * as reviews from "./reviews";
 import * as templates from "./templates";
 import * as tts from "./tts";
 
+export { ApiError } from "./core";
+
 /**
  * Backward-compatible API client barrel.
  *

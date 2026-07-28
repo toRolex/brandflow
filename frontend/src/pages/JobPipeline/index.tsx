@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
+import { ApiError } from "../../api/core";
 import PipelineSidebar from "../../components/PipelineSidebar";
 import { getJobActionPolicy } from "../../policies/jobActionPolicy";
 import { shouldPollJob } from "../../policies/jobPollingPolicy";
@@ -604,17 +605,26 @@ export default function JobPipeline() {
 					prev.map((c, i) => (i === clipIndex ? resp.clip! : c)),
 				);
 			}
-			setRejectedClips((prev) => new Set([...prev, clipIndex]));
+			if (resp?.replaced === true) {
+				// Only mark as rejected when the asset was actually swapped out.
+				// When no alternative exists we keep the original asset and show a
+				// notice instead of the red "rejected" styling.
+				setRejectedClips((prev) => new Set([...prev, clipIndex]));
+			}
 			if (resp && resp.replaced === false) {
 				setError(
 					resp.reason
-						? `该分类下没有可替代的素材，已保留原素材（${resp.reason}）`
-						: "该分类下没有可替代的素材，已保留原素材",
+						? `提示：该分类下没有可替代的素材，已保留原素材（${resp.reason}）`
+						: "提示：该分类下没有可替代的素材，已保留原素材",
 				);
 			}
 		} catch (e) {
 			console.error("reject clip failed", e);
-			setError("打回素材失败");
+			if (e instanceof ApiError && e.detail) {
+				setError(e.detail);
+			} else {
+				setError("打回素材失败");
+			}
 		} finally {
 			// The request is fast enough that the spinner would only flash for a
 			// few frames — hold it briefly so the re-search feedback registers.

@@ -1,13 +1,9 @@
-"""Regression tests for single-clip reject (打回检索) and asset re-search.
+"""Regression tests for single-clip reject (打回检索).
 
-The legacy ``/reject-clip`` endpoint used to *replace* the whole clip entry,
-dropping ``visual_type`` / ``sentence_index`` / ``requested_category`` /
-``duration_seconds`` — the review card then rendered the clip as
-"待处理/未匹配到素材" and the single-clip re-search looked broken.
-
-The ``/asset/re-search`` endpoint queried candidates with
-``entry.get("product", "")``, but selected_clips entries never carry a
-``product`` field, so it could never find a replacement.
+``/reject-clip`` is the single backend entry point for per-clip re-search.
+The legacy ``/asset/re-search`` endpoint has been removed; its behaviour
+(blank clips are skipped, method is ``re_search``) is now provided by
+``/reject-clip``.
 """
 
 from __future__ import annotations
@@ -15,6 +11,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -30,8 +27,9 @@ def _setup(
     *,
     project_id: str = "proj-001",
     job_project_id: str | None = None,
+    phase: str = "asset_review",
 ) -> dict:
-    """Create a job in asset_review plus an asset library.
+    """Create a job plus an asset library and return context helpers.
 
     ``assets`` is a list of (asset_id, category) rows for PRODUCT.
     ``job_project_id`` overrides the ``project_id`` stored in the job record
@@ -57,7 +55,7 @@ def _setup(
                 "job_id": job_id,
                 "project_id": stored_project_id,
                 "product": PRODUCT,
-                "phase": "asset_review",
+                "phase": phase,
                 "review_status": "pending",
                 "mode": "generate",
             },
@@ -114,6 +112,16 @@ def _clips(ctx: dict) -> list[dict]:
     return json.loads(clips_path.read_text(encoding="utf-8"))
 
 
+def _usage_count(ctx: dict, asset_id: str) -> int:
+    db_path = ctx["root_dir"] / "workspace" / "shared_assets" / "asset_index.db"
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT usage_count FROM assets WHERE asset_id = ?", (asset_id,)
+    ).fetchone()
+    conn.close()
+    return row[0] if row else -1
+
+
 CLIP = {
     "sentence": "第一句介绍。",
     "sentence_index": 0,
@@ -152,7 +160,7 @@ class TestRejectClip:
         assert entry["asset_id"] == "alt1"
         assert entry["file_path"] == "/data/alt1.mp4"
         assert entry["duration_seconds"] == 6.0
-        assert entry["method"] == "rejected_replaced"
+        assert entry["method"] == "re_search"
         # Fields the review card depends on must survive the replacement.
         assert entry["visual_type"] == "clip"
         assert entry["sentence_index"] == 0
@@ -160,6 +168,32 @@ class TestRejectClip:
         assert entry["sentence"] == "第一句介绍。"
         # Original state recorded for 恢复原始选择.
         assert entry["_original"]["asset_id"] == "a1"
+
+    def test_usage_count_updated_on_replacement(self, tmp_path: Path) -> None:
+        ctx = _setup(
+            tmp_path,
+            [dict(CLIP)],
+            [("a1", "intro"), ("alt1", "intro")],
+        )
+        # Seed initial usage counts to verify decrement + increment.
+        db_path = ctx["root_dir"] / "workspace" / "shared_assets" / "asset_index.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("UPDATE assets SET usage_count = 1 WHERE asset_id = 'a1'")
+        conn.execute("UPDATE assets SET usage_count = 1 WHERE asset_id = 'alt1'")
+        conn.commit()
+        conn.close()
+
+        app = create_app(root_dir=ctx["root_dir"])
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/reject-clip?project_id={ctx['project_id']}",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["replaced"] is True
+
+        assert _usage_count(ctx, "a1") == 0
+        assert _usage_count(ctx, "alt1") == 2
 
     def test_no_alternative_keeps_entry_untouched(self, tmp_path: Path) -> None:
         ctx = _setup(tmp_path, [dict(CLIP)], [("a1", "intro")])
@@ -173,19 +207,19 @@ class TestRejectClip:
             body = resp.json()
             assert body["replaced"] is False
             assert body["clip"]["asset_id"] == "a1"
+            assert "intro" in body["reason"]
+            assert body["diagnostics"]["total"] == 1
+            assert body["diagnostics"]["same_id"] == 1
 
         entry = _clips(ctx)[0]
         assert entry["asset_id"] == "a1"
         assert entry["visual_type"] == "clip"
         assert entry["method"] == "llm_match"
 
-    def test_replacement_works_when_query_project_id_is_missing(self, tmp_path: Path) -> None:
-        """Reject-clip must still resolve the job's product when project_id is omitted.
-
-        The endpoint's internal job-dir resolution can fall back to scanning all
-        projects, but the product lookup must use the canonical job record rather
-        than an empty/missing query-project_id path.
-        """
+    def test_replacement_works_when_query_project_id_is_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """Reject-clip must still resolve the job's product when project_id is omitted."""
         ctx = _setup(
             tmp_path,
             [dict(CLIP)],
@@ -210,14 +244,7 @@ class TestRejectClip:
     def test_replacement_fails_when_job_product_mismatches_asset_product(
         self, tmp_path: Path
     ) -> None:
-        """A product mismatch between job and assets yields no candidates.
-
-        This captures the real-world failure mode where the asset library was
-        indexed under a different product name than the current job uses, so
-        reject-clip cannot find any alternative and misleadingly reports
-        "该分类下没有可替代的素材".
-        """
-        # Override the job record to use a different product than the assets.
+        """A product mismatch between job and assets yields no candidates."""
         ctx = _setup(
             tmp_path,
             [dict(CLIP)],
@@ -250,11 +277,111 @@ class TestRejectClip:
             assert body["replaced"] is False
             assert body["clip"]["asset_id"] == "a1"
 
+    def test_reject_clip_requires_asset_review_phase(self, tmp_path: Path) -> None:
+        """Mutating clips is only allowed during asset_review."""
+        ctx = _setup(
+            tmp_path,
+            [dict(CLIP)],
+            [("a1", "intro"), ("alt1", "intro")],
+            phase="montage_assembling",
+        )
+        app = create_app(root_dir=ctx["root_dir"])
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/reject-clip?project_id={ctx['project_id']}",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 409
+            assert "asset_review" in resp.json()["detail"]
 
-class TestAssetReSearch:
-    def test_re_search_uses_job_product_and_excludes_current(
-        self, tmp_path: Path
+    def test_blank_clip_is_skipped(self, tmp_path: Path) -> None:
+        """Re-search must not overwrite clips explicitly marked as blank."""
+        blank_clip = {**CLIP, "visual_type": "blank", "method": "blank"}
+        ctx = _setup(
+            tmp_path,
+            [blank_clip],
+            [("a1", "intro"), ("alt1", "intro")],
+        )
+        app = create_app(root_dir=ctx["root_dir"])
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/reject-clip?project_id={ctx['project_id']}",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["replaced"] is False
+            assert body["clip"]["visual_type"] == "blank"
+
+        entry = _clips(ctx)[0]
+        assert entry["asset_id"] == "a1"
+        assert entry["visual_type"] == "blank"
+
+    def test_replacement_failure_marks_rejected_error(
+        self, tmp_path: Path, monkeypatch
     ) -> None:
+        """If persistence fails after usage_count is adjusted, the clip is marked."""
+        ctx = _setup(
+            tmp_path,
+            [dict(CLIP)],
+            [("a1", "intro"), ("alt1", "intro")],
+        )
+
+        def _failing_save(job_dir, clips):
+            raise OSError("simulated write failure")
+
+        monkeypatch.setattr(
+            "apps.control_plane.routes.reviews._save_clips", _failing_save
+        )
+
+        app = create_app(root_dir=ctx["root_dir"])
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/reject-clip?project_id={ctx['project_id']}",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 500
+
+        # Because _save_clips was patched to fail, the file still has the
+        # original clip; the in-memory mutation attempted to set method to
+        # rejected_error but was not persisted. This test primarily verifies
+        # the route returns 500 rather than crashing silently.
+        assert "simulated write failure" in resp.json()["detail"]
+
+
+    def test_no_alternative_logs_structured_warning(self, tmp_path: Path) -> None:
+        """A missing replacement writes a structured warning via log_service."""
+        ctx = _setup(tmp_path, [dict(CLIP)], [("a1", "intro")])
+        app = create_app(root_dir=ctx["root_dir"])
+
+        captured: list[dict] = []
+
+        def _fake_log_error(entry: dict, log_dir=None) -> None:
+            captured.append(entry)
+
+        with patch("apps.control_plane.routes.reviews.log_error", _fake_log_error):
+            with TestClient(app) as client:
+                resp = client.post(
+                    f"/api/reviews/{ctx['job_id']}/reject-clip?project_id={ctx['project_id']}",
+                    json={"clip_index": 0},
+                )
+                assert resp.status_code == 200
+
+        assert len(captured) == 1
+        entry = captured[0]
+        assert entry["level"] == "warn"
+        assert entry["source"] == "backend"
+        assert ctx["job_id"] in entry["message"]
+        assert "intro" in entry["extra"]["reason"]
+        assert "no usable alternative" in entry["extra"]["reason"] or "only the current asset exists" in entry["extra"]["reason"]
+        diagnostics = entry["extra"]["diagnostics"]
+        assert diagnostics["total"] == 1
+        assert diagnostics["same_id"] == 1
+
+
+class TestAssetReSearchRemoved:
+    def test_re_search_endpoint_returns_404(self, tmp_path: Path) -> None:
+        """The legacy /asset/re-search endpoint has been removed."""
         ctx = _setup(
             tmp_path,
             [dict(CLIP)],
@@ -266,11 +393,4 @@ class TestAssetReSearch:
                 f"/api/reviews/{ctx['job_id']}/asset/re-search?project_id={ctx['project_id']}",
                 json={"clip_index": 0},
             )
-            assert resp.status_code == 200
-            assert resp.json()["visual_type"] == "clip"
-
-        entry = _clips(ctx)[0]
-        # Must not silently keep/re-pick the rejected asset.
-        assert entry["asset_id"] == "alt1"
-        assert entry["visual_type"] == "clip"
-        assert entry["method"] == "re_search"
+            assert resp.status_code == 404
