@@ -844,7 +844,12 @@ class JobTickService:
                     project_dir=project_dir,
                     options=options,
                 )
-                logger.info("running handler phase=%s attempt=%s", handler_phase, current_attempt)
+                logger.info(
+                    "running handler phase=%s attempt=%s",
+                    handler_phase,
+                    current_attempt,
+                )
+                handler_exception: Exception | None = None
                 try:
                     if action.parallel_phases:
                         all_phases = [handler_phase] + action.parallel_phases
@@ -888,14 +893,17 @@ class JobTickService:
                         try:
                             artifacts = self._orchestrator.run_phase(handler_phase, ctx)
                         except Exception as exc:
-                            primary_result = PhaseExecutionFailure(
+                            primary_result = PhaseExecutionFailure.from_exception(
                                 error=ExecutionFailure(
                                     code="HANDLER_EXCEPTION",
                                     message=f"{handler_phase} failed: {exc}",
                                     retryable=True,
-                                )
+                                ),
+                                cause=exc,
                             )
                             artifacts = []
+                    if isinstance(primary_result, PhaseExecutionFailure):
+                        handler_exception = primary_result.cause
                 except Exception as e:
                     raise PhaseExecutionError(job_id, handler_phase, str(e), e) from e
 
@@ -926,11 +934,22 @@ class JobTickService:
                 )
 
                 if execution.status == "failed":
+                    exc_info = (
+                        (
+                            type(handler_exception),
+                            handler_exception,
+                            handler_exception.__traceback__,
+                        )
+                        if handler_exception is not None
+                        else None
+                    )
                     logger.error(
-                        "handler failed phase=%s code=%s attempt=%s",
+                        "handler failed phase=%s code=%s attempt=%s error=%s",
                         handler_phase,
                         primary_result.error.code,
                         current_attempt,
+                        primary_result.error.message,
+                        exc_info=exc_info,
                     )
                     # Terminal failure — update phase and save.
                     record = record.model_copy(
@@ -941,11 +960,12 @@ class JobTickService:
 
                 # Retryable — save retrying state, backoff, then reload and retry.
                 logger.warning(
-                    "retrying phase=%s after %.1fs (attempt %s/%s)",
+                    "retrying phase=%s after %.1fs (attempt %s/%s) reason=%s",
                     handler_phase,
                     _retry_delay(execution.current_attempt),
                     execution.current_attempt,
                     execution.max_attempts,
+                    primary_result.error.message,
                 )
                 self._repo.save_job(project_id, record)
                 self._sleep_fn(_retry_delay(execution.current_attempt))
@@ -971,8 +991,6 @@ class JobTickService:
                 action = _transition_after_artifacts(
                     record, tuple(artifacts), phase=handler_phase
                 )
-            if action.new_phase is not None and action.new_phase != initial_phase:
-                logger.info("transition %s -> %s", initial_phase, action.new_phase)
             if isinstance(primary_result, PhaseExecutionSuccess):
                 record = record.model_copy(
                     update={
@@ -1128,6 +1146,9 @@ class JobTickService:
                     }
                 )
                 action = _compute_transition(record, ())
+
+        if action.new_phase is not None and action.new_phase != initial_phase:
+            logger.info("transition %s -> %s", initial_phase, action.new_phase)
 
         # 5. Apply phase / review_status changes
         update: dict[str, Any] = {}

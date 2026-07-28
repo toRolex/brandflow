@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, TypeAdapter
 
 from packages.domain_core.models import (
     ArtifactPointer,
@@ -26,6 +26,29 @@ class PhaseExecutionFailure(BaseModel):
 
     outcome: Literal["failure"] = "failure"
     error: ExecutionFailure
+    _cause: Exception | None = PrivateAttr(default=None)
+
+    @property
+    def cause(self) -> Exception | None:
+        """Return the in-process exception without exposing it on the wire."""
+        return self._cause
+
+    @classmethod
+    def from_exception(
+        cls,
+        *,
+        error: ExecutionFailure,
+        cause: Exception,
+    ) -> "PhaseExecutionFailure":
+        """Build a serializable failure that retains local traceback context."""
+        result = cls(error=error)
+        result._cause = cause
+        return result
+
+    def with_cause(self, cause: Exception) -> "PhaseExecutionFailure":
+        """Attach local traceback context to an already classified failure."""
+        self._cause = cause
+        return self
 
 
 PhaseExecutionResult = Annotated[

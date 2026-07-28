@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -41,6 +43,27 @@ def test_failure_result_requires_structured_failure_data() -> None:
     assert isinstance(result, PhaseExecutionFailure)
     assert result.error.code == "TTS_PROVIDER_UNAVAILABLE"
     assert result.error.retryable is True
+
+
+def test_failure_exception_cause_stays_out_of_wire_payload() -> None:
+    result = PhaseExecutionFailure.from_exception(
+        error=ExecutionFailure(
+            code="TTS_PROVIDER_UNAVAILABLE",
+            message="配音服务暂时不可用，请稍后重试。",
+            retryable=True,
+        ),
+        cause=RuntimeError("provider exploded"),
+    )
+
+    payload = result.model_dump()
+    encoded = result.model_dump_json()
+
+    assert "cause" not in payload
+    assert "_cause" not in payload
+    assert "cause" not in encoded
+    restored = parse_phase_execution_result(json.loads(encoded))
+    assert isinstance(restored, PhaseExecutionFailure)
+    assert restored.cause is None
 
 
 @pytest.mark.parametrize(

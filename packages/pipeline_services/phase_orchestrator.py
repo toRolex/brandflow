@@ -199,26 +199,28 @@ class PhaseOrchestrator:
 
         try:
             artifacts = self.run_phase(phase, ctx)
-        except (TimeoutError, subprocess.TimeoutExpired):
-            return PhaseExecutionFailure(
+        except (TimeoutError, subprocess.TimeoutExpired) as exc:
+            return PhaseExecutionFailure.from_exception(
                 error=ExecutionFailure(
                     code="MEDIA_PROCESSING_TIMEOUT",
                     message=f"{phase} media processing timed out.",
                     retryable=True,
-                )
+                ),
+                cause=exc,
             )
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
-            return PhaseExecutionFailure(
+            return PhaseExecutionFailure.from_exception(
                 error=ExecutionFailure(
                     code="MEDIA_INPUT_INVALID",
                     message=f"{phase} input is invalid: {exc}",
                     retryable=False,
-                )
+                ),
+                cause=exc,
             )
         except ForceAlignError as exc:
             # Uploaded audio alignment failure — non-retryable data-quality issue
             detail = "\n".join(d.summary() for d in exc.result.diagnostics)
-            return PhaseExecutionFailure(
+            return PhaseExecutionFailure.from_exception(
                 error=ExecutionFailure(
                     code="UPLOAD_AUDIO_ALIGN_FAILED",
                     message=(
@@ -226,18 +228,20 @@ class PhaseOrchestrator:
                         f"\n{detail}"
                     ),
                     retryable=False,
-                )
+                ),
+                cause=exc,
             )
         except Exception as exc:
             # Provider-specific TTS error classification (#253)
             if phase == "tts_generating":
-                return self._classify_tts_error(phase, exc)
-            return PhaseExecutionFailure(
+                return self._classify_tts_error(phase, exc).with_cause(exc)
+            return PhaseExecutionFailure.from_exception(
                 error=ExecutionFailure(
                     code="MEDIA_PROCESSING_FAILED",
                     message=f"{phase} media processing failed: {exc}",
                     retryable=True,
-                )
+                ),
+                cause=exc,
             )
 
         if not artifacts:
@@ -374,13 +378,19 @@ class PhaseOrchestrator:
                 except Exception as exc:
                     if phase_name in STRUCTURED_MEDIA_PHASES:
                         raise
-                    _LOGGER.error("[PARALLEL] Phase %s failed: %s", phase_name, exc)
-                    result = PhaseExecutionFailure(
+                    _LOGGER.error(
+                        "[PARALLEL] Phase %s failed: %s",
+                        phase_name,
+                        exc,
+                        exc_info=True,
+                    )
+                    result = PhaseExecutionFailure.from_exception(
                         error=ExecutionFailure(
                             code="MEDIA_PROCESSING_FAILED",
                             message=f"{phase_name} media processing failed: {exc}",
                             retryable=True,
-                        )
+                        ),
+                        cause=exc,
                     )
                 # A legacy handler that produced nothing must not surface as
                 # an empty success — the structured contract has no such

@@ -80,6 +80,7 @@ def test_tick_logs_start_and_transition(
     start_logs = [r for r in caplog.records if "tick start" in r.message]
     assert start_logs, "expected tick start log"
     assert "job-001" in start_logs[0].message
+    assert start_logs[0].job_id == "job-001"  # type: ignore[attr-defined]
     assert start_logs[0].levelno == logging.INFO
 
     transition_logs = [r for r in caplog.records if "transition" in r.message]
@@ -143,3 +144,110 @@ def test_tick_logs_retry_path(
     assert retry_logs, "expected retry log"
     assert "job-001" in retry_logs[0].message
     assert retry_logs[0].levelno == logging.WARNING
+
+
+def test_tick_logs_transition_without_handler(
+    caplog: pytest.LogCaptureFixture,
+    tmp_root: Path,
+    mock_repo: Mock,
+    mock_orchestrator: Mock,
+) -> None:
+    """A lifecycle transition is logged even when no phase handler runs."""
+    caplog.set_level(logging.INFO)
+
+    record = _make_record("script_generating").model_copy(
+        update={"cancellation_requested": True}
+    )
+    mock_repo.load_job.return_value = record
+
+    svc = JobTickService(orchestrator=mock_orchestrator, repo=mock_repo)
+    summary = svc.tick(
+        "proj-001",
+        "job-001",
+        "demo",
+        root_dir=tmp_root,
+        project_dir=tmp_root / "project",
+    )
+
+    assert summary.to_phase == "cancelled"
+    transition_logs = [r for r in caplog.records if "transition" in r.message]
+    assert transition_logs, "expected handler-free transition log"
+    assert "script_generating -> cancelled" in transition_logs[0].message
+    assert "job-001" in transition_logs[0].message
+
+
+def test_tick_logs_handler_exception_with_traceback(
+    caplog: pytest.LogCaptureFixture,
+    tmp_root: Path,
+    mock_repo: Mock,
+    mock_orchestrator: Mock,
+) -> None:
+    """A terminal handler exception keeps its diagnostic message and traceback."""
+    caplog.set_level(logging.ERROR)
+
+    record = _make_record("script_generating")
+    record.execution = PhaseExecutionState(
+        status="retrying", current_attempt=1, max_attempts=1
+    )
+    mock_repo.load_job.return_value = record
+    mock_orchestrator.run_phase.side_effect = RuntimeError("provider exploded")
+
+    svc = JobTickService(orchestrator=mock_orchestrator, repo=mock_repo)
+    summary = svc.tick(
+        "proj-001",
+        "job-001",
+        "demo",
+        root_dir=tmp_root,
+        project_dir=tmp_root / "project",
+    )
+
+    assert summary.to_phase == "failed"
+    failure_logs = [r for r in caplog.records if "handler failed" in r.message]
+    assert failure_logs
+    assert "provider exploded" in failure_logs[0].message
+    assert failure_logs[0].exc_info is not None
+
+
+def test_tick_logs_structured_handler_exception_with_traceback(
+    caplog: pytest.LogCaptureFixture,
+    tmp_root: Path,
+    mock_repo: Mock,
+    mock_orchestrator: Mock,
+) -> None:
+    """A structured phase failure retains the provider exception traceback."""
+    from packages.domain_core.models import ExecutionFailure
+    from packages.domain_core.phase_execution import PhaseExecutionFailure
+
+    caplog.set_level(logging.ERROR)
+    record = _make_record("tts_generating")
+    record.execution = PhaseExecutionState(
+        status="retrying", current_attempt=1, max_attempts=1
+    )
+    mock_repo.load_job.return_value = record
+    try:
+        raise RuntimeError("structured provider exploded")
+    except RuntimeError as exc:
+        cause = exc
+    mock_orchestrator.execute_phase.return_value = PhaseExecutionFailure.from_exception(
+        error=ExecutionFailure(
+            code="TTS_SYNTHESIS_FAILED",
+            message=str(cause),
+            retryable=True,
+        ),
+        cause=cause,
+    )
+
+    svc = JobTickService(orchestrator=mock_orchestrator, repo=mock_repo)
+    summary = svc.tick(
+        "proj-001",
+        "job-001",
+        "demo",
+        root_dir=tmp_root,
+        project_dir=tmp_root / "project",
+    )
+
+    assert summary.to_phase == "failed"
+    failure_logs = [r for r in caplog.records if "handler failed" in r.message]
+    assert failure_logs
+    assert "structured provider exploded" in failure_logs[0].message
+    assert failure_logs[0].exc_info is not None

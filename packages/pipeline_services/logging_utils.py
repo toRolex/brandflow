@@ -19,6 +19,8 @@ class PipelineLoggerAdapter(logging.LoggerAdapter):
 
     def process(self, msg: str, kwargs: dict) -> tuple[str, dict]:
         job_id = self.extra.get("job_id")
+        call_extra = kwargs.get("extra") or {}
+        kwargs["extra"] = {**call_extra, **self.extra}
         if job_id:
             msg = f"[{job_id}] {msg}"
         return msg, kwargs

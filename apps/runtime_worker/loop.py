@@ -9,7 +9,6 @@ share identical pipeline logic.
 from __future__ import annotations
 
 import json
-import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -22,10 +21,11 @@ from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
 )
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 from packages.provider_config.config_reader import ConfigReader
 from packages.runtime_adapters import RuntimeAdapter
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_pipeline_logger(__name__)
 
 
 class WorkerLoop:
@@ -113,7 +113,9 @@ class WorkerLoop:
                 },
             )
             logger = _LOGGER.bind(job_id)
-            logger.info("received task phase=%s task_id=%s", handler_phase, command["task_id"])
+            logger.info(
+                "received task phase=%s task_id=%s", handler_phase, command["task_id"]
+            )
 
             # Execute the single requested phase and any parallel phases
             try:
@@ -171,7 +173,9 @@ class WorkerLoop:
                 uploaded_files = []
 
             finished_at = datetime.now(timezone.utc).isoformat()
-            logger.info("submitting report task_id=%s status=%s", command["task_id"], status)
+            logger.info(
+                "submitting report task_id=%s status=%s", command["task_id"], status
+            )
             self.api.report(
                 {
                     "worker_id": self.worker_id,
