@@ -141,13 +141,16 @@ export default function ClipReviewCard({
 						!isUnresolved &&
 						!searching && (
 							<span
-								className={`text-xs ${clip.method === "llm_match" ? "text-[var(--color-signal-green)]" : "text-[var(--text-tag-yellow)]"}`}
+								className={`text-xs ${clip.method === "llm_match" || clip.method === "rejected_replaced" || clip.method === "re_search" ? "text-[var(--color-signal-green)]" : "text-[var(--text-tag-yellow)]"}`}
 							>
 								{clip.method === "llm_match"
 									? "LLM 匹配"
 									: clip.method === "manual"
 										? "手动指定"
-										: "降级匹配"}
+										: clip.method === "rejected_replaced" ||
+											  clip.method === "re_search"
+											? "重新检索"
+											: "降级匹配"}
 							</span>
 						)
 					)}

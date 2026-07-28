@@ -145,6 +145,13 @@ export default function JobPipeline() {
 		load();
 	}, [load]);
 
+	// Clip-level review marks are per-job: reset them when navigating to a
+	// different job so stale "已打回" styling never leaks across jobs.
+	useEffect(() => {
+		setRejectedClips(new Set());
+		setReSearchingClips(new Set());
+	}, [id]);
+
 	useEffect(() => {
 		if (!id || !job || !shouldPollJob(job.phase)) return;
 		const t = setInterval(load, 10_000);
@@ -297,6 +304,12 @@ export default function JobPipeline() {
 		}
 		try {
 			await api.rejectReview(job.job_id, gate);
+			if (gate === "asset_review") {
+				// Full re-retrieval replaces every clip — clear per-clip marks so
+				// the incoming clips don't inherit stale "已打回/检索中" styling.
+				setRejectedClips(new Set());
+				setReSearchingClips(new Set());
+			}
 			load();
 		} catch (e) {
 			console.error("reject failed", e);
@@ -581,14 +594,30 @@ export default function JobPipeline() {
 
 	const handleRejectClip = async (clipIndex: number) => {
 		setReSearchingClips((prev) => new Set(prev).add(clipIndex));
+		const startedAt = Date.now();
 		try {
-			await api.rejectClip(job.job_id, clipIndex, job.project_id);
+			const resp = await api.rejectClip(job.job_id, clipIndex, job.project_id);
+			if (resp?.clip) {
+				// Patch the single card in place — no full job/clip-list reload,
+				// so the re-search feels near-instant.
+				setSelectedClips((prev) =>
+					prev.map((c, i) => (i === clipIndex ? resp.clip! : c)),
+				);
+			}
 			setRejectedClips((prev) => new Set([...prev, clipIndex]));
-			await load();
+			if (resp && resp.replaced === false) {
+				setError("该分类下没有可替代的素材，已保留原素材");
+			}
 		} catch (e) {
 			console.error("reject clip failed", e);
 			setError("打回素材失败");
 		} finally {
+			// The request is fast enough that the spinner would only flash for a
+			// few frames — hold it briefly so the re-search feedback registers.
+			const elapsed = Date.now() - startedAt;
+			if (elapsed < 600) {
+				await new Promise((resolve) => setTimeout(resolve, 600 - elapsed));
+			}
 			setReSearchingClips((prev) => {
 				const next = new Set(prev);
 				next.delete(clipIndex);

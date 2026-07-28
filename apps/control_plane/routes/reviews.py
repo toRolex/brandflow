@@ -304,36 +304,50 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
         product = job_data.get("product", "")
 
+    replaced = False
+
     try:
-        from packages.pipeline_services.asset_library import (
-            AssetRepository,
-            AssetRetriever,
+        from packages.pipeline_services.asset_library import AssetRepository
+        from packages.pipeline_services.asset_library.retriever import (
+            MAX_CLIP_REUSE,
+            _has_usable_duration,
         )
 
         db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
         repo = AssetRepository(db_path)
-        _ = AssetRetriever(repo)
 
-        candidates = repo.query_by_category(product, category)
+        candidates = (
+            repo.query_by_category_name(product, category) if category else []
+        )
         candidates = [
             c
             for c in candidates
-            if c.asset_id != rejected_asset_id and c.usage_count < 2
+            if c.asset_id != rejected_asset_id
+            and c.usage_count < MAX_CLIP_REUSE
+            and _has_usable_duration(c)
         ]
         if candidates:
             chosen = random.choice(candidates)
-            clips[payload.clip_index] = {
-                "sentence": sentence,
-                "category": category,
-                "file_path": chosen.file_path,
-                "asset_id": chosen.asset_id,
-                "method": "rejected_replaced",
-            }
+            _ensure_original(clips, payload.clip_index)
+            # Update in place: keep sentence_index / requested_category /
+            # visual_type etc. so the review card still renders as a clip.
+            clips[payload.clip_index].update(
+                {
+                    "file_path": chosen.file_path,
+                    "asset_id": chosen.asset_id,
+                    "duration_seconds": chosen.duration_seconds,
+                    "visual_type": "clip",
+                    "method": "rejected_replaced",
+                }
+            )
             repo.decrement_usage(rejected_asset_id)
             repo.increment_usage(chosen.asset_id)
+            replaced = True
             logger.info(f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}")
         else:
-            clips[payload.clip_index]["method"] = "rejected_no_alternative"
+            # No alternative: keep the original entry untouched so the card
+            # does not regress to an "unresolved" state.
             logger.warning(
                 f"[Review] 无替代素材: sentence={sentence[:30]}..., category={category}"
             )
@@ -354,6 +368,10 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         "job_id": job_id,
         "clip_index": payload.clip_index,
         "sentence": sentence,
+        # Updated entry lets the frontend patch the single card in place,
+        # skipping a full job + clip-list reload round trip.
+        "replaced": replaced,
+        "clip": clips[payload.clip_index],
     }
 
 
@@ -398,8 +416,11 @@ def _save_clips(job_dir: Path, clips: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _check_asset_review_phase(root_dir: Path, job_id: str) -> None:
-    """Raise 409 if the job is not in the asset_review phase."""
+def _check_asset_review_phase(root_dir: Path, job_id: str):
+    """Raise 409 if the job is not in the asset_review phase.
+
+    Returns the loaded JobRecord so callers can reuse fields like ``product``.
+    """
     repo = FileStoreRepository(root_dir)
     project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
@@ -408,6 +429,7 @@ def _check_asset_review_phase(root_dir: Path, job_id: str) -> None:
             status_code=409,
             detail=f"asset mutations are only allowed during asset_review phase (current: {record.phase})",
         )
+    return record
 
 
 def _ensure_original(clips: list[dict], index: int) -> None:
@@ -538,7 +560,7 @@ def asset_re_search(job_id: str, payload: AssetIndexRequest, request: Request) -
     Does NOT overwrite clips that are explicitly blank.
     """
     root_dir, _, job_dir = _resolve_job_context(request, job_id)
-    _check_asset_review_phase(root_dir, job_id)
+    record = _check_asset_review_phase(root_dir, job_id)
     clips = _load_clips(job_dir, payload.clip_index)
 
     entry = clips[payload.clip_index]
@@ -555,19 +577,28 @@ def asset_re_search(job_id: str, payload: AssetIndexRequest, request: Request) -
         }
 
     category = entry.get("category", "")
+    current_asset_id = entry.get("asset_id", "")
 
     try:
         from packages.pipeline_services.asset_library import AssetRepository
+        from packages.pipeline_services.asset_library.retriever import (
+            MAX_CLIP_REUSE,
+            _has_usable_duration,
+        )
 
         db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
         arepo = AssetRepository(db_path)
 
         candidates = (
-            arepo.query_by_category_name(entry.get("product", ""), category or "")
-            if category
-            else []
+            arepo.query_by_category_name(record.product, category) if category else []
         )
-        candidates = [c for c in candidates if c.usage_count < 2]
+        candidates = [
+            c
+            for c in candidates
+            if c.asset_id != current_asset_id
+            and c.usage_count < MAX_CLIP_REUSE
+            and _has_usable_duration(c)
+        ]
         if candidates:
             chosen = random.choice(candidates)
             _ensure_original(clips, payload.clip_index)

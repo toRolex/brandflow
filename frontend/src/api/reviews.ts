@@ -18,7 +18,11 @@ export const rejectClip = (
 	projectId?: string,
 ) => {
 	const qs = projectId ? `?project_id=${projectId}` : "";
-	return request<{ status: string }>(`/api/reviews/${jobId}/reject-clip${qs}`, {
+	return request<{
+		status: string;
+		replaced?: boolean;
+		clip?: Record<string, unknown>;
+	}>(`/api/reviews/${jobId}/reject-clip${qs}`, {
 		method: "POST",
 		body: JSON.stringify({ clip_index: clipIndex }),
 	});
