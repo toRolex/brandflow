@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { resolveAssetMediaUrl } from "../utils/assetMedia";
 import type { AssetRecord } from "../types";
 
 interface Props {
@@ -34,24 +35,6 @@ function formatDate(value: string) {
 		return value;
 	}
 	return date.toLocaleString("zh-CN", { hour12: false });
-}
-
-function resolveAssetMediaUrl(filePath: string) {
-	if (!filePath) {
-		return filePath;
-	}
-
-	const normalizedPath = filePath.replaceAll("\\", "/");
-	if (normalizedPath.startsWith("/workspace/")) {
-		return normalizedPath;
-	}
-
-	const workspaceIndex = normalizedPath.indexOf("/workspace/");
-	if (workspaceIndex >= 0) {
-		return normalizedPath.slice(workspaceIndex);
-	}
-
-	return normalizedPath;
 }
 
 function parseAssetTags(rawTags: unknown) {

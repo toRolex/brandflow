@@ -94,6 +94,9 @@ export default function JobPipeline() {
 		"idle" | "loading" | "ready" | "failed"
 	>("idle");
 	const [rejectedClips, setRejectedClips] = useState<Set<number>>(new Set());
+	const [reSearchingClips, setReSearchingClips] = useState<Set<number>>(
+		new Set(),
+	);
 	const [showAllBlankConfirm, setShowAllBlankConfirm] = useState(false);
 	const initialLoad = useRef(true);
 
@@ -577,13 +580,20 @@ export default function JobPipeline() {
 	};
 
 	const handleRejectClip = async (clipIndex: number) => {
+		setReSearchingClips((prev) => new Set(prev).add(clipIndex));
 		try {
 			await api.rejectClip(job.job_id, clipIndex, job.project_id);
 			setRejectedClips((prev) => new Set([...prev, clipIndex]));
-			load();
+			await load();
 		} catch (e) {
 			console.error("reject clip failed", e);
 			setError("打回素材失败");
+		} finally {
+			setReSearchingClips((prev) => {
+				const next = new Set(prev);
+				next.delete(clipIndex);
+				return next;
+			});
 		}
 	};
 
@@ -652,6 +662,7 @@ export default function JobPipeline() {
 		selectedClips,
 		selectedClipsLoadState,
 		rejectedClips,
+		reSearchingClips,
 		showAllBlankConfirm,
 		ttsVoices,
 		ttsVoiceInfo,
