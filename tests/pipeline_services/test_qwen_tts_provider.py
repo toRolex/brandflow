@@ -15,6 +15,7 @@ class FakeConfig:
             "language_type": "Chinese",
             "instructions": "",
             "optimize_instructions": False,
+            "extra_headers": "",
         }
         defaults.update(kwargs)
         for k, v in defaults.items():
@@ -155,3 +156,69 @@ class TestQwenTTSProvider:
         payload = provider._build_payload("hello", config)
 
         assert payload["input"]["language_type"] == "English"
+
+    def test_synthesize_404_empty_body_includes_url(self):
+        """HTTP 404 空响应体需在错误中暴露实际请求 URL，便于诊断区域/端点问题。"""
+        provider = QwenTTSProvider(api_key="sk-test")
+        config = FakeConfig()
+
+        with patch.object(provider, "_http_post") as mock_post:
+            mock_resp = Mock()
+            mock_resp.status_code = 404
+            mock_resp.text = ""
+            mock_resp.json.side_effect = ValueError("no json")
+            mock_post.return_value = mock_resp
+
+            with pytest.raises(TTSBlockedError) as exc_info:
+                provider.synthesize("test", config)
+
+            msg = str(exc_info.value)
+            assert "404" in msg
+            assert provider._endpoint_url in msg
+            assert "/services/aigc/multimodal-generation/generation" in msg
+
+    def test_synthesize_404_html_body_does_not_crash(self):
+        """HTTP 404 返回 HTML 时不应解析崩溃，仍需保留 URL 信息。"""
+        provider = QwenTTSProvider(api_key="sk-test")
+        config = FakeConfig()
+
+        with patch.object(provider, "_http_post") as mock_post:
+            mock_resp = Mock()
+            mock_resp.status_code = 404
+            mock_resp.text = "<html>Not Found</html>"
+            mock_resp.json.side_effect = ValueError("no json")
+            mock_post.return_value = mock_resp
+
+            with pytest.raises(TTSBlockedError) as exc_info:
+                provider.synthesize("test", config)
+
+            assert "404" in str(exc_info.value)
+            assert provider._endpoint_url in str(exc_info.value)
+
+    def test_full_endpoint_url_is_not_doubled(self):
+        """用户把完整 endpoint URL 填入配置时不应重复拼接路径导致 404。"""
+        full_url = (
+            "https://dashscope.aliyuncs.com/api/v1"
+            "/services/aigc/multimodal-generation/generation"
+        )
+        provider = QwenTTSProvider(api_key="sk-test", base_url=full_url)
+        assert provider.base_url == full_url
+
+        config = FakeConfig()
+        with patch("packages.pipeline_services.tts_provider.requests.post") as mock_post:
+            mock_resp = Mock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = QWEN_RESPONSE
+            mock_post.return_value = mock_resp
+
+            with patch("requests.get") as mock_get:
+                mock_get_resp = Mock()
+                mock_get_resp.content = FAKE_AUDIO
+                mock_get_resp.raise_for_status = Mock()
+                mock_get.return_value = mock_get_resp
+
+                provider.synthesize("test", config)
+
+                called_url = mock_post.call_args.args[0]
+                assert called_url == full_url
+                assert called_url.count("/services/aigc/multimodal-generation/generation") == 1

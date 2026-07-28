@@ -258,7 +258,15 @@ class RejectClipRequest(BaseModel):
 def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> dict:
     root_dir = Path(request.app.state.root_dir)
     layout = WorkspaceLayout(root_dir)
-    project_id = request.query_params.get("project_id", "")
+
+    # Resolve project_id and product from the canonical job record instead of
+    # relying solely on the query param. This keeps reject-clip working when the
+    # caller omits project_id or when the runtime directory exists under a
+    # different project than the control record.
+    repo = FileStoreRepository(root_dir)
+    project_id = _resolve_job_project(repo, job_id)
+    record = repo.load_job(project_id, job_id)
+    product = record.product or ""
 
     job_dir = _find_job_dir(layout, project_id, job_id)
     clips_path = job_dir / "selected_clips.json"
@@ -282,29 +290,11 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
     rejected_asset_id = rejected_clip.get("asset_id", "")
 
     logger.info(
-        f"[Review] 打回单个素材: job={job_id}, index={payload.clip_index}, sentence={sentence[:30]}..., asset={rejected_asset_id}"
+        f"[Review] 打回单个素材: job={job_id}, index={payload.clip_index}, sentence={sentence[:30]}..., asset={rejected_asset_id}, product={product}, category={category}"
     )
 
-    if not project_id:
-        for project_dir in layout.projects_dir().iterdir():
-            if not project_dir.is_dir():
-                continue
-            candidate_project_id = project_dir.name
-            if layout.job_runtime_dir(candidate_project_id, job_id).exists():
-                project_id = candidate_project_id
-                break
-
-    if not project_id:
-        raise HTTPException(status_code=404, detail="project not found for job")
-
-    product = ""
-    control_jobs_dir = layout.control_jobs_dir(project_id)
-    job_json_path = control_jobs_dir / f"{job_id}.json"
-    if job_json_path.exists():
-        job_data = json.loads(job_json_path.read_text(encoding="utf-8"))
-        product = job_data.get("product", "")
-
     replaced = False
+    reason = ""
 
     try:
         from packages.pipeline_services.asset_library import AssetRepository
@@ -315,53 +305,83 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
 
         db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        repo = AssetRepository(db_path)
+        asset_repo = AssetRepository(db_path)
 
-        candidates = (
-            repo.query_by_category_name(product, category) if category else []
-        )
-        candidates = [
-            c
-            for c in candidates
-            if c.asset_id != rejected_asset_id
-            and c.usage_count < MAX_CLIP_REUSE
-            and _has_usable_duration(c)
-        ]
-        if candidates:
-            chosen = random.choice(candidates)
-            _ensure_original(clips, payload.clip_index)
-            # Update in place: keep sentence_index / requested_category /
-            # visual_type etc. so the review card still renders as a clip.
-            clips[payload.clip_index].update(
-                {
-                    "file_path": chosen.file_path,
-                    "asset_id": chosen.asset_id,
-                    "duration_seconds": chosen.duration_seconds,
-                    "visual_type": "clip",
-                    "method": "rejected_replaced",
-                }
-            )
-            repo.decrement_usage(rejected_asset_id)
-            repo.increment_usage(chosen.asset_id)
-            replaced = True
-            logger.info(f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}")
+        if not product:
+            reason = "job product is empty; cannot query asset library"
+        elif not category:
+            reason = "clip category is empty; cannot query asset library"
         else:
-            # No alternative: keep the original entry untouched so the card
-            # does not regress to an "unresolved" state.
-            logger.warning(
-                f"[Review] 无替代素材: sentence={sentence[:30]}..., category={category}"
-            )
+            all_candidates = asset_repo.query_by_category_name(product, category)
+            candidates = [
+                c
+                for c in all_candidates
+                if c.asset_id != rejected_asset_id
+                and c.usage_count < MAX_CLIP_REUSE
+                and _has_usable_duration(c)
+            ]
+            if candidates:
+                chosen = random.choice(candidates)
+                _ensure_original(clips, payload.clip_index)
+                # Update in place: keep sentence_index / requested_category /
+                # visual_type etc. so the review card still renders as a clip.
+                clips[payload.clip_index].update(
+                    {
+                        "file_path": chosen.file_path,
+                        "asset_id": chosen.asset_id,
+                        "duration_seconds": chosen.duration_seconds,
+                        "visual_type": "clip",
+                        "method": "rejected_replaced",
+                    }
+                )
+                asset_repo.decrement_usage(rejected_asset_id)
+                asset_repo.increment_usage(chosen.asset_id)
+                replaced = True
+                logger.info(f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}")
+            else:
+                # Build a diagnostic reason so the UI can explain *why* no
+                # replacement was found instead of a generic message.
+                total = len(all_candidates)
+                same_id = sum(1 for c in all_candidates if c.asset_id == rejected_asset_id)
+                overused = sum(
+                    1 for c in all_candidates if c.usage_count >= MAX_CLIP_REUSE
+                )
+                bad_duration = sum(
+                    1 for c in all_candidates if not _has_usable_duration(c)
+                )
+                if total == 0:
+                    reason = f"no assets found for product={product}, category={category}"
+                elif total == same_id:
+                    reason = f"only the current asset exists in product={product}, category={category}"
+                else:
+                    parts = []
+                    if overused:
+                        parts.append(f"{overused} overused (>= {MAX_CLIP_REUSE})")
+                    if bad_duration:
+                        parts.append(f"{bad_duration} with unusable duration")
+                    if same_id:
+                        parts.append(f"{same_id} is the current asset")
+                    reason = (
+                        f"no usable alternative in product={product}, category={category}"
+                        f" ({'; '.join(parts)})"
+                    )
+                logger.warning(
+                    f"[Review] 无替代素材: sentence={sentence[:30]}..., category={category}, {reason}"
+                )
 
         clips_path.write_text(
             json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[Review] 替换素材失败: {e}")
         clips[payload.clip_index]["method"] = "rejected_error"
         clips_path.write_text(
             json.dumps(clips, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+        raise HTTPException(status_code=500, detail=f"asset replacement failed: {e}")
 
     return {
         "status": "clip_rejected",
@@ -371,6 +391,7 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         # Updated entry lets the frontend patch the single card in place,
         # skipping a full job + clip-list reload round trip.
         "replaced": replaced,
+        "reason": reason,
         "clip": clips[payload.clip_index],
     }
 

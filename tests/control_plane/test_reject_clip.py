@@ -23,14 +23,23 @@ from apps.control_plane.app import create_app
 PRODUCT = "羊肚菌"
 
 
-def _setup(tmp_path: Path, clips: list[dict], assets: list[tuple[str, str]]) -> dict:
+def _setup(
+    tmp_path: Path,
+    clips: list[dict],
+    assets: list[tuple[str, str]],
+    *,
+    project_id: str = "proj-001",
+    job_project_id: str | None = None,
+) -> dict:
     """Create a job in asset_review plus an asset library.
 
     ``assets`` is a list of (asset_id, category) rows for PRODUCT.
+    ``job_project_id`` overrides the ``project_id`` stored in the job record
+    (useful for simulating legacy/missing project_id values).
     """
     root_dir = tmp_path
-    project_id = "proj-001"
     job_id = "job-reject-1"
+    stored_project_id = project_id if job_project_id is None else job_project_id
 
     job_dir = (
         root_dir / "workspace" / "projects" / project_id / "runtime" / "jobs" / job_id
@@ -46,7 +55,7 @@ def _setup(tmp_path: Path, clips: list[dict], assets: list[tuple[str, str]]) -> 
         json.dumps(
             {
                 "job_id": job_id,
-                "project_id": project_id,
+                "project_id": stored_project_id,
                 "product": PRODUCT,
                 "phase": "asset_review",
                 "review_status": "pending",
@@ -169,6 +178,77 @@ class TestRejectClip:
         assert entry["asset_id"] == "a1"
         assert entry["visual_type"] == "clip"
         assert entry["method"] == "llm_match"
+
+    def test_replacement_works_when_query_project_id_is_missing(self, tmp_path: Path) -> None:
+        """Reject-clip must still resolve the job's product when project_id is omitted.
+
+        The endpoint's internal job-dir resolution can fall back to scanning all
+        projects, but the product lookup must use the canonical job record rather
+        than an empty/missing query-project_id path.
+        """
+        ctx = _setup(
+            tmp_path,
+            [dict(CLIP)],
+            [("a1", "intro"), ("alt1", "intro")],
+            job_project_id="",
+        )
+        app = create_app(root_dir=ctx["root_dir"])
+        with TestClient(app) as client:
+            # Simulate a caller that does not supply project_id.
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/reject-clip",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["replaced"] is True
+            assert body["clip"]["asset_id"] == "alt1"
+
+        entry = _clips(ctx)[0]
+        assert entry["asset_id"] == "alt1"
+
+    def test_replacement_fails_when_job_product_mismatches_asset_product(
+        self, tmp_path: Path
+    ) -> None:
+        """A product mismatch between job and assets yields no candidates.
+
+        This captures the real-world failure mode where the asset library was
+        indexed under a different product name than the current job uses, so
+        reject-clip cannot find any alternative and misleadingly reports
+        "该分类下没有可替代的素材".
+        """
+        # Override the job record to use a different product than the assets.
+        ctx = _setup(
+            tmp_path,
+            [dict(CLIP)],
+            [("a1", "intro"), ("alt1", "intro")],
+        )
+        control_path = (
+            ctx["root_dir"]
+            / "workspace"
+            / "projects"
+            / ctx["project_id"]
+            / "control"
+            / "jobs"
+            / f"{ctx['job_id']}.json"
+        )
+        record = json.loads(control_path.read_text(encoding="utf-8"))
+        record["product"] = "mismatched-product"
+        control_path.write_text(
+            json.dumps(record, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        app = create_app(root_dir=ctx["root_dir"])
+        with TestClient(app) as client:
+            resp = client.post(
+                f"/api/reviews/{ctx['job_id']}/reject-clip?project_id={ctx['project_id']}",
+                json={"clip_index": 0},
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["replaced"] is False
+            assert body["clip"]["asset_id"] == "a1"
 
 
 class TestAssetReSearch:

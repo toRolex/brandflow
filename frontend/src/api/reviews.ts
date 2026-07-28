@@ -21,6 +21,7 @@ export const rejectClip = (
 	return request<{
 		status: string;
 		replaced?: boolean;
+		reason?: string;
 		clip?: Record<string, unknown>;
 	}>(`/api/reviews/${jobId}/reject-clip${qs}`, {
 		method: "POST",

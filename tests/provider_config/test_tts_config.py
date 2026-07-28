@@ -611,7 +611,20 @@ def test_resolve_tts_config_applies_overrides() -> None:
     )
     assert config.model == "mimo-v2.5-tts"
     assert config.voice == "Mia"
-    # Explicit provider in the base dict is kept (overrides didn't touch it).
+    # A model override without an explicit provider override re-infers the
+    # provider from the new model so the runtime routes to the right backend.
+    assert config.provider == "mimo"
+
+
+def test_resolve_tts_config_explicit_provider_override_wins() -> None:
+    from packages.provider_config.tts_config import resolve_tts_config
+
+    config = resolve_tts_config(
+        {"provider": "qwen", "model": "qwen3-tts-flash", "voice": "Cherry"},
+        {"model": "mimo-v2.5-tts", "voice": "Mia", "provider": "qwen"},
+    )
+    assert config.model == "mimo-v2.5-tts"
+    assert config.voice == "Mia"
     assert config.provider == "qwen"
 
 

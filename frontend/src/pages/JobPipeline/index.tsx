@@ -606,7 +606,11 @@ export default function JobPipeline() {
 			}
 			setRejectedClips((prev) => new Set([...prev, clipIndex]));
 			if (resp && resp.replaced === false) {
-				setError("该分类下没有可替代的素材，已保留原素材");
+				setError(
+					resp.reason
+						? `该分类下没有可替代的素材，已保留原素材（${resp.reason}）`
+						: "该分类下没有可替代的素材，已保留原素材",
+				);
 			}
 		} catch (e) {
 			console.error("reject clip failed", e);

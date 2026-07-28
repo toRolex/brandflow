@@ -205,12 +205,18 @@ def resolve_tts_config(
     """Single runtime entry point: raw dict + optional overrides → TTSConfig.
 
     Applies overrides (e.g. job-level tts_model/tts_voice), infers the provider
-    from the model when it is not set explicitly, and fills defaults.
+    from the final model when it is not explicitly overridden, and fills defaults.
+
+    A job-level model override drives provider selection so the runtime never
+    routes a Qwen model through a MiMo provider (or vice-versa).
     """
     from packages.provider_config.catalog import tts_provider_for_model
 
-    merged = {**tts_dict, **(overrides or {})}
-    if not merged.get("provider"):
+    overrides = overrides or {}
+    merged = {**tts_dict, **overrides}
+    if not merged.get("provider") or (
+        "model" in overrides and "provider" not in overrides
+    ):
         inferred = tts_provider_for_model(str(merged.get("model") or ""))
         if inferred:
             merged["provider"] = inferred

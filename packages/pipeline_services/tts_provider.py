@@ -51,11 +51,19 @@ class QwenTTSProvider:
     非流式返回音频 URL，下载后返回 bytes。
     """
 
+    _TTS_PATH: str = "/services/aigc/multimodal-generation/generation"
+
     def __init__(
         self, api_key: str, base_url: str = "https://dashscope.aliyuncs.com/api/v1"
     ):
         self.api_key = api_key
-        self.base_url = base_url.rstrip("/")
+        base_url = base_url.rstrip("/")
+        # 保留用户配置的 base_url；若配置中已包含完整 API 路径，不再重复拼接。
+        self.base_url = base_url
+        if base_url.endswith(self._TTS_PATH):
+            self._endpoint_url = base_url
+        else:
+            self._endpoint_url = f"{base_url}{self._TTS_PATH}"
 
     def _build_payload(self, text: str, config: TTSConfig) -> dict[str, Any]:
         input_data: dict[str, Any] = {
@@ -88,7 +96,6 @@ class QwenTTSProvider:
         return {str(key): str(item) for key, item in value.items()}
 
     def _http_post(self, payload: dict[str, Any], config: TTSConfig) -> Any:
-        url = f"{self.base_url}/services/aigc/multimodal-generation/generation"
         headers = self._extra_headers(config)
         headers.update(
             {
@@ -97,7 +104,7 @@ class QwenTTSProvider:
             }
         )
         return requests.post(
-            url,
+            self._endpoint_url,
             headers=headers,
             json=payload,
             timeout=180,
@@ -115,21 +122,24 @@ class QwenTTSProvider:
         if resp.status_code == 429:
             raise TTSQuotaExceededError("TTS 配额超限")
         if resp.status_code in (401, 403):
-            raise TTSBlockedError(f"TTS 鉴权失败: {resp.status_code}")
+            raise TTSBlockedError(
+                f"TTS 鉴权失败: {resp.status_code} ← {self._endpoint_url}"
+            )
         if resp.status_code >= 400:
-            detail = f"Qwen TTS HTTP {resp.status_code}"
+            detail = f"Qwen TTS HTTP {resp.status_code} ← {self._endpoint_url}"
             try:
                 error_body = resp.json()
                 msg = error_body.get("message", "")
                 code = error_body.get("code", "")
                 if msg:
                     detail = (
-                        f"Qwen TTS error: {code} - {msg}"
+                        f"Qwen TTS error: {code} - {msg} ← {self._endpoint_url}"
                         if code
-                        else f"Qwen TTS error: {msg}"
+                        else f"Qwen TTS error: {msg} ← {self._endpoint_url}"
                     )
             except Exception:
-                pass
+                body = resp.text or "(empty body)"
+                detail = f"{detail}, body={body[:200]}"
             raise TTSBlockedError(detail)
 
         body = resp.json()
