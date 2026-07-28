@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 from packages.pipeline_services.media_probe import is_decodable_video, probe_media
 
 from .shared import _job_dir, _to_artifact
+
+_LOGGER = get_pipeline_logger(__name__)
 
 if TYPE_CHECKING:
     from packages.pipeline_services.phase_orchestrator import (
@@ -60,7 +63,8 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         f"base={base_path.exists()} audio={audio_path.exists()}"
         f" skip_subtitle={skip_subtitle} srt={srt_path.exists()}"
     )
-    print(f"[FINAL] {ctx.job_id}: {cond}", flush=True)
+    logger = _LOGGER.bind(ctx.job_id)
+    logger.info("[FINAL] %s", cond)
     if (
         base_path.exists()
         and audio_path.exists()
@@ -84,15 +88,11 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             or not media_info["duration"]
             or not is_decodable_video(final_path)
         ):
-            print(
-                f"[FINAL] {ctx.job_id}: final.mp4 is not playable; rejecting artifact",
-                flush=True,
-            )
+            logger.error("[FINAL] final.mp4 is not playable; rejecting artifact")
             return []
-        print(
-            f"[FINAL] {ctx.job_id}: final.mp4 produced ({final_path.stat().st_size} bytes)",
-            flush=True,
+        logger.info(
+            "[FINAL] final.mp4 produced (%s bytes)", final_path.stat().st_size
         )
         return [_to_artifact("final_video", final_path, ctx.layout)]
-    print(f"[FINAL] {ctx.job_id}: final.mp4 NOT produced", flush=True)
+    logger.warning("[FINAL] final.mp4 NOT produced")
     return []

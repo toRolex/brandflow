@@ -92,8 +92,8 @@ class AssetIndexer:
         output_base: Path,
         log_callback: Callable[[str], None] | None = None,
     ) -> list[AssetRecord]:
-        def log(msg: str) -> None:
-            logger.info(msg)
+        def log(msg: str, level: int = logging.INFO) -> None:
+            logger.log(level, msg)
             if log_callback:
                 log_callback(msg)
 
@@ -101,29 +101,31 @@ class AssetIndexer:
         temp_dir = Path(tempfile.mkdtemp(prefix="asset_cut_"))
         try:
             clips = self._scene_detect_and_cut(video_path, temp_dir)
-            log(f"[Indexer] 切割完成: {video_path.name} → {len(clips)} 个片段")
+            log(f"[Indexer] 切割完成: {video_path.name} → {len(clips)} 个片段", logging.DEBUG)
             records: list[AssetRecord] = []
 
             for i, clip_path in enumerate(clips):
                 frame_path = self._extract_mid_frame(clip_path, temp_dir)
                 if frame_path.exists():
-                    log(f"[Vision] 开始分类: {frame_path.name}")
+                    log(f"[Vision] 开始分类: {frame_path.name}", logging.DEBUG)
                     try:
                         category_name, confidence = self._classify_frame(frame_path)
                         log(
-                            f"[Vision] 分类完成: {frame_path.name} → {category_name} (置信度: {confidence:.2f})"
+                            f"[Vision] 分类完成: {frame_path.name} → {category_name} (置信度: {confidence:.2f})",
+                            logging.DEBUG,
                         )
                         classification_failed = False
                     except VisionClassifyError as vce:
                         log(
-                            f"[Vision] 分类失败: {frame_path.name}, {vce}, 标记为 classification_failed"
+                            f"[Vision] 分类失败: {frame_path.name}, {vce}, 标记为 classification_failed",
+                            logging.DEBUG,
                         )
                         category_name, confidence = "产品特写", 0.0
                         classification_failed = True
                 else:
                     category_name, confidence = "产品特写", 0.0
                     classification_failed = True
-                    log(f"[Indexer] 帧提取失败，使用默认分类: {clip_path.name}")
+                    log(f"[Indexer] 帧提取失败，使用默认分类: {clip_path.name}", logging.DEBUG)
 
                 target_category = (
                     category_name
@@ -161,7 +163,8 @@ class AssetIndexer:
                 self.repository.insert(record)
                 records.append(record)
                 log(
-                    f"[Indexer] 片段 {i + 1}/{len(clips)}: {clip_path.name} → {target_category} (置信度: {confidence:.2f})"
+                    f"[Indexer] 片段 {i + 1}/{len(clips)}: {clip_path.name} → {target_category} (置信度: {confidence:.2f})",
+                    logging.DEBUG,
                 )
 
             log(f"[Indexer] 视频处理完成: {video_path.name} → {len(records)} 条记录")

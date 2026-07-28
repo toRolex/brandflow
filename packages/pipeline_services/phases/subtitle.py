@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from packages.pipeline_services.logging_utils import get_pipeline_logger
+
 from .shared import _discover_script, _discover_sentence_timings, _job_dir, _to_artifact
 
 if TYPE_CHECKING:
@@ -11,6 +13,8 @@ if TYPE_CHECKING:
         PhaseContext,
         PhaseOrchestrator,
     )
+
+_LOGGER = get_pipeline_logger(__name__)
 
 
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
@@ -21,17 +25,18 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     sentence boundary.
     """
     job_dir = _job_dir(ctx)
+    logger = _LOGGER.bind(ctx.job_id)
     audio_path = job_dir / "audio.mp3"
     srt_path = job_dir / "subtitles.srt"
-    print(
-        f"[SUBTITLE] audio exists={audio_path.exists()}, srt exists={srt_path.exists()}",
-        flush=True,
+    logger.debug(
+        "[SUBTITLE] audio exists=%s, srt exists=%s",
+        audio_path.exists(),
+        srt_path.exists(),
     )
     if audio_path.exists():
         script_text = _discover_script(job_dir) or ""
-        print(
-            f"[SUBTITLE] script found={bool(script_text)}, len={len(script_text)}",
-            flush=True,
+        logger.debug(
+            "[SUBTITLE] script found=%s, len=%s", bool(script_text), len(script_text)
         )
         if script_text:
             try:
@@ -47,14 +52,11 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                     orchestrator._subtitle_svc.build_srt(
                         audio_path, srt_path, script_text
                     )
-                print(f"[SUBTITLE] srt generated={srt_path.exists()}", flush=True)
+                logger.info("[SUBTITLE] srt generated=%s", srt_path.exists())
             except Exception as e:
-                print(f"[SUBTITLE ERROR] {type(e).__name__}: {e}", flush=True)
-                import traceback
-
-                traceback.print_exc()
+                logger.error("[SUBTITLE ERROR] %s: %s", type(e).__name__, e, exc_info=True)
     else:
-        print(f"[SUBTITLE WARN] audio.mp3 not found in {job_dir}", flush=True)
+        logger.warning("[SUBTITLE WARN] audio.mp3 not found in %s", job_dir)
     if srt_path.exists():
         return [_to_artifact("subtitle", srt_path, ctx.layout)]
     return []

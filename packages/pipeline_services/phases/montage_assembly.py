@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from packages.domain_core.models import ExecutionFailure
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 
 from .shared import _discover_sentence_timings, _job_dir, _to_artifact
 
@@ -15,6 +16,8 @@ if TYPE_CHECKING:
         PhaseContext,
         PhaseOrchestrator,
     )
+
+_LOGGER = get_pipeline_logger(__name__)
 
 
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
@@ -55,10 +58,8 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         trim_params = []
 
     if not montage_path.exists():
-        print(
-            f"[MONTAGE] build_base_video did not produce {montage_path}",
-            flush=True,
-        )
+        logger = _LOGGER.bind(ctx.job_id)
+        logger.error("[MONTAGE] build_base_video did not produce %s", montage_path)
         return []
 
     segments_path.write_text(

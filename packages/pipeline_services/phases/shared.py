@@ -13,7 +13,10 @@ from typing import TYPE_CHECKING
 
 from packages.domain_core.models import ArtifactPointer
 from packages.file_store.layout import WorkspaceLayout
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 from packages.pipeline_services.sentence_tts_service import SentenceTiming
+
+_LOGGER = get_pipeline_logger(__name__)
 
 if TYPE_CHECKING:
     from packages.pipeline_services.phase_orchestrator import PhaseContext
@@ -70,7 +73,7 @@ def _discover_sentence_timings(job_dir: Path) -> list[SentenceTiming]:
         data = json.loads(path.read_text(encoding="utf-8"))
         return [SentenceTiming.model_validate(item) for item in data]
     except Exception as exc:  # noqa: BLE001
-        print(f"[TTS TIMING WARN] Failed to load sentence timings: {exc}", flush=True)
+        _LOGGER.warning("[TTS TIMING WARN] Failed to load sentence timings: %s", exc)
         return []
 
 

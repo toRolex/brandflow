@@ -444,10 +444,12 @@ class AutoTickScheduler:
             # on its own.
             summary = await asyncio.shield(executor_future)
             if summary.action != "skipped":
-                print(
-                    f"[AUTO-TICK] {work.job_id}: {summary.from_phase}"
-                    f" -> {summary.to_phase} ({summary.action})",
-                    flush=True,
+                _logger.info(
+                    "[AUTO-TICK] %s: %s -> %s (%s)",
+                    work.job_id,
+                    summary.from_phase,
+                    summary.to_phase,
+                    summary.action,
                 )
         except asyncio.CancelledError:
             # The wrapper was cancelled, but the OS thread is still running.
@@ -469,10 +471,6 @@ class AutoTickScheduler:
                     "stack_trace": traceback.format_exc(),
                 }
             )
-            print(
-                f"[AUTO-TICK] {e.job_id}: {e.phase} phase failed: {e}",
-                flush=True,
-            )
         except Exception as e:
             log_error(
                 {
@@ -483,8 +481,3 @@ class AutoTickScheduler:
                     "stack_trace": traceback.format_exc(),
                 }
             )
-            print(
-                f"[AUTO-TICK ERROR] {work.job_file_path.name}: {e}",
-                flush=True,
-            )
-            traceback.print_exc()

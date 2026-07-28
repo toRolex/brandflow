@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sqlite3
 
 from pathlib import Path
@@ -22,6 +23,7 @@ from packages.pipeline_services.asset_library.category_config import get_categor
 from packages.pipeline_services.media_utils import _resolve_ffmpeg_path
 
 router = APIRouter()
+_LOGGER = logging.getLogger(__name__)
 
 
 @router.post("/index")
@@ -80,7 +82,11 @@ async def index_assets(
 
     if async_mode:
         task = index_task_manager.create_task(len(new_videos))
-        print(f"[INDEX] 创建异步任务: {task.task_id}, 待处理 {len(new_videos)} 个视频")
+        _LOGGER.info(
+            "[INDEX] 创建异步任务: %s, 待处理 %s 个视频",
+            task.task_id,
+            len(new_videos),
+        )
         secret_store = request.app.state.secret_store
         active_id = config_reader.active_product_id
         category_names = [
@@ -135,7 +141,7 @@ async def index_assets(
             indexer._ingest_one_video(video, output_base)
             repository.mark_source_indexed(str(video.resolve()))
         except Exception as e:
-            print(f"[INDEX ERROR] {video.name}: {e}")
+            _LOGGER.error("[INDEX ERROR] %s: %s", video.name, e, exc_info=True)
 
     total_clips = 0
     if db_path.exists():

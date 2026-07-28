@@ -10,6 +10,7 @@ from packages.pipeline_services.asset_library import (
     AssetRetriever,
 )
 from packages.pipeline_services.asset_library.classify import create_classify_fn
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 
 from .shared import (
     _discover_script,
@@ -24,10 +25,13 @@ if TYPE_CHECKING:
         PhaseOrchestrator,
     )
 
+_LOGGER = get_pipeline_logger(__name__)
+
 
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     """Execute semantic retrieval: script text -> keyword match -> selected clips."""
     job_dir = _job_dir(ctx)
+    logger = _LOGGER.bind(ctx.job_id)
 
     script_text = _discover_script(job_dir)
 
@@ -37,9 +41,8 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             json.dumps([], ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        print(
-            f"[ASSET] No script text — wrote empty clip list to {clip_list_path}",
-            flush=True,
+        logger.warning(
+            "[ASSET] No script text — wrote empty clip list to %s", clip_list_path
         )
         return [_to_artifact("selected_clips", clip_list_path, ctx.layout)]
 
@@ -91,5 +94,5 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         encoding="utf-8",
     )
 
-    print(f"[ASSET] Retrieved {len(selected)} clips -> {clip_list_path}", flush=True)
+    logger.info("[ASSET] Retrieved %s clips -> %s", len(selected), clip_list_path)
     return [_to_artifact("selected_clips", clip_list_path, ctx.layout)]

@@ -25,6 +25,8 @@ from packages.pipeline_services.phase_orchestrator import (
 from packages.provider_config.config_reader import ConfigReader
 from packages.runtime_adapters import RuntimeAdapter
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class WorkerLoop:
     """Pulls a task from *api*, runs the single requested phase, uploads artifact."""
@@ -50,7 +52,7 @@ class WorkerLoop:
             try:
                 command = self.api.poll()
             except Exception as exc:
-                logging.warning("Control plane not ready, retrying in 5s: %s", exc)
+                _LOGGER.warning("Control plane not ready, retrying in 5s: %s", exc)
                 time.sleep(5)
                 continue
             if command["command"] == "idle":
@@ -110,6 +112,8 @@ class WorkerLoop:
                     "language": command.get("language", "mandarin"),
                 },
             )
+            logger = _LOGGER.bind(job_id)
+            logger.info("received task phase=%s task_id=%s", handler_phase, command["task_id"])
 
             # Execute the single requested phase and any parallel phases
             try:
@@ -140,14 +144,19 @@ class WorkerLoop:
                 status = "succeeded"
                 logs = "orchestrator completed"
                 error = {}
-            except Exception as e:
-                print(
-                    f"[WORKER] Phase {handler_phase} failed: {type(e).__name__}: {e}",
-                    flush=True,
+                logger.info(
+                    "phase completed phase=%s artifacts=%s",
+                    handler_phase,
+                    len(uploaded_files),
                 )
-                import traceback
-
-                traceback.print_exc()
+            except Exception as e:
+                logger.error(
+                    "phase failed phase=%s error=%s: %s",
+                    handler_phase,
+                    type(e).__name__,
+                    e,
+                    exc_info=True,
+                )
                 status = "failed"
                 logs = f"phase execution error: {e}"
                 # Structured error matching ExecutionFailure contract (#171):
@@ -162,6 +171,7 @@ class WorkerLoop:
                 uploaded_files = []
 
             finished_at = datetime.now(timezone.utc).isoformat()
+            logger.info("submitting report task_id=%s status=%s", command["task_id"], status)
             self.api.report(
                 {
                     "worker_id": self.worker_id,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import random
 import json
 from typing import Any
@@ -14,6 +15,8 @@ from packages.provider_config.catalog import (
 from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.secret_store import SecretStore
 from packages.provider_config.tts_config import TTSConfig
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class TTSError(Exception):
@@ -113,9 +116,10 @@ class QwenTTSProvider:
 
     def synthesize(self, text: str, config: TTSConfig) -> bytes:
         payload = self._build_payload(text, config)
-        print(
-            f"[TTS DEBUG] Qwen TTS: model={config.model} text_len={len(text)}",
-            flush=True,
+        _LOGGER.debug(
+            "[TTS DEBUG] Qwen TTS: model=%s text_len=%s",
+            config.model,
+            len(text),
         )
         resp = self._http_post(payload, config)
 
@@ -342,10 +346,11 @@ class MiMoTTSProvider:
     def synthesize(self, text: str, config: TTSConfig) -> bytes:
         """完整 TTS 调用：构建请求 → HTTP → 解析响应 → 返回音频字节。"""
         payload = self._build_request(text, config)
-        print(
-            f"[TTS DEBUG] MiMo TTS: model={config.model} voice={config.voice}"
-            f" text_len={len(text)}",
-            flush=True,
+        _LOGGER.debug(
+            "[TTS DEBUG] MiMo TTS: model=%s voice=%s text_len=%s",
+            config.model,
+            config.voice,
+            len(text),
         )
         url = self.base_url  # 已在 __init__ 中解析为完整 endpoint URL
         headers = QwenTTSProvider._extra_headers(config)

@@ -109,8 +109,6 @@ async def _auto_tick(
                         "stack_trace": traceback.format_exc(),
                     }
                 )
-                print(f"[AUTO-TICK LOOP ERROR] {e}", flush=True)
-                traceback.print_exc()
     finally:
         await scheduler.shutdown()
 

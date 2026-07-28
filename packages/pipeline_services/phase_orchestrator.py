@@ -9,6 +9,7 @@ helpers used by the handler sub-modules.  The concrete phase logic lives in
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -66,6 +67,8 @@ STRUCTURED_MEDIA_PHASES = frozenset(
         "final_rendering",
     }
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 __all__ = [
     "STRUCTURED_MEDIA_PHASES",
@@ -371,7 +374,7 @@ class PhaseOrchestrator:
                 except Exception as exc:
                     if phase_name in STRUCTURED_MEDIA_PHASES:
                         raise
-                    print(f"[PARALLEL] Phase {phase_name} failed: {exc}", flush=True)
+                    _LOGGER.error("[PARALLEL] Phase %s failed: %s", phase_name, exc)
                     result = PhaseExecutionFailure(
                         error=ExecutionFailure(
                             code="MEDIA_PROCESSING_FAILED",

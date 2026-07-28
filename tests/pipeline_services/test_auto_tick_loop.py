@@ -170,17 +170,30 @@ class TestAutoTickLoop:
         assert "AUTO-TICK LOOP ERROR" in entry["message"]
         assert "RuntimeError" in entry["stack_trace"]
 
-    @patch("apps.control_plane.app.JobTickService")
     async def test_persists_generic_tick_exception(
-        self, mock_svc_cls: Mock, mock_projects: Path
+        self, mock_projects: Path
     ) -> None:
         """An auto-tick failure is available in the persistent runtime log."""
         mock_svc = Mock(spec=JobTickService)
         mock_svc.tick.side_effect = ValueError("unexpected error")
-        mock_svc_cls.return_value = mock_svc
 
-        with patch("apps.control_plane.app.log_error") as log_error:
-            await self._run_one_tick(mock_projects)
+        first_sleep = True
+
+        async def _controlled_sleep(_seconds: float) -> None:
+            nonlocal first_sleep
+            if first_sleep:
+                first_sleep = False
+                return
+            raise _LoopDone()
+
+        with (
+            patch("asyncio.sleep", _controlled_sleep),
+            patch("apps.control_plane.auto_tick_scheduler.log_error") as log_error,
+        ):
+            from apps.control_plane.app import _auto_tick
+
+            with pytest.raises(_LoopDone):
+                await _auto_tick(mock_projects, None, tick_svc=mock_svc)
 
         entry = log_error.call_args.args[0]
         assert entry["source"] == "backend"
