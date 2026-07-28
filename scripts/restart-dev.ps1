@@ -1,5 +1,5 @@
 ﻿#!/usr/bin/env pwsh
-#Requires -Version 7.0
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     拉取最新代码并重新启动 Brandflow 前后端开发环境。
