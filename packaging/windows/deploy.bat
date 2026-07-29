@@ -99,7 +99,7 @@ if not exist "!NODE_DIR!\node.exe" (
     exit /b 1
 )
 set "PATH=!NODE_DIR!;!PATH!"
-"!NODE_DIR!\node.exe" -e "if (process.version !== 'v!NODE_VERSION!') process.exit(1)"
+"!NODE_DIR!\node.exe" -e "process.exit(process.version === 'v!NODE_VERSION!' ? 0 : 1)"
 if !errorlevel! neq 0 (
     echo [错误] 项目 Node.js 版本不是 v!NODE_VERSION! >> "!LOG_FILE!"
     if "%GITHUB_ACTIONS%"=="" pause
