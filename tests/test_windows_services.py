@@ -36,7 +36,8 @@ def test_deploy_uses_project_local_node20_for_frontend_builds() -> None:
     assert "node-v!NODE_VERSION!-win-x64.zip" in content
     assert "Expand-Archive" in content
     assert 'set "PATH=!NODE_DIR!;!PATH!"' in content
-    assert "process.version !== 'v!NODE_VERSION!'" in content
+    assert "process.version === 'v!NODE_VERSION!' ? 0 : 1" in content
+    assert "process.version !==" not in content
     assert '"!NODE_DIR!\\node.exe" --version' in content
     assert 'if exist "C:\\Program Files\\nodejs\\node.exe"' not in content
 
