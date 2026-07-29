@@ -14,7 +14,7 @@ set "PYTHON_VERSION=3.11"
 set "UV_PYTHON_INSTALL_DIR=%PROJECT_DIR%\.uv-python"
 set "LIVE_VENV=%PROJECT_DIR%\.venv"
 set "STAGED_VENV=%PROJECT_DIR%\.venv-deploy"
-set "BACKUP_VENV=%PROJECT_DIR%\.venv-backup"
+set "BACKUP_VENV=%PROJECT_DIR%\.venv-backup-%RANDOM%-%RANDOM%"
 set "NODE_VERSION=20.18.3"
 set "NODE_ROOT=%PROJECT_DIR%\.node"
 set "NODE_DIR=%NODE_ROOT%\node-v%NODE_VERSION%-win-x64"
@@ -195,7 +195,7 @@ if defined RUNNER_SRC (
         exit /b 1
     )
     :: 清干净 tracked 文件但保留运行时数据
-    git clean -fdx -e .env -e workspace -e logs -e .venv -e .venv-deploy -e .venv-backup -e .uv-python -e .node -e frontend\node_modules -e config\app_config.json -e config\providers.yaml >nul 2>&1
+    git clean -fdx -e .env -e workspace -e logs -e .venv -e .venv-deploy -e .venv-backup-* -e .uv-python -e .node -e frontend\node_modules -e config\app_config.json -e config\providers.yaml >nul 2>&1
 ) else (
     echo   手动模式：从 origin 拉取 ...
     git fetch --tags origin
@@ -320,14 +320,6 @@ set "SERVICE_EXISTED=0"
 set "SERVICE_WAS_RUNNING=0"
 sc.exe query brandflow-control-plane >nul 2>&1 && set "SERVICE_EXISTED=1"
 sc.exe query brandflow-control-plane 2>nul | findstr /C:"RUNNING" >nul && set "SERVICE_WAS_RUNNING=1"
-
-:: 在停服务前处理旧备份；失败时保持当前生产服务在线并安全退出。
-if exist "!BACKUP_VENV!" rmdir /s /q "!BACKUP_VENV!"
-if exist "!BACKUP_VENV!" (
-    echo [错误] 无法清理上一份虚拟环境备份: !BACKUP_VENV! >> "!LOG_FILE!"
-    if "%GITHUB_ACTIONS%"=="" pause
-    exit /b 1
-)
 
 if "!SERVICE_WAS_RUNNING!"=="1" (
     sc.exe stop brandflow-control-plane >nul 2>&1
