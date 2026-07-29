@@ -19,7 +19,8 @@ def test_deploy_builds_python311_venv_outside_the_live_environment() -> None:
     assert 'set "PYTHON_VERSION=3.11"' in content
     assert 'set "UV_PYTHON_INSTALL_DIR=%PROJECT_DIR%\\.uv-python"' in content
     assert 'set "STAGED_VENV=%PROJECT_DIR%\\.venv-deploy"' in content
-    assert "-e .venv-deploy -e .venv-backup -e .uv-python" in content
+    assert 'set "BACKUP_VENV=%PROJECT_DIR%\\.venv-backup-%RANDOM%-%RANDOM%"' in content
+    assert "-e .venv-deploy -e .venv-backup-* -e .uv-python" in content
     assert "uv python install !PYTHON_VERSION!" in content
     assert "uv python find --managed-python --system !PYTHON_VERSION!" in content
     assert "Path(sys.executable).resolve().is_relative_to" in content
@@ -49,21 +50,17 @@ def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
         'uv sync --python "!DEPLOY_PYTHON!" --all-extras --dev'
     )
     stop_position = content.index("sc.exe stop brandflow-control-plane")
-    backup_cleanup_position = content.index(
-        'if exist "!BACKUP_VENV!" rmdir /s /q "!BACKUP_VENV!"'
-    )
     cutover_position = content.index('move /y "!STAGED_VENV!" "!LIVE_VENV!"')
     start_position = content.index(
         "sc.exe start brandflow-control-plane", cutover_position
     )
 
-    assert (
-        sync_position
-        < backup_cleanup_position
-        < stop_position
-        < cutover_position
-        < start_position
+    backup_cleanup_position = content.index(
+        'if exist "!BACKUP_VENV!" rmdir /s /q "!BACKUP_VENV!"'
     )
+
+    assert sync_position < stop_position < cutover_position < start_position
+    assert start_position < backup_cleanup_position
     assert "call :rollback_venv" in content
 
 
