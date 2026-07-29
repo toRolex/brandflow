@@ -10,6 +10,22 @@ popd
 
 set "LOG_FILE=%~dp0update.log"
 set "PROGRESS_FILE=%~dp0progress.json"
+set "SERVICE_CONTROL_REQUEST=%~dp0grant-service-control.request"
+
+:: deploy.bat 由 NetworkService runner 执行时，借助当前控制面服务账户一次性补齐
+:: 该服务的启停权限。请求文件只能由生产机本地部署流程创建。
+if exist "%SERVICE_CONTROL_REQUEST%" (
+    echo [权限] 正在授予生产 runner 控制服务的最小权限 ... >> "%LOG_FILE%" 2>&1
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0grant-service-control.ps1" >> "%LOG_FILE%" 2>&1
+    set "SERVICE_CONTROL_EXIT=!errorlevel!"
+    if !SERVICE_CONTROL_EXIT! neq 0 (
+        echo {"status":"failed","step":"service_control","step_label":"配置服务权限","percent":95,"error":"配置服务权限失败","updated_at":"%date% %time%"} > "%PROGRESS_FILE%"
+        exit /b !SERVICE_CONTROL_EXIT!
+    )
+    del /q "%SERVICE_CONTROL_REQUEST%"
+    echo {"status":"done","step":"service_control","step_label":"服务权限已配置","percent":100,"updated_at":"%date% %time%"} > "%PROGRESS_FILE%"
+    exit /b !SERVICE_CONTROL_EXIT!
+)
 
 echo ============================================ >> "%LOG_FILE%" 2>&1
 echo  Brandflow 快速更新 >> "%LOG_FILE%" 2>&1
