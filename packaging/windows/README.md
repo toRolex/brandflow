@@ -75,3 +75,5 @@ packaging\windows\deploy.bat
 GitHub Actions runner 与 NSSM 服务账户使用不同用户级 Python。依赖先构建到
 `.venv-deploy/`；构建成功后才短暂停止控制面，将其原子切换为 `.venv/`。
 新环境健康检查失败时，脚本会恢复上一份虚拟环境并重新启动原服务。
+Node.js 20 同样安装到 `.node/` 并显式加入部署进程 PATH，避免服务账户无法
+执行 pnpm lifecycle 脚本。

@@ -27,6 +27,20 @@ def test_deploy_builds_python311_venv_outside_the_live_environment() -> None:
     assert 'uv sync --python "!DEPLOY_PYTHON!" --all-extras --dev' in content
 
 
+def test_deploy_uses_project_local_node20_for_frontend_builds() -> None:
+    content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
+
+    assert 'set "NODE_VERSION=20.18.3"' in content
+    assert 'set "NODE_ROOT=%PROJECT_DIR%\\.node"' in content
+    assert "-e .node" in content
+    assert "node-v!NODE_VERSION!-win-x64.zip" in content
+    assert "Expand-Archive" in content
+    assert 'set "PATH=!NODE_DIR!;!PATH!"' in content
+    assert "process.version !== 'v!NODE_VERSION!'" in content
+    assert '"!NODE_DIR!\\node.exe" --version' in content
+    assert 'if exist "C:\\Program Files\\nodejs\\node.exe"' not in content
+
+
 def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
     content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
 
