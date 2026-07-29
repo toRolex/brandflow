@@ -1,0 +1,212 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$SourceDir,
+
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^v\d+\.\d+\.\d+$')]
+    [string]$ExpectedTag
+)
+
+$ErrorActionPreference = "Stop"
+$projectDir = [System.IO.Path]::GetFullPath("D:\brandflow")
+$sourceDir = [System.IO.Path]::GetFullPath($SourceDir)
+$stagedVenv = Join-Path $projectDir ".venv-rollback"
+$liveVenv = Join-Path $projectDir ".venv"
+$backupVenv = Join-Path $projectDir (".venv-pre-rollback-" + (Get-Date -Format "yyyyMMddHHmmss"))
+$logDir = Join-Path $projectDir "logs"
+$stdoutLog = Join-Path $logDir "control-plane-rollback.log"
+$stderrLog = Join-Path $logDir "control-plane-rollback-error.log"
+
+function Invoke-Native {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$Arguments
+    )
+
+    & $FilePath @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "$FilePath failed with exit code $LASTEXITCODE"
+    }
+}
+
+function Get-Health {
+    try {
+        return Invoke-RestMethod `
+            -Uri "http://127.0.0.1:17890/api/health" `
+            -TimeoutSec 2 `
+            -Proxy $null
+    }
+    catch {
+        return $null
+    }
+}
+
+if (-not (Test-Path -LiteralPath (Join-Path $sourceDir ".git"))) {
+    throw "Rollback source is not a Git checkout: $sourceDir"
+}
+if (-not (Test-Path -LiteralPath (Join-Path $sourceDir "pyproject.toml"))) {
+    throw "Rollback source does not look like Brandflow: $sourceDir"
+}
+if (-not (Test-Path -LiteralPath (Join-Path $projectDir ".git"))) {
+    throw "Production checkout is missing: $projectDir"
+}
+
+$resolvedTag = (& git -C $sourceDir describe --tags --exact-match HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $resolvedTag -ne $ExpectedTag) {
+    throw "Rollback checkout is '$resolvedTag', expected '$ExpectedTag'"
+}
+
+$expectedVersion = $ExpectedTag.Substring(1)
+$currentHealth = Get-Health
+if (
+    $null -ne $currentHealth -and
+    $currentHealth.status -eq "ok" -and
+    $currentHealth.version -eq $expectedVersion
+) {
+    Write-Host "Production is already healthy on $ExpectedTag."
+    exit 0
+}
+
+$listeners = @(Get-NetTCPConnection -LocalPort 17890 -State Listen -ErrorAction SilentlyContinue)
+if ($listeners.Count -gt 0) {
+    $owners = ($listeners | Select-Object -ExpandProperty OwningProcess -Unique) -join ", "
+    throw "Port 17890 is owned by unexpected process(es): $owners"
+}
+
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+
+Write-Host "Restoring production checkout to $ExpectedTag ..."
+Push-Location $projectDir
+try {
+    Invoke-Native git reset --hard HEAD
+    Invoke-Native git fetch --no-tags --update-shallow $sourceDir HEAD
+    Invoke-Native git checkout -f --detach FETCH_HEAD
+    Invoke-Native git clean -fdx `
+        -e .env `
+        -e workspace `
+        -e logs `
+        -e .venv `
+        -e .venv-rollback `
+        -e .venv-pre-rollback-* `
+        -e .uv-python `
+        -e .node `
+        -e frontend/node_modules `
+        -e config/app_config.json `
+        -e config/providers.yaml
+
+    $uvCandidates = @(
+        (Join-Path $env:USERPROFILE ".local\bin\uv.exe"),
+        "C:\Users\ziyua\.local\bin\uv.exe",
+        "C:\Users\admin\.local\bin\uv.exe"
+    )
+    $uv = $uvCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $uv) {
+        $uvCommand = Get-Command uv.exe -ErrorAction SilentlyContinue
+        if ($uvCommand) {
+            $uv = $uvCommand.Source
+        }
+    }
+    if (-not $uv) {
+        throw "uv.exe was not found on the production runner"
+    }
+
+    $env:UV_PYTHON_INSTALL_DIR = Join-Path $projectDir ".uv-python"
+    Invoke-Native $uv python install 3.11
+    $python = (& $uv python find 3.11).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $python) {
+        throw "Python 3.11 could not be resolved"
+    }
+
+    if (Test-Path -LiteralPath $stagedVenv) {
+        Remove-Item -LiteralPath $stagedVenv -Recurse -Force
+    }
+    Invoke-Native $uv venv --relocatable --python $python $stagedVenv
+    $env:UV_PROJECT_ENVIRONMENT = $stagedVenv
+    try {
+        Invoke-Native $uv sync --python $python --all-extras --dev
+    }
+    finally {
+        Remove-Item Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
+    }
+
+    $nodeDir = Join-Path $projectDir ".node\node-v20.18.3-win-x64"
+    if (-not (Test-Path -LiteralPath (Join-Path $nodeDir "node.exe"))) {
+        throw "The production Node.js 20 runtime is missing: $nodeDir"
+    }
+    $env:Path = "$nodeDir;$env:Path"
+    $pnpm = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
+    if (-not $pnpm) {
+        throw "pnpm.cmd was not found on the production runner"
+    }
+
+    Push-Location (Join-Path $projectDir "frontend")
+    try {
+        Invoke-Native $pnpm.Source install --no-frozen-lockfile
+        Invoke-Native $pnpm.Source build
+    }
+    finally {
+        Pop-Location
+    }
+
+    if (Test-Path -LiteralPath $backupVenv) {
+        throw "Backup path already exists: $backupVenv"
+    }
+    if (Test-Path -LiteralPath $liveVenv) {
+        Move-Item -LiteralPath $liveVenv -Destination $backupVenv
+    }
+    try {
+        Move-Item -LiteralPath $stagedVenv -Destination $liveVenv
+    }
+    catch {
+        if (Test-Path -LiteralPath $backupVenv) {
+            Move-Item -LiteralPath $backupVenv -Destination $liveVenv
+        }
+        throw
+    }
+}
+finally {
+    Pop-Location
+}
+
+Write-Host "Starting the rollback control-plane process ..."
+$env:DEV_AUTO_TICK = "1"
+$env:RUNNER_TRACKING_ID = "brandflow-rollback-" + [guid]::NewGuid().ToString("N")
+$process = Start-Process `
+    -FilePath (Join-Path $liveVenv "Scripts\python.exe") `
+    -ArgumentList "-m", "apps.control_plane" `
+    -WorkingDirectory $projectDir `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput $stdoutLog `
+    -RedirectStandardError $stderrLog `
+    -PassThru
+
+$healthy = $false
+for ($attempt = 1; $attempt -le 30; $attempt++) {
+    Start-Sleep -Seconds 1
+    $health = Get-Health
+    if (
+        $null -ne $health -and
+        $health.status -eq "ok" -and
+        $health.version -eq $expectedVersion
+    ) {
+        $healthy = $true
+        break
+    }
+    if ($process.HasExited) {
+        break
+    }
+}
+
+if (-not $healthy) {
+    if (-not $process.HasExited) {
+        Stop-Process -Id $process.Id -Force
+    }
+    throw "Rollback process did not become healthy on $ExpectedTag; see $stderrLog"
+}
+
+Set-Content -LiteralPath (Join-Path $logDir "rollback-process.pid") -Value $process.Id
+Write-Host "Production is healthy on $ExpectedTag (PID $($process.Id))."
