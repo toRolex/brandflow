@@ -319,15 +319,12 @@ echo   前端编译完成。
 echo [6/7] 原子切换环境并启动服务 ...
 set "SERVICE_EXISTED=0"
 set "SERVICE_WAS_RUNNING=0"
-call :get_control_plane_state
-set "SERVICE_STATE=!errorlevel!"
-if "!SERVICE_STATE!"=="0" set "SERVICE_EXISTED=1"
-if "!SERVICE_STATE!"=="1" (
-    set "SERVICE_EXISTED=1"
-    set "SERVICE_WAS_RUNNING=1"
-)
+sc.exe query brandflow-control-plane >nul 2>&1 && set "SERVICE_EXISTED=1"
+sc.exe query brandflow-control-plane 2>nul | findstr /R /C:": *4 " >nul && set "SERVICE_WAS_RUNNING=1"
+echo   - 服务存在: !SERVICE_EXISTED!，切换前运行中: !SERVICE_WAS_RUNNING!
 
 if "!SERVICE_WAS_RUNNING!"=="1" (
+    echo   - 正在停止控制面服务 ...
     sc.exe stop brandflow-control-plane >nul 2>&1
     if !errorlevel! neq 0 (
         echo   - 首次配置 runner 的服务启停权限 ...
@@ -350,6 +347,7 @@ if "!SERVICE_WAS_RUNNING!"=="1" (
         if "%GITHUB_ACTIONS%"=="" pause
         exit /b 1
     )
+    echo   - service stopped.
 )
 
 if exist "!LIVE_VENV!" (
@@ -360,6 +358,7 @@ if exist "!LIVE_VENV!" (
         if "%GITHUB_ACTIONS%"=="" pause
         exit /b 1
     )
+    echo   - live venv backed up.
 )
 
 call :move_venv_with_retry "!STAGED_VENV!" "!LIVE_VENV!" 10
@@ -369,6 +368,7 @@ if !errorlevel! neq 0 (
     if "%GITHUB_ACTIONS%"=="" pause
     exit /b 1
 )
+echo   - staging venv activated.
 
 if "!SERVICE_EXISTED!"=="0" (
     where nssm >nul 2>&1
@@ -396,8 +396,10 @@ if "!SERVICE_EXISTED!"=="0" (
     )
 )
 
-sc.exe start brandflow-control-plane >nul
+echo   - starting control-plane service ...
+sc.exe start brandflow-control-plane
 if !errorlevel! neq 0 (
+    echo [cutover] control-plane service failed to start
     echo [错误] 控制面服务启动失败 >> "!LOG_FILE!"
     call :rollback_venv
     if "%GITHUB_ACTIONS%"=="" pause
@@ -454,15 +456,13 @@ exit /b 0
 :wait_for_service_state
 set "EXPECTED_STATE=%~1"
 set "WAIT_SECONDS=%~2"
+set "EXPECTED_STATE_NUMBER=4"
+if /I "!EXPECTED_STATE!"=="STOPPED" set "EXPECTED_STATE_NUMBER=1"
 for /L %%S in (1,1,!WAIT_SECONDS!) do (
-    powershell -NoProfile -Command "$service = Get-Service -Name 'brandflow-control-plane' -ErrorAction SilentlyContinue; if ($null -ne $service -and $service.Status.ToString().ToUpperInvariant() -eq '!EXPECTED_STATE!') { exit 0 }; exit 1" && exit /b 0
+    sc.exe query brandflow-control-plane 2>nul | findstr /R /C:": *!EXPECTED_STATE_NUMBER! " >nul && exit /b 0
     powershell -NoProfile -Command "Start-Sleep -Seconds 1"
 )
 exit /b 1
-
-:get_control_plane_state
-powershell -NoProfile -Command "$service = Get-Service -Name 'brandflow-control-plane' -ErrorAction SilentlyContinue; if ($null -eq $service) { exit 2 }; if ($service.Status -eq 'Stopped') { exit 0 }; exit 1"
-exit /b !errorlevel!
 
 :grant_runner_service_control
 set "SERVICE_CONTROL_REQUEST=%PROJECT_DIR%\packaging\windows\grant-service-control.request"
