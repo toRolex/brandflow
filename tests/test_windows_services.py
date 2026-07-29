@@ -75,6 +75,9 @@ def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
     assert "call :get_control_plane_state" in content
     assert "Get-Service -Name 'brandflow-control-plane'" in content
     assert 'findstr /C:"RUNNING"' not in content
+    assert "call :grant_runner_service_control" in content
+    assert "grant-service-control.request" in content
+    assert "'http://127.0.0.1:17890/api/update'" in content
     assert (
         "if !errorlevel! neq 0 ("
         in content[

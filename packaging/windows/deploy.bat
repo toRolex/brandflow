@@ -330,9 +330,19 @@ if "!SERVICE_STATE!"=="1" (
 if "!SERVICE_WAS_RUNNING!"=="1" (
     sc.exe stop brandflow-control-plane >nul 2>&1
     if !errorlevel! neq 0 (
-        echo [错误] 当前 runner 无法停止控制面服务 >> "!LOG_FILE!"
-        if "%GITHUB_ACTIONS%"=="" pause
-        exit /b 1
+        echo   - 首次配置 runner 的服务启停权限 ...
+        call :grant_runner_service_control
+        if !errorlevel! neq 0 (
+            echo [错误] 无法为当前 runner 配置控制面服务权限 >> "!LOG_FILE!"
+            if "%GITHUB_ACTIONS%"=="" pause
+            exit /b 1
+        )
+        sc.exe stop brandflow-control-plane >nul 2>&1
+        if !errorlevel! neq 0 (
+            echo [错误] 当前 runner 无法停止控制面服务 >> "!LOG_FILE!"
+            if "%GITHUB_ACTIONS%"=="" pause
+            exit /b 1
+        )
     )
     call :wait_for_service_state STOPPED 30
     if !errorlevel! neq 0 (
@@ -453,6 +463,17 @@ exit /b 1
 :get_control_plane_state
 powershell -NoProfile -Command "$service = Get-Service -Name 'brandflow-control-plane' -ErrorAction SilentlyContinue; if ($null -eq $service) { exit 2 }; if ($service.Status -eq 'Stopped') { exit 0 }; exit 1"
 exit /b !errorlevel!
+
+:grant_runner_service_control
+set "SERVICE_CONTROL_REQUEST=%PROJECT_DIR%\packaging\windows\grant-service-control.request"
+> "!SERVICE_CONTROL_REQUEST!" echo request
+"!STAGED_VENV!\Scripts\python.exe" -c "import urllib.request; request=urllib.request.Request('http://127.0.0.1:17890/api/update', method='POST'); response=urllib.request.urlopen(request, timeout=10); raise SystemExit(0 if response.status == 200 else 1)"
+if !errorlevel! neq 0 exit /b 1
+for /L %%G in (1,1,15) do (
+    if not exist "!SERVICE_CONTROL_REQUEST!" exit /b 0
+    powershell -NoProfile -Command "Start-Sleep -Seconds 1"
+)
+exit /b 1
 
 :rollback_venv
 set "ROLLBACK_FAILED=0"
