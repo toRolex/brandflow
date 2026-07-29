@@ -45,6 +45,79 @@ function Get-Health {
     }
 }
 
+function Stop-BrandflowListener {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Health,
+
+        [Parameter(Mandatory = $true)]
+        [object[]]$Listeners
+    )
+
+    if ($Health.status -ne "ok" -or -not $Health.version) {
+        throw "Port 17890 answered, but did not identify itself as a healthy Brandflow control plane"
+    }
+
+    $owners = @($Listeners | Select-Object -ExpandProperty OwningProcess -Unique)
+    Write-Host "Stopping Brandflow $($Health.version) on PID(s): $($owners -join ', ')"
+
+    # The existing control plane runs the update helper under the service account.
+    # Use that one-shot helper to grant NetworkService only start/stop rights.
+    $requestFile = Join-Path $projectDir "packaging\windows\grant-service-control.request"
+    $grantScript = Join-Path $projectDir "packaging\windows\grant-service-control.ps1"
+    if (Test-Path -LiteralPath $grantScript) {
+        Set-Content -LiteralPath $requestFile -Value "request"
+        try {
+            Invoke-WebRequest `
+                -Uri "http://127.0.0.1:17890/api/update" `
+                -Method Post `
+                -UseBasicParsing `
+                -TimeoutSec 10 `
+                -Proxy $null | Out-Null
+            for ($attempt = 1; $attempt -le 15; $attempt++) {
+                if (-not (Test-Path -LiteralPath $requestFile)) {
+                    break
+                }
+                Start-Sleep -Seconds 1
+            }
+        }
+        catch {
+            Write-Warning "Service-control grant request failed: $($_.Exception.Message)"
+        }
+    }
+
+    & sc.exe stop brandflow-control-plane | Out-Host
+    for ($attempt = 1; $attempt -le 30; $attempt++) {
+        if (-not (Get-NetTCPConnection -LocalPort 17890 -State Listen -ErrorAction SilentlyContinue)) {
+            return
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    # A prior emergency launch may be a standalone process rather than the
+    # Windows service. Only stop it after proving both its module and path.
+    foreach ($owner in $owners) {
+        $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $owner"
+        $expectedExecutableRoot = ($projectDir.TrimEnd("\") + "\").ToLowerInvariant()
+        $executablePath = [string]$processInfo.ExecutablePath
+        $commandLine = [string]$processInfo.CommandLine
+        $isBrandflowProcess = (
+            $executablePath -and
+            $executablePath.ToLowerInvariant().StartsWith($expectedExecutableRoot) -and
+            $commandLine -match "apps\.control_plane"
+        )
+        if (-not $isBrandflowProcess) {
+            throw "Refusing to stop unverified listener PID $owner ($executablePath)"
+        }
+        Stop-Process -Id $owner -Force
+    }
+
+    Start-Sleep -Seconds 2
+    if (Get-NetTCPConnection -LocalPort 17890 -State Listen -ErrorAction SilentlyContinue) {
+        throw "Brandflow listener on port 17890 did not stop"
+    }
+}
+
 if (-not (Test-Path -LiteralPath (Join-Path $sourceDir ".git"))) {
     throw "Rollback source is not a Git checkout: $sourceDir"
 }
@@ -73,8 +146,11 @@ if (
 
 $listeners = @(Get-NetTCPConnection -LocalPort 17890 -State Listen -ErrorAction SilentlyContinue)
 if ($listeners.Count -gt 0) {
-    $owners = ($listeners | Select-Object -ExpandProperty OwningProcess -Unique) -join ", "
-    throw "Port 17890 is owned by unexpected process(es): $owners"
+    if ($null -eq $currentHealth) {
+        $owners = ($listeners | Select-Object -ExpandProperty OwningProcess -Unique) -join ", "
+        throw "Port 17890 is owned by a non-Brandflow process: $owners"
+    }
+    Stop-BrandflowListener -Health $currentHealth -Listeners $listeners
 }
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
