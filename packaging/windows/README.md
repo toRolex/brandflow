@@ -67,3 +67,8 @@ packaging\windows\deploy.bat
 | 后端启动失败 | 查看 `logs/control-plane.log`，检查端口 17890 是否被占用 |
 | 前端编译失败 | 确认 Node.js 20+ 已安装 |
 | 工具找不到 | 运行 `where ffmpeg` 确认 PATH，或设置环境变量覆盖 |
+
+`deploy.bat` 会把 CPython 3.11 安装到部署目录的 `.uv-python/`，避免
+GitHub Actions runner 与 NSSM 服务账户使用不同用户级 Python。依赖先构建到
+`.venv-deploy/`；构建成功后才短暂停止控制面，将其原子切换为 `.venv/`。
+新环境健康检查失败时，脚本会恢复上一份虚拟环境并重新启动原服务。

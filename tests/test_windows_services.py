@@ -7,9 +7,83 @@ WINDOWS_DIR = Path(__file__).parents[1] / "packaging" / "windows"
 def test_deploy_uses_control_plane_as_only_pipeline_executor() -> None:
     content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
 
-    assert "AppEnvironmentExtra DEV_AUTO_TICK=1" in content
+    assert "AppEnvironmentExtra" in content
+    assert "DEV_AUTO_TICK=1" in content
     assert "stop brandflow-worker" in content
     assert "brandflow-worker start= disabled" in content
+
+
+def test_deploy_builds_python311_venv_outside_the_live_environment() -> None:
+    content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
+
+    assert 'set "PYTHON_VERSION=3.11"' in content
+    assert 'set "UV_PYTHON_INSTALL_DIR=%PROJECT_DIR%\\.uv-python"' in content
+    assert 'set "STAGED_VENV=%PROJECT_DIR%\\.venv-deploy"' in content
+    assert "-e .venv-deploy -e .venv-backup -e .uv-python" in content
+    assert "uv python install !PYTHON_VERSION!" in content
+    assert "uv python find --managed-python --system !PYTHON_VERSION!" in content
+    assert "Path(sys.executable).resolve().is_relative_to" in content
+    assert 'uv venv --relocatable --python "!DEPLOY_PYTHON!"' in content
+    assert 'uv sync --python "!DEPLOY_PYTHON!" --all-extras --dev' in content
+
+
+def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
+    content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
+
+    sync_position = content.index(
+        'uv sync --python "!DEPLOY_PYTHON!" --all-extras --dev'
+    )
+    stop_position = content.index("sc.exe stop brandflow-control-plane")
+    backup_cleanup_position = content.index(
+        'if exist "!BACKUP_VENV!" rmdir /s /q "!BACKUP_VENV!"'
+    )
+    cutover_position = content.index('move /y "!STAGED_VENV!" "!LIVE_VENV!"')
+    start_position = content.index(
+        "sc.exe start brandflow-control-plane", cutover_position
+    )
+
+    assert (
+        sync_position
+        < backup_cleanup_position
+        < stop_position
+        < cutover_position
+        < start_position
+    )
+    assert "call :rollback_venv" in content
+
+
+def test_deploy_rollback_checks_each_destructive_step() -> None:
+    content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
+    rollback = content[content.rindex("\n:rollback_venv") :]
+
+    assert 'set "ROLLBACK_FAILED=0"' in rollback
+    assert 'if exist "!LIVE_VENV!" set "ROLLBACK_FAILED=1"' in rollback
+    assert 'if exist "!BACKUP_VENV!" set "ROLLBACK_FAILED=1"' in rollback
+    assert "call :wait_for_service_state RUNNING 30" in rollback
+    assert "自动回滚失败" in rollback
+    assert 'if "!ROLLBACK_FAILED!"=="1"' in rollback
+    assert "exit /b 1" in rollback
+
+
+def test_deploy_service_executes_the_project_venv_python_directly() -> None:
+    content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
+
+    assert (
+        "nssm install brandflow-control-plane "
+        '"%PROJECT_DIR%\\.venv\\Scripts\\python.exe"' in content
+    )
+    assert '/v Application /d "%PROJECT_DIR%\\.venv\\Scripts\\python.exe"' in content
+    assert '/v AppParameters /d "-m apps.control_plane"' in content
+    assert 'cmd /c "uv run' not in content
+
+
+def test_deploy_health_check_requires_the_checked_out_version() -> None:
+    content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
+
+    assert 'set "EXPECTED_VERSION="' in content
+    assert "data.get('status') == 'ok'" in content
+    assert "data.get('version') == '!EXPECTED_VERSION!'" in content
+    assert "运行版本不是 !EXPECTED_VERSION!" in content
 
 
 def test_start_and_stop_only_manage_control_plane() -> None:
