@@ -10,6 +10,11 @@ set "PROJECT_DIR=D:\brandflow"
 if not "%GITHUB_WORKSPACE%"=="" set "RUNNER_SRC=%GITHUB_WORKSPACE%"
 set "BRANCH=%~1"
 if "%BRANCH%"=="" set "BRANCH=main"
+set "PYTHON_VERSION=3.11"
+set "UV_PYTHON_INSTALL_DIR=%PROJECT_DIR%\.uv-python"
+set "LIVE_VENV=%PROJECT_DIR%\.venv"
+set "STAGED_VENV=%PROJECT_DIR%\.venv-deploy"
+set "BACKUP_VENV=%PROJECT_DIR%\.venv-backup"
 
 :: Debug headers — 方便排查 CD 失败
 echo === Brandflow deploy entrypoint ===
@@ -161,7 +166,7 @@ if defined RUNNER_SRC (
         exit /b 1
     )
     :: 清干净 tracked 文件但保留运行时数据
-    git clean -fdx -e .env -e workspace -e logs -e .venv -e frontend\node_modules -e config\app_config.json -e config\providers.yaml >nul 2>&1
+    git clean -fdx -e .env -e workspace -e logs -e .venv -e .venv-deploy -e .venv-backup -e .uv-python -e frontend\node_modules -e config\app_config.json -e config\providers.yaml >nul 2>&1
 ) else (
     echo   手动模式：从 origin 拉取 ...
     git fetch --tags origin
@@ -187,13 +192,69 @@ popd
 :: ============================================
 echo [4/7] 安装 Python 依赖 ...
 pushd "%PROJECT_DIR%"
-uv sync --all-extras --dev
-if %errorlevel% neq 0 (
+echo   - 准备项目共享的 CPython !PYTHON_VERSION! ...
+uv python install !PYTHON_VERSION!
+if !errorlevel! neq 0 (
+    set "DEPLOY_EXIT_CODE=!errorlevel!"
+    echo [错误] CPython !PYTHON_VERSION! 安装失败 >> "!LOG_FILE!"
+    popd
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b !DEPLOY_EXIT_CODE!
+)
+
+set "DEPLOY_PYTHON="
+for /f "usebackq delims=" %%I in (`uv python find --managed-python --system !PYTHON_VERSION!`) do set "DEPLOY_PYTHON=%%I"
+if not defined DEPLOY_PYTHON (
+    echo [错误] 找不到项目共享的 CPython !PYTHON_VERSION! >> "!LOG_FILE!"
+    popd
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+"!DEPLOY_PYTHON!" -c "import sys; from pathlib import Path; raise SystemExit(0 if Path(sys.executable).resolve().is_relative_to(Path(r'%UV_PYTHON_INSTALL_DIR%').resolve()) else 1)"
+if !errorlevel! neq 0 (
+    echo [错误] Python 不在项目共享目录: !DEPLOY_PYTHON! >> "!LOG_FILE!"
+    popd
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+echo   - Python: !DEPLOY_PYTHON!
+
+if exist "!STAGED_VENV!" rmdir /s /q "!STAGED_VENV!"
+if exist "!STAGED_VENV!" (
+    echo [错误] 无法清理 staging 虚拟环境: !STAGED_VENV! >> "!LOG_FILE!"
+    popd
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+
+set "UV_PROJECT_ENVIRONMENT=!STAGED_VENV!"
+uv venv --relocatable --python "!DEPLOY_PYTHON!" "!STAGED_VENV!"
+if !errorlevel! neq 0 (
+    echo [错误] staging 虚拟环境创建失败 >> "!LOG_FILE!"
+    set "UV_PROJECT_ENVIRONMENT="
+    popd
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+uv sync --python "!DEPLOY_PYTHON!" --all-extras --dev
+set "DEPLOY_EXIT_CODE=!errorlevel!"
+set "UV_PROJECT_ENVIRONMENT="
+if !DEPLOY_EXIT_CODE! neq 0 (
     echo [错误] uv sync 失败 >> "!LOG_FILE!"
-    pause
-    exit /b %errorlevel%
+    popd
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b !DEPLOY_EXIT_CODE!
+)
+
+"!STAGED_VENV!\Scripts\python.exe" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)"
+if !errorlevel! neq 0 (
+    echo [错误] staging 虚拟环境不是 Python 3.11 >> "!LOG_FILE!"
+    popd
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
 )
 popd
+echo   Python !PYTHON_VERSION! staging 环境已就绪。
 
 :: ============================================
 :: Step 5: 前端编译
@@ -225,36 +286,120 @@ echo   前端编译完成。
 :: ============================================
 :: Step 6: 注册 / 启动服务
 :: ============================================
-echo [6/7] 注册并启动服务 ...
-nssm status brandflow-control-plane >nul 2>&1 || (
-    nssm install brandflow-control-plane cmd /c "uv run --directory %PROJECT_DIR% python -m apps.control_plane"
-    nssm set brandflow-control-plane AppDirectory "%PROJECT_DIR%"
-    nssm set brandflow-control-plane AppStdout "%PROJECT_DIR%\logs\control-plane.log"
-    nssm set brandflow-control-plane AppStderr "%PROJECT_DIR%\logs\control-plane.log"
-    nssm set brandflow-control-plane AppRotateFiles 1
-    nssm set brandflow-control-plane AppRotateBytes 10485760
-    nssm set brandflow-control-plane Start SERVICE_AUTO_START
-)
-nssm set brandflow-control-plane AppEnvironmentExtra DEV_AUTO_TICK=1 >nul
-nssm restart brandflow-control-plane >nul
+echo [6/7] 原子切换环境并启动服务 ...
+set "SERVICE_EXISTED=0"
+set "SERVICE_WAS_RUNNING=0"
+sc.exe query brandflow-control-plane >nul 2>&1 && set "SERVICE_EXISTED=1"
+sc.exe query brandflow-control-plane 2>nul | findstr /C:"RUNNING" >nul && set "SERVICE_WAS_RUNNING=1"
 
-nssm stop brandflow-worker >nul 2>&1
-sc config brandflow-worker start= disabled >nul 2>&1
+:: 在停服务前处理旧备份；失败时保持当前生产服务在线并安全退出。
+if exist "!BACKUP_VENV!" rmdir /s /q "!BACKUP_VENV!"
+if exist "!BACKUP_VENV!" (
+    echo [错误] 无法清理上一份虚拟环境备份: !BACKUP_VENV! >> "!LOG_FILE!"
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+
+if "!SERVICE_WAS_RUNNING!"=="1" (
+    sc.exe stop brandflow-control-plane >nul 2>&1
+    call :wait_for_service_state STOPPED 30
+    if !errorlevel! neq 0 (
+        echo [错误] 控制面服务未能在 30 秒内停止 >> "!LOG_FILE!"
+        if "%GITHUB_ACTIONS%"=="" pause
+        exit /b 1
+    )
+)
+
+if exist "!LIVE_VENV!" (
+    move /y "!LIVE_VENV!" "!BACKUP_VENV!" >nul
+    if !errorlevel! neq 0 (
+        echo [错误] 无法备份当前虚拟环境 >> "!LOG_FILE!"
+        if "!SERVICE_WAS_RUNNING!"=="1" sc.exe start brandflow-control-plane >nul 2>&1
+        if "%GITHUB_ACTIONS%"=="" pause
+        exit /b 1
+    )
+)
+
+move /y "!STAGED_VENV!" "!LIVE_VENV!" >nul
+if !errorlevel! neq 0 (
+    echo [错误] 无法启用 staging 虚拟环境 >> "!LOG_FILE!"
+    call :rollback_venv
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+
+if "!SERVICE_EXISTED!"=="0" (
+    where nssm >nul 2>&1
+    if !errorlevel! neq 0 (
+        echo [错误] 首次注册服务需要 nssm，但当前 PATH 中未找到 >> "!LOG_FILE!"
+        call :rollback_venv
+        if "%GITHUB_ACTIONS%"=="" pause
+        exit /b 1
+    )
+    nssm install brandflow-control-plane "%PROJECT_DIR%\.venv\Scripts\python.exe" "-m apps.control_plane"
+    if !errorlevel! neq 0 (
+        echo [错误] 注册控制面服务失败 >> "!LOG_FILE!"
+        call :rollback_venv
+        if "%GITHUB_ACTIONS%"=="" pause
+        exit /b 1
+    )
+)
+
+:: NSSM 参数直接写注册表，避免 runner 账户 PATH 中没有 nssm 时无法更新现有服务。
+set "SERVICE_PARAMS=HKLM\SYSTEM\CurrentControlSet\Services\brandflow-control-plane\Parameters"
+call :configure_service
+if !errorlevel! neq 0 (
+    echo [错误] 更新控制面服务配置失败 >> "!LOG_FILE!"
+    call :rollback_venv
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+
+sc.exe start brandflow-control-plane >nul
+if !errorlevel! neq 0 (
+    echo [错误] 控制面服务启动失败 >> "!LOG_FILE!"
+    call :rollback_venv
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+
+sc.exe stop brandflow-worker >nul 2>&1
+sc.exe config brandflow-worker start= disabled >nul 2>&1
 echo   服务已启动。
 
 :: ============================================
 :: Step 7: 健康检查
 :: ============================================
 echo [7/7] 健康检查 ...
-timeout /t 5 /nobreak >nul
-
-curl --noproxy "*" -f http://127.0.0.1:17890/api/health >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [错误] 健康检查失败，请检查日志: !LOG_FILE!
-    pause
+set "EXPECTED_VERSION="
+set "VERSION_FILE=%TEMP%\brandflow-deploy-version-!RANDOM!.txt"
+"!LIVE_VENV!\Scripts\python.exe" -c "import tomllib; print(tomllib.load(open(r'%PROJECT_DIR%\pyproject.toml','rb'))['project']['version'])" > "!VERSION_FILE!"
+if !errorlevel! equ 0 set /p EXPECTED_VERSION=<"!VERSION_FILE!"
+if exist "!VERSION_FILE!" del /q "!VERSION_FILE!"
+if not defined EXPECTED_VERSION (
+    echo [错误] 无法读取待部署版本 >> "!LOG_FILE!"
+    call :rollback_venv
+    if "%GITHUB_ACTIONS%"=="" pause
     exit /b 1
 )
 
+set "HEALTHY=0"
+for /L %%I in (1,1,15) do (
+    if "!HEALTHY!"=="0" (
+        "!LIVE_VENV!\Scripts\python.exe" -c "import json, urllib.request; data=json.load(urllib.request.urlopen('http://127.0.0.1:17890/api/health')); raise SystemExit(0 if data.get('status') == 'ok' and data.get('version') == '!EXPECTED_VERSION!' else 1)" >nul 2>&1 && set "HEALTHY=1"
+        if "!HEALTHY!"=="0" powershell -NoProfile -Command "Start-Sleep -Seconds 1"
+    )
+)
+if "!HEALTHY!"=="0" (
+    echo [错误] 健康检查失败或运行版本不是 !EXPECTED_VERSION!，请检查日志: !LOG_FILE!
+    echo [错误] 新环境健康检查失败，回滚上一环境 >> "!LOG_FILE!"
+    call :rollback_venv
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+
+if exist "!BACKUP_VENV!" rmdir /s /q "!BACKUP_VENV!"
+if exist "!BACKUP_VENV!" echo [警告] 部署成功，但旧虚拟环境备份未能删除: !BACKUP_VENV! >> "!LOG_FILE!"
 echo [%date% %time%] ========== 部署成功 ========== >> "!LOG_FILE!"
 echo.
 echo ============================================
@@ -262,4 +407,71 @@ echo  部署成功
 echo  访问: http://127.0.0.1:17890
 echo  日志: !LOG_FILE!
 echo ============================================
-pause
+if "%GITHUB_ACTIONS%"=="" pause
+exit /b 0
+
+:wait_for_service_state
+set "EXPECTED_STATE=%~1"
+set "WAIT_SECONDS=%~2"
+for /L %%S in (1,1,!WAIT_SECONDS!) do (
+    sc.exe query brandflow-control-plane | findstr /C:"!EXPECTED_STATE!" >nul && exit /b 0
+    powershell -NoProfile -Command "Start-Sleep -Seconds 1"
+)
+exit /b 1
+
+:rollback_venv
+set "ROLLBACK_FAILED=0"
+sc.exe query brandflow-control-plane >nul 2>&1
+if !errorlevel! equ 0 (
+    sc.exe stop brandflow-control-plane >nul 2>&1
+    call :wait_for_service_state STOPPED 30 >nul 2>&1
+    if !errorlevel! neq 0 set "ROLLBACK_FAILED=1"
+)
+
+if "!ROLLBACK_FAILED!"=="0" (
+    if exist "!LIVE_VENV!" rmdir /s /q "!LIVE_VENV!"
+    if exist "!LIVE_VENV!" set "ROLLBACK_FAILED=1"
+)
+
+if "!ROLLBACK_FAILED!"=="0" (
+    if exist "!BACKUP_VENV!" move /y "!BACKUP_VENV!" "!LIVE_VENV!" >nul
+    if exist "!BACKUP_VENV!" set "ROLLBACK_FAILED=1"
+)
+
+if "!SERVICE_WAS_RUNNING!"=="1" if not exist "!LIVE_VENV!\Scripts\python.exe" set "ROLLBACK_FAILED=1"
+
+if "!SERVICE_WAS_RUNNING!"=="1" if "!ROLLBACK_FAILED!"=="0" (
+    sc.exe start brandflow-control-plane >nul 2>&1
+    if !errorlevel! neq 0 (
+        set "ROLLBACK_FAILED=1"
+    ) else (
+        call :wait_for_service_state RUNNING 30 >nul 2>&1
+        if !errorlevel! neq 0 set "ROLLBACK_FAILED=1"
+    )
+)
+
+if "!SERVICE_EXISTED!"=="0" (
+    sc.exe delete brandflow-control-plane >nul 2>&1
+    sc.exe query brandflow-control-plane >nul 2>&1
+    if !errorlevel! equ 0 set "ROLLBACK_FAILED=1"
+)
+
+if "!ROLLBACK_FAILED!"=="1" (
+    echo [严重] 自动回滚失败；备份保留在 !BACKUP_VENV!，需要人工恢复 >> "!LOG_FILE!"
+    exit /b 1
+)
+echo [恢复] 已恢复上一虚拟环境和服务状态 >> "!LOG_FILE!"
+exit /b 0
+
+:configure_service
+reg query "!SERVICE_PARAMS!" >nul 2>&1 || exit /b 1
+reg add "!SERVICE_PARAMS!" /v Application /d "%PROJECT_DIR%\.venv\Scripts\python.exe" /f >nul || exit /b 1
+reg add "!SERVICE_PARAMS!" /v AppParameters /d "-m apps.control_plane" /f >nul || exit /b 1
+reg add "!SERVICE_PARAMS!" /v AppDirectory /d "%PROJECT_DIR%" /f >nul || exit /b 1
+reg add "!SERVICE_PARAMS!" /v AppStdout /d "%PROJECT_DIR%\logs\control-plane.log" /f >nul || exit /b 1
+reg add "!SERVICE_PARAMS!" /v AppStderr /d "%PROJECT_DIR%\logs\control-plane.log" /f >nul || exit /b 1
+reg add "!SERVICE_PARAMS!" /v AppRotateFiles /t REG_DWORD /d 1 /f >nul || exit /b 1
+reg add "!SERVICE_PARAMS!" /v AppRotateBytes /t REG_DWORD /d 10485760 /f >nul || exit /b 1
+reg add "!SERVICE_PARAMS!" /v AppEnvironmentExtra /t REG_MULTI_SZ /d "DEV_AUTO_TICK=1" /f >nul || exit /b 1
+sc.exe config brandflow-control-plane start= auto >nul || exit /b 1
+exit /b 0
