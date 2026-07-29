@@ -294,9 +294,9 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
 
     asset_repo = _asset_repo(root_dir)
     current_asset_ids = [
-        c.get("asset_id")
+        asset_id
         for i, c in enumerate(clips)
-        if i != payload.clip_index and c.get("asset_id")
+        if i != payload.clip_index and (asset_id := c.get("asset_id"))
     ]
     decision = select_replacement(
         asset_repo,
@@ -348,16 +348,12 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
         asset_repo.decrement_usage(rejected_asset_id)
         asset_repo.increment_usage(chosen.asset_id)
         _save_clips(job_dir, clips)
-        logger.info(
-            f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}"
-        )
+        logger.info(f"[Review] 替换素材: {rejected_asset_id} → {chosen.asset_id}")
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"[Review] 替换素材失败: {e}")
-        _log_replacement_error(
-            job_id, payload.clip_index, category, e
-        )
+        _log_replacement_error(job_id, payload.clip_index, category, e)
         # Best-effort: record that replacement failed. If this secondary write
         # also fails we still raise a 500 so the client sees an error rather
         # than an unhandled exception.
@@ -365,12 +361,8 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
             clips[payload.clip_index]["method"] = "rejected_error"
             _save_clips(job_dir, clips)
         except Exception as save_exc:  # noqa: BLE001
-            logger.warning(
-                f"[Review] 标记 rejected_error 失败: {save_exc}"
-            )
-        raise HTTPException(
-            status_code=500, detail=f"asset replacement failed: {e}"
-        )
+            logger.warning(f"[Review] 标记 rejected_error 失败: {save_exc}")
+        raise HTTPException(status_code=500, detail=f"asset replacement failed: {e}")
 
     return {
         "status": "clip_rejected",
@@ -487,9 +479,7 @@ def _log_no_replacement(
                 "clip_index": clip_index,
                 "category": category,
                 "reason": reason,
-                "diagnostics": (
-                    diagnostics.__dict__ if diagnostics else {}
-                ),
+                "diagnostics": (diagnostics.__dict__ if diagnostics else {}),
             },
         },
         log_dir=log_dir,

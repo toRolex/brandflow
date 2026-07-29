@@ -66,7 +66,10 @@ class SecretStore:
             "tts": TTS_ENV_MAPPINGS,
             "vision": VISION_ENV_MAPPINGS,
         }.get(section, {})
-        for env_name, mapped_field in mappings.get(provider, {}).get("env", {}).items():
+        env_map = mappings.get(provider, {}).get("env", {})
+        if not isinstance(env_map, dict):
+            return ""
+        for env_name, mapped_field in env_map.items():
             if mapped_field == field_name:
                 return env_name
         return ""

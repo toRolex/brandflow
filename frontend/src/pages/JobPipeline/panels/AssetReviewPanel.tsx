@@ -1,7 +1,7 @@
 import { useState } from "react";
 import ClipReviewCard from "../../../components/ClipReviewCard";
-import AssetPicker from "../components/AssetPicker";
 import type { AssetRecord } from "../../../types";
+import AssetPicker from "../components/AssetPicker";
 import type { PanelProps } from "../types";
 
 export default function AssetReviewPanel({
@@ -25,7 +25,7 @@ export default function AssetReviewPanel({
 	const [pickerIndex, setPickerIndex] = useState<number | null>(null);
 
 	const selectedClip =
-		pickerIndex !== null ? selectedClips[pickerIndex] : undefined;
+		pickerIndex === null ? undefined : selectedClips[pickerIndex];
 
 	const handleSelectAsset = (asset: AssetRecord) => {
 		if (pickerIndex === null) return;
@@ -143,9 +143,7 @@ export default function AssetReviewPanel({
 				<AssetPicker
 					product={job.product}
 					preferredCategory={
-						selectedClip?.category
-							? String(selectedClip.category)
-							: undefined
+						selectedClip?.category ? String(selectedClip.category) : undefined
 					}
 					onSelect={handleSelectAsset}
 					onCancel={() => setPickerIndex(null)}

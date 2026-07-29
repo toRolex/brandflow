@@ -126,11 +126,17 @@ class PhaseContext:
     # ``root_dir`` / ``project_dir`` remain readable as derived shortcuts so
     # existing handlers keep working; new code should resolve paths through
     # ``layout`` rather than string concatenation.
-    layout: WorkspaceLayout | None = None
+    _layout: WorkspaceLayout | None = None
 
     def __post_init__(self) -> None:
-        if self.layout is None:
-            self.layout = WorkspaceLayout(self.root_dir)
+        if self._layout is None:
+            self._layout = WorkspaceLayout(self.root_dir)
+
+    @property
+    def layout(self) -> WorkspaceLayout:
+        """Workspace layout — ``__post_init__`` guarantees it is never None."""
+        assert self._layout is not None
+        return self._layout
 
 
 # ---------------------------------------------------------------------------

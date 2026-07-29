@@ -1,9 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import AssetPicker from "../AssetPicker";
 import { listIndexedAssetsShared } from "../../../../api/assetLibrary";
 import type { AssetRecord } from "../../../../types/asset";
+import AssetPicker from "../AssetPicker";
 
 vi.mock("../../../../api/assetLibrary", () => ({
 	listIndexedAssetsShared: vi.fn(),
@@ -73,11 +72,7 @@ describe("AssetPicker", () => {
 
 	it("loads shared assets and filters by available status", async () => {
 		render(
-			<AssetPicker
-				product="p1"
-				onSelect={onSelect}
-				onCancel={onCancel}
-			/>,
+			<AssetPicker product="p1" onSelect={onSelect} onCancel={onCancel} />,
 		);
 
 		await waitFor(() => {
@@ -109,11 +104,7 @@ describe("AssetPicker", () => {
 
 	it("filters assets by selected category", async () => {
 		render(
-			<AssetPicker
-				product="p1"
-				onSelect={onSelect}
-				onCancel={onCancel}
-			/>,
+			<AssetPicker product="p1" onSelect={onSelect} onCancel={onCancel} />,
 		);
 
 		await screen.findByText("clip1.mp4");
@@ -128,11 +119,7 @@ describe("AssetPicker", () => {
 
 	it("disables confirm button until an asset is selected", async () => {
 		render(
-			<AssetPicker
-				product="p1"
-				onSelect={onSelect}
-				onCancel={onCancel}
-			/>,
+			<AssetPicker product="p1" onSelect={onSelect} onCancel={onCancel} />,
 		);
 
 		const confirmBtn = await screen.findByRole("button", { name: "确认选择" });
@@ -147,11 +134,7 @@ describe("AssetPicker", () => {
 
 	it("renders a video preview for the selected asset", async () => {
 		render(
-			<AssetPicker
-				product="p1"
-				onSelect={onSelect}
-				onCancel={onCancel}
-			/>,
+			<AssetPicker product="p1" onSelect={onSelect} onCancel={onCancel} />,
 		);
 
 		await screen.findByText("clip1.mp4");
@@ -169,11 +152,7 @@ describe("AssetPicker", () => {
 
 	it("calls onCancel when cancel button is clicked", async () => {
 		render(
-			<AssetPicker
-				product="p1"
-				onSelect={onSelect}
-				onCancel={onCancel}
-			/>,
+			<AssetPicker product="p1" onSelect={onSelect} onCancel={onCancel} />,
 		);
 
 		await screen.findByText("clip1.mp4");

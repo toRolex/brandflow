@@ -15,7 +15,9 @@ describe("Pagination", () => {
 			/>,
 		);
 		expect(container.firstChild).not.toBeNull();
-		expect(screen.getByText(/第\s*1-10\s*条，共\s*10\s*条/)).toBeInTheDocument();
+		expect(
+			screen.getByText(/第\s*1-10\s*条，共\s*10\s*条/),
+		).toBeInTheDocument();
 		expect(screen.getByText("1")).toBeInTheDocument();
 	});
 
@@ -29,7 +31,9 @@ describe("Pagination", () => {
 				onPageSizeChange={vi.fn()}
 			/>,
 		);
-		expect(screen.getByText(/第\s*51-100\s*条，共\s*200\s*条/)).toBeInTheDocument();
+		expect(
+			screen.getByText(/第\s*51-100\s*条，共\s*200\s*条/),
+		).toBeInTheDocument();
 	});
 
 	it("renders page buttons", () => {
@@ -204,7 +208,9 @@ describe("Pagination", () => {
 				onPageSizeChange={vi.fn()}
 			/>,
 		);
-		expect(screen.getByText(/第\s*11-15\s*条，共\s*15\s*条/)).toBeInTheDocument();
+		expect(
+			screen.getByText(/第\s*11-15\s*条，共\s*15\s*条/),
+		).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "2" })).toHaveStyle({
 			background: "var(--btn-primary-bg)",
 		});

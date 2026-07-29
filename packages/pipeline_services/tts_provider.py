@@ -282,6 +282,12 @@ class MiMoTTSProvider:
         style_instruction = self._build_style_instruction(config)
         assistant_content = self._build_assistant_content(text, config)
 
+        audio: dict[str, Any] = {
+            "format": config.audio_format,
+        }
+        if config.optimize_text_preview:
+            audio["optimize_text_preview"] = True
+
         payload: dict[str, Any] = {
             "model": config.model,
             "messages": [
@@ -291,14 +297,9 @@ class MiMoTTSProvider:
                 },
                 {"role": "assistant", "content": assistant_content},
             ],
-            "audio": {
-                "format": config.audio_format,
-            },
+            "audio": audio,
             "stream": False,
         }
-
-        if config.optimize_text_preview:
-            payload["audio"]["optimize_text_preview"] = True
 
         self._apply_provider_params(payload, config)
         return payload
@@ -315,6 +316,8 @@ class MiMoTTSProvider:
         import base64
         from pathlib import Path
 
+        if not config.voice_clone_sample_path:
+            raise TTSError("Voice clone sample path is not configured")
         sample_path = Path(config.voice_clone_sample_path)
         if not sample_path.exists():
             raise TTSError(f"Voice clone sample not found: {sample_path}")

@@ -808,7 +808,10 @@ class TestTTSProviderProfileMigration:
                     "tts": {"provider": "qwen", "model": "qwen3-tts-flash"},
                     "provider_profiles": {
                         "tts": {
-                            "mimo": {"endpoint": "https://mimo.invalid", "group_id": "g"}
+                            "mimo": {
+                                "endpoint": "https://mimo.invalid",
+                                "group_id": "g",
+                            }
                         }
                     },
                 },

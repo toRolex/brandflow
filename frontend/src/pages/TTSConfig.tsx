@@ -56,7 +56,10 @@ type ConnectionField =
 	| "channel"
 	| "extra_headers";
 
-const CONNECTION_FIELDS: Record<ConnectionField, { label: string; placeholder: string }> = {
+const CONNECTION_FIELDS: Record<
+	ConnectionField,
+	{ label: string; placeholder: string }
+> = {
 	endpoint: { label: "API Endpoint", placeholder: "留空使用环境变量默认地址" },
 	speed: { label: "语速", placeholder: "例如 1.0" },
 	vol: { label: "音量", placeholder: "例如 1.0" },
@@ -385,7 +388,9 @@ export default function TTSConfigPage() {
 									onClick={() => selectModel(m.provider, m.model)}
 								>
 									<h3 className="font-semibold">{m.label}</h3>
-									<p className="text-sm text-[var(--text-tertiary)]">{m.model}</p>
+									<p className="text-sm text-[var(--text-tertiary)]">
+										{m.model}
+									</p>
 									<p className="text-sm text-[var(--text-secondary)] mt-2">
 										{m.description}
 									</p>
@@ -400,7 +405,10 @@ export default function TTSConfigPage() {
 							{connectionFields.map((field) => {
 								const metadata = CONNECTION_FIELDS[field];
 								return (
-									<div key={field} className={field === "extra_headers" ? "md:col-span-2" : ""}>
+									<div
+										key={field}
+										className={field === "extra_headers" ? "md:col-span-2" : ""}
+									>
 										<label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
 											{metadata.label}
 										</label>
@@ -409,7 +417,9 @@ export default function TTSConfigPage() {
 											className="w-full px-4 py-2 border border-[var(--border-default)] rounded-lg"
 											placeholder={metadata.placeholder}
 											value={config[field] ?? ""}
-											onChange={(e) => setConfig({ ...config, [field]: e.target.value })}
+											onChange={(e) =>
+												setConfig({ ...config, [field]: e.target.value })
+											}
 										/>
 									</div>
 								);

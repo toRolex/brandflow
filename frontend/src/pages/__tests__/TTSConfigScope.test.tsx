@@ -61,7 +61,15 @@ const mockModels = {
 	],
 	connection_fields: {
 		qwen: ["endpoint", "extra_headers"],
-		mimo: ["endpoint", "group_id", "speed", "vol", "pitch", "emotion", "extra_headers"],
+		mimo: [
+			"endpoint",
+			"group_id",
+			"speed",
+			"vol",
+			"pitch",
+			"emotion",
+			"extra_headers",
+		],
 	},
 };
 

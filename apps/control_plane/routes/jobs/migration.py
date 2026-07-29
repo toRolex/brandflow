@@ -62,7 +62,7 @@ def retry_job(request: Request, job_id: str):
         root_dir=request.app.state.root_dir,
         product=record.product,
         brand=record.brand,
-        layout=layout,
+        _layout=layout,
         options={
             "manual_script": record.manual_script,
             "uploaded_audio_path": record.uploaded_audio_path,

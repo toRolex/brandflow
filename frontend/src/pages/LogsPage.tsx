@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { DEFAULT_PAGE_SIZE } from "../api/core";
 import {
 	batchDeleteLogDates,
 	cleanupLogs,
@@ -7,7 +8,6 @@ import {
 	type LogDateInfo,
 	listLogDates,
 } from "../api/logs";
-import { DEFAULT_PAGE_SIZE } from "../api/core";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InlineBanner from "../components/InlineBanner";
 import Pagination from "../components/Pagination";

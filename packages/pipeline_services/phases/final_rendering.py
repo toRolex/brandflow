@@ -90,9 +90,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         ):
             logger.error("[FINAL] final.mp4 is not playable; rejecting artifact")
             return []
-        logger.info(
-            "[FINAL] final.mp4 produced (%s bytes)", final_path.stat().st_size
-        )
+        logger.info("[FINAL] final.mp4 produced (%s bytes)", final_path.stat().st_size)
         return [_to_artifact("final_video", final_path, ctx.layout)]
     logger.warning("[FINAL] final.mp4 NOT produced")
     return []

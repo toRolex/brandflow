@@ -105,7 +105,7 @@ class WorkerLoop:
                 root_dir=root_dir,
                 product=product,
                 brand=brand,
-                layout=self.layout,
+                _layout=self.layout,
                 options={
                     "manual_script": command.get("manual_script", ""),
                     "uploaded_audio_path": command.get("uploaded_audio_path", ""),

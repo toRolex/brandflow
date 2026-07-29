@@ -30,7 +30,7 @@ export default function Pagination({
 	const endItem = Math.min(currentPage * pageSize, total);
 
 	const handleJump = () => {
-		const target = parseInt(jumpInput, 10);
+		const target = Number.parseInt(jumpInput, 10);
 		if (isNaN(target)) return;
 		const clamped = Math.max(1, Math.min(target, totalPages));
 		setJumpInput("");
@@ -67,10 +67,7 @@ export default function Pagination({
 				<span style={{ color: "var(--text-secondary)" }}>条</span>
 
 				{/* slot range */}
-				<span
-					className="ml-3"
-					style={{ color: "var(--text-tertiary)" }}
-				>
+				<span className="ml-3" style={{ color: "var(--text-tertiary)" }}>
 					第 {startItem}-{endItem} 条，共 {total} 条
 				</span>
 			</div>
@@ -138,10 +135,7 @@ export default function Pagination({
 				/>
 
 				{/* Jump-to input */}
-				<span
-					className="ml-3"
-					style={{ color: "var(--text-secondary)" }}
-				>
+				<span className="ml-3" style={{ color: "var(--text-secondary)" }}>
 					跳至
 				</span>
 				<input
@@ -185,9 +179,7 @@ function PageNavButton({
 			className="px-2.5 py-1.5 rounded text-sm font-medium transition-colors"
 			style={{
 				background: "var(--btn-ghost-bg)",
-				color: disabled
-					? "var(--text-tertiary)"
-					: "var(--btn-ghost-text)",
+				color: disabled ? "var(--text-tertiary)" : "var(--btn-ghost-text)",
 				border: "1px solid var(--border-default)",
 				cursor: disabled ? "not-allowed" : "pointer",
 				opacity: disabled ? 0.5 : 1,

@@ -132,10 +132,12 @@ export default function AnalyticsPage() {
 		fetchVideos();
 	}, [fetchVideos, refreshVersion]);
 
-	const withPageReset = <T,>(fn: (v: T) => void) => (v: T) => {
-		fn(v);
-		setPage(1);
-	};
+	const withPageReset =
+		<T,>(fn: (v: T) => void) =>
+		(v: T) => {
+			fn(v);
+			setPage(1);
+		};
 
 	const handleDaysChange = setDays;
 	const handlePlatformChange = withPageReset(setPlatform);

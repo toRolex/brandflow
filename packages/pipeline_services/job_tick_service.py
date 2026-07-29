@@ -773,7 +773,7 @@ class JobTickService:
             root_dir=root_dir,
             product=product,
             brand=record.brand,
-            layout=layout,
+            _layout=layout,
             options=merged_options,
             scene_folder_paths=scene_folder_paths,
             transition_duration_ms=transition_duration_ms,

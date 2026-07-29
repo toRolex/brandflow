@@ -115,7 +115,9 @@ class Dispatcher:
     def accept_report(self, task_id: str, attempt_id: str, lease_id: str) -> bool:
         current = self.current_attempts.get(task_id)
         if current is None:
-            _LOGGER.warning("orphan report task_id=%s attempt_id=%s", task_id, attempt_id)
+            _LOGGER.warning(
+                "orphan report task_id=%s attempt_id=%s", task_id, attempt_id
+            )
             return False
         if current["attempt_id"] == attempt_id and current["lease_id"] == lease_id:
             del self.current_attempts[task_id]

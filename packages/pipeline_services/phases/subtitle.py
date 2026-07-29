@@ -54,7 +54,9 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                     )
                 logger.info("[SUBTITLE] srt generated=%s", srt_path.exists())
             except Exception as e:
-                logger.error("[SUBTITLE ERROR] %s: %s", type(e).__name__, e, exc_info=True)
+                logger.error(
+                    "[SUBTITLE ERROR] %s: %s", type(e).__name__, e, exc_info=True
+                )
     else:
         logger.warning("[SUBTITLE WARN] audio.mp3 not found in %s", job_dir)
     if srt_path.exists():

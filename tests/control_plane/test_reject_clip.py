@@ -348,7 +348,6 @@ class TestRejectClip:
         # the route returns 500 rather than crashing silently.
         assert "simulated write failure" in resp.json()["detail"]
 
-
     def test_no_alternative_logs_structured_warning(self, tmp_path: Path) -> None:
         """A missing replacement writes a structured warning via log_service."""
         ctx = _setup(tmp_path, [dict(CLIP)], [("a1", "intro")])
@@ -373,7 +372,10 @@ class TestRejectClip:
         assert entry["source"] == "backend"
         assert ctx["job_id"] in entry["message"]
         assert "intro" in entry["extra"]["reason"]
-        assert "no usable alternative" in entry["extra"]["reason"] or "only the current asset exists" in entry["extra"]["reason"]
+        assert (
+            "no usable alternative" in entry["extra"]["reason"]
+            or "only the current asset exists" in entry["extra"]["reason"]
+        )
         diagnostics = entry["extra"]["diagnostics"]
         assert diagnostics["total"] == 1
         assert diagnostics["same_id"] == 1

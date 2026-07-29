@@ -101,7 +101,10 @@ class AssetIndexer:
         temp_dir = Path(tempfile.mkdtemp(prefix="asset_cut_"))
         try:
             clips = self._scene_detect_and_cut(video_path, temp_dir)
-            log(f"[Indexer] 切割完成: {video_path.name} → {len(clips)} 个片段", logging.DEBUG)
+            log(
+                f"[Indexer] 切割完成: {video_path.name} → {len(clips)} 个片段",
+                logging.DEBUG,
+            )
             records: list[AssetRecord] = []
 
             for i, clip_path in enumerate(clips):
@@ -125,7 +128,10 @@ class AssetIndexer:
                 else:
                     category_name, confidence = "产品特写", 0.0
                     classification_failed = True
-                    log(f"[Indexer] 帧提取失败，使用默认分类: {clip_path.name}", logging.DEBUG)
+                    log(
+                        f"[Indexer] 帧提取失败，使用默认分类: {clip_path.name}",
+                        logging.DEBUG,
+                    )
 
                 target_category = (
                     category_name

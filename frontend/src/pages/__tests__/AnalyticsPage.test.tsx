@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api/client";
 import type { VideoMetric, VideoMetricPage } from "../../types";
@@ -39,7 +45,11 @@ function video(id: number, title: string): VideoMetric {
 	};
 }
 
-function page(items: VideoMetric[], currentPage: number, total = 20): VideoMetricPage {
+function page(
+	items: VideoMetric[],
+	currentPage: number,
+	total = 20,
+): VideoMetricPage {
 	return { items, total, page: currentPage, page_size: 10 };
 }
 
@@ -95,7 +105,8 @@ describe("AnalyticsPage pagination", () => {
 	});
 
 	it("keeps the newest overview when an older filter request finishes later", async () => {
-		const oldOverview = deferred<Awaited<ReturnType<typeof api.getMetricsOverview>>>();
+		const oldOverview =
+			deferred<Awaited<ReturnType<typeof api.getMetricsOverview>>>();
 		const newestOverview =
 			deferred<Awaited<ReturnType<typeof api.getMetricsOverview>>>();
 		vi.mocked(api.getMetricsOverview)
@@ -141,7 +152,9 @@ describe("AnalyticsPage pagination", () => {
 		});
 
 		expect(screen.getByText("300")).toBeInTheDocument();
-		expect(screen.queryByText("100", { selector: "div" })).not.toBeInTheDocument();
+		expect(
+			screen.queryByText("100", { selector: "div" }),
+		).not.toBeInTheDocument();
 	});
 
 	it("shows global row numbers across pages", async () => {
@@ -167,9 +180,8 @@ describe("AnalyticsPage pagination", () => {
 			expect(api.getMetricsOverview).toHaveBeenCalledWith(7, undefined),
 		);
 
-		const fileInput = container.querySelector<HTMLInputElement>(
-			'input[type="file"]',
-		);
+		const fileInput =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
 		expect(fileInput).not.toBeNull();
 		fireEvent.change(fileInput!, {
 			target: { files: [new File(["data"], "metrics.csv")] },

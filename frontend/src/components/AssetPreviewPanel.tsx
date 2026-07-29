@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { resolveAssetMediaUrl } from "../utils/assetMedia";
 import type { AssetRecord } from "../types";
+import { resolveAssetMediaUrl } from "../utils/assetMedia";
 
 interface Props {
 	asset: AssetRecord | null;
