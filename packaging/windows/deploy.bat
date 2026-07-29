@@ -180,9 +180,10 @@ git reset --hard HEAD >nul 2>&1
 if defined RUNNER_SRC (
     echo   CD 模式：从 runner workspace 同步代码 ...
     git remote set-url origin https://github.com/toRolex/brandflow.git >nul 2>&1
-    git fetch --tags origin %BRANCH%
+    :: actions/checkout 已取得精确提交；从本地 runner repo fetch，避免重复访问 GitHub。
+    git fetch --no-tags "%RUNNER_SRC%" HEAD
     if errorlevel 1 (
-        echo [错误] git fetch 失败 >> "!LOG_FILE!"
+        echo [错误] 从 runner workspace 同步代码失败 >> "!LOG_FILE!"
         popd
         pause
         exit /b 1
