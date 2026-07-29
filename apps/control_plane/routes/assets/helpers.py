@@ -260,9 +260,7 @@ async def _run_index_task(
             .isoformat()
         )
         index_task_manager.add_log(task_id, "索引完成")
-        logger.info(
-            "[INDEX] 任务完成: %s, 共处理 %s 个视频", task_id, len(videos)
-        )
+        logger.info("[INDEX] 任务完成: %s, 共处理 %s 个视频", task_id, len(videos))
     except Exception as e:
         task.status = TaskStatus.FAILED
         task.error = str(e)

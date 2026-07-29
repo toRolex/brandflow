@@ -172,7 +172,9 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             _json.dumps(manifest, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        logger.info("[SCENE] Snapshot saved: %s clips -> %s", len(manifest), snapshot_dir)
+        logger.info(
+            "[SCENE] Snapshot saved: %s clips -> %s", len(manifest), snapshot_dir
+        )
 
     transition_duration = ctx.transition_duration_ms / 1000.0
     scene_path = job_dir / "scene_segment.mp4"

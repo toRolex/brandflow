@@ -46,9 +46,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     # upload / library audio jobs do not need TTS synthesis (#249)
     audio_source: str = ctx.options.get("audio_source", "tts")
     if audio_source in ("upload", "library") and not uploaded_audio_path:
-        logger.info(
-            "[TTS] 跳过合成: audio_source=%s, 无上传音频路径", audio_source
-        )
+        logger.info("[TTS] 跳过合成: audio_source=%s, 无上传音频路径", audio_source)
         return result
 
     if uploaded_audio_path:
@@ -126,7 +124,10 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                 dict(orchestrator._resolve_tts_config(ctx)), overrides
             )
             # Qwen uses language_type=Chinese for Cantonese; MiMo ignores it.
-            if ctx.options.get("language", "") == "cantonese" and config.provider == "qwen":
+            if (
+                ctx.options.get("language", "") == "cantonese"
+                and config.provider == "qwen"
+            ):
                 config.language_type = "Chinese"
             tts_cfg = config.to_dict()
 

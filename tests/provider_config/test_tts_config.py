@@ -498,7 +498,9 @@ def test_new_provider_fields_roundtrip_to_dict() -> None:
 
 def test_from_dict_coerces_numeric_string_fields() -> None:
     """数值形式的连接参数（如 sample_rate: 44100）规范化为字符串"""
-    config = TTSConfig.from_dict({"sample_rate": 44100, "bitrate": 192000, "channel": 2})
+    config = TTSConfig.from_dict(
+        {"sample_rate": 44100, "bitrate": 192000, "channel": 2}
+    )
     assert config.sample_rate == "44100"
     assert config.bitrate == "192000"
     assert config.channel == "2"
@@ -642,7 +644,11 @@ def test_resolve_tts_config_flattens_nested_keys() -> None:
     config = resolve_tts_config(
         {
             "model": "qwen3-tts-flash",
-            "director": {"character": "女主播", "scene": "直播间", "guidance": "语速适中"},
+            "director": {
+                "character": "女主播",
+                "scene": "直播间",
+                "guidance": "语速适中",
+            },
             "audio_tags": {"enabled": True, "tags": "(温柔)"},
         }
     )

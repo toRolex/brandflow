@@ -13,13 +13,9 @@ class FakeAssetRepository:
     def __init__(self, assets: list[AssetRecord]) -> None:
         self._assets = assets
 
-    def query_by_category_name(
-        self, product: str, category: str
-    ) -> list[AssetRecord]:
+    def query_by_category_name(self, product: str, category: str) -> list[AssetRecord]:
         return [
-            a
-            for a in self._assets
-            if a.product == product and a.category == category
+            a for a in self._assets if a.product == product and a.category == category
         ]
 
 
@@ -60,9 +56,7 @@ def test_empty_category_returns_reason() -> None:
 
 
 def test_returns_random_candidate_excluding_current() -> None:
-    repo = FakeAssetRepository(
-        [_asset("a1"), _asset("alt1"), _asset("alt2")]
-    )
+    repo = FakeAssetRepository([_asset("a1"), _asset("alt1"), _asset("alt2")])
     decision = select_replacement(repo, "test", "intro", "a1")
     assert decision.chosen is not None
     assert decision.chosen.asset_id in {"alt1", "alt2"}

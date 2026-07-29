@@ -170,9 +170,7 @@ class TestAutoTickLoop:
         assert "AUTO-TICK LOOP ERROR" in entry["message"]
         assert "RuntimeError" in entry["stack_trace"]
 
-    async def test_persists_generic_tick_exception(
-        self, mock_projects: Path
-    ) -> None:
+    async def test_persists_generic_tick_exception(self, mock_projects: Path) -> None:
         """An auto-tick failure is available in the persistent runtime log."""
         mock_svc = Mock(spec=JobTickService)
         mock_svc.tick.side_effect = ValueError("unexpected error")

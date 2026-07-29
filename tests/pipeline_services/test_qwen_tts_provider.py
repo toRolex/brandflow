@@ -205,7 +205,9 @@ class TestQwenTTSProvider:
         assert provider.base_url == full_url
 
         config = FakeConfig()
-        with patch("packages.pipeline_services.tts_provider.requests.post") as mock_post:
+        with patch(
+            "packages.pipeline_services.tts_provider.requests.post"
+        ) as mock_post:
             mock_resp = Mock()
             mock_resp.status_code = 200
             mock_resp.json.return_value = QWEN_RESPONSE
@@ -221,4 +223,7 @@ class TestQwenTTSProvider:
 
                 called_url = mock_post.call_args.args[0]
                 assert called_url == full_url
-                assert called_url.count("/services/aigc/multimodal-generation/generation") == 1
+                assert (
+                    called_url.count("/services/aigc/multimodal-generation/generation")
+                    == 1
+                )

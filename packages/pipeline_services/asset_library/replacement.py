@@ -85,17 +85,15 @@ def select_replacement(
     ]
 
     # Prefer candidates that are still fresh inside this job.
-    candidates = [
-        c
-        for c in base_candidates
-        if job_counts[c.asset_id] < MAX_CLIP_REUSE
-    ]
+    candidates = [c for c in base_candidates if job_counts[c.asset_id] < MAX_CLIP_REUSE]
 
     if candidates:
         # Prefer fewer in-job uses, then lower global usage_count.
         candidates.sort(key=lambda c: (job_counts[c.asset_id], c.usage_count))
         min_key = (job_counts[candidates[0].asset_id], candidates[0].usage_count)
-        best = [c for c in candidates if (job_counts[c.asset_id], c.usage_count) == min_key]
+        best = [
+            c for c in candidates if (job_counts[c.asset_id], c.usage_count) == min_key
+        ]
         return ReplacementDecision(chosen=random.choice(best))
 
     # Fallback: every candidate is already used in this job. Pick the least-used
@@ -109,12 +107,8 @@ def select_replacement(
     diagnostics = ReplacementDiagnostics(
         total=len(all_candidates),
         same_id=sum(1 for c in all_candidates if c.asset_id == exclude_asset_id),
-        overused=sum(
-            1 for c in all_candidates if c.usage_count >= MAX_CLIP_REUSE
-        ),
-        bad_duration=sum(
-            1 for c in all_candidates if not _has_usable_duration(c)
-        ),
+        overused=sum(1 for c in all_candidates if c.usage_count >= MAX_CLIP_REUSE),
+        bad_duration=sum(1 for c in all_candidates if not _has_usable_duration(c)),
         job_overused=sum(
             1
             for c in all_candidates
@@ -148,8 +142,7 @@ def _build_no_replacement_reason(
         return f"no assets found for product={product}, category={category}"
     if total == same_id:
         return (
-            f"only the current asset exists in product={product}, "
-            f"category={category}"
+            f"only the current asset exists in product={product}, category={category}"
         )
 
     parts: list[str] = []
