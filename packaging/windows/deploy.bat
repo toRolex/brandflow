@@ -353,9 +353,9 @@ if "!SERVICE_WAS_RUNNING!"=="1" (
 )
 
 if exist "!LIVE_VENV!" (
-    move /y "!LIVE_VENV!" "!BACKUP_VENV!" >nul
+    call :move_venv_with_retry "!LIVE_VENV!" "!BACKUP_VENV!" 30
     if !errorlevel! neq 0 (
-        echo [错误] 无法备份当前虚拟环境 >> "!LOG_FILE!"
+        echo [错误] 控制面停止后等待 30 秒，虚拟环境仍被占用 >> "!LOG_FILE!"
         if "!SERVICE_WAS_RUNNING!"=="1" sc.exe start brandflow-control-plane >nul 2>&1
         if "%GITHUB_ACTIONS%"=="" pause
         exit /b 1
@@ -471,6 +471,17 @@ set "SERVICE_CONTROL_REQUEST=%PROJECT_DIR%\packaging\windows\grant-service-contr
 if !errorlevel! neq 0 exit /b 1
 for /L %%G in (1,1,15) do (
     if not exist "!SERVICE_CONTROL_REQUEST!" exit /b 0
+    powershell -NoProfile -Command "Start-Sleep -Seconds 1"
+)
+exit /b 1
+
+:move_venv_with_retry
+set "MOVE_SOURCE=%~1"
+set "MOVE_TARGET=%~2"
+set "MOVE_ATTEMPTS=%~3"
+for /L %%M in (1,1,!MOVE_ATTEMPTS!) do (
+    move /y "!MOVE_SOURCE!" "!MOVE_TARGET!" >nul 2>&1
+    if !errorlevel! equ 0 exit /b 0
     powershell -NoProfile -Command "Start-Sleep -Seconds 1"
 )
 exit /b 1
