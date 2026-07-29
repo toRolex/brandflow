@@ -1,0 +1,54 @@
+name: Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_tag:
+        description: Stable release tag to restore
+        required: true
+        default: v0.7.30
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  rollback-prod:
+    name: Roll back prod-jump
+    runs-on: [self-hosted, Windows, X64, bf-prod]
+    timeout-minutes: 30
+    steps:
+      - name: Validate target tag
+        shell: powershell
+        run: |
+          if ("${{ inputs.target_tag }}" -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "target_tag must be a stable release tag such as v0.7.30"
+          }
+
+      - name: Check out rollback tooling
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: rollback-tooling
+
+      - name: Check out target release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_tag }}
+          fetch-depth: 1
+          path: rollback-source
+
+      - name: Restore target release and start control plane
+        shell: powershell
+        env:
+          https_proxy: ""
+          http_proxy: ""
+        run: |
+          & "$env:GITHUB_WORKSPACE\rollback-tooling\packaging\windows\rollback-prod.ps1" `
+            -SourceDir "$env:GITHUB_WORKSPACE\rollback-source" `
+            -ExpectedTag "${{ inputs.target_tag }}"
+
