@@ -26,10 +26,11 @@ if sys.platform != "win32":
     except ValueError:
         pass
 
-# Aggressive GC: lower thresholds trigger collection sooner,
-# preventing unbounded accumulation across long test sessions.
-gc.set_threshold(500, 5, 3)
-
+# GC 策略（2026-07-29 起）：不再调低阈值、不再每测试全量 collect。
+# 实测旧设置（set_threshold(500,5,3) + 每测试 3×gc.collect()）把全量运行
+# 从 ~70s 拖到 400s+（占时约 6~8 倍），而峰值内存几乎无差（199MB vs 179MB）。
+# 真正的内存防护是结构性的：EXPORT_SYNC/DEV_AUTO_TICK 屏蔽后台线程、
+# 裸 TestClient 已改上下文管理器、mock 死循环已修复，上方 RLIMIT_AS 兜底。
 from fastapi.testclient import TestClient  # noqa: E402
 
 # ponytail: 全局屏蔽 ThreadPoolExecutor 与后台 auto_tick，
@@ -40,14 +41,13 @@ os.environ["DEV_AUTO_TICK"] = "0"
 from apps.control_plane.app import create_app  # noqa: E402
 
 
-# ponytail: 内存泄漏防护 — 每个测试函数执行完毕后强制 GC，
-# 防止参差残留（httpx 连接池、FastAPI app state、tempdir 引用链）积累。
+# 每个测试模块结束后做一次循环 GC（144 次 vs 原 6075 次全堆扫描），
+# 作为跨测试残留（httpx 连接池、FastAPI app state、tempdir 引用链）的轻量兜底。
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_teardown(item, nextitem):
     yield
-    gc.collect()
-    gc.collect()
-    gc.collect()
+    if nextitem is None or nextitem.module is not item.module:
+        gc.collect()
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     """模块级 TestClient 工厂 — 每个 .py 文件只需创建一次 app。
 
     module scope 将 app 创建从 O(tests) 降到 O(test-files)，
-    配合 gc.collect 钩子显著降低全量运行时的 RSS 峰值。
+    显著降低全量运行时的 RSS 峰值。
     """
     root_dir = tmp_path_factory.mktemp("app")
     app = create_app(root_dir)
