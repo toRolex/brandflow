@@ -50,7 +50,7 @@ def test_cd_deploy_fetches_from_checked_out_runner_without_second_network_call()
     cd_block = content[content.index("if defined RUNNER_SRC (") :]
     cd_block = cd_block[: cd_block.index(") else (")]
 
-    assert 'git fetch --no-tags "%RUNNER_SRC%" HEAD' in cd_block
+    assert 'git fetch --no-tags --update-shallow "%RUNNER_SRC%" HEAD' in cd_block
     assert "git fetch --tags origin" not in cd_block
 
 
