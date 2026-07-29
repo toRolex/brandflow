@@ -72,6 +72,8 @@ def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
 
     assert sync_position < stop_position < cutover_position < start_position
     assert start_position < backup_cleanup_position
+    assert 'call :move_venv_with_retry "!LIVE_VENV!" "!BACKUP_VENV!" 30' in content
+    assert "for /L %%M in (1,1,!MOVE_ATTEMPTS!) do (" in content
     assert "call :get_control_plane_state" in content
     assert "Get-Service -Name 'brandflow-control-plane'" in content
     assert 'findstr /C:"RUNNING"' not in content
