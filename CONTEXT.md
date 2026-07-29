@@ -49,7 +49,7 @@ AI 能力的供应商。LLM、TTS 与 Vision provider 各自拥有独立的模�
 ### TTS 配置入口（#386）
 所有 TTS 配置统一到 `/tts-config` 页面单一入口。系统配置页 `/config` 不再包含 TTS 标签；`PUT /api/tts/config` 是 TTS 配置的唯一写 API。旧 `provider_profiles.tts` 在 ConfigReader 首次加载时自动迁移至 `tts` 根节。preset voice 列表定义在 `catalog.json` 各 provider 的 `preset_voices` 字段中，不再硬编码于路由文件。
 
-## 架构状态（v0.7.30）
+## 架构状态（v0.7.31）
 
 WorkspaceLayout seam 已接入 FileStoreRepository、控制面路由、Auto-Tick、pipeline phase handlers 与 Runtime Worker。所有 project-tree 路径通过布局的显式方法解析；`shared_assets`、`music_library` 等全局库保持各自的路径所有权。
 
