@@ -87,11 +87,14 @@ function Stop-BrandflowListener {
     }
 
     & sc.exe stop brandflow-control-plane | Out-Host
-    for ($attempt = 1; $attempt -le 30; $attempt++) {
-        if (-not (Get-NetTCPConnection -LocalPort 17890 -State Listen -ErrorAction SilentlyContinue)) {
-            return
+    $serviceStopExit = $LASTEXITCODE
+    if ($serviceStopExit -eq 0) {
+        for ($attempt = 1; $attempt -le 30; $attempt++) {
+            if (-not (Get-NetTCPConnection -LocalPort 17890 -State Listen -ErrorAction SilentlyContinue)) {
+                return $false
+            }
+            Start-Sleep -Seconds 1
         }
-        Start-Sleep -Seconds 1
     }
 
     # A prior emergency launch may be a standalone process rather than the
@@ -107,6 +110,10 @@ function Stop-BrandflowListener {
             $commandLine -match "apps\.control_plane"
         )
         if (-not $isBrandflowProcess) {
+            if ($serviceStopExit -ne 0 -and -not $executablePath) {
+                Write-Host "The runner cannot inspect or stop the service process; elevated cutover is required."
+                return $true
+            }
             throw "Refusing to stop unverified listener PID $owner ($executablePath)"
         }
         Stop-Process -Id $owner -Force
@@ -116,6 +123,7 @@ function Stop-BrandflowListener {
     if (Get-NetTCPConnection -LocalPort 17890 -State Listen -ErrorAction SilentlyContinue) {
         throw "Brandflow listener on port 17890 did not stop"
     }
+    return $false
 }
 
 if (-not (Test-Path -LiteralPath (Join-Path $sourceDir ".git"))) {
@@ -145,12 +153,13 @@ if (
 }
 
 $listeners = @(Get-NetTCPConnection -LocalPort 17890 -State Listen -ErrorAction SilentlyContinue)
+$needsElevatedCutover = $false
 if ($listeners.Count -gt 0) {
     if ($null -eq $currentHealth) {
         $owners = ($listeners | Select-Object -ExpandProperty OwningProcess -Unique) -join ", "
         throw "Port 17890 is owned by a non-Brandflow process: $owners"
     }
-    Stop-BrandflowListener -Health $currentHealth -Listeners $listeners
+    $needsElevatedCutover = Stop-BrandflowListener -Health $currentHealth -Listeners $listeners
 }
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -228,24 +237,78 @@ try {
         Pop-Location
     }
 
-    if (Test-Path -LiteralPath $backupVenv) {
-        throw "Backup path already exists: $backupVenv"
-    }
-    if (Test-Path -LiteralPath $liveVenv) {
-        Move-Item -LiteralPath $liveVenv -Destination $backupVenv
-    }
-    try {
-        Move-Item -LiteralPath $stagedVenv -Destination $liveVenv
-    }
-    catch {
+    if (-not $needsElevatedCutover) {
         if (Test-Path -LiteralPath $backupVenv) {
-            Move-Item -LiteralPath $backupVenv -Destination $liveVenv
+            throw "Backup path already exists: $backupVenv"
         }
-        throw
+        if (Test-Path -LiteralPath $liveVenv) {
+            Move-Item -LiteralPath $liveVenv -Destination $backupVenv
+        }
+        try {
+            Move-Item -LiteralPath $stagedVenv -Destination $liveVenv
+        }
+        catch {
+            if (Test-Path -LiteralPath $backupVenv) {
+                Move-Item -LiteralPath $backupVenv -Destination $liveVenv
+            }
+            throw
+        }
     }
 }
 finally {
     Pop-Location
+}
+
+if ($needsElevatedCutover) {
+    Write-Host "Requesting elevated service cutover ..."
+    $cutoverScript = Join-Path $logDir "rollback-cutover.ps1"
+    Copy-Item `
+        -LiteralPath (Join-Path $PSScriptRoot "rollback-cutover.ps1") `
+        -Destination $cutoverScript `
+        -Force
+
+    $updateBat = Join-Path $projectDir "packaging\windows\update.bat"
+    @"
+@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -File "$cutoverScript"
+exit /b %errorlevel%
+"@ | Set-Content -LiteralPath $updateBat -Encoding Ascii
+
+    Invoke-WebRequest `
+        -Uri "http://127.0.0.1:17890/api/update" `
+        -Method Post `
+        -UseBasicParsing `
+        -TimeoutSec 10 `
+        -Proxy $null | Out-Null
+
+    $healthy = $false
+    for ($attempt = 1; $attempt -le 60; $attempt++) {
+        Start-Sleep -Seconds 1
+        $health = Get-Health
+        if (
+            $null -ne $health -and
+            $health.status -eq "ok" -and
+            $health.version -eq $expectedVersion
+        ) {
+            $healthy = $true
+            break
+        }
+    }
+
+    Push-Location $projectDir
+    try {
+        Invoke-Native git checkout -- packaging/windows/update.bat
+    }
+    finally {
+        Pop-Location
+        Remove-Item -LiteralPath $cutoverScript -Force -ErrorAction SilentlyContinue
+    }
+
+    if (-not $healthy) {
+        throw "Elevated rollback did not become healthy on $ExpectedTag"
+    }
+    Write-Host "Production Windows service is healthy on $ExpectedTag."
+    exit 0
 }
 
 Write-Host "Starting the rollback control-plane process ..."
