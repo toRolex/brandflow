@@ -8,6 +8,8 @@ carries per-job context while remaining compatible with the standard library
 from __future__ import annotations
 
 import logging
+from collections.abc import MutableMapping
+from typing import Any
 
 
 class PipelineLoggerAdapter(logging.LoggerAdapter):
@@ -17,17 +19,22 @@ class PipelineLoggerAdapter(logging.LoggerAdapter):
     concurrent workers without sharing mutable state.
     """
 
-    def process(self, msg: str, kwargs: dict) -> tuple[str, dict]:
-        job_id = self.extra.get("job_id")
+    def process(
+        self, msg: Any, kwargs: MutableMapping[str, Any]
+    ) -> tuple[Any, MutableMapping[str, Any]]:
+        extra = self.extra or {}
+        job_id = extra.get("job_id")
         call_extra = kwargs.get("extra") or {}
-        kwargs["extra"] = {**call_extra, **self.extra}
+        kwargs["extra"] = {**call_extra, **extra}
         if job_id:
             msg = f"[{job_id}] {msg}"
         return msg, kwargs
 
     def bind(self, job_id: str) -> "PipelineLoggerAdapter":
         """Return a new adapter bound to *job_id*."""
-        return PipelineLoggerAdapter(self.logger, {**self.extra, "job_id": job_id})
+        return PipelineLoggerAdapter(
+            self.logger, {**(self.extra or {}), "job_id": job_id}
+        )
 
 
 def get_pipeline_logger(name: str) -> PipelineLoggerAdapter:

@@ -294,9 +294,9 @@ def reject_clip(job_id: str, payload: RejectClipRequest, request: Request) -> di
 
     asset_repo = _asset_repo(root_dir)
     current_asset_ids = [
-        c.get("asset_id")
+        asset_id
         for i, c in enumerate(clips)
-        if i != payload.clip_index and c.get("asset_id")
+        if i != payload.clip_index and (asset_id := c.get("asset_id"))
     ]
     decision = select_replacement(
         asset_repo,
