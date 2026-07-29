@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Validate target tag
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'"
         run: |
           if ("${{ inputs.target_tag }}" -notmatch '^v\d+\.\d+\.\d+$') {
             throw "target_tag must be a stable release tag such as v0.7.30"
@@ -43,7 +43,7 @@ jobs:
           path: rollback-source
 
       - name: Restore target release and start control plane
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'"
         env:
           https_proxy: ""
           http_proxy: ""
@@ -51,4 +51,3 @@ jobs:
           & "$env:GITHUB_WORKSPACE\rollback-tooling\packaging\windows\rollback-prod.ps1" `
             -SourceDir "$env:GITHUB_WORKSPACE\rollback-source" `
             -ExpectedTag "${{ inputs.target_tag }}"
-
