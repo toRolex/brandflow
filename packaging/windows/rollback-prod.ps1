@@ -169,7 +169,7 @@ Push-Location $projectDir
 try {
     Invoke-Native git reset --hard HEAD
     Invoke-Native git fetch --no-tags --update-shallow $sourceDir HEAD
-    Invoke-Native git checkout -f --detach FETCH_HEAD
+    Invoke-Native git checkout -f FETCH_HEAD
     Invoke-Native git clean -fdx `
         -e .env `
         -e workspace `
