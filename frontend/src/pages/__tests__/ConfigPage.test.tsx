@@ -103,14 +103,15 @@ describe("ConfigPage", () => {
 		vi.mocked(api.getConfigOptions).mockResolvedValue(MOCK_OPTIONS);
 	});
 
-	it("Seam 1: 5 个 section 以横向 Tab 渲染，默认选中 LLM", async () => {
+	it("Seam 1: 4 个 section 以横向 Tab 渲染（TTS 由独立页面管理），默认选中 LLM", async () => {
 		render(<ConfigPage />);
 
 		await waitFor(() => {
 			expect(screen.getByRole("tab", { name: /llm/i })).toBeInTheDocument();
 		});
 
-		expect(screen.getByRole("tab", { name: /tts/i })).toBeInTheDocument();
+		// TTS is managed exclusively via /tts-config page (#386)
+		expect(screen.queryByRole("tab", { name: /tts/i })).not.toBeInTheDocument();
 		expect(screen.getByRole("tab", { name: /vision/i })).toBeInTheDocument();
 		expect(screen.getByRole("tab", { name: /文生图/i })).toBeInTheDocument();
 		expect(screen.getByRole("tab", { name: /图生视频/i })).toBeInTheDocument();
@@ -130,8 +131,7 @@ describe("ConfigPage", () => {
 
 		expect(screen.getByText("DeepSeek")).toBeInTheDocument();
 
-		fireEvent.click(screen.getByRole("tab", { name: /tts/i }));
-		expect(screen.getByText("通义千问")).toBeInTheDocument();
+		expect(screen.queryByRole("tab", { name: /tts/i })).not.toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("tab", { name: /vision/i }));
 		expect(screen.getByText("小米")).toBeInTheDocument();
@@ -150,10 +150,9 @@ describe("ConfigPage", () => {
 			expect(screen.getByRole("tab", { name: /llm/i })).toBeInTheDocument();
 		});
 
-		const tabs = ["llm", "tts", "vision", "text_to_image", "image_to_video"];
+		const tabs = ["llm", "vision", "text_to_image", "image_to_video"];
 		const expectedColorVars = {
 			llm: "--section-llm-color",
-			tts: "--section-tts-color",
 			vision: "--section-vision-color",
 			text_to_image: "--section-text_to_image-color",
 			image_to_video: "--section-image_to_video-color",
@@ -312,7 +311,8 @@ describe("ConfigPage", () => {
 
 		render(<ConfigPage />);
 
-		expect(await screen.findByRole("tab", { name: /tts/i })).toHaveAttribute(
+		// TTS is filtered out (#386), so the first available tab is vision
+		expect(await screen.findByRole("tab", { name: /vision/i })).toHaveAttribute(
 			"aria-selected",
 			"true",
 		);
@@ -427,10 +427,10 @@ describe("ConfigPage", () => {
 		// LLM first provider is deepseek, model field is shown
 		expect(screen.getByDisplayValue("deepseek-v4-pro")).toBeInTheDocument();
 
-		// Switch to TTS and verify first provider selected (voice field appears)
-		fireEvent.click(screen.getByRole("tab", { name: /tts/i }));
-		expect(screen.getByText("音色")).toBeInTheDocument();
-		expect(screen.getByRole("combobox")).toHaveValue("qwen");
+		// Switch to Vision and verify first provider selected (model field appears)
+		fireEvent.click(screen.getByRole("tab", { name: /vision/i }));
+		expect(screen.getByText("模型")).toBeInTheDocument();
+		expect(screen.getByRole("combobox")).toHaveValue("xiaomi");
 	});
 
 	it("Seam 5: 输入框和下拉框使用设计系统变量", async () => {
