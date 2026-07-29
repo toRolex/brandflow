@@ -45,8 +45,8 @@ def test_exit_code_propagation():
     for i, line in enumerate(content.splitlines(), 1):
         stripped = line.strip()
         if stripped.startswith("exit"):
-            assert "%errorlevel%" in stripped, (
-                f"Line {i}: exit 硬编码而非 %errorlevel%: {stripped}"
+            assert "%errorlevel%" in stripped or "!SERVICE_CONTROL_EXIT!" in stripped, (
+                f"Line {i}: exit 未透传命令退出码: {stripped}"
             )
 
 
@@ -125,3 +125,19 @@ def test_progress_json_persists_on_done():
     for pat in delete_patterns:
         assert pat not in content.lower(), f"progress.json 被删除: {pat}"
     assert "done" in content, "done 状态未出现"
+
+
+def test_service_control_bootstrap_requires_a_local_request_file():
+    """生产 runner 仅能通过本地请求文件触发最小服务 ACL 引导。"""
+    content = _read_bat()
+
+    assert 'if exist "%SERVICE_CONTROL_REQUEST%" (' in content
+    assert "grant-service-control.ps1" in content
+    assert 'del /q "%SERVICE_CONTROL_REQUEST%"' in content
+
+    script_path = os.path.join(os.path.dirname(BAT_PATH), "grant-service-control.ps1")
+    with open(os.path.abspath(script_path), encoding="utf-8") as script_file:
+        script = script_file.read()
+    assert "(A;;RPWP;;;NS)" in script
+    assert "sdshow" in script
+    assert "sdset" in script
