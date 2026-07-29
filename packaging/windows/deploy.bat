@@ -15,6 +15,9 @@ set "UV_PYTHON_INSTALL_DIR=%PROJECT_DIR%\.uv-python"
 set "LIVE_VENV=%PROJECT_DIR%\.venv"
 set "STAGED_VENV=%PROJECT_DIR%\.venv-deploy"
 set "BACKUP_VENV=%PROJECT_DIR%\.venv-backup"
+set "NODE_VERSION=20.18.3"
+set "NODE_ROOT=%PROJECT_DIR%\.node"
+set "NODE_DIR=%NODE_ROOT%\node-v%NODE_VERSION%-win-x64"
 
 :: Debug headers — 方便排查 CD 失败
 echo === Brandflow deploy entrypoint ===
@@ -68,16 +71,42 @@ if exist "%USERPROFILE%\.local\bin\uv.exe" set "PATH=%USERPROFILE%\.local\bin;%P
 if exist "C:\Users\ziyua\.local\bin\uv.exe" set "PATH=C:\Users\ziyua\.local\bin;%PATH%"
 if exist "C:\Users\admin\.local\bin\uv.exe" set "PATH=C:\Users\admin\.local\bin;%PATH%"
 
-where node >nul 2>&1 || (
-    if exist "C:\Program Files\nodejs\node.exe" (
-        set "PATH=C:\Program Files\nodejs;%PATH%"
-    ) else (
-        echo   - 安装 Node.js 20 ...
-        curl.exe -sL https://nodejs.org/dist/v20.18.3/node-v20.18.3-x64.msi -o %TEMP%\node-installer.msi
-        msiexec /i %TEMP%\node-installer.msi /qn /norestart
-        if exist "C:\Program Files\nodejs\node.exe" set "PATH=C:\Program Files\nodejs;%PATH%"
+if not exist "!NODE_DIR!\node.exe" (
+    echo   - 安装项目共享的 Node.js !NODE_VERSION! ...
+    if not exist "!NODE_ROOT!" mkdir "!NODE_ROOT!"
+    if exist "!NODE_DIR!" rmdir /s /q "!NODE_DIR!"
+    set "NODE_ARCHIVE=%TEMP%\brandflow-node-v!NODE_VERSION!-!RANDOM!.zip"
+    curl.exe -fSL "https://nodejs.org/dist/v!NODE_VERSION!/node-v!NODE_VERSION!-win-x64.zip" -o "!NODE_ARCHIVE!"
+    if !errorlevel! neq 0 (
+        echo [错误] Node.js !NODE_VERSION! 下载失败 >> "!LOG_FILE!"
+        if exist "!NODE_ARCHIVE!" del /q "!NODE_ARCHIVE!"
+        if "%GITHUB_ACTIONS%"=="" pause
+        exit /b 1
+    )
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '!NODE_ARCHIVE!' -DestinationPath '!NODE_ROOT!' -Force"
+    set "NODE_INSTALL_EXIT=!errorlevel!"
+    if exist "!NODE_ARCHIVE!" del /q "!NODE_ARCHIVE!"
+    if !NODE_INSTALL_EXIT! neq 0 (
+        echo [错误] Node.js !NODE_VERSION! 解压失败 >> "!LOG_FILE!"
+        if "%GITHUB_ACTIONS%"=="" pause
+        exit /b 1
     )
 )
+
+if not exist "!NODE_DIR!\node.exe" (
+    echo [错误] Node.js 安装后仍不可用 >> "!LOG_FILE!"
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+set "PATH=!NODE_DIR!;!PATH!"
+"!NODE_DIR!\node.exe" -e "if (process.version !== 'v!NODE_VERSION!') process.exit(1)"
+if !errorlevel! neq 0 (
+    echo [错误] 项目 Node.js 版本不是 v!NODE_VERSION! >> "!LOG_FILE!"
+    if "%GITHUB_ACTIONS%"=="" pause
+    exit /b 1
+)
+echo   - Node:
+"!NODE_DIR!\node.exe" --version
 
 where pnpm >nul 2>&1 || (
     if exist "%USERPROFILE%\AppData\Local\pnpm\bin\pnpm.CMD" (
@@ -166,7 +195,7 @@ if defined RUNNER_SRC (
         exit /b 1
     )
     :: 清干净 tracked 文件但保留运行时数据
-    git clean -fdx -e .env -e workspace -e logs -e .venv -e .venv-deploy -e .venv-backup -e .uv-python -e frontend\node_modules -e config\app_config.json -e config\providers.yaml >nul 2>&1
+    git clean -fdx -e .env -e workspace -e logs -e .venv -e .venv-deploy -e .venv-backup -e .uv-python -e .node -e frontend\node_modules -e config\app_config.json -e config\providers.yaml >nul 2>&1
 ) else (
     echo   手动模式：从 origin 拉取 ...
     git fetch --tags origin
@@ -261,7 +290,7 @@ echo   Python !PYTHON_VERSION! staging 环境已就绪。
 :: ============================================
 echo [5/7] 编译前端 ...
 pushd "%PROJECT_DIR%\frontend"
-if exist "C:\Program Files\nodejs\node.exe" set "PATH=C:\Program Files\nodejs;%PATH%"
+set "PATH=!NODE_DIR!;!PATH!"
 if exist "%USERPROFILE%\AppData\Local\pnpm\bin\pnpm.CMD" set "PATH=%USERPROFILE%\AppData\Local\pnpm\bin;%PATH%"
 
 if not exist "node_modules" (
