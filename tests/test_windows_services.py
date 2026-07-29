@@ -43,6 +43,17 @@ def test_deploy_uses_project_local_node20_for_frontend_builds() -> None:
     assert 'if exist "C:\\Program Files\\nodejs\\node.exe"' not in content
 
 
+def test_cd_deploy_fetches_from_checked_out_runner_without_second_network_call() -> (
+    None
+):
+    content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
+    cd_block = content[content.index("if defined RUNNER_SRC (") :]
+    cd_block = cd_block[: cd_block.index(") else (")]
+
+    assert 'git fetch --no-tags "%RUNNER_SRC%" HEAD' in cd_block
+    assert "git fetch --tags origin" not in cd_block
+
+
 def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
     content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
 
