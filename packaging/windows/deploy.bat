@@ -319,11 +319,21 @@ echo   前端编译完成。
 echo [6/7] 原子切换环境并启动服务 ...
 set "SERVICE_EXISTED=0"
 set "SERVICE_WAS_RUNNING=0"
-sc.exe query brandflow-control-plane >nul 2>&1 && set "SERVICE_EXISTED=1"
-sc.exe query brandflow-control-plane 2>nul | findstr /C:"RUNNING" >nul && set "SERVICE_WAS_RUNNING=1"
+call :get_control_plane_state
+set "SERVICE_STATE=!errorlevel!"
+if "!SERVICE_STATE!"=="0" set "SERVICE_EXISTED=1"
+if "!SERVICE_STATE!"=="1" (
+    set "SERVICE_EXISTED=1"
+    set "SERVICE_WAS_RUNNING=1"
+)
 
 if "!SERVICE_WAS_RUNNING!"=="1" (
     sc.exe stop brandflow-control-plane >nul 2>&1
+    if !errorlevel! neq 0 (
+        echo [错误] 当前 runner 无法停止控制面服务 >> "!LOG_FILE!"
+        if "%GITHUB_ACTIONS%"=="" pause
+        exit /b 1
+    )
     call :wait_for_service_state STOPPED 30
     if !errorlevel! neq 0 (
         echo [错误] 控制面服务未能在 30 秒内停止 >> "!LOG_FILE!"
@@ -365,16 +375,15 @@ if "!SERVICE_EXISTED!"=="0" (
         if "%GITHUB_ACTIONS%"=="" pause
         exit /b 1
     )
-)
-
-:: NSSM 参数直接写注册表，避免 runner 账户 PATH 中没有 nssm 时无法更新现有服务。
-set "SERVICE_PARAMS=HKLM\SYSTEM\CurrentControlSet\Services\brandflow-control-plane\Parameters"
-call :configure_service
-if !errorlevel! neq 0 (
-    echo [错误] 更新控制面服务配置失败 >> "!LOG_FILE!"
-    call :rollback_venv
-    if "%GITHUB_ACTIONS%"=="" pause
-    exit /b 1
+    :: NSSM 参数直接写注册表，避免 runner 账户 PATH 中没有 nssm 时无法更新新服务。
+    set "SERVICE_PARAMS=HKLM\SYSTEM\CurrentControlSet\Services\brandflow-control-plane\Parameters"
+    call :configure_service
+    if !errorlevel! neq 0 (
+        echo [错误] 更新控制面服务配置失败 >> "!LOG_FILE!"
+        call :rollback_venv
+        if "%GITHUB_ACTIONS%"=="" pause
+        exit /b 1
+    )
 )
 
 sc.exe start brandflow-control-plane >nul
@@ -436,10 +445,14 @@ exit /b 0
 set "EXPECTED_STATE=%~1"
 set "WAIT_SECONDS=%~2"
 for /L %%S in (1,1,!WAIT_SECONDS!) do (
-    sc.exe query brandflow-control-plane | findstr /C:"!EXPECTED_STATE!" >nul && exit /b 0
+    powershell -NoProfile -Command "$service = Get-Service -Name 'brandflow-control-plane' -ErrorAction SilentlyContinue; if ($null -ne $service -and $service.Status.ToString().ToUpperInvariant() -eq '!EXPECTED_STATE!') { exit 0 }; exit 1" && exit /b 0
     powershell -NoProfile -Command "Start-Sleep -Seconds 1"
 )
 exit /b 1
+
+:get_control_plane_state
+powershell -NoProfile -Command "$service = Get-Service -Name 'brandflow-control-plane' -ErrorAction SilentlyContinue; if ($null -eq $service) { exit 2 }; if ($service.Status -eq 'Stopped') { exit 0 }; exit 1"
+exit /b !errorlevel!
 
 :rollback_venv
 set "ROLLBACK_FAILED=0"

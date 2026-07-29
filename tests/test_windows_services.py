@@ -72,7 +72,27 @@ def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
 
     assert sync_position < stop_position < cutover_position < start_position
     assert start_position < backup_cleanup_position
+    assert "call :get_control_plane_state" in content
+    assert "Get-Service -Name 'brandflow-control-plane'" in content
+    assert 'findstr /C:"RUNNING"' not in content
+    assert (
+        "if !errorlevel! neq 0 ("
+        in content[
+            stop_position : content.index("call :wait_for_service_state", stop_position)
+        ]
+    )
     assert "call :rollback_venv" in content
+
+
+def test_deploy_only_reconfigures_a_new_service() -> None:
+    content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
+    new_service_block = content[content.index('if "!SERVICE_EXISTED!"=="0" (') :]
+    new_service_block = new_service_block[
+        : new_service_block.index("sc.exe start brandflow-control-plane")
+    ]
+
+    assert "nssm install brandflow-control-plane" in new_service_block
+    assert "call :configure_service" in new_service_block
 
 
 def test_deploy_rollback_checks_each_destructive_step() -> None:
