@@ -148,7 +148,7 @@ export default function ClipReviewCard({
 									: clip.method === "manual"
 										? "手动指定"
 										: clip.method === "rejected_replaced" ||
-											  clip.method === "re_search"
+												clip.method === "re_search"
 											? "重新检索"
 											: "降级匹配"}
 							</span>
@@ -220,7 +220,9 @@ export default function ClipReviewCard({
 				{/* Actions */}
 				{!readOnly && (
 					<fieldset disabled={searching} className="contents">
-						<div className={`flex flex-wrap gap-1.5 ${searching ? "opacity-50" : ""}`}>
+						<div
+							className={`flex flex-wrap gap-1.5 ${searching ? "opacity-50" : ""}`}
+						>
 							{!isBlank && (
 								<button
 									type="button"

@@ -211,9 +211,7 @@ describe("ProjectWorkbench create job modal (#272)", () => {
 			);
 
 			await act(async () => {
-				stalePage.resolve(
-					makeJobsPage([stalePageJob], { page: 2, total: 11 }),
-				);
+				stalePage.resolve(makeJobsPage([stalePageJob], { page: 2, total: 11 }));
 			});
 
 			expect(screen.getByText("current-page-job")).toBeInTheDocument();
