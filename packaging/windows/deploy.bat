@@ -362,9 +362,9 @@ if exist "!LIVE_VENV!" (
     )
 )
 
-move /y "!STAGED_VENV!" "!LIVE_VENV!" >nul
+call :move_venv_with_retry "!STAGED_VENV!" "!LIVE_VENV!" 10
 if !errorlevel! neq 0 (
-    echo [错误] 无法启用 staging 虚拟环境 >> "!LOG_FILE!"
+    echo [错误] 等待 10 秒后仍无法启用 staging 虚拟环境 >> "!LOG_FILE!"
     call :rollback_venv
     if "%GITHUB_ACTIONS%"=="" pause
     exit /b 1

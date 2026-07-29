@@ -61,7 +61,9 @@ def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
         'uv sync --python "!DEPLOY_PYTHON!" --all-extras --dev'
     )
     stop_position = content.index("sc.exe stop brandflow-control-plane")
-    cutover_position = content.index('move /y "!STAGED_VENV!" "!LIVE_VENV!"')
+    cutover_position = content.index(
+        'call :move_venv_with_retry "!STAGED_VENV!" "!LIVE_VENV!" 10'
+    )
     start_position = content.index(
         "sc.exe start brandflow-control-plane", cutover_position
     )
