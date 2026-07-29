@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 from packages.pipeline_services.script_service import generate_script
 from packages.pipeline_services.script_service.generator import ScriptGenerator
 from packages.provider_config.config_reader import ConfigReader, ConfigResolver
@@ -16,11 +17,13 @@ if TYPE_CHECKING:
         PhaseOrchestrator,
     )
 
+_LOGGER = get_pipeline_logger(__name__)
+
 
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     """Execute script generation (manual or LLM) and optional cover title."""
-    workspace_dir = ctx.root_dir / "workspace"
     job_dir = orchestrator._job_dir(ctx)
+    logger = _LOGGER.bind(ctx.job_id)
     manual_script: str = ctx.options.get("manual_script", "")
     result: list = []
 
@@ -38,11 +41,10 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
 
                 gen = ScriptGenerator(_LLMConfig())
                 manual_script = gen.to_cantonese(manual_script, ctx.product, ctx.brand)
-                print("[SCRIPT] Converted manual script to Cantonese", flush=True)
+                logger.info("[SCRIPT] Converted manual script to Cantonese")
             except Exception as e:
-                print(
-                    f"[SCRIPT WARN] Cantonese conversion failed, using original: {e}",
-                    flush=True,
+                logger.warning(
+                    "[SCRIPT WARN] Cantonese conversion failed, using original: %s", e
                 )
 
         txt_path = job_dir / "口播文案.txt"
@@ -81,10 +83,10 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     json_path = Path(script_result["json_path"])
     for p in [txt_path, json_path]:
         if p.exists():
-            result.append(orchestrator._to_artifact("script", p, workspace_dir))
+            result.append(orchestrator._to_artifact("script", p, ctx.layout))
 
     # 3. Auto-generate cover title (if not already set)
-    _maybe_generate_cover_title(orchestrator, ctx, script_result)
+    _maybe_generate_cover_title(orchestrator, ctx, script_result, logger)
 
     return result
 
@@ -93,13 +95,14 @@ def _maybe_generate_cover_title(
     orchestrator: PhaseOrchestrator,
     ctx: PhaseContext,
     script_result: dict[str, Any],
+    logger,
 ) -> None:
     """Auto-generate cover title if the job JSON has no ``cover_title.text``.
 
     Uses ConfigReader for LLM config resolution.
     Errors are logged but never propagated.
     """
-    job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
+    job_json_path = ctx.layout.job_record_path(ctx.project_dir.name, ctx.job_id)
     if not job_json_path.exists():
         return
 
@@ -130,6 +133,6 @@ def _maybe_generate_cover_title(
             json.dumps(job_data, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        print(f"[COVER_TITLE] Auto-generated: {cover_title['text']}", flush=True)
+        logger.info("[COVER_TITLE] Auto-generated: %s", cover_title["text"])
     except Exception as e:
-        print(f"[COVER_TITLE WARN] Failed to auto-generate: {e}", flush=True)
+        logger.warning("[COVER_TITLE WARN] Failed to auto-generate: %s", e)

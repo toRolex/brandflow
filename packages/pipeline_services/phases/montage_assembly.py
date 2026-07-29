@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from packages.domain_core.models import ExecutionFailure
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 
 from .shared import _discover_sentence_timings, _job_dir, _to_artifact
 
@@ -15,6 +16,8 @@ if TYPE_CHECKING:
         PhaseContext,
         PhaseOrchestrator,
     )
+
+_LOGGER = get_pipeline_logger(__name__)
 
 
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
@@ -27,7 +30,6 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     A missing snapshot/audio/timings, unresolved decisions, or missing clip
     files are raised as structured failures by the shared input loader.
     """
-    workspace_dir = ctx.root_dir / "workspace"
     job_dir = _job_dir(ctx)
     selected, sentence_timings, error = load_montage_inputs(ctx)
     if error is not None:
@@ -56,10 +58,8 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         trim_params = []
 
     if not montage_path.exists():
-        print(
-            f"[MONTAGE] build_base_video did not produce {montage_path}",
-            flush=True,
-        )
+        logger = _LOGGER.bind(ctx.job_id)
+        logger.error("[MONTAGE] build_base_video did not produce %s", montage_path)
         return []
 
     segments_path.write_text(
@@ -69,9 +69,9 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
 
     result: list = []
     if montage_path.exists():
-        result.append(_to_artifact("montage_segment", montage_path, workspace_dir))
+        result.append(_to_artifact("montage_segment", montage_path, ctx.layout))
     if segments_path.exists():
-        result.append(_to_artifact("montage_segments", segments_path, workspace_dir))
+        result.append(_to_artifact("montage_segments", segments_path, ctx.layout))
     return result
 
 

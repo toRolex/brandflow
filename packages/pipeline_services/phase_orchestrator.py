@@ -9,6 +9,7 @@ helpers used by the handler sub-modules.  The concrete phase logic lives in
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -21,6 +22,7 @@ from packages.domain_core.phase_execution import (
     PhaseExecutionResult,
     PhaseExecutionSuccess,
 )
+from packages.file_store.layout import WorkspaceLayout
 from packages.pipeline_services.force_align_service import ForceAlignError
 from packages.pipeline_services.phases import (
     classify_tts_error,
@@ -65,6 +67,8 @@ STRUCTURED_MEDIA_PHASES = frozenset(
         "final_rendering",
     }
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 __all__ = [
     "STRUCTURED_MEDIA_PHASES",
@@ -118,6 +122,21 @@ class PhaseContext:
     # Full scene config dict (populated by caller from ConfigReader);
     # when non-empty, handlers use this instead of reading config themselves.
     scene_config: dict[str, Any] = field(default_factory=dict)
+    # WorkspaceLayout seam — the single lexical source for project-tree paths.
+    # ``root_dir`` / ``project_dir`` remain readable as derived shortcuts so
+    # existing handlers keep working; new code should resolve paths through
+    # ``layout`` rather than string concatenation.
+    _layout: WorkspaceLayout | None = None
+
+    def __post_init__(self) -> None:
+        if self._layout is None:
+            self._layout = WorkspaceLayout(self.root_dir)
+
+    @property
+    def layout(self) -> WorkspaceLayout:
+        """Workspace layout — ``__post_init__`` guarantees it is never None."""
+        assert self._layout is not None
+        return self._layout
 
 
 # ---------------------------------------------------------------------------
@@ -186,26 +205,28 @@ class PhaseOrchestrator:
 
         try:
             artifacts = self.run_phase(phase, ctx)
-        except (TimeoutError, subprocess.TimeoutExpired):
-            return PhaseExecutionFailure(
+        except (TimeoutError, subprocess.TimeoutExpired) as exc:
+            return PhaseExecutionFailure.from_exception(
                 error=ExecutionFailure(
                     code="MEDIA_PROCESSING_TIMEOUT",
                     message=f"{phase} media processing timed out.",
                     retryable=True,
-                )
+                ),
+                cause=exc,
             )
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
-            return PhaseExecutionFailure(
+            return PhaseExecutionFailure.from_exception(
                 error=ExecutionFailure(
                     code="MEDIA_INPUT_INVALID",
                     message=f"{phase} input is invalid: {exc}",
                     retryable=False,
-                )
+                ),
+                cause=exc,
             )
         except ForceAlignError as exc:
             # Uploaded audio alignment failure — non-retryable data-quality issue
             detail = "\n".join(d.summary() for d in exc.result.diagnostics)
-            return PhaseExecutionFailure(
+            return PhaseExecutionFailure.from_exception(
                 error=ExecutionFailure(
                     code="UPLOAD_AUDIO_ALIGN_FAILED",
                     message=(
@@ -213,18 +234,20 @@ class PhaseOrchestrator:
                         f"\n{detail}"
                     ),
                     retryable=False,
-                )
+                ),
+                cause=exc,
             )
         except Exception as exc:
             # Provider-specific TTS error classification (#253)
             if phase == "tts_generating":
-                return self._classify_tts_error(phase, exc)
-            return PhaseExecutionFailure(
+                return self._classify_tts_error(phase, exc).with_cause(exc)
+            return PhaseExecutionFailure.from_exception(
                 error=ExecutionFailure(
                     code="MEDIA_PROCESSING_FAILED",
                     message=f"{phase} media processing failed: {exc}",
                     retryable=True,
-                )
+                ),
+                cause=exc,
             )
 
         if not artifacts:
@@ -319,7 +342,7 @@ class PhaseOrchestrator:
                 if not (job_dir / name).exists()
             ]
             skip_subtitle = False
-            job_json = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
+            job_json = ctx.layout.job_record_path(ctx.project_dir.name, ctx.job_id)
             if job_json.exists():
                 try:
                     skip_subtitle = bool(
@@ -361,13 +384,19 @@ class PhaseOrchestrator:
                 except Exception as exc:
                     if phase_name in STRUCTURED_MEDIA_PHASES:
                         raise
-                    print(f"[PARALLEL] Phase {phase_name} failed: {exc}", flush=True)
-                    result = PhaseExecutionFailure(
+                    _LOGGER.error(
+                        "[PARALLEL] Phase %s failed: %s",
+                        phase_name,
+                        exc,
+                        exc_info=True,
+                    )
+                    result = PhaseExecutionFailure.from_exception(
                         error=ExecutionFailure(
                             code="MEDIA_PROCESSING_FAILED",
                             message=f"{phase_name} media processing failed: {exc}",
                             retryable=True,
-                        )
+                        ),
+                        cause=exc,
                     )
                 # A legacy handler that produced nothing must not surface as
                 # an empty success — the structured contract has no such
@@ -393,10 +422,10 @@ class PhaseOrchestrator:
         return _job_dir_fn(ctx)
 
     def _to_artifact(
-        self, kind: str, path: Path, workspace_dir: Path
+        self, kind: str, path: Path, layout: WorkspaceLayout
     ) -> ArtifactPointer:
-        """Build an ``ArtifactPointer`` from an absolute file path."""
-        return _to_artifact_fn(kind, path, workspace_dir)
+        """Build an ``ArtifactPointer`` from an absolute *path* under *layout*."""
+        return _to_artifact_fn(kind, path, layout)
 
     # -- config resolution helpers (ConfigReader-first, fallback to callbacks) --
 

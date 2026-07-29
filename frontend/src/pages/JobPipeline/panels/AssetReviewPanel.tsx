@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
-import { api } from "../../../api/client";
+import { useState } from "react";
 import ClipReviewCard from "../../../components/ClipReviewCard";
 import type { AssetRecord } from "../../../types";
+import AssetPicker from "../components/AssetPicker";
 import type { PanelProps } from "../types";
 
 export default function AssetReviewPanel({
 	job,
 	selectedClips,
 	rejectedClips,
+	reSearchingClips,
 	showAllBlankConfirm,
 	isCurrentReviewStep,
 	onReject,
@@ -22,22 +23,15 @@ export default function AssetReviewPanel({
 }: PanelProps) {
 	const clipsArtifact = findArtifact("selected_clips");
 	const [pickerIndex, setPickerIndex] = useState<number | null>(null);
-	const [pickerAssets, setPickerAssets] = useState<AssetRecord[]>([]);
-	const [pickerLoading, setPickerLoading] = useState(false);
 
-	useEffect(() => {
+	const selectedClip =
+		pickerIndex === null ? undefined : selectedClips[pickerIndex];
+
+	const handleSelectAsset = (asset: AssetRecord) => {
 		if (pickerIndex === null) return;
-		setPickerLoading(true);
-		api
-			.listIndexedAssetsShared({ product: job.product })
-			.then((result) =>
-				setPickerAssets(
-					result.assets.filter((asset) => asset.status === "available"),
-				),
-			)
-			.catch(() => setPickerAssets([]))
-			.finally(() => setPickerLoading(false));
-	}, [job.product, pickerIndex]);
+		onSelectAsset(pickerIndex, asset.asset_id);
+		setPickerIndex(null);
+	};
 
 	return (
 		<div>
@@ -82,6 +76,7 @@ export default function AssetReviewPanel({
 								onRestore={onRestoreClip}
 								onSelectAsset={setPickerIndex}
 								rejected={rejectedClips.has(index)}
+								searching={reSearchingClips.has(index)}
 								readOnly={!isCurrentReviewStep}
 							/>
 						))}
@@ -98,7 +93,7 @@ export default function AssetReviewPanel({
 						<button
 							className="bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 							onClick={onAssetApprove}
-							disabled={!isCurrentReviewStep}
+							disabled={!isCurrentReviewStep || reSearchingClips.size > 0}
 							aria-disabled={!isCurrentReviewStep}
 						>
 							{"✓"} 全部通过
@@ -106,7 +101,7 @@ export default function AssetReviewPanel({
 						<button
 							className="bg-[var(--btn-danger-bg)] text-[var(--btn-danger-text)] border-none px-4 py-2 rounded-md text-xs hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 							onClick={() => onReject("asset_review")}
-							disabled={!isCurrentReviewStep}
+							disabled={!isCurrentReviewStep || reSearchingClips.size > 0}
 							aria-disabled={!isCurrentReviewStep}
 						>
 							{"✗"} 全部打回重新检索
@@ -145,41 +140,14 @@ export default function AssetReviewPanel({
 				<p className="text-[var(--text-tertiary)] text-sm">等待素材加载...</p>
 			)}
 			{pickerIndex !== null && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-					<div className="w-full max-w-2xl max-h-[80vh] overflow-auto rounded-lg bg-[var(--bg-card)] p-5 shadow-xl">
-						<div className="mb-4 flex items-center justify-between">
-							<h4 className="font-semibold">选择库内素材</h4>
-							<button onClick={() => setPickerIndex(null)}>关闭</button>
-						</div>
-						{pickerLoading ? (
-							<p className="text-sm text-[var(--text-tertiary)]">加载素材中…</p>
-						) : pickerAssets.length === 0 ? (
-							<p className="text-sm text-[var(--text-tertiary)]">
-								没有可用素材
-							</p>
-						) : (
-							<div className="grid gap-2 sm:grid-cols-2">
-								{pickerAssets.map((asset) => (
-									<button
-										key={asset.asset_id}
-										className="rounded border p-3 text-left hover:bg-[var(--bg-table-head)]"
-										onClick={() => {
-											onSelectAsset(pickerIndex, asset.asset_id);
-											setPickerIndex(null);
-										}}
-									>
-										<div className="text-sm font-medium">
-											{asset.file_path.split("/").pop()}
-										</div>
-										<div className="text-xs text-[var(--text-secondary)]">
-											{asset.category} · {asset.duration_seconds.toFixed(1)}s
-										</div>
-									</button>
-								))}
-							</div>
-						)}
-					</div>
-				</div>
+				<AssetPicker
+					product={job.product}
+					preferredCategory={
+						selectedClip?.category ? String(selectedClip.category) : undefined
+					}
+					onSelect={handleSelectAsset}
+					onCancel={() => setPickerIndex(null)}
+				/>
 			)}
 		</div>
 	);

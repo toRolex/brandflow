@@ -1,4 +1,5 @@
 import type { VideoMetric } from "../types";
+import Pagination from "./Pagination";
 
 const SORT_OPTIONS = [
 	{ value: "plays_desc", label: "播放量" },
@@ -42,6 +43,10 @@ interface Props {
 	onSearchChange: (q: string) => void;
 	onPlatformChange: (p: string) => void;
 	onAssetClick: (v: VideoMetric) => void;
+	page: number;
+	pageSize: number;
+	onPageChange: (p: number) => void;
+	onPageSizeChange: (s: number) => void;
 }
 
 export default function VideoTable({
@@ -53,6 +58,10 @@ export default function VideoTable({
 	onSearchChange,
 	onPlatformChange,
 	onAssetClick,
+	page,
+	pageSize,
+	onPageChange,
+	onPageSizeChange,
 }: Props) {
 	return (
 		<div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)]">
@@ -137,7 +146,7 @@ export default function VideoTable({
 									className="border-t border-[var(--border-subtle)] hover:bg-[var(--bg-nav-active)]"
 								>
 									<td className="px-3 py-2 text-[var(--text-tertiary)]">
-										{i + 1}
+										{(page - 1) * pageSize + i + 1}
 									</td>
 									<td className="px-3 py-2 max-w-[220px] truncate text-[var(--text-primary)]">
 										{v.title}
@@ -206,6 +215,14 @@ export default function VideoTable({
 					</tbody>
 				</table>
 			</div>
+
+			<Pagination
+				page={page}
+				pageSize={pageSize}
+				total={total}
+				onPageChange={onPageChange}
+				onPageSizeChange={onPageSizeChange}
+			/>
 		</div>
 	);
 }

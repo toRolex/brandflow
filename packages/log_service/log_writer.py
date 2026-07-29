@@ -19,7 +19,10 @@ def get_log_dir() -> Path:
 
 
 def log_error(entry: dict[str, Any], log_dir: Path | None = None) -> Path:
-    """Append an error entry to the current local-date JSONL file and flush it."""
+    """Append an error entry to the current local-date JSONL file and flush it.
+
+    *log_dir* overrides the OS user-data directory (useful in tests).
+    """
     target_dir = log_dir or get_log_dir()
     target_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now(tz=UTC).astimezone()

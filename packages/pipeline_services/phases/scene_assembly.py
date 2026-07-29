@@ -8,11 +8,15 @@ import shutil as _shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from packages.pipeline_services.logging_utils import get_pipeline_logger
+
 if TYPE_CHECKING:
     from packages.pipeline_services.phase_orchestrator import (
         PhaseContext,
         PhaseOrchestrator,
     )
+
+_LOGGER = get_pipeline_logger(__name__)
 
 
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
@@ -23,14 +27,14 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     Picks one random video file from each folder, then uses ffmpeg ``xfade``
     to create a crossfade scene segment.
     """
-    workspace_dir = ctx.root_dir / "workspace"
     job_dir = orchestrator._job_dir(ctx)
+    logger = _LOGGER.bind(ctx.job_id)
 
     # 1. Resolve scene folder paths
     folders = _resolve_scene_folders(ctx)
 
     if not folders:
-        print(f"[SCENE] No scene folders configured for {ctx.job_id}", flush=True)
+        logger.warning("[SCENE] No scene folders configured for %s", ctx.job_id)
         return []
 
     # 2. Check for existing snapshot (deterministic re-render, Issue #174)
@@ -58,10 +62,10 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                 valid_entries.append(idx)
 
         if invalid_entries:
-            print(
-                f"[SCENE] {len(invalid_entries)}/{len(manifest)} source fingerprints "
-                f"changed, re-randomizing only those entries",
-                flush=True,
+            logger.info(
+                "[SCENE] %s/%s source fingerprints changed, re-randomizing only those entries",
+                len(invalid_entries),
+                len(manifest),
             )
 
         for idx in valid_entries:
@@ -87,10 +91,10 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                         clips.insert(idx, local_path)
 
         if clips:
-            print(
-                f"[SCENE] Using snapshot ({len(valid_entries)} cached + "
-                f"{len(invalid_entries)} re-randomized)",
-                flush=True,
+            logger.info(
+                "[SCENE] Using snapshot (%s cached + %s re-randomized)",
+                len(valid_entries),
+                len(invalid_entries),
             )
 
         # Update snapshot for re-randomized entries
@@ -133,21 +137,21 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         # Fully fresh selection: every entry was invalid or no manifest
         for folder in folders:
             if not folder.exists():
-                print(f"[SCENE] Folder not found: {folder}", flush=True)
+                logger.warning("[SCENE] Folder not found: %s", folder)
                 continue
             candidates = _scene_candidates(folder)
             if not candidates:
-                print(f"[SCENE] No video files in {folder}", flush=True)
+                logger.warning("[SCENE] No video files in %s", folder)
                 continue
             clips.append(random.choice(candidates))
 
         if not clips:
-            print(f"[SCENE] No clips found for {ctx.job_id}", flush=True)
+            logger.warning("[SCENE] No clips found for %s", ctx.job_id)
             return []
 
-        print(f"[SCENE] {len(clips)} clips selected for {ctx.job_id}", flush=True)
+        logger.info("[SCENE] %s clips selected for %s", len(clips), ctx.job_id)
         for c in clips:
-            print(f"[SCENE]   {c}", flush=True)
+            logger.debug("[SCENE]   %s", c)
 
         # Snapshot: copy selected clips to job-owned .scene_snapshot/
         snapshot_dir.mkdir(parents=True, exist_ok=True)
@@ -168,9 +172,8 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             _json.dumps(manifest, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        print(
-            f"[SCENE] Snapshot saved: {len(manifest)} clips → {snapshot_dir}",
-            flush=True,
+        logger.info(
+            "[SCENE] Snapshot saved: %s clips -> %s", len(manifest), snapshot_dir
         )
 
     transition_duration = ctx.transition_duration_ms / 1000.0
@@ -179,7 +182,7 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     if len(clips) == 1:
         # Single clip -- copy directly
         _shutil.copy2(clips[0], scene_path)
-        print(f"[SCENE] Single clip copied to {scene_path}", flush=True)
+        logger.info("[SCENE] Single clip copied to %s", scene_path)
     else:
         # Build ffmpeg xfade chain
         ffmpeg = orchestrator._get_ffmpeg_path()
@@ -239,28 +242,28 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             ]
         )
 
-        print(f"[SCENE] Running ffmpeg xfade for {len(clips)} clips", flush=True)
+        logger.info("[SCENE] Running ffmpeg xfade for %s clips", len(clips))
         import subprocess
 
         subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
 
     if scene_path.exists():
-        print(
-            f"[SCENE] scene_segment.mp4 produced ({scene_path.stat().st_size} bytes)",
-            flush=True,
+        logger.info(
+            "[SCENE] scene_segment.mp4 produced (%s bytes)", scene_path.stat().st_size
         )
-        return [orchestrator._to_artifact("scene_segment", scene_path, workspace_dir)]
+        return [orchestrator._to_artifact("scene_segment", scene_path, ctx.layout)]
     return []
 
 
 def _resolve_scene_folders(ctx: PhaseContext, config_reader=None) -> list[Path]:
     """Resolve scene folder paths from context, config or ConfigReader."""
+    workspace_dir = ctx.layout.workspace_url_prefix()
     folders: list[Path] = []
     if ctx.scene_folder_paths:
         for folder_path in ctx.scene_folder_paths:
             path = Path(folder_path)
             if not path.is_absolute():
-                path = ctx.root_dir / "workspace" / path
+                path = workspace_dir / path
             folders.append(path)
         return folders
 
@@ -270,7 +273,7 @@ def _resolve_scene_folders(ctx: PhaseContext, config_reader=None) -> list[Path]:
     for entry in scene_config.get("folders", []):
         path_str = entry.get("path", "")
         if path_str:
-            folders.append(ctx.root_dir / "workspace" / path_str)
+            folders.append(workspace_dir / path_str)
     return folders
 
 

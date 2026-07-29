@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -244,6 +245,26 @@ class TestExecutePhasesParallel:
         # as TTS_SYNTHESIS_FAILED (retryable).
         assert result.error.code == "TTS_SYNTHESIS_FAILED"
         assert result.error.retryable is True
+        assert isinstance(result.cause, RuntimeError)
+        assert result.cause.__traceback__ is not None
+
+    def test_legacy_parallel_failure_logs_traceback(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        orchestrator: PhaseOrchestrator,
+        ctx: PhaseContext,
+    ) -> None:
+        caplog.set_level(logging.ERROR)
+        orchestrator._handlers["legacy_phase"] = MagicMock(
+            side_effect=RuntimeError("legacy crashed")
+        )
+
+        results = orchestrator.execute_phases_parallel(["legacy_phase"], ctx)
+
+        assert isinstance(results["legacy_phase"], PhaseExecutionFailure)
+        failure_logs = [r for r in caplog.records if "legacy crashed" in r.message]
+        assert failure_logs
+        assert failure_logs[0].exc_info is not None
 
     def test_legacy_phase_empty_success_becomes_internal_failure(
         self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
@@ -510,9 +531,9 @@ class _FakeSentenceTTSService:
         self.config = config
 
     def _config_shim(self):
-        from packages.pipeline_services.tts_provider import TTSConfigShim
+        from packages.provider_config.tts_config import TTSConfig
 
-        return TTSConfigShim(self.config)
+        return TTSConfig.from_dict(self.config).with_defaults()
 
     def synthesize_script(
         self, script_text: str, output_path: Path
@@ -932,11 +953,21 @@ class TestRunTTSPerSentence:
 
         mock_tts = MagicMock()
         mock_tts.synthesize.return_value = b""
-        orch = _make_orchestrator_with_tts_config(tts_provider=mock_tts)
+        orch = _make_orchestrator_with_tts_config(
+            tts_provider=mock_tts,
+            tts_config={
+                **_FAKE_TTS_CONFIG,
+                "provider": "mimo",
+                "model": "mimo-v2.5-tts",
+            },
+        )
+        resolved_config = {}
+        orch._build_tts_provider = lambda cfg: resolved_config.update(cfg) or mock_tts
 
         orch.run_phase("tts_generating", ctx)
 
         config_obj = mock_tts.synthesize.call_args.args[1]
+        assert resolved_config["provider"] == "qwen"
         assert config_obj.model == "qwen3-tts-flash"
         assert config_obj.voice == "Rocky"
 
@@ -1058,9 +1089,13 @@ class TestRunVideo:
 
 class TestFinalRendering:
     def test_unplayable_final_video_produces_no_artifact(
-        self, orchestrator: PhaseOrchestrator, ctx: PhaseContext
+        self,
+        caplog: pytest.LogCaptureFixture,
+        orchestrator: PhaseOrchestrator,
+        ctx: PhaseContext,
     ) -> None:
         """A corrupt final.mp4 must keep the job out of the completed path."""
+        caplog.set_level(logging.INFO)
         job_dir = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
         job_dir.mkdir(parents=True)
         (job_dir / "base.mp4").write_bytes(b"base")
@@ -1089,6 +1124,9 @@ class TestFinalRendering:
             artifacts = orchestrator.run_phase("final_rendering", ctx)
 
         assert artifacts == []
+        final_logs = [r for r in caplog.records if "[FINAL]" in r.message]
+        assert final_logs
+        assert all(r.job_id == ctx.job_id for r in final_logs)  # type: ignore[attr-defined]
 
 
 class TestMontageAssembling:

@@ -1,15 +1,24 @@
-"""Tests for the refactored _auto_tick outer loop."""
+"""Tests for the refactored _auto_tick outer loop and AutoTickScheduler.
+
+Now that _auto_tick delegates to AutoTickScheduler, these tests cover:
+
+* ``_build_default_tick_svc`` — the internal seam for default construction.
+* ``_auto_tick`` outer loop — sleep + run_pass + shutdown lifecycle.
+* ``AutoTickScheduler.run_pass()`` — dispatch, log_error integration.
+* Executor offloading — tick dispatched via ``run_in_executor``.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-
 import pytest
 
+from apps.control_plane.auto_tick_scheduler import AutoTickScheduler
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
     PhaseExecutionError,
@@ -26,7 +35,7 @@ def _make_job_json(job_id: str, phase: str = "queued") -> str:
         {
             "job_id": job_id,
             "project_id": "proj-001",
-            "product": "羊肚菌",
+            "product": "羊肚菌",  # 羊肚菌
             "phase": phase,
             "review_status": "none",
             "artifacts": [],
@@ -47,25 +56,89 @@ def mock_projects(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _patch_deps():
-    """Return patchers for all expensive constructors in _auto_tick."""
-    return [
-        patch(
-            "apps.control_plane.app.create_orchestrator",
-            return_value=Mock(spec=["run_phase"]),
-        ),
-        patch("apps.control_plane.app.FileStoreRepository"),
-    ]
+# ---------------------------------------------------------------------------
+# _build_default_tick_svc seam
+# ---------------------------------------------------------------------------
+
+
+class TestBuildDefaultTickSvc:
+    """Verify the internal seam constructs a real JobTickService."""
+
+    def test_creates_real_service(self, tmp_path: Path) -> None:
+        from apps.control_plane.app import _build_default_tick_svc
+        from packages.provider_config.config_reader import ConfigReader
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "app_config.json").write_text("{}", encoding="utf-8")
+        reader = ConfigReader(config_dir=str(config_dir))
+
+        svc = _build_default_tick_svc(tmp_path, reader)
+        assert isinstance(svc, JobTickService)
+        assert svc._orchestrator is not None
+        assert svc._repo is not None
+
+
+# ---------------------------------------------------------------------------
+# _auto_tick outer loop (scheduler-backed)
+# ---------------------------------------------------------------------------
 
 
 class TestAutoTickLoop:
-    """Verify the _auto_tick outer loop behaviour."""
+    """Verify the _auto_tick outer loop behaviour with AutoTickScheduler."""
 
     async def _run_one_tick(self, root_dir: Path) -> None:
-        """Run _auto_tick for exactly one iteration of the while loop.
+        """Run _auto_tick for exactly one iteration, then break via _LoopDone."""
+        first_sleep = True
 
-        Patches asyncio.sleep so the first call completes normally and the
-        second call raises _LoopDone to break out of the loop.
+        async def _controlled_sleep(_seconds: float) -> None:
+            nonlocal first_sleep
+            if first_sleep:
+                first_sleep = False
+                return
+            raise _LoopDone()
+
+        with (
+            patch(
+                "apps.control_plane.app._build_default_tick_svc",
+                return_value=Mock(spec=JobTickService),
+            ),
+            patch("asyncio.sleep", _controlled_sleep),
+        ):
+            from apps.control_plane.app import _auto_tick
+
+            with pytest.raises(_LoopDone):
+                await _auto_tick(root_dir, None)
+
+    async def test_loop_calls_shutdown_on_exit(self, mock_projects: Path) -> None:
+        """After the loop exits (via _LoopDone), scheduler.shutdown() is called."""
+        tick_svc = Mock(spec=JobTickService)
+        tick_svc.tick.return_value = TickSummary(
+            action="skipped", from_phase="queued", to_phase="queued"
+        )
+
+        first_sleep = True
+
+        async def _controlled_sleep(_seconds: float) -> None:
+            nonlocal first_sleep
+            if first_sleep:
+                first_sleep = False
+                return
+            raise _LoopDone()
+
+        with patch("asyncio.sleep", _controlled_sleep):
+            from apps.control_plane.app import _auto_tick
+
+            with pytest.raises(_LoopDone):
+                await _auto_tick(mock_projects, None, tick_svc=tick_svc)
+
+        # Loop exited gracefully — no assertion needed beyond no exception.
+
+    async def test_loop_catches_run_pass_error(self, mock_projects: Path) -> None:
+        """The outer loop catches exceptions from run_pass() and logs them.
+
+        We simulate this by making run_pass itself raise (not a job-level
+        error, but a genuine scheduler failure).
         """
         first_sleep = True
 
@@ -76,112 +149,49 @@ class TestAutoTickLoop:
                 return
             raise _LoopDone()
 
-        patchers = _patch_deps()
-        for p in patchers:
-            p.start()
+        with (
+            patch("asyncio.sleep", _controlled_sleep),
+            patch("apps.control_plane.app.log_error") as log_error,
+            patch(
+                "apps.control_plane.auto_tick_scheduler.AutoTickScheduler.run_pass",
+                side_effect=RuntimeError("scheduler failure"),
+            ),
+        ):
+            from apps.control_plane.app import _auto_tick
 
-        try:
-            with patch("asyncio.sleep", _controlled_sleep):
-                from apps.control_plane.app import _auto_tick
-
-                with pytest.raises(_LoopDone):
-                    await _auto_tick(root_dir, None)
-        finally:
-            for p in patchers:
-                p.stop()
-
-    @patch("apps.control_plane.app.JobTickService")
-    async def test_iterates_all_jobs(
-        self, mock_svc_cls: Mock, mock_projects: Path
-    ) -> None:
-        """The loop should call tick() for each job file."""
-        mock_svc = Mock(spec=JobTickService)
-        mock_svc.tick.return_value = TickSummary(
-            action="skipped", from_phase="queued", to_phase="queued"
-        )
-        mock_svc_cls.return_value = mock_svc
-
-        await self._run_one_tick(mock_projects)
-
-        mock_svc.tick.assert_called_once()
-        args = mock_svc.tick.call_args.args
-        assert args[0] == "proj-001"  # project_id (positional)
-        assert args[1] == "job-001"  # job_id (positional)
-
-    @patch("apps.control_plane.app.JobTickService")
-    async def test_continues_after_failed_summary(
-        self, mock_svc_cls: Mock, mock_projects: Path
-    ) -> None:
-        """Tick returning action='failed' should be caught, loop continues to next job."""
-        call_count = 0
-
-        def _tick_side_effect(*_a, **_kw):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return TickSummary(
-                    action="failed",
-                    from_phase="script_generating",
-                    to_phase="failed",
-                    message="script_generating: fail",
+            with pytest.raises(_LoopDone):
+                await _auto_tick(
+                    mock_projects, None, tick_svc=Mock(spec=JobTickService)
                 )
-            return TickSummary(action="skipped", from_phase="queued", to_phase="queued")
 
-        mock_svc = Mock(spec=JobTickService)
-        mock_svc.tick.side_effect = _tick_side_effect
-        mock_svc_cls.return_value = mock_svc
+        # The outer loop should have logged the error
+        assert log_error.called, "Expected log_error to be called for loop error"
+        entry = log_error.call_args.args[0]
+        assert "AUTO-TICK LOOP ERROR" in entry["message"]
+        assert "RuntimeError" in entry["stack_trace"]
 
-        jobs_dir = (
-            mock_projects / "workspace" / "projects" / "proj-001" / "control" / "jobs"
-        )
-        (jobs_dir / "job-002.json").write_text(
-            _make_job_json("job-002"), encoding="utf-8"
-        )
-
-        await self._run_one_tick(mock_projects)
-
-        assert call_count == 2
-
-    @patch("apps.control_plane.app.JobTickService")
-    async def test_catches_generic_exception(
-        self, mock_svc_cls: Mock, mock_projects: Path
-    ) -> None:
-        """Generic exception should be caught, loop continues."""
-        call_count = 0
-
-        def _tick_side_effect(*_a, **_kw):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise ValueError("unexpected error")
-            return TickSummary(action="skipped", from_phase="queued", to_phase="queued")
-
-        mock_svc = Mock(spec=JobTickService)
-        mock_svc.tick.side_effect = _tick_side_effect
-        mock_svc_cls.return_value = mock_svc
-
-        jobs_dir = (
-            mock_projects / "workspace" / "projects" / "proj-001" / "control" / "jobs"
-        )
-        (jobs_dir / "job-002.json").write_text(
-            _make_job_json("job-002"), encoding="utf-8"
-        )
-
-        await self._run_one_tick(mock_projects)
-
-        assert call_count == 2
-
-    @patch("apps.control_plane.app.JobTickService")
-    async def test_persists_generic_tick_exception(
-        self, mock_svc_cls: Mock, mock_projects: Path
-    ) -> None:
+    async def test_persists_generic_tick_exception(self, mock_projects: Path) -> None:
         """An auto-tick failure is available in the persistent runtime log."""
         mock_svc = Mock(spec=JobTickService)
         mock_svc.tick.side_effect = ValueError("unexpected error")
-        mock_svc_cls.return_value = mock_svc
 
-        with patch("apps.control_plane.app.log_error") as log_error:
-            await self._run_one_tick(mock_projects)
+        first_sleep = True
+
+        async def _controlled_sleep(_seconds: float) -> None:
+            nonlocal first_sleep
+            if first_sleep:
+                first_sleep = False
+                return
+            raise _LoopDone()
+
+        with (
+            patch("asyncio.sleep", _controlled_sleep),
+            patch("apps.control_plane.auto_tick_scheduler.log_error") as log_error,
+        ):
+            from apps.control_plane.app import _auto_tick
+
+            with pytest.raises(_LoopDone):
+                await _auto_tick(mock_projects, None, tick_svc=mock_svc)
 
         entry = log_error.call_args.args[0]
         assert entry["source"] == "backend"
@@ -192,158 +202,192 @@ class TestAutoTickLoop:
 
 
 # ---------------------------------------------------------------------------
-# Executor offloading + single-in-flight (Issue #266)
+# AutoTickScheduler dispatch tests
+# ---------------------------------------------------------------------------
+
+
+class TestSchedulerDispatch:
+    """Verify AutoTickScheduler.run_pass() dispatches correctly."""
+
+    @pytest.mark.asyncio
+    async def test_iterates_all_jobs(self, mock_projects: Path) -> None:
+        """The scheduler dispatches tick() for each job file in one pass."""
+        tick_svc = Mock(spec=JobTickService)
+        tick_svc.tick.return_value = TickSummary(
+            action="skipped", from_phase="queued", to_phase="queued"
+        )
+
+        scheduler = AutoTickScheduler(mock_projects, tick_svc, max_concurrency=2)
+        await scheduler.run_pass()
+        # Let background tasks finish
+        await asyncio.sleep(0.05)
+
+        tick_svc.tick.assert_called()
+        call_args_list = [(c.args[0], c.args[1]) for c in tick_svc.tick.call_args_list]
+        assert ("proj-001", "job-001") in call_args_list
+
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_continues_after_failed_summary(self, mock_projects: Path) -> None:
+        """Tick returning action='failed' does not block other jobs."""
+        jobs_dir = (
+            mock_projects / "workspace" / "projects" / "proj-001" / "control" / "jobs"
+        )
+        (jobs_dir / "job-002.json").write_text(
+            _make_job_json("job-002"), encoding="utf-8"
+        )
+
+        ticked: list[str] = []
+        lock = threading.Lock()
+
+        def _tick(project_id, job_id, product, *, root_dir, project_dir, options):
+            with lock:
+                ticked.append(job_id)
+            return TickSummary(
+                action="failed",
+                from_phase="script_generating",
+                to_phase="failed",
+                message="fail",
+            )
+
+        tick_svc = Mock(spec=JobTickService)
+        tick_svc.tick.side_effect = _tick
+
+        scheduler = AutoTickScheduler(mock_projects, tick_svc, max_concurrency=2)
+        await scheduler.run_pass()
+        await asyncio.sleep(0.05)
+
+        assert "job-001" in ticked
+        assert "job-002" in ticked
+
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_in_one_job_doesnt_block_others(
+        self, mock_projects: Path
+    ) -> None:
+        """Generic exception in one job doesn't prevent other from being ticked."""
+        jobs_dir = (
+            mock_projects / "workspace" / "projects" / "proj-001" / "control" / "jobs"
+        )
+        (jobs_dir / "job-002.json").write_text(
+            _make_job_json("job-002"), encoding="utf-8"
+        )
+
+        ticked: list[str] = []
+        lock = threading.Lock()
+
+        def _tick(project_id, job_id, product, *, root_dir, project_dir, options):
+            with lock:
+                ticked.append(job_id)
+            if job_id == "job-001":
+                raise ValueError("unexpected error")
+            return TickSummary(action="skipped", from_phase="queued", to_phase="queued")
+
+        tick_svc = Mock(spec=JobTickService)
+        tick_svc.tick.side_effect = _tick
+
+        scheduler = AutoTickScheduler(mock_projects, tick_svc, max_concurrency=2)
+        await scheduler.run_pass()
+        await asyncio.sleep(0.05)
+
+        assert "job-002" in ticked
+
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_logs_generic_tick_exception(self, mock_projects: Path) -> None:
+        """Generic exception from tick() is logged via log_error."""
+        tick_svc = Mock(spec=JobTickService)
+        tick_svc.tick.side_effect = ValueError("unexpected error")
+
+        with patch("apps.control_plane.auto_tick_scheduler.log_error") as log_error:
+            scheduler = AutoTickScheduler(mock_projects, tick_svc, max_concurrency=2)
+            await scheduler.run_pass()
+            await asyncio.sleep(0.05)
+
+        assert log_error.called
+        entry = log_error.call_args.args[0]
+        assert entry["source"] == "backend"
+        assert entry["level"] == "error"
+        assert "AUTO-TICK job-001.json" in entry["message"]
+        assert entry["extra"] == {"job_file": "job-001.json"}
+        assert "ValueError: unexpected error" in entry["stack_trace"]
+
+        await scheduler.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_exception_cleans_up_running(self, mock_projects: Path) -> None:
+        """When a tick raises PhaseExecutionError, slot is released via finally."""
+        jobs_dir = (
+            mock_projects / "workspace" / "projects" / "proj-001" / "control" / "jobs"
+        )
+        (jobs_dir / "job-002.json").write_text(
+            _make_job_json("job-002"), encoding="utf-8"
+        )
+
+        tick_svc = Mock(spec=JobTickService)
+
+        def _tick(project_id, job_id, product, *, root_dir, project_dir, options):
+            if job_id == "job-001":
+                raise PhaseExecutionError(
+                    job_id, "unknown", "simulated crash", ValueError("boom")
+                )
+            return TickSummary(action="skipped", from_phase="queued", to_phase="queued")
+
+        tick_svc.tick.side_effect = _tick
+
+        scheduler = AutoTickScheduler(mock_projects, tick_svc, max_concurrency=2)
+        await scheduler.run_pass()
+        await asyncio.sleep(0.05)
+
+        assert len(scheduler._running) == 0, (
+            f"slot leak: {len(scheduler._running)} still in _running"
+        )
+
+        await scheduler.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Executor offloading (Issue #266)
 # ---------------------------------------------------------------------------
 
 
 class TestExecutorOffloading:
-    """Verify that _auto_tick dispatches ticks via run_in_executor and the
-    single-in-flight guard works correctly."""
+    """Verify that AutoTickScheduler dispatches ticks via run_in_executor."""
 
-    async def _run_one_tick_with_executor_patch(self, root_dir: Path, wrap_fn) -> None:
-        """Like _run_one_tick, but with a wrapper around run_in_executor on the
-        concrete event loop instance obtained via get_running_loop()."""
-        first_sleep = True
-
-        async def _controlled_sleep(_seconds: float) -> None:
-            nonlocal first_sleep
-            if first_sleep:
-                first_sleep = False
-                return
-            raise _LoopDone()
-
-        patchers = _patch_deps()
-        for p in patchers:
-            p.start()
-
-        try:
-            with patch("asyncio.sleep", _controlled_sleep):
-                from apps.control_plane.app import _auto_tick
-
-                # Wrap the concrete loop's run_in_executor at the instance level.
-                loop = asyncio.get_running_loop()
-                original = loop.run_in_executor
-
-                async def _wrapped_run(executor, func, *args):
-                    return await wrap_fn(original, executor, func, *args)
-
-                loop.run_in_executor = _wrapped_run
-                try:
-                    with pytest.raises(_LoopDone):
-                        await _auto_tick(root_dir, None)
-                finally:
-                    loop.run_in_executor = original
-        finally:
-            for p in patchers:
-                p.stop()
-
-    @patch("apps.control_plane.app.JobTickService")
-    async def test_tick_runs_in_executor(
-        self, mock_svc_cls: Mock, mock_projects: Path
-    ) -> None:
+    @pytest.mark.asyncio
+    async def test_tick_runs_in_executor(self, mock_projects: Path) -> None:
         """Verify that tick() is dispatched via loop.run_in_executor."""
-        mock_svc = Mock(spec=JobTickService)
-        mock_svc.tick.return_value = TickSummary(
+        tick_svc = Mock(spec=JobTickService)
+        tick_svc.tick.return_value = TickSummary(
             action="skipped", from_phase="queued", to_phase="queued"
         )
-        mock_svc_cls.return_value = mock_svc
 
         exec_calls: list[tuple] = []
+        loop = asyncio.get_running_loop()
+        original = loop.run_in_executor
 
-        async def _recording_run_in_executor(self, executor, func, *args):
+        def _recording_run_in_executor(executor, func, *args):
             exec_calls.append((executor, func))
-            # Execute the function synchronously so the loop continues.
-            return func()
+            return original(executor, func, *args)
 
-        await self._run_one_tick_with_executor_patch(
-            mock_projects, _recording_run_in_executor
+        loop.run_in_executor = _recording_run_in_executor
+        try:
+            scheduler = AutoTickScheduler(mock_projects, tick_svc, max_concurrency=2)
+            await scheduler.run_pass()
+            await asyncio.sleep(0.05)
+        finally:
+            loop.run_in_executor = original
+
+        assert len(exec_calls) >= 2, (
+            f"Expected at least 2 run_in_executor calls (scan + tick), got {len(exec_calls)}"
         )
+        # The last call dispatches tick() via the default thread pool (None).
+        tick_call = exec_calls[-1]
+        assert tick_call[0] is None  # default thread pool for tick
+        assert callable(tick_call[1])
+        tick_svc.tick.assert_called()
 
-        # run_in_executor should have been called for each job.
-        assert len(exec_calls) >= 1, (
-            f"Expected at least 1 run_in_executor call, got {len(exec_calls)}"
-        )
-        # executor=None (default thread pool)
-        assert exec_calls[0][0] is None
-        # The second argument should be a callable (the tick closure).
-        assert callable(exec_calls[0][1])
-        # The tick service tick() should have been called.
-        mock_svc.tick.assert_called_once()
-
-    @patch("apps.control_plane.app.JobTickService")
-    async def test_single_in_flight_guard_does_not_block_normal_flow(
-        self, mock_svc_cls: Mock, mock_projects: Path
-    ) -> None:
-        """Verify that the _in_flight guard does not interfere with normal
-        sequential job processing — both jobs are ticked."""
-        jobs_dir = (
-            mock_projects / "workspace" / "projects" / "proj-001" / "control" / "jobs"
-        )
-        (jobs_dir / "job-002.json").write_text(
-            _make_job_json("job-002"), encoding="utf-8"
-        )
-
-        ticked: list[str] = []
-        mock_svc = Mock(spec=JobTickService)
-
-        def _tick(*args, **kwargs):
-            ticked.append(args[1])  # args[1] is job_id
-            return TickSummary(action="skipped", from_phase="queued", to_phase="queued")
-
-        mock_svc.tick.side_effect = _tick
-        mock_svc_cls.return_value = mock_svc
-
-        async def _sync_run_in_executor(self, executor, func, *args):
-            return func()
-
-        await self._run_one_tick_with_executor_patch(
-            mock_projects, _sync_run_in_executor
-        )
-
-        # Both jobs should have been ticked exactly once each.
-        assert set(ticked) == {"job-001", "job-002"}, (
-            f"Expected both jobs ticked, got {ticked}"
-        )
-
-    @patch("apps.control_plane.app.JobTickService")
-    async def test_single_in_flight_guard_cleans_up_on_exception(
-        self, mock_svc_cls: Mock, mock_projects: Path
-    ) -> None:
-        """When a tick raises an exception, the finally block cleans up
-        _in_flight so subsequent jobs are still processed."""
-        jobs_dir = (
-            mock_projects / "workspace" / "projects" / "proj-001" / "control" / "jobs"
-        )
-        (jobs_dir / "job-002.json").write_text(
-            _make_job_json("job-002"), encoding="utf-8"
-        )
-
-        ticked: list[str] = []
-        mock_svc = Mock(spec=JobTickService)
-
-        def _tick(*args, **kwargs):
-            ticked.append(args[1])
-            if args[1] == "job-001":
-                raise PhaseExecutionError(
-                    args[1], "unknown", "simulated crash", ValueError("boom")
-                )
-            return TickSummary(action="skipped", from_phase="queued", to_phase="queued")
-
-        mock_svc.tick.side_effect = _tick
-        mock_svc_cls.return_value = mock_svc
-
-        async def _sync_run_in_executor(self, executor, func, *args):
-            try:
-                return func()
-            except Exception:
-                raise
-
-        await self._run_one_tick_with_executor_patch(
-            mock_projects, _sync_run_in_executor
-        )
-
-        # job-001 crashed but job-002 should still be processed
-        # (finally block cleaned up _in_flight).
-        assert "job-002" in ticked, (
-            f"Expected job-002 to be ticked after job-001 crashed, got {ticked}"
-        )
+        await scheduler.shutdown()

@@ -1,9 +1,16 @@
-import { request } from "./core";
+import { DEFAULT_PAGE_SIZE, request } from "./core";
 
 export interface LogDateInfo {
 	date: string;
 	size_bytes: number;
 	error_count: number;
+}
+
+export interface LogDatePage {
+	items: LogDateInfo[];
+	total: number;
+	page: number;
+	page_size: number;
 }
 
 export interface LogEntry {
@@ -26,7 +33,28 @@ export const reportError = (entry: LogEntry) =>
 		body: JSON.stringify(entry),
 	});
 
-export const listLogDates = () => request<LogDateInfo[]>("/api/logs/dates");
+export const listLogDates = (page = 1, pageSize = DEFAULT_PAGE_SIZE) =>
+	request<LogDatePage>(`/api/logs/dates?page=${page}&page_size=${pageSize}`);
+
+export const deleteLogDate = (date: string) =>
+	request<{ date: string; deleted: boolean }>(`/api/logs/${date}`, {
+		method: "DELETE",
+	});
+
+export const batchDeleteLogDates = (dates: string[]) =>
+	request<{ deleted: string[]; not_found: string[]; protected: string[] }>(
+		"/api/logs/batch",
+		{
+			method: "DELETE",
+			body: JSON.stringify({ dates }),
+		},
+	);
+
+export const cleanupLogs = (beforeDays: number) =>
+	request<{ deleted: string[]; deleted_count: number }>(
+		`/api/logs/cleanup?before_days=${beforeDays}`,
+		{ method: "DELETE" },
+	);
 
 export const downloadLogUrl = (date: string) =>
 	`/api/logs/download?date=${encodeURIComponent(date)}`;

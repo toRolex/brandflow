@@ -10,6 +10,7 @@ vi.mock("../../api/client", () => ({
 		getTTSConfig: vi.fn(),
 		saveTTSConfig: vi.fn(),
 		getTTSVoices: vi.fn(),
+		getTTSModels: vi.fn(),
 		previewTTS: vi.fn(),
 		listProducts: vi.fn(),
 		getProductConfig: vi.fn(),
@@ -19,6 +20,58 @@ vi.mock("../../api/client", () => ({
 		deleteProduct: vi.fn(),
 	},
 }));
+
+const mockModels = {
+	models: [
+		{
+			provider: "qwen",
+			model: "qwen3-tts-flash",
+			label: "Qwen Flash",
+			description: "基础非实时合成",
+			features: ["preset_voice"],
+		},
+		{
+			provider: "qwen",
+			model: "qwen3-tts-instruct-flash",
+			label: "Qwen Instruct",
+			description: "指令控制风格",
+			features: ["preset_voice", "instruct"],
+		},
+		{
+			provider: "mimo",
+			model: "mimo-v2.5-tts",
+			label: "预置音色",
+			description: "使用官方精选音色",
+			features: ["preset_voice", "style_control"],
+		},
+		{
+			provider: "mimo",
+			model: "mimo-v2.5-tts-voicedesign",
+			label: "音色设计",
+			description: "通过文字描述自定义音色",
+			features: ["voice_design", "style_control"],
+		},
+		{
+			provider: "mimo",
+			model: "mimo-v2.5-tts-voiceclone",
+			label: "音色克隆",
+			description: "通过音频样本克隆音色",
+			features: ["voice_clone", "style_control"],
+		},
+	],
+	connection_fields: {
+		qwen: ["endpoint", "extra_headers"],
+		mimo: [
+			"endpoint",
+			"group_id",
+			"speed",
+			"vol",
+			"pitch",
+			"emotion",
+			"extra_headers",
+		],
+	},
+};
 
 const baseConfig = {
 	model: "qwen3-tts-flash",
@@ -76,6 +129,7 @@ function renderWithProduct(
 	products: ProductSummary[] = [activeProduct],
 ) {
 	vi.mocked(api.listProducts).mockResolvedValue(products);
+	vi.mocked(api.getTTSModels).mockResolvedValue(mockModels);
 	vi.mocked(api.getProductConfig).mockResolvedValue({
 		id: activeProduct.id,
 		default_name: activeProduct.name,
@@ -266,5 +320,38 @@ describe("TTSConfigPage model switch preserves voice or falls back to Cherry (#3
 			const voiceSelect = screen.getAllByRole("combobox")[0];
 			expect(voiceSelect).toHaveValue("Cherry");
 		});
+	});
+});
+
+describe("TTSConfigPage provider switching", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("does not preview a MiMo model with the previously selected Qwen endpoint", async () => {
+		vi.mocked(api.getTTSConfig).mockResolvedValue({
+			...baseConfig,
+			provider: "qwen",
+			endpoint: "https://dashscope.aliyuncs.com/api/v1",
+		});
+		vi.mocked(api.getTTSVoices).mockResolvedValue({ preset_voices: [] });
+		vi.mocked(api.previewTTS).mockResolvedValue("blob:preview");
+
+		renderWithProduct();
+		await waitFor(() => expect(api.getTTSConfig).toHaveBeenCalled());
+
+		fireEvent.click(screen.getByText("预置音色"));
+		fireEvent.click(screen.getByRole("button", { name: "播放预览" }));
+
+		await waitFor(() => {
+			expect(api.previewTTS).toHaveBeenCalled();
+		});
+		const body = vi.mocked(api.previewTTS).mock.calls[0][0] as Record<
+			string,
+			unknown
+		>;
+		expect(body.provider).toBe("mimo");
+		expect(body.model).toBe("mimo-v2.5-tts");
+		expect(body.endpoint).toBeUndefined();
 	});
 });

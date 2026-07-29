@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 from packages.pipeline_services.media_probe import is_decodable_video, probe_media
 
 from .shared import _job_dir, _to_artifact
+
+_LOGGER = get_pipeline_logger(__name__)
 
 if TYPE_CHECKING:
     from packages.pipeline_services.phase_orchestrator import (
@@ -23,12 +26,11 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     ``ctx.options``, since that is where the UI persists them.
     """
     job_dir = _job_dir(ctx)
-    workspace_dir = ctx.root_dir / "workspace"
     final_path = job_dir / "final.mp4"
     base_path = job_dir / "base.mp4"
     audio_path = job_dir / "audio.mp3"
     srt_path = job_dir / "subtitles.srt"
-    job_json_path = ctx.project_dir / "control" / "jobs" / f"{ctx.job_id}.json"
+    job_json_path = ctx.layout.job_record_path(ctx.project_dir.name, ctx.job_id)
 
     skip_subtitle = False
     music_path = None
@@ -61,7 +63,8 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         f"base={base_path.exists()} audio={audio_path.exists()}"
         f" skip_subtitle={skip_subtitle} srt={srt_path.exists()}"
     )
-    print(f"[FINAL] {ctx.job_id}: {cond}", flush=True)
+    logger = _LOGGER.bind(ctx.job_id)
+    logger.info("[FINAL] %s", cond)
     if (
         base_path.exists()
         and audio_path.exists()
@@ -85,15 +88,9 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             or not media_info["duration"]
             or not is_decodable_video(final_path)
         ):
-            print(
-                f"[FINAL] {ctx.job_id}: final.mp4 is not playable; rejecting artifact",
-                flush=True,
-            )
+            logger.error("[FINAL] final.mp4 is not playable; rejecting artifact")
             return []
-        print(
-            f"[FINAL] {ctx.job_id}: final.mp4 produced ({final_path.stat().st_size} bytes)",
-            flush=True,
-        )
-        return [_to_artifact("final_video", final_path, workspace_dir)]
-    print(f"[FINAL] {ctx.job_id}: final.mp4 NOT produced", flush=True)
+        logger.info("[FINAL] final.mp4 produced (%s bytes)", final_path.stat().st_size)
+        return [_to_artifact("final_video", final_path, ctx.layout)]
+    logger.warning("[FINAL] final.mp4 NOT produced")
     return []

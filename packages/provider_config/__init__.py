@@ -11,7 +11,6 @@ from packages.provider_config.config_reader import (
     ProductStore,
 )
 from packages.provider_config.runtime_env import (
-    ensure_supported_runtime_selection,
     provider_env_overrides,
     temporary_env,
 )
@@ -29,7 +28,6 @@ __all__ = [
     "ProductStore",
     "SecretStore",
     "default_provider_document",
-    "ensure_supported_runtime_selection",
     "load_config",
     "load_provider_config",
     "mask_provider_config",

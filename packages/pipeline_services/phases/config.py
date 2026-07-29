@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from packages.provider_config.config_constants import DEFAULTS
+
 if TYPE_CHECKING:
     from packages.pipeline_services.phase_orchestrator import (
         PhaseContext,
@@ -48,16 +50,18 @@ def _resolve_api_key(
     orchestrator: PhaseOrchestrator, llm_config: dict[str, Any]
 ) -> str:
     """Resolve API key via SecretStore."""
-    provider = llm_config.get("provider", "deepseek")
-    return orchestrator._secrets.get_api_key(provider)
+    provider = llm_config.get("provider", DEFAULTS["llm"]["provider"])
+    return orchestrator._secrets.get_api_key(provider, section="llm")
 
 
 def _resolve_api_url(
     orchestrator: PhaseOrchestrator, llm_config: dict[str, Any]
 ) -> str:
-    """Resolve API base URL via SecretStore."""
-    provider = llm_config.get("provider", "deepseek")
-    return orchestrator._secrets.get_api_base_url(provider)
+    """Resolve non-secret endpoint from config, with legacy env fallback."""
+    provider = llm_config.get("provider", DEFAULTS["llm"]["provider"])
+    return str(llm_config.get("endpoint") or "").strip().rstrip(
+        "/"
+    ) or orchestrator._secrets.get_api_base_url(provider, section="llm")
 
 
 def _resolve_categories(
@@ -93,27 +97,11 @@ def _build_tts_provider(
 ) -> Any:
     """Build TTS provider dynamically from current config.
 
-    Reads model from *tts_cfg* and returns the matching provider instance
-    so that config changes (e.g. mimo to qwen) take effect immediately
-    without restarting the worker.
-
-    API keys are resolved via SecretStore.
+    Delegates the provider/model contract to the shared factory so every
+    pipeline entry point uses the same routing rules.
     """
-    from packages.pipeline_services.tts_provider import (
-        MiMoTTSProvider,
-        QwenTTSProvider,
-    )
+    from packages.pipeline_services.tts_provider import create_tts_provider
+    from packages.provider_config.tts_config import TTSConfig
 
-    tts_model = tts_cfg.get("model") or ""
-
-    if tts_model.startswith("qwen"):
-        return QwenTTSProvider(
-            api_key=orchestrator._secrets.get_api_key("qwen"),
-            base_url=orchestrator._secrets.get_api_base_url("qwen")
-            or "https://dashscope.aliyuncs.com/api/v1",
-        )
-    return MiMoTTSProvider(
-        api_key=orchestrator._secrets.get_api_key("mimo"),
-        base_url=orchestrator._secrets.get_api_base_url("mimo")
-        or "https://api.xiaomimimo.com/v1",
-    )
+    config = TTSConfig.from_dict(tts_cfg).with_defaults()
+    return create_tts_provider(config, orchestrator._secrets)

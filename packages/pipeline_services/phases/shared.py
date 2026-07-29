@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from packages.domain_core.models import ArtifactPointer
+from packages.file_store.layout import WorkspaceLayout
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 from packages.pipeline_services.sentence_tts_service import SentenceTiming
+
+_LOGGER = get_pipeline_logger(__name__)
 
 if TYPE_CHECKING:
     from packages.pipeline_services.phase_orchestrator import PhaseContext
@@ -25,13 +29,21 @@ def to_url_path(path: Path, workspace_dir: Path) -> str:
 
 def _job_dir(ctx: PhaseContext) -> Path:
     """Return (and ensure) the job's runtime output directory."""
-    d = ctx.project_dir / "runtime" / "jobs" / ctx.job_id
+    project_id = ctx.project_dir.name
+    d = ctx.layout.job_runtime_dir(project_id, ctx.job_id)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _to_artifact(kind: str, path: Path, workspace_dir: Path) -> ArtifactPointer:
-    """Build an ``ArtifactPointer`` from an absolute file path."""
+def _to_artifact(kind: str, path: Path, layout: WorkspaceLayout) -> ArtifactPointer:
+    """Build an ``ArtifactPointer`` from an absolute file path.
+
+    The URL contract is ``/workspace/<relative>``; we strip
+    ``layout.workspace_url_prefix()`` from *path* to produce the relative
+    portion.  ``size_bytes`` is 0 when the file does not exist so the
+    control plane can still receive the pointer for retry accounting.
+    """
+    workspace_dir = layout.workspace_url_prefix()
     rel = to_url_path(path, workspace_dir)
     return ArtifactPointer(
         kind=kind,
@@ -61,7 +73,7 @@ def _discover_sentence_timings(job_dir: Path) -> list[SentenceTiming]:
         data = json.loads(path.read_text(encoding="utf-8"))
         return [SentenceTiming.model_validate(item) for item in data]
     except Exception as exc:  # noqa: BLE001
-        print(f"[TTS TIMING WARN] Failed to load sentence timings: {exc}", flush=True)
+        _LOGGER.warning("[TTS TIMING WARN] Failed to load sentence timings: %s", exc)
         return []
 
 

@@ -57,11 +57,20 @@ class TestTTSConfigAPI:
             assert loaded[key] == value
 
     def test_save_config_with_partial_fields(self, client):
-        response = client.put("/api/tts/config", json={"model": "custom-model"})
+        response = client.put(
+            "/api/tts/config", json={"model": "qwen3-tts-instruct-flash"}
+        )
         assert response.status_code == 200
-
         loaded = client.get("/api/tts/config").json()
-        assert loaded["model"] == "custom-model"
+        assert loaded["model"] == "qwen3-tts-instruct-flash"
+
+    def test_save_config_rejects_explicit_provider_model_mismatch(self, client):
+        response = client.put(
+            "/api/tts/config",
+            json={"provider": "mimo", "model": "qwen3-tts-flash"},
+        )
+        assert response.status_code == 422
+        assert "provider/model mismatch" in response.json()["detail"]
 
     def test_get_voices_default(self, client):
         response = client.get("/api/tts/voices")
@@ -207,6 +216,32 @@ class TestTTSPreviewAPI:
         response = client.post("/api/tts/preview", json={})
         assert response.status_code == 422
 
+    def test_preview_without_overrides_uses_saved_provider_and_model(self, client):
+        config = TTSConfig(
+            provider="mimo",
+            model="mimo-v2.5-tts",
+            voice="Mia",
+            audio_format="pcm16",
+        ).with_defaults()
+        with (
+            patch("apps.control_plane.routes.tts.app_config") as mock_app_config,
+            patch("apps.control_plane.routes.tts.config_manager") as mock_manager,
+            patch(
+                "packages.pipeline_services.tts_provider.create_tts_provider"
+            ) as mock_factory,
+        ):
+            mock_manager.get_config.return_value.with_defaults.return_value = config
+            mock_app_config.get_api_key.return_value = "test-api-key"
+            mock_factory.return_value.synthesize.return_value = b"\x00\x00"
+
+            response = client.post("/api/tts/preview", json={"text": "测试"})
+
+            assert response.status_code == 200
+            mock_app_config.get_api_key.assert_called_once_with("mimo", section="tts")
+            provider_config = mock_factory.call_args.args[0]
+            assert provider_config.provider == "mimo"
+            assert provider_config.model == "mimo-v2.5-tts"
+
     def test_preview_with_valid_text(self, client):
         response = client.post(
             "/api/tts/preview",
@@ -227,7 +262,7 @@ class TestTTSPreviewAPI:
             json={"text": "测试文本", "model": "mimo-v2.5-tts", "voice": "Mia"},
         )
         assert response.status_code == 500
-        assert "MIMO_API_KEY" in response.json()["detail"]
+        assert "mimo" in response.json()["detail"]
 
     def test_preview_with_invalid_model_returns_error(self, client, monkeypatch):
         monkeypatch.delenv("MIMO_API_KEY", raising=False)
@@ -543,6 +578,48 @@ class TestTTSPreviewResponse:
             with wave.open(io.BytesIO(response.content), "rb") as wav_file:
                 assert wav_file.getnframes() / wav_file.getframerate() > 0
 
+    def test_preview_accepts_qwen_wav_with_streaming_size_sentinels(
+        self, client, wav_bytes: Callable[..., bytes]
+    ):
+        source_audio = bytearray(wav_bytes())
+        source_audio[4:8] = (0x7FFFFFBF).to_bytes(4, "little")
+        source_audio[40:44] = (0x7FFFFF9B).to_bytes(4, "little")
+
+        with (
+            patch("requests.post") as mock_post,
+            patch("requests.get") as mock_get,
+            patch("apps.control_plane.routes.tts.app_config") as mock_config,
+        ):
+            mock_config.get_api_key.return_value = "test-api-key"
+            mock_config.get_api_base_url.return_value = (
+                "https://dashscope.aliyuncs.com/api/v1"
+            )
+            mock_post.return_value = MagicMock(
+                status_code=200,
+                json=MagicMock(
+                    return_value={
+                        "output": {"audio": {"url": "https://example.com/audio.wav"}}
+                    }
+                ),
+            )
+            mock_get.return_value = MagicMock(
+                content=bytes(source_audio),
+                headers={"content-type": "audio/x-wav"},
+            )
+
+            response = client.post(
+                "/api/tts/preview",
+                json={
+                    "text": "测试",
+                    "model": "qwen3-tts-flash",
+                    "voice": "Rocky",
+                },
+            )
+
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "audio/wav"
+            assert response.content == bytes(source_audio)
+
     def test_preview_rejects_non_wav_payload_without_leaking_provider_data(
         self, client
     ):
@@ -564,7 +641,7 @@ class TestTTSPreviewResponse:
             )
 
             assert response.status_code == 502
-            assert response.json()["detail"] == "TTS returned invalid WAV audio"
+            assert response.json()["detail"] == "TTS returned unrecognised audio data"
             assert provider_secret not in response.text
             assert "secret-api-key" not in response.text
 
@@ -572,12 +649,16 @@ class TestTTSPreviewResponse:
         "malformation",
         ["header-only", "zero-frame", "zero-framerate", "truncated-frame-data"],
     )
-    def test_preview_rejects_malformed_wav_container(
+    def test_preview_detects_malformed_wav_by_magic_bytes(
         self,
         client,
         wav_bytes: Callable[..., bytes],
         malformation: str,
     ):
+        """Malformed WAV containers that still have valid RIFF/WAVE magic
+        bytes are detected by detect_audio_format and served as audio/wav
+        rather than rejected — this keeps the door open for cases like Qwen's
+        multimodal-generation API that returns MP3 when WAV is expected."""
         if malformation == "header-only":
             source_audio = b"RIFF\x04\x00\x00\x00WAVE"
         elif malformation == "zero-frame":
@@ -604,8 +685,9 @@ class TestTTSPreviewResponse:
                 json={"text": "测试", "model": "mimo-v2.5-tts", "voice": "Mia"},
             )
 
-            assert response.status_code == 502
-            assert response.json()["detail"] == "TTS returned invalid WAV audio"
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "audio/wav"
+            assert response.content == source_audio
 
     def test_preview_preserves_raw_pcm16_payload(self, client):
         source_audio = b"\x00\x00\x01\x00\xff\x7f"
@@ -620,6 +702,7 @@ class TestTTSPreviewResponse:
             patch("apps.control_plane.routes.tts.config_manager") as mock_manager,
         ):
             mock_config.get_api_key.return_value = "test-api-key"
+            mock_config.get_api_base_url.return_value = "https://api.xiaomimimo.com/v1"
             mock_manager.get_config.return_value.with_defaults.return_value = config
             mock_response = MagicMock(status_code=200)
             mock_response.json.return_value = {
@@ -636,3 +719,34 @@ class TestTTSPreviewResponse:
             assert response.headers["content-type"] == "audio/L16;rate=24000;channels=1"
             assert "preview.pcm" in response.headers["content-disposition"]
             assert response.content == source_audio
+
+
+class TestTTSModelsAPI:
+    def test_models_endpoint_returns_catalog_models(self, client):
+        response = client.get("/api/tts/models")
+        assert response.status_code == 200
+        data = response.json()
+
+        by_model = {m["model"]: m for m in data["models"]}
+        assert set(by_model) == {
+            "qwen3-tts-flash",
+            "qwen3-tts-instruct-flash",
+            "mimo-v2.5-tts",
+            "mimo-v2.5-tts-voicedesign",
+            "mimo-v2.5-tts-voiceclone",
+        }
+        for m in data["models"]:
+            assert m["provider"] in ("qwen", "mimo")
+            assert m["label"]
+            assert isinstance(m["features"], list)
+
+    def test_models_endpoint_returns_connection_fields(self, client):
+        response = client.get("/api/tts/models")
+        assert response.status_code == 200
+        fields = response.json()["connection_fields"]
+
+        assert fields["qwen"] == ["endpoint", "extra_headers"]
+        assert "speed" in fields["mimo"]
+        assert "group_id" in fields["mimo"]
+        assert "api_key" not in fields["mimo"]
+        assert "model" not in fields["mimo"]

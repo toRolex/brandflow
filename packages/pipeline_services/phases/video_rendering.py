@@ -14,6 +14,7 @@ from packages.pipeline_services.final_timeline import (
     compute_scene_offset_ms,
     shift_srt,
 )
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 
 from .shared import _job_dir, _to_artifact
 
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
         PhaseContext,
         PhaseOrchestrator,
     )
+
+_LOGGER = get_pipeline_logger(__name__)
 
 
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
@@ -36,13 +39,13 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     immutable and review-time decisions are preserved exactly.
     """
     job_dir = _job_dir(ctx)
-    workspace_dir = ctx.root_dir / "workspace"
+    logger = _LOGGER.bind(ctx.job_id)
     base_path = job_dir / "base.mp4"
     montage_path = job_dir / "montage_segment.mp4"
     scene_path = job_dir / "scene_segment.mp4"
 
     if not montage_path.exists():
-        print(f"[VIDEO] No montage segment for {ctx.job_id}", flush=True)
+        logger.warning("[VIDEO] No montage segment for %s", ctx.job_id)
         return []
 
     scene_exists = scene_path.exists()
@@ -84,10 +87,10 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
             text=True,
             timeout=600,
         )
-        print(f"[VIDEO] Concatenated scene + montage for {ctx.job_id}", flush=True)
+        logger.info("[VIDEO] Concatenated scene + montage for %s", ctx.job_id)
     else:
         shutil.copy2(montage_path, base_path)
-        print(f"[VIDEO] Using montage segment as base for {ctx.job_id}", flush=True)
+        logger.info("[VIDEO] Using montage segment as base for %s", ctx.job_id)
 
     if base_path.exists():
         trim_params: list[dict] = []
@@ -97,10 +100,10 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                 trim_params = json.loads(segments_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, KeyError, TypeError):
                 pass
-        _inject_av_alignment(orchestrator, ctx, job_dir, base_path, trim_params)
-        return [_to_artifact("video_base", base_path, workspace_dir)]
+        _inject_av_alignment(orchestrator, ctx, job_dir, base_path, trim_params, logger)
+        return [_to_artifact("video_base", base_path, ctx.layout)]
 
-    print(f"[VIDEO WARN] base.mp4 not produced for {ctx.job_id}", flush=True)
+    logger.warning("[VIDEO WARN] base.mp4 not produced for %s", ctx.job_id)
     return []
 
 
@@ -110,6 +113,7 @@ def _inject_av_alignment(
     job_dir: Path,
     base_path: Path,
     trim_params: list[dict],
+    logger,
 ) -> None:
     """Shift TTS audio + subtitles to the montage start and persist the
     authoritative Final Timeline (issue #179).
@@ -140,7 +144,7 @@ def _inject_av_alignment(
         )
     except Exception as exc:  # noqa: BLE001 — best-effort alignment
         aligned = False
-        print(f"[VIDEO WARN] audio align failed, using original: {exc}", flush=True)
+        logger.warning("[VIDEO WARN] audio align failed, using original: %s", exc)
 
     # 2. Offset subtitles by the same scene duration (if present).
     if srt_path.exists():
@@ -162,15 +166,15 @@ def _inject_av_alignment(
 
         ExportTaskService(
             job_id=ctx.job_id,
-            job_dir=job_dir,
-            workspace_dir=ctx.project_dir.parent,
-            project_dir=ctx.project_dir,
-            export_dir=ctx.project_dir / "runtime" / "exports",
+            layout=ctx.layout,
+            project_id=ctx.project_dir.name,
         ).mark_stale()
     except Exception:  # noqa: BLE001 — never block rendering on export cleanup
         pass
-    print(
-        f"[VIDEO] Final Timeline: scene_ms={scene_ms} aligned={aligned} "
-        f"segments={len(timeline['segments'])} fp={timeline['fingerprint'][:8]}",
-        flush=True,
+    logger.info(
+        "[VIDEO] Final Timeline: scene_ms=%s aligned=%s segments=%s fp=%s",
+        scene_ms,
+        aligned,
+        len(timeline["segments"]),
+        timeline["fingerprint"][:8],
     )

@@ -50,6 +50,127 @@ def _configure_scene_folders(
     )
 
 
+def test_project_and_job_lists_share_pagination_contract_and_stable_order(
+    tmp_path: Path,
+) -> None:
+    """Project/Job pages preserve envelope and Job position across saves (#354)."""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        project_ids = [
+            client.post("/api/projects", json={"name": f"project-{index}"}).json()["id"]
+            for index in range(3)
+        ]
+
+        project_page = client.get("/api/projects?page=2&page_size=2")
+        project_empty_page = client.get("/api/projects?page=99&page_size=2")
+        project_default_page = client.get("/api/projects")
+
+        assert project_page.status_code == 200
+        assert project_page.json() == {
+            "items": sorted(
+                [
+                    {
+                        "id": project_id,
+                        "name": f"project-{index}",
+                        "status": "idle",
+                        "job_count": 0,
+                        "is_pinned": False,
+                        "pinned_at": "",
+                    }
+                    for index, project_id in enumerate(project_ids)
+                ],
+                key=lambda project: project["id"],
+            )[2:],
+            "total": 3,
+            "page": 2,
+            "page_size": 2,
+        }
+        assert project_empty_page.json() == {
+            "items": [],
+            "total": 3,
+            "page": 99,
+            "page_size": 2,
+        }
+        assert project_default_page.json()["page_size"] == 10
+        assert client.get("/api/projects?page=0").status_code == 422
+        assert client.get("/api/projects?page_size=201").status_code == 422
+        duplicate = client.post("/api/projects", json={"name": " project-0 "})
+        assert duplicate.status_code == 409
+
+        project_id = project_ids[0]
+        created_jobs = [
+            client.post(
+                f"/api/projects/{project_id}/jobs",
+                json={"platforms": ["douyin"], "name": f"job-{index}"},
+            ).json()
+            for index in range(3)
+        ]
+        before_save = client.get(
+            f"/api/projects/{project_id}/jobs?page=1&page_size=2"
+        ).json()
+        client.put(
+            f"/api/jobs/{created_jobs[0]['job_id']}/rename",
+            json={"name": "renamed"},
+        )
+        after_save = client.get(
+            f"/api/projects/{project_id}/jobs?page=1&page_size=2"
+        ).json()
+        default_jobs_page = client.get(f"/api/projects/{project_id}/jobs").json()
+
+        assert before_save["total"] == 3
+        assert before_save["page"] == 1
+        assert before_save["page_size"] == 2
+        assert [item["job_id"] for item in before_save["items"]] == [
+            created_jobs[0]["job_id"],
+            created_jobs[1]["job_id"],
+        ]
+        assert [item["job_id"] for item in after_save["items"]] == [
+            created_jobs[0]["job_id"],
+            created_jobs[1]["job_id"],
+        ]
+        assert default_jobs_page["page_size"] == 10
+        assert client.get(
+            f"/api/projects/{project_id}/jobs?page=99&page_size=2"
+        ).json() == {
+            "items": [],
+            "total": 3,
+            "page": 99,
+            "page_size": 2,
+        }
+
+
+def test_jobs_created_in_same_clock_tick_keep_request_order(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Equal wall-clock readings must not fall back to random Job ID order."""
+    from apps.control_plane.routes.jobs import crud as job_crud
+    from apps.control_plane.routes.jobs import helpers as job_helpers
+
+    job_ids = iter(("f" * 32, "0" * 32))
+    monkeypatch.setattr(job_helpers.time, "time_ns", lambda: 1_785_047_400_000_000_000)
+    monkeypatch.setattr(
+        job_crud,
+        "uuid4",
+        lambda: type("FixedUuid", (), {"hex": next(job_ids)})(),
+    )
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        project_id = client.post("/api/projects", json={"name": "same-tick"}).json()[
+            "id"
+        ]
+        created = [
+            client.post(
+                f"/api/projects/{project_id}/jobs",
+                json={"platforms": ["douyin"], "name": f"job-{index}"},
+            ).json()["job_id"]
+            for index in range(2)
+        ]
+
+        listed = client.get(f"/api/projects/{project_id}/jobs").json()["items"]
+
+        assert [item["job_id"] for item in listed] == created
+
+
 # ── 手动脚本更新不影响模式路由 ────────────────────────────────────
 
 
@@ -1183,8 +1304,9 @@ def test_delete_job_success(tmp_path: Path) -> None:
             "/api/projects/prj_001/jobs",
             json={"platforms": ["douyin"]},
         )
-        # Find the job_id from the response
-        jobs = client.get("/api/projects/prj_001").json().get("jobs", [])
+        # Find the job_id from the project jobs endpoint
+        jobs_resp = client.get("/api/projects/prj_001/jobs").json()
+        jobs = jobs_resp.get("items", [])
         assert len(jobs) == 1
         job_id = jobs[0]["job_id"]
 
@@ -1458,3 +1580,150 @@ def _unused_test_batch_create_with_multiple_errors_reports_first(
         assert detail["code"] == "BATCH_VALIDATION_FAILED"
         # message 应提及第一个失败的条目
         assert "条目1" in detail["message"] or "条目1" in str(detail)
+
+
+# ── Project / Job Pin (置顶) ──────────────────────────────────────────────
+
+
+def test_toggle_project_pin_returns_pinned_state(tmp_path: Path) -> None:
+    """Pin/unpin a project returns correct is_pinned and pinned_at."""
+    with _make_client(tmp_path) as client:
+        project_id = client.post("/api/projects", json={"name": "p1"}).json()["id"]
+
+        # Pin
+        resp = client.post(f"/api/projects/{project_id}/pin")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["id"] == project_id
+        assert body["is_pinned"] is True
+        assert body["pinned_at"] != ""
+
+        # Verify in list — shows is_pinned=True
+        items = client.get("/api/projects").json()["items"]
+        pinned = [p for p in items if p["id"] == project_id]
+        assert len(pinned) == 1
+        assert pinned[0]["is_pinned"] is True
+        assert pinned[0]["pinned_at"] == body["pinned_at"]
+
+        # Unpin
+        resp = client.post(f"/api/projects/{project_id}/pin")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["is_pinned"] is False
+        assert body["pinned_at"] == ""
+
+
+def test_toggle_project_pin_404_on_missing(tmp_path: Path) -> None:
+    """Toggle pin for a non-existent project returns 404."""
+    with _make_client(tmp_path) as client:
+        resp = client.post("/api/projects/nonexistent/pin")
+        assert resp.status_code == 404
+
+
+def test_toggle_job_pin_returns_pinned_state(tmp_path: Path) -> None:
+    """Pin/unpin a job returns correct is_pinned and pinned_at."""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        project_id = client.post("/api/projects", json={"name": "p1"}).json()["id"]
+        job_id = client.post(
+            f"/api/projects/{project_id}/jobs",
+            json={"platforms": ["douyin"], "name": "j1"},
+        ).json()["job_id"]
+
+        # Pin
+        resp = client.post(f"/api/jobs/{job_id}/pin")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["job_id"] == job_id
+        assert body["is_pinned"] is True
+        assert body["pinned_at"] != ""
+
+        # Verify in list
+        items = client.get(f"/api/projects/{project_id}/jobs").json()["items"]
+        pinned = [j for j in items if j["job_id"] == job_id]
+        assert len(pinned) == 1
+        assert pinned[0]["is_pinned"] is True
+
+        # Unpin
+        resp = client.post(f"/api/jobs/{job_id}/pin")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["is_pinned"] is False
+        assert body["pinned_at"] == ""
+
+
+def test_toggle_job_pin_404_on_missing(tmp_path: Path) -> None:
+    """Toggle pin for a non-existent job returns 404."""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        client.post("/api/projects", json={"name": "p1"})
+        resp = client.post("/api/jobs/nonexistent/pin")
+        assert resp.status_code == 404
+
+
+def test_pinned_projects_appear_first(tmp_path: Path) -> None:
+    """Pinned projects sort before unpinned ones in list."""
+    with _make_client(tmp_path) as client:
+        ids = [
+            client.post("/api/projects", json={"name": f"p{i}"}).json()["id"]
+            for i in range(3)
+        ]
+        # Pin the last one
+        client.post(f"/api/projects/{ids[2]}/pin")
+
+        items = client.get("/api/projects").json()["items"]
+        ordered_ids = [p["id"] for p in items]
+        assert ordered_ids[0] == ids[2]  # pinned first
+        assert set(ordered_ids) == set(ids)
+
+
+def test_pinned_jobs_appear_first(tmp_path: Path) -> None:
+    """Pinned jobs sort before unpinned ones in project job list."""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        project_id = client.post("/api/projects", json={"name": "p1"}).json()["id"]
+        job_ids = [
+            client.post(
+                f"/api/projects/{project_id}/jobs",
+                json={"platforms": ["douyin"], "name": f"j{i}"},
+            ).json()["job_id"]
+            for i in range(3)
+        ]
+        # Pin the middle one
+        client.post(f"/api/jobs/{job_ids[1]}/pin")
+
+        items = client.get(f"/api/projects/{project_id}/jobs").json()["items"]
+        ordered_ids = [j["job_id"] for j in items]
+        assert ordered_ids[0] == job_ids[1]  # pinned first
+        assert set(ordered_ids) == set(job_ids)
+
+
+def test_job_display_index_stable_after_pin_toggle(tmp_path: Path) -> None:
+    """display_index does not change when a job is pinned or unpinned."""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        project_id = client.post("/api/projects", json={"name": "p1"}).json()["id"]
+        job_ids = [
+            client.post(
+                f"/api/projects/{project_id}/jobs",
+                json={"platforms": ["douyin"], "name": f"j{i}"},
+            ).json()["job_id"]
+            for i in range(3)
+        ]
+
+        def _index_for(job_id: str) -> str:
+            items = client.get(f"/api/projects/{project_id}/jobs").json()["items"]
+            for j in items:
+                if j["job_id"] == job_id:
+                    return j["display_index"]
+            return ""
+
+        before = _index_for(job_ids[0])
+
+        # Pin the first job — its display_index should not change
+        client.post(f"/api/jobs/{job_ids[0]}/pin")
+        assert _index_for(job_ids[0]) == before
+
+        # Unpin — still stable
+        client.post(f"/api/jobs/{job_ids[0]}/pin")
+        assert _index_for(job_ids[0]) == before

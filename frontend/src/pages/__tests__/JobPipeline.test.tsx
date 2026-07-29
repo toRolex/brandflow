@@ -18,6 +18,10 @@ vi.mock("../../api/client", () => ({
 		previewJobTTS: vi.fn(),
 		approveReview: vi.fn(),
 		rejectReview: vi.fn(),
+		rejectClip: vi.fn(),
+		assetSetBlank: vi.fn(),
+		assetSetAsset: vi.fn(),
+		assetRestore: vi.fn(),
 		createExport: vi.fn(),
 		getExportStatus: vi.fn(),
 		downloadExport: vi.fn(),
@@ -471,6 +475,20 @@ describe("JobPipeline asset phase states", () => {
 
 			expect(await screen.findByText("生产完成")).toBeInTheDocument();
 			expect(screen.getByText("导出")).toBeInTheDocument();
+		});
+
+		it("shows export button when the backend reports export not started", async () => {
+			vi.mocked(api.getExportStatus).mockResolvedValue({
+				task_id: null,
+				status: "not_started",
+				progress: 0,
+				error: null,
+			});
+
+			renderCompletedPage();
+
+			expect(await screen.findByText("生产完成")).toBeInTheDocument();
+			expect(screen.getByRole("button", { name: "导出" })).toBeInTheDocument();
 		});
 
 		it("shows creating state after clicking export", async () => {

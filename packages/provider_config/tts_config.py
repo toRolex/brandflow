@@ -1,14 +1,51 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
 from packages.provider_config.config_constants import DEFAULTS
 
 
+def _flatten_tts_dict(data: dict[str, Any]) -> dict[str, Any]:
+    """Flatten nested storage keys (director/audio_tags) to flat field names."""
+    result = {}
+    for key, value in data.items():
+        if key == "director" and isinstance(value, dict):
+            result["director_character"] = value.get("character", "")
+            result["director_scene"] = value.get("scene", "")
+            result["director_guidance"] = value.get("guidance", "")
+        elif key == "audio_tags" and isinstance(value, dict):
+            result["audio_tags_enabled"] = value.get("enabled", False)
+            result["audio_tags"] = value.get("tags", "")
+        else:
+            result[key] = value
+    return result
+
+
+# Fields that never receive global defaults: per-provider connection params
+# (resolved downstream per selected provider) and per-upload clone artifacts.
+_PASSTHROUGH_FIELDS = frozenset(
+    {
+        "voice_clone_sample_path",
+        "voice_clone_mime_type",
+        "speed",
+        "vol",
+        "pitch",
+        "emotion",
+        "sample_rate",
+        "bitrate",
+        "channel",
+        "group_id",
+        "endpoint",
+        "extra_headers",
+    }
+)
+
+
 @dataclass
 class TTSConfig:
+    provider: str | None = None
     model: str | None = None
     voice: str | None = None
     fallback_voice: str | None = None
@@ -43,110 +80,45 @@ class TTSConfig:
 
     audio_format: str | None = None
 
+    # Provider 连接参数 (#386)
+    speed: str | None = None
+    vol: str | None = None
+    pitch: str | None = None
+    emotion: str | None = None
+    sample_rate: str | None = None
+    bitrate: str | None = None
+    channel: str | None = None
+    group_id: str | None = None
+    endpoint: str | None = None
+    extra_headers: str | None = None
+
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "model": self.model,
-            "voice": self.voice,
-            "fallback_voice": self.fallback_voice,
-            "randomize_voice": self.randomize_voice,
-            "random_voices": self.random_voices,
-            "voice_design_prompt": self.voice_design_prompt,
-            "style_control_mode": self.style_control_mode,
-            "style_prompt": self.style_prompt,
-            "director_character": self.director_character,
-            "director_scene": self.director_scene,
-            "director_guidance": self.director_guidance,
-            "audio_tags_enabled": self.audio_tags_enabled,
-            "audio_tags": self.audio_tags,
-            "voice_clone_sample_path": self.voice_clone_sample_path,
-            "voice_clone_mime_type": self.voice_clone_mime_type,
-            "optimize_text_preview": self.optimize_text_preview,
-            "instructions": self.instructions,
-            "optimize_instructions": self.optimize_instructions,
-            "language_type": self.language_type,
-            "audio_format": self.audio_format,
-        }
+        return {f.name: getattr(self, f.name) for f in fields(self)}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TTSConfig:
-        return cls(
-            model=data.get("model"),
-            voice=data.get("voice"),
-            fallback_voice=data.get("fallback_voice"),
-            randomize_voice=data.get("randomize_voice"),
-            random_voices=data.get("random_voices"),
-            voice_design_prompt=data.get("voice_design_prompt"),
-            style_control_mode=data.get("style_control_mode"),
-            style_prompt=data.get("style_prompt"),
-            director_character=data.get("director_character"),
-            director_scene=data.get("director_scene"),
-            director_guidance=data.get("director_guidance"),
-            audio_tags_enabled=data.get("audio_tags_enabled"),
-            audio_tags=data.get("audio_tags"),
-            voice_clone_sample_path=data.get("voice_clone_sample_path"),
-            voice_clone_mime_type=data.get("voice_clone_mime_type"),
-            optimize_text_preview=data.get("optimize_text_preview", False),
-            instructions=data.get("instructions"),
-            optimize_instructions=data.get("optimize_instructions", False),
-            language_type=data.get("language_type"),
-            audio_format=data.get("audio_format"),
-        )
+        # Unknown keys (e.g. removed legacy fields) are silently ignored;
+        # missing keys keep their dataclass defaults.  Numeric config values
+        # (sample_rate: 44100) are coerced so string fields stay valid.
+        kwargs: dict[str, Any] = {}
+        for f in fields(cls):
+            value = data.get(f.name)
+            if value is None:
+                continue
+            if f.type == "str | None" and isinstance(value, (int, float)):
+                value = str(value)
+            kwargs[f.name] = value
+        return cls(**kwargs)
 
     def with_defaults(self) -> TTSConfig:
-        defaults = DEFAULTS["tts"]
-        director = defaults.get("director", {})
-        audio_tags = defaults.get("audio_tags", {})
-
-        return TTSConfig(
-            model=self.model if self.model is not None else defaults.get("model"),
-            voice=self.voice if self.voice is not None else defaults.get("voice"),
-            fallback_voice=self.fallback_voice
-            if self.fallback_voice is not None
-            else defaults.get("fallback_voice", ""),
-            randomize_voice=self.randomize_voice
-            if self.randomize_voice is not None
-            else defaults.get("randomize_voice"),
-            random_voices=self.random_voices
-            if self.random_voices is not None
-            else defaults.get("random_voices", []),
-            voice_design_prompt=self.voice_design_prompt
-            if self.voice_design_prompt is not None
-            else defaults.get("voice_design_prompt", ""),
-            style_control_mode=self.style_control_mode
-            if self.style_control_mode is not None
-            else defaults.get("style_control_mode", "simple"),
-            style_prompt=self.style_prompt
-            if self.style_prompt is not None
-            else defaults.get("style_prompt", ""),
-            director_character=self.director_character
-            if self.director_character is not None
-            else director.get("character", ""),
-            director_scene=self.director_scene
-            if self.director_scene is not None
-            else director.get("scene", ""),
-            director_guidance=self.director_guidance
-            if self.director_guidance is not None
-            else director.get("guidance", ""),
-            audio_tags_enabled=self.audio_tags_enabled
-            if self.audio_tags_enabled is not None
-            else audio_tags.get("enabled", False),
-            audio_tags=self.audio_tags
-            if self.audio_tags is not None
-            else audio_tags.get("tags", ""),
-            voice_clone_sample_path=self.voice_clone_sample_path,
-            voice_clone_mime_type=self.voice_clone_mime_type,
-            optimize_text_preview=self.optimize_text_preview,
-            instructions=self.instructions
-            if self.instructions is not None
-            else defaults["instructions"],
-            optimize_instructions=self.optimize_instructions,
-            language_type=self.language_type
-            if self.language_type is not None
-            else defaults["language_type"],
-            audio_format=self.audio_format
-            if self.audio_format is not None
-            else defaults.get("audio_format", "wav"),
-        )
+        flat_defaults = _flatten_tts_dict(DEFAULTS["tts"])
+        merged = {}
+        for f in fields(self):
+            value = getattr(self, f.name)
+            if value is None and f.name not in _PASSTHROUGH_FIELDS:
+                value = flat_defaults.get(f.name)
+            merged[f.name] = value
+        return TTSConfig.from_dict(merged)
 
 
 class TTSConfigManager:
@@ -172,24 +144,16 @@ class TTSConfigManager:
 
         reader = ConfigReader(config_dir=str(self.config_dir))
         data = reader.get_tts_config()  # 不带 product_id → 顶层 tts
-        return TTSConfig.from_dict(self._flatten_tts_config(data))
+        return TTSConfig.from_dict(_flatten_tts_dict(data))
 
     def _load_product_config(self, product_id: str) -> TTSConfig:
         from packages.provider_config.config_reader import ConfigReader
 
         reader = ConfigReader(config_dir=str(self.config_dir))
         data = reader.get_tts_config(product_id=product_id)
-        return TTSConfig.from_dict(self._flatten_tts_config(data))
+        return TTSConfig.from_dict(_flatten_tts_dict(data))
 
     def save_config(self, config: TTSConfig, product_id: str | None = None) -> None:
-        # 自动迁移: mimo-v2-tts -> qwen3-tts-flash
-        if config.model == "mimo-v2-tts":
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning("Auto-migrating mimo-v2-tts -> qwen3-tts-flash")
-            config.model = "qwen3-tts-flash"
-            config.voice = "Rocky"
         if product_id is None:
             self._save_global_config(config)
         else:
@@ -233,19 +197,27 @@ class TTSConfigManager:
         # product 不存在，报错而非隐式创建
         raise ValueError(f"product '{product_id}' not found in app_config.json")
 
-    @staticmethod
-    def _flatten_tts_config(data: dict[str, Any]) -> dict[str, Any]:
-        result = {}
-        for key, value in data.items():
-            if key == "director" and isinstance(value, dict):
-                result["director_character"] = value.get("character", "")
-                result["director_scene"] = value.get("scene", "")
-                result["director_guidance"] = value.get("guidance", "")
-            elif key == "audio_tags" and isinstance(value, dict):
-                result["audio_tags_enabled"] = value.get("enabled", False)
-                result["audio_tags"] = value.get("tags", "")
-            elif key == "provider":
-                continue
-            else:
-                result[key] = value
-        return result
+
+def resolve_tts_config(
+    tts_dict: dict[str, Any],
+    overrides: dict[str, Any] | None = None,
+) -> TTSConfig:
+    """Single runtime entry point: raw dict + optional overrides → TTSConfig.
+
+    Applies overrides (e.g. job-level tts_model/tts_voice), infers the provider
+    from the final model when it is not explicitly overridden, and fills defaults.
+
+    A job-level model override drives provider selection so the runtime never
+    routes a Qwen model through a MiMo provider (or vice-versa).
+    """
+    from packages.provider_config.catalog import tts_provider_for_model
+
+    overrides = overrides or {}
+    merged = {**tts_dict, **overrides}
+    if not merged.get("provider") or (
+        "model" in overrides and "provider" not in overrides
+    ):
+        inferred = tts_provider_for_model(str(merged.get("model") or ""))
+        if inferred:
+            merged["provider"] = inferred
+    return TTSConfig.from_dict(_flatten_tts_dict(merged)).with_defaults()

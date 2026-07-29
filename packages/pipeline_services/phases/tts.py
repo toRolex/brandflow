@@ -12,6 +12,7 @@ from packages.pipeline_services.force_align_service import (
     ForceAlignError,
     ForceAlignService,
 )
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 from packages.pipeline_services.script_sentence import parse_script_sentences
 from packages.pipeline_services.sentence_tts_service import SentenceTTSService
 
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
         PhaseContext,
         PhaseOrchestrator,
     )
+
+_LOGGER = get_pipeline_logger(__name__)
 
 
 def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
@@ -34,8 +37,8 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
         2. Otherwise discover script text from ``*口播文案.txt`` then ``*.json``
            and synthesize each canonical Script Sentence separately.
     """
-    workspace_dir = ctx.root_dir / "workspace"
     job_dir = _job_dir(ctx)
+    logger = _LOGGER.bind(ctx.job_id)
     audio_path = job_dir / "audio.mp3"
     result: list = []
     uploaded_audio_path: str = ctx.options.get("uploaded_audio_path", "")
@@ -43,17 +46,14 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     # upload / library audio jobs do not need TTS synthesis (#249)
     audio_source: str = ctx.options.get("audio_source", "tts")
     if audio_source in ("upload", "library") and not uploaded_audio_path:
-        print(
-            f"[TTS] 跳过合成: audio_source={audio_source}, 无上传音频路径",
-            flush=True,
-        )
+        logger.info("[TTS] 跳过合成: audio_source=%s, 无上传音频路径", audio_source)
         return result
 
     if uploaded_audio_path:
         src_audio = ctx.root_dir / uploaded_audio_path
         if src_audio.exists():
             shutil.copy2(src_audio, audio_path)
-            print(f"[TTS] Using uploaded audio: {src_audio}", flush=True)
+            logger.info("[TTS] Using uploaded audio: %s", src_audio)
 
             # Force-align uploaded audio to canonical Script Sentences
             existing_script = _discover_script(job_dir)
@@ -77,55 +77,59 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                             _to_artifact(
                                 "sentence_timings",
                                 sentences_path,
-                                workspace_dir,
+                                ctx.layout,
                             )
                         )
-                        print(
-                            f"[TTS] Force-aligned uploaded audio: "
-                            f"{len(align_result.timings)} sentences, "
-                            f"audio size={audio_path.stat().st_size}",
-                            flush=True,
+                        logger.info(
+                            "[TTS] Force-aligned uploaded audio: %s sentences, "
+                            "audio size=%s",
+                            len(align_result.timings),
+                            audio_path.stat().st_size,
                         )
                     else:
                         # No fallback — surface per-sentence diagnostics
                         raise ForceAlignError(align_result)
                 else:
-                    print(
-                        "[TTS] Uploaded audio: no parseable sentences in script",
-                        flush=True,
+                    logger.warning(
+                        "[TTS] Uploaded audio: no parseable sentences in script"
                     )
             else:
-                print(
-                    f"[TTS] Uploaded audio: no script text found in {job_dir}",
-                    flush=True,
+                logger.warning(
+                    "[TTS] Uploaded audio: no script text found in %s", job_dir
                 )
         else:
-            print(f"[TTS WARN] Uploaded audio not found: {src_audio}", flush=True)
+            logger.warning("[TTS WARN] Uploaded audio not found: %s", src_audio)
     else:
         existing_script = _discover_script(job_dir)
-        print(
-            f"[TTS DEBUG] phase=tts_generating, script_found={existing_script is not None}, "
-            f"len={len(existing_script) if existing_script else 0}",
-            flush=True,
+        logger.debug(
+            "[TTS DEBUG] phase=tts_generating, script_found=%s, len=%s",
+            existing_script is not None,
+            len(existing_script) if existing_script else 0,
         )
         if existing_script:
-            tts_cfg = orchestrator._resolve_tts_config(ctx)
+            # Resolve via the single runtime entry point: raw dict + job-level
+            # overrides (tts_model / tts_voice) -> TTSConfig, with provider
+            # inferred from the final model.
+            from packages.provider_config.tts_config import resolve_tts_config
 
-            # Apply job-level TTS overrides (tts_model / tts_voice)
-            # Priority: job override > provider defaults > global/product config
+            overrides: dict[str, Any] = {}
             job_tts_model: str = ctx.options.get("tts_model", "")
             job_tts_voice: str = ctx.options.get("tts_voice", "")
             if job_tts_model:
-                tts_cfg["model"] = job_tts_model
+                overrides["model"] = job_tts_model
             if job_tts_voice:
-                tts_cfg["voice"] = job_tts_voice
+                overrides["voice"] = job_tts_voice
 
-            # ponytail: qwen model uses language_type=Chinese for cantonese,
-            # MiMo ignores it, so model gate prevents pointless assignment
-            if ctx.options.get("language", "") == "cantonese" and "qwen" in tts_cfg.get(
-                "model", ""
+            config = resolve_tts_config(
+                dict(orchestrator._resolve_tts_config(ctx)), overrides
+            )
+            # Qwen uses language_type=Chinese for Cantonese; MiMo ignores it.
+            if (
+                ctx.options.get("language", "") == "cantonese"
+                and config.provider == "qwen"
             ):
-                tts_cfg["language_type"] = "Chinese"
+                config.language_type = "Chinese"
+            tts_cfg = config.to_dict()
 
             tts_provider = orchestrator._build_tts_provider(tts_cfg)
             service = orchestrator._create_sentence_tts_service(
@@ -146,19 +150,17 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
                 ),
                 encoding="utf-8",
             )
-            result.append(
-                _to_artifact("sentence_timings", sentences_path, workspace_dir)
-            )
-            print(
-                f"[TTS] Synthesized: {audio_path.exists()}, "
-                f"size={audio_path.stat().st_size if audio_path.exists() else 0}",
-                flush=True,
+            result.append(_to_artifact("sentence_timings", sentences_path, ctx.layout))
+            logger.info(
+                "[TTS] Synthesized: %s, size=%s",
+                audio_path.exists(),
+                audio_path.stat().st_size if audio_path.exists() else 0,
             )
         else:
-            print(f"[TTS WARN] No script text found in {job_dir}", flush=True)
+            logger.warning("[TTS WARN] No script text found in %s", job_dir)
 
     if audio_path.exists():
-        result.append(_to_artifact("tts_audio", audio_path, workspace_dir))
+        result.append(_to_artifact("tts_audio", audio_path, ctx.layout))
 
     return result
 
@@ -166,12 +168,12 @@ def run(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
 def run_review(orchestrator: PhaseOrchestrator, ctx: PhaseContext) -> list:
     """tts_review: return existing audio artifact for review."""
     job_dir = _job_dir(ctx)
-    workspace_dir = ctx.root_dir / "workspace"
+    logger = _LOGGER.bind(ctx.job_id)
     audio_path = job_dir / "audio.mp3"
     if audio_path.exists():
-        print(f"[TTS_REVIEW] Audio ready for review: {audio_path}", flush=True)
-        return [_to_artifact("tts_audio", audio_path, workspace_dir)]
-    print(f"[TTS_REVIEW WARN] No audio found in {job_dir}", flush=True)
+        logger.info("[TTS_REVIEW] Audio ready for review: %s", audio_path)
+        return [_to_artifact("tts_audio", audio_path, ctx.layout)]
+    logger.warning("[TTS_REVIEW WARN] No audio found in %s", job_dir)
     return []
 
 
@@ -179,7 +181,7 @@ def _create_sentence_tts_service(
     provider: Any, tts_cfg: dict[str, Any], ctx: PhaseContext
 ) -> SentenceTTSService:
     """Factory hook for the sentence-level TTS service (overridable in tests)."""
-    cache_dir = ctx.root_dir / "workspace" / ".cache" / "tts"
+    cache_dir = ctx.layout.workspace_url_prefix() / ".cache" / "tts"
     return SentenceTTSService(
         provider=provider,
         config=tts_cfg,

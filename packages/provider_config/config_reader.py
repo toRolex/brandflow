@@ -7,10 +7,14 @@ All ``get_*()`` methods are O(1) dict lookups after construction.
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from typing import Any, cast
 
+import yaml
+
+from packages.provider_config.catalog import tts_provider_for_model
 from packages.provider_config.config_constants import (
     DEFAULTS,
     _deep_merge,
@@ -18,6 +22,8 @@ from packages.provider_config.config_constants import (
     _set_nested,
 )
 from packages.provider_config.config_io import load_config, save_config
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigReader:
@@ -34,6 +40,8 @@ class ConfigReader:
         self._raw: dict[str, Any] = {}
         self._cache: dict[str, dict[str, Any]] = {}
         self._product_cache: dict[str, dict[str, dict[str, Any]]] = {}
+        self._reload_generation = 0
+        self._applied_reload_generation = 0
         self._build_cache()
 
     # ------------------------------------------------------------------
@@ -73,6 +81,10 @@ class ConfigReader:
     def get_vision_config(self, product_id: str | None = None) -> dict[str, Any]:
         """Return Vision config.  When *product_id* is given, product overrides are applied."""
         return self.get("vision", product_id=product_id)
+
+    def get_embedding_config(self) -> dict[str, Any]:
+        """Return embedding config (no product override)."""
+        return self.get("embedding")
 
     def get_scene_config(self, product_id: str | None = None) -> dict[str, Any]:
         """Return Scene config.  Product-level scene overrides top-level scene."""
@@ -115,38 +127,65 @@ class ConfigReader:
     def get_category_suggestion_model(self) -> str:
         """Return the model used for category suggestions."""
         al = self.get_asset_library_config()
-        return al.get("category_suggestion_model", "deepseek-v4-flash")
+        return al.get(
+            "category_suggestion_model",
+            DEFAULTS["asset_library"]["category_suggestion_model"],
+        )
 
     def get_category_suggestion_sample_size(self) -> int:
         """Return the sample size for category suggestions."""
         al = self.get_asset_library_config()
-        return al.get("category_suggestion_sample_size", 20)
+        return al.get(
+            "category_suggestion_sample_size",
+            DEFAULTS["asset_library"]["category_suggestion_sample_size"],
+        )
 
     # ------------------------------------------------------------------
     # Reload
     # ------------------------------------------------------------------
 
     def reload(self) -> None:
-        """Re-read the config file from disk and rebuild the full cache."""
-        self._build_cache()
+        """Re-read the config file from disk and rebuild the full cache.
+
+        A new snapshot is built locally and then swapped in under the lock
+        so that concurrent ``get()`` callers never see a mixed state (e.g.
+        new root cache with old product cache).
+        """
+        with self._lock:
+            self._reload_generation += 1
+            generation = self._reload_generation
+
+        raw, cache, product_cache = self._build_snapshot()
+        with self._lock:
+            if generation < self._applied_reload_generation:
+                return
+            self._raw = raw
+            self._cache = cache
+            self._product_cache = product_cache
+            self._applied_reload_generation = generation
 
     # ------------------------------------------------------------------
     # Internal: cache building
     # ------------------------------------------------------------------
 
-    def _build_cache(self) -> None:
-        """Load config file, migrate, merge, and populate in-memory caches."""
+    def _build_snapshot(
+        self,
+    ) -> tuple[
+        dict[str, Any], dict[str, dict[str, Any]], dict[str, dict[str, dict[str, Any]]]
+    ]:
+        """Load config file, migrate, merge, and return new cache snapshots."""
         raw = self._load_and_migrate()
-        self._raw = raw if isinstance(raw, dict) else {}
+        raw_dict = raw if isinstance(raw, dict) else {}
 
-        root = raw if isinstance(raw, dict) else {}
+        root = raw_dict
         products: list[dict[str, Any]] = root.get("products", [])
 
         # -- root-level merged configs (DEFAULTS + root section) ---------
-        self._cache = {
+        cache: dict[str, dict[str, Any]] = {
             "tts": _deep_merge(DEFAULTS["tts"], root.get("tts", {})),
             "llm": _deep_merge(DEFAULTS["llm"], root.get("llm", {})),
             "vision": _deep_merge(DEFAULTS["vision"], root.get("vision", {})),
+            "embedding": _deep_merge(DEFAULTS["embedding"], root.get("embedding", {})),
             "scene": _deep_merge(DEFAULTS["scene"], root.get("scene", {})),
             "media": _deep_merge(DEFAULTS["media"], root.get("media", {})),
             "video": _deep_merge(DEFAULTS["video"], root.get("video", {})),
@@ -157,13 +196,13 @@ class ConfigReader:
         }
 
         # -- per-product cache (DEFAULTS + root-section + product-override)
-        self._product_cache = {}
+        product_cache: dict[str, dict[str, dict[str, Any]]] = {}
         for p in products:
             pid = p.get("id", "")
             if not pid:
                 continue
 
-            root_product = self._cache["product"]
+            root_product = cache["product"]
 
             # Build full product config: DEFAULTS.product + root.product + p
             product_merged = _deep_merge(root_product, p)
@@ -173,39 +212,179 @@ class ConfigReader:
                     "default_name", ""
                 ) or product_merged.get("id", "")
 
-            # Scene: product-level scene overrides top-level scene
+            # Scene follows the same three-layer merge as other sections:
+            # defaults -> root scene -> product override.
             p_scene = p.get("scene")
             if isinstance(p_scene, dict) and p_scene:
-                scene_merged = _deep_merge(DEFAULTS["scene"], p_scene)
+                scene_merged = _deep_merge(cache["scene"], p_scene)
             else:
-                scene_merged = self._cache["scene"]
+                scene_merged = cache["scene"]
 
-            self._product_cache[pid] = {
+            product_cache[pid] = {
                 "tts": _deep_merge(
-                    self._cache["tts"],
+                    cache["tts"],
                     p.get("tts", {}) if isinstance(p.get("tts"), dict) else {},
                 ),
                 "llm": _deep_merge(
-                    self._cache["llm"],
+                    cache["llm"],
                     p.get("llm", {}) if isinstance(p.get("llm"), dict) else {},
                 ),
                 "vision": _deep_merge(
-                    self._cache["vision"],
+                    cache["vision"],
                     p.get("vision", {}) if isinstance(p.get("vision"), dict) else {},
                 ),
                 "scene": scene_merged,
                 "product": product_merged,
             }
 
+        return (raw_dict, cache, product_cache)
+
+    def _build_cache(self) -> None:
+        """Load config file, migrate, merge, and populate in-memory caches."""
+        self._raw, self._cache, self._product_cache = self._build_snapshot()
+
     def _load_and_migrate(self) -> dict[str, Any]:
         """Load raw config and apply schema migration if needed."""
         raw = load_config(self._config_path)
+        changed = False
+
+        # Import the selected Qwen/MiMo connection fields from the legacy
+        # provider document, but never merge an unselected profile into a
+        # different active provider.  providers.yaml remains read-only.
+        legacy_path = self._config_dir / "providers.yaml"
+        if legacy_path.exists():
+            try:
+                legacy = yaml.safe_load(legacy_path.read_text(encoding="utf-8")) or {}
+            except (OSError, yaml.YAMLError):
+                legacy = {}
+            legacy_tts = legacy.get("providers", {}).get("tts", {})
+            selected = legacy_tts.get("selected")
+            profiles = legacy_tts.get("providers", {})
+            source = (
+                profiles.get(selected)
+                if isinstance(selected, str) and selected in {"qwen", "mimo"}
+                else None
+            )
+            root_tts = raw.setdefault("tts", {})
+            active = root_tts.get("provider") or tts_provider_for_model(
+                str(root_tts.get("model") or "")
+            )
+            if isinstance(source, dict) and (not active or active == selected):
+                migrated = False
+                if not root_tts.get("provider"):
+                    root_tts["provider"] = selected
+                    migrated = True
+                for key, value in source.items():
+                    if key == "api_key" or value in (None, ""):
+                        continue
+                    runtime_key = "style_prompt" if key == "style" else key
+                    if runtime_key not in root_tts or root_tts[runtime_key] in (
+                        None,
+                        "",
+                    ):
+                        root_tts[runtime_key] = value
+                        migrated = True
+                changed = changed or migrated
 
         # Migrate old "product" -> "products" (one-time, write-back)
         if "product" in raw and "products" not in raw:
             old_product = raw.pop("product", {})
             raw["products"] = [{"id": "default", **old_product}]
             raw["active_product_id"] = "default"
+            changed = True
+
+        products = [
+            product for product in raw.get("products", []) if isinstance(product, dict)
+        ]
+        for section_name in ("llm", "tts", "vision"):
+            sections = [raw.get(section_name)]
+            sections.extend(product.get(section_name) for product in products)
+            for section in sections:
+                if not isinstance(section, dict):
+                    continue
+                for field_name in ("provider", "model"):
+                    if section.get(field_name) == "":
+                        section.pop(field_name)
+                        changed = True
+
+        # Before provider became the routing authority, TTS selected its
+        # implementation from the model prefix.  Reconcile those legacy
+        # documents once so strict runtime validation remains compatible.
+        tts_sections = [raw.get("tts")]
+        tts_sections.extend(product.get("tts") for product in products)
+        for section in tts_sections:
+            if not isinstance(section, dict):
+                continue
+            # Retired model alias: mimo-v2-tts -> qwen3-tts-flash (load-time,
+            # so the write path never silently rewrites the user's choice).
+            if section.get("model") == "mimo-v2-tts":
+                logger.warning("Auto-migrating mimo-v2-tts -> qwen3-tts-flash")
+                section["provider"] = "qwen"
+                section["model"] = "qwen3-tts-flash"
+                section["voice"] = "Rocky"
+                changed = True
+                continue
+            model = str(section.get("model") or "")
+            inferred = tts_provider_for_model(model)
+            if inferred and not section.get("provider"):
+                section["provider"] = inferred
+                changed = True
+
+        # Migrate provider_profiles.tts → root tts section (#386)
+        if "provider_profiles" in raw and isinstance(raw["provider_profiles"], dict):
+            profiles = raw["provider_profiles"]
+            tts_profiles = profiles.get("tts")
+            if isinstance(tts_profiles, dict) and tts_profiles:
+                from packages.provider_config.catalog import (
+                    provider_field_to_runtime_field,
+                )
+
+                root_tts = raw.setdefault("tts", {})
+                secret_field_names = {"api_key"}
+
+                # Migrate only the active provider profile. A legacy document
+                # without a root provider may use its sole profile; never
+                # guess when a provider is already selected.
+                active_provider = root_tts.get("provider", "")
+                non_empty = {
+                    p: f
+                    for p, f in tts_profiles.items()
+                    if isinstance(f, dict)
+                    and any(k not in secret_field_names and v for k, v in f.items())
+                }
+
+                source_provider = ""
+                if active_provider and active_provider in non_empty:
+                    source_provider = active_provider
+                elif not active_provider and len(non_empty) == 1:
+                    # A legacy document without a root provider can safely
+                    # inherit its sole provider profile.  Never guess when a
+                    # root provider is already selected: provider_profiles
+                    # contains non-selected profiles by design.
+                    source_provider = next(iter(non_empty))
+
+                if source_provider:
+                    provider_fields = tts_profiles[source_provider]
+                    for key, value in provider_fields.items():
+                        if key in secret_field_names or not value:
+                            continue
+                        runtime_name = provider_field_to_runtime_field(key)
+                        if runtime_name not in root_tts or root_tts[runtime_name] in (
+                            None,
+                            "",
+                        ):
+                            root_tts[runtime_name] = value
+                    # Ensure provider is set so runtime can route (#386)
+                    if not root_tts.get("provider"):
+                        root_tts["provider"] = source_provider
+
+                if source_provider:
+                    profiles.pop("tts", None)
+                    if not profiles:
+                        raw.pop("provider_profiles", None)
+                    changed = True
+
+        if changed:
             save_config(self._config_path, raw)
 
         return raw
@@ -250,9 +429,11 @@ class ConfigResolver:
         configured base URL does not already end with it.
         """
         config = self._reader.get_llm_config(product_id=self._product_id(product_id))
-        provider = config.get("provider", "deepseek")
+        provider = config.get("provider", DEFAULTS["llm"]["provider"])
         api_key = self._api_key_for(provider)
-        api_url = self._chat_completions_url_for(provider)
+        api_url = self._chat_completions_url_for(
+            provider, configured_url=str(config.get("endpoint") or "")
+        )
         return config, api_key, api_url
 
     def categories(self, product_id: str = "") -> list[str]:
@@ -290,15 +471,15 @@ class ConfigResolver:
 
     def _api_key_for(self, provider: str) -> str:
         """Resolve API key for *provider* via SecretStore."""
-        return self._secrets.get_api_key(provider)
+        return self._secrets.get_api_key(provider, section="llm")
 
     def _api_base_url_for(self, provider: str) -> str:
         """Resolve base API URL for *provider* via SecretStore."""
-        return self._secrets.get_api_base_url(provider)
+        return self._secrets.get_api_base_url(provider, section="llm")
 
-    def _chat_completions_url_for(self, provider: str) -> str:
+    def _chat_completions_url_for(self, provider: str, configured_url: str = "") -> str:
         """Resolve chat-completions URL for *provider*, auto-completing the path."""
-        url = self._api_base_url_for(provider)
+        url = configured_url.strip().rstrip("/") or self._api_base_url_for(provider)
         if url and not url.endswith("/chat/completions"):
             url = f"{url}/chat/completions"
         return url

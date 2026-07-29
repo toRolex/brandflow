@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
+from pathlib import Path
 
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
@@ -154,12 +156,47 @@ def test_get_llm_api_key_provider_specific() -> None:
         assert store.get_llm_api_key(reader) == "sk-deepseek-test"
 
 
-def test_get_llm_endpoint_from_reader() -> None:
-    """get_llm_endpoint should read provider from ConfigReader and resolve endpoint."""
-    store = SecretStore(env={"DEEPSEEK_API_URL": "https://api.ds.com/v1"})
+def test_openai_key_is_resolved_in_its_config_section() -> None:
+    store = SecretStore(
+        env={
+            "OPENAI_API_KEY": "llm-openai-key",
+            "VISION_API_KEY": "vision-openai-key",
+        }
+    )
     with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir, "app_config.json")
+        config_path.write_text(
+            json.dumps(
+                {
+                    "llm": {"provider": "openai"},
+                    "vision": {"provider": "openai"},
+                }
+            ),
+            encoding="utf-8",
+        )
         reader = ConfigReader(config_dir=tmpdir)
-        assert store.get_llm_endpoint(reader) == "https://api.ds.com/v1"
+
+        assert store.get_llm_api_key(reader) == "llm-openai-key"
+        assert store.get_vision_api_key(reader) == "vision-openai-key"
+
+
+def test_get_llm_endpoint_from_reader() -> None:
+    """Non-secret endpoints come from app_config, not environment overrides."""
+    store = SecretStore(env={"DEEPSEEK_API_URL": "https://stale.example.com"})
+    with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "app_config.json").write_text(
+            json.dumps(
+                {
+                    "llm": {
+                        "provider": "deepseek",
+                        "endpoint": "https://configured.example.com/v1",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        reader = ConfigReader(config_dir=tmpdir)
+        assert store.get_llm_endpoint(reader) == "https://configured.example.com/v1"
 
 
 def test_get_vision_api_key_from_reader() -> None:
@@ -179,19 +216,22 @@ def test_get_vision_endpoint_from_reader() -> None:
 
 
 def test_get_vision_model_from_reader() -> None:
-    """get_vision_model should read provider from ConfigReader, resolve model."""
+    """Vision model comes from app_config even when a stale env value exists."""
     store = SecretStore(env={"XIAOMI_VISION_MODEL": "mimo-v3"})
     with tempfile.TemporaryDirectory() as tmpdir:
+        Path(tmpdir, "app_config.json").write_text(
+            json.dumps({"vision": {"provider": "xiaomi", "model": "mimo-v2.5"}}),
+            encoding="utf-8",
+        )
         reader = ConfigReader(config_dir=tmpdir)
-        assert store.get_vision_model(reader) == "mimo-v3"
+        assert store.get_vision_model(reader) == "mimo-v2.5"
 
 
-def test_get_vision_model_fallback_to_generic() -> None:
-    """get_vision_model should fallback to VISION_MODEL."""
+def test_legacy_vision_model_env_does_not_override_config_default() -> None:
     store = SecretStore(env={"VISION_MODEL": "generic-vision-model"})
     with tempfile.TemporaryDirectory() as tmpdir:
         reader = ConfigReader(config_dir=tmpdir)
-        assert store.get_vision_model(reader) == "generic-vision-model"
+        assert store.get_vision_model(reader) == "mimo-v2.5"
 
 
 def test_combo_methods_accept_product_id() -> None:
@@ -219,7 +259,6 @@ def test_resolve_vision_config_with_secret_store() -> None:
         env={
             "XIAOMI_VISION_API_KEY": "injected-vision-key",
             "XIAOMI_VISION_API_URL": "https://injected.api.com",
-            "XIAOMI_VISION_MODEL": "injected-model",
         }
     )
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -227,5 +266,5 @@ def test_resolve_vision_config_with_secret_store() -> None:
         result = resolve_vision_config({}, secrets=store, reader=reader)
         assert result["api_key"] == "injected-vision-key"
         assert result["endpoint"] == "https://injected.api.com"
-        assert result["model"] == "injected-model"
+        assert result["model"] == "mimo-v2.5"
         assert result["provider"] == "xiaomi"

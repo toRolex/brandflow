@@ -8,17 +8,19 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from packages.provider_config.catalog import (
+    default_runtime_provider_config,
+    default_runtime_settings,
+)
+
+
+_PROVIDER_DEFAULTS = default_runtime_provider_config()
+_SETTINGS_DEFAULTS = default_runtime_settings()
 
 DEFAULTS: dict[str, Any] = {
-    "llm": {
-        "provider": "deepseek",
-        "model": "deepseek-v4-pro",
-        "thinking": "disabled",
-    },
+    "llm": _PROVIDER_DEFAULTS["llm"],
     "tts": {
-        "provider": "qwen",
-        "model": "qwen3-tts-flash",
-        "voice": "Cherry",
+        **_PROVIDER_DEFAULTS["tts"],
         "fallback_voice": "Stella",
         "randomize_voice": True,
         "random_voices": ["Cherry", "Stella"],
@@ -34,25 +36,18 @@ DEFAULTS: dict[str, Any] = {
             "enabled": False,
             "tags": "",
         },
-        "instructions": "",
-        "language_type": "Chinese",
-        "audio_format": "wav",
     },
-    "vision": {
-        "provider": "xiaomi",
-        "model": "mimo-v2.5",
-    },
+    "vision": _PROVIDER_DEFAULTS["vision"],
+    "embedding": _SETTINGS_DEFAULTS["embedding"],
     "media": {
-        "ffmpeg_path": "ffmpeg",
-        "ffprobe_path": "ffprobe",
+        **_SETTINGS_DEFAULTS["media"],
         "subtitle_mode": "script_timed",
         "max_retry": 3,
         "retry_delay_seconds": 60,
     },
     "asset_library": {
+        **_SETTINGS_DEFAULTS["asset_library"],
         "categories": [],
-        "category_suggestion_model": "deepseek-v4-flash",
-        "category_suggestion_sample_size": 20,
     },
     "video": {
         "cover_title_style": {
@@ -64,8 +59,7 @@ DEFAULTS: dict[str, Any] = {
         }
     },
     "scene": {
-        "folders": [],
-        "transition_duration_ms": 500,
+        **_SETTINGS_DEFAULTS["scene"],
     },
     "product": {
         "default_name": "",

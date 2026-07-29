@@ -1,5 +1,19 @@
 import { request } from "./core";
 
+export interface TtsModelInfo {
+	provider: string;
+	model: string;
+	label: string;
+	description: string;
+	features: string[];
+}
+
+export const getTTSModels = () =>
+	request<{
+		models: TtsModelInfo[];
+		connection_fields: Record<string, string[]>;
+	}>("/api/tts/models");
+
 export const getTTSConfig = (productId?: string) =>
 	request<Record<string, unknown>>(
 		`/api/tts/config${productId ? `?product_id=${productId}` : ""}`,
@@ -32,16 +46,7 @@ export const getTTSVoices = (provider?: string, model?: string) => {
 	}>(`/api/tts/voices${qs ? `?${qs}` : ""}`);
 };
 
-export const previewTTS = async (requestBody: {
-	text: string;
-	model?: string;
-	voice?: string;
-	style_prompt?: string;
-	voice_design_prompt?: string;
-	instructions?: string;
-	optimize_instructions?: boolean;
-	language_type?: string;
-}) => {
+export const previewTTS = async (requestBody: Record<string, unknown>) => {
 	const res = await fetch("/api/tts/preview", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },

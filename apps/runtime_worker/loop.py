@@ -9,7 +9,6 @@ share identical pipeline logic.
 from __future__ import annotations
 
 import json
-import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -17,12 +16,16 @@ from pathlib import Path
 from typing import Any
 
 from apps.runtime_worker.http_client import WorkerHttpClient
+from packages.file_store.layout import WorkspaceLayout
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
 )
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 from packages.provider_config.config_reader import ConfigReader
 from packages.runtime_adapters import RuntimeAdapter
+
+_LOGGER = get_pipeline_logger(__name__)
 
 
 class WorkerLoop:
@@ -34,11 +37,14 @@ class WorkerLoop:
         worker_id: str,
         workspace_root: Path,
         orchestrator: PhaseOrchestrator,
+        layout: WorkspaceLayout | None = None,
     ) -> None:
         self.api = api
         self.worker_id = worker_id
         self.workspace_root = workspace_root
         self.orchestrator = orchestrator
+        # Default to cwd; callers (mostly tests) may inject a layout.
+        self.layout = layout if layout is not None else WorkspaceLayout(Path.cwd())
 
     def run_forever(self) -> None:
         """Poll 任务，根据 handler_phase 执行单个 phase，report 后继续轮询。"""
@@ -46,7 +52,7 @@ class WorkerLoop:
             try:
                 command = self.api.poll()
             except Exception as exc:
-                logging.warning("Control plane not ready, retrying in 5s: %s", exc)
+                _LOGGER.warning("Control plane not ready, retrying in 5s: %s", exc)
                 time.sleep(5)
                 continue
             if command["command"] == "idle":
@@ -59,14 +65,13 @@ class WorkerLoop:
             self.api.download_input_bundle(command["input_bundle_url"])
 
             root_dir = Path.cwd()
-            project_dir = (
-                root_dir / self.workspace_root / "projects" / command["project_id"]
-            ).resolve()
+            project_id = command["project_id"]
+            project_dir = self.layout.project_dir(project_id)
             job_id = command["job_id"]
             handler_phase = command.get("handler_phase", "")
 
             # Write job JSON so the orchestrator can read cover_title, music, etc.
-            job_json_path = project_dir / "control" / "jobs" / f"{job_id}.json"
+            job_json_path = self.layout.job_record_path(project_id, job_id)
             job_json_path.parent.mkdir(parents=True, exist_ok=True)
             existing_job: dict[str, Any] = {}
             if job_json_path.exists():
@@ -100,11 +105,16 @@ class WorkerLoop:
                 root_dir=root_dir,
                 product=product,
                 brand=brand,
+                _layout=self.layout,
                 options={
                     "manual_script": command.get("manual_script", ""),
                     "uploaded_audio_path": command.get("uploaded_audio_path", ""),
                     "language": command.get("language", "mandarin"),
                 },
+            )
+            logger = _LOGGER.bind(job_id)
+            logger.info(
+                "received task phase=%s task_id=%s", handler_phase, command["task_id"]
             )
 
             # Execute the single requested phase and any parallel phases
@@ -116,7 +126,7 @@ class WorkerLoop:
                     artifacts.extend(pp_artifacts)
 
                 # Upload artifacts
-                workspace_dir = root_dir / "workspace"
+                workspace_dir = self.layout.workspace_url_prefix()
                 uploaded_files = []
                 for art in artifacts:
                     if not art.relative_path:
@@ -136,14 +146,19 @@ class WorkerLoop:
                 status = "succeeded"
                 logs = "orchestrator completed"
                 error = {}
-            except Exception as e:
-                print(
-                    f"[WORKER] Phase {handler_phase} failed: {type(e).__name__}: {e}",
-                    flush=True,
+                logger.info(
+                    "phase completed phase=%s artifacts=%s",
+                    handler_phase,
+                    len(uploaded_files),
                 )
-                import traceback
-
-                traceback.print_exc()
+            except Exception as e:
+                logger.error(
+                    "phase failed phase=%s error=%s: %s",
+                    handler_phase,
+                    type(e).__name__,
+                    e,
+                    exc_info=True,
+                )
                 status = "failed"
                 logs = f"phase execution error: {e}"
                 # Structured error matching ExecutionFailure contract (#171):
@@ -158,6 +173,9 @@ class WorkerLoop:
                 uploaded_files = []
 
             finished_at = datetime.now(timezone.utc).isoformat()
+            logger.info(
+                "submitting report task_id=%s status=%s", command["task_id"], status
+            )
             self.api.report(
                 {
                     "worker_id": self.worker_id,

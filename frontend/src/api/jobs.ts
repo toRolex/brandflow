@@ -4,7 +4,17 @@ import type {
 	BatchCreateResponse,
 	JobDetail,
 } from "../types/job";
-import { request, uploadFile } from "./core";
+import type { JobSummaryPage } from "../types/project";
+import { DEFAULT_PAGE_SIZE, request, uploadFile } from "./core";
+
+export const listProjectJobs = (
+	projectId: string,
+	page = 1,
+	pageSize = DEFAULT_PAGE_SIZE,
+) =>
+	request<JobSummaryPage>(
+		`/api/projects/${projectId}/jobs?page=${page}&page_size=${pageSize}`,
+	);
 
 export const createJob = (
 	projectId: string,
@@ -65,6 +75,12 @@ export const deleteJob = (jobId: string) =>
 	request<{ status: string; job_id: string }>(`/api/jobs/${jobId}`, {
 		method: "DELETE",
 	});
+
+export const toggleJobPin = (jobId: string) =>
+	request<{ job_id: string; is_pinned: boolean; pinned_at: string }>(
+		`/api/jobs/${jobId}/pin`,
+		{ method: "POST" },
+	);
 
 export const getJobLogs = (jobId: string) =>
 	request<{ logs: string }>(`/api/jobs/${jobId}/logs`);

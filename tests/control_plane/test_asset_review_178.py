@@ -1,4 +1,4 @@
-"""Tests for asset review API — set-blank, set-asset, re-search, restore, approve."""
+"""Tests for asset review API — set-blank, set-asset, restore, approve."""
 
 from __future__ import annotations
 
@@ -219,59 +219,8 @@ class TestSetAsset:
                 json={"clip_index": 0, "asset_id": "missing-asset"},
             )
         assert resp.status_code == 404
-        assert resp.json()["detail"] == "asset not found"
-
-
-class TestReSearch:
-    def test_re_search_updates_with_new_asset(self, tmp_path: Path) -> None:
-        ctx = _setup_job(
-            tmp_path,
-            [
-                {
-                    "sentence": "重新搜索这句。",
-                    "category": "intro",
-                    "visual_type": "unresolved",
-                    "file_path": "",
-                    "asset_id": "",
-                    "method": "",
-                },
-            ],
-        )
-        app = create_app(root_dir=ctx["tmp_path"])
-        with TestClient(app) as client:
-            resp = client.post(
-                f"/api/reviews/{ctx['job_id']}/asset/re-search",
-                json={"clip_index": 0},
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["status"] == "re_searched"
-
-    def test_re_search_does_not_overwrite_blank(self, tmp_path: Path) -> None:
-        """Re-search should not change a clip that is already explicitly set to blank."""
-        ctx = _setup_job(
-            tmp_path,
-            [
-                {
-                    "sentence": "已是空白。",
-                    "category": "",
-                    "visual_type": "blank",
-                    "file_path": "",
-                    "asset_id": "",
-                    "method": "manual",
-                },
-            ],
-        )
-        app = create_app(root_dir=ctx["tmp_path"])
-        with TestClient(app) as client:
-            resp = client.post(
-                f"/api/reviews/{ctx['job_id']}/asset/re-search",
-                json={"clip_index": 0},
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["status"] == "re_searched"
-            assert data["visual_type"] == "blank"  # unchanged
+        assert "missing-asset" in resp.json()["detail"]
+        assert "not found" in resp.json()["detail"].lower()
 
 
 class TestRestore:
@@ -496,23 +445,6 @@ class TestPhaseGating:
             resp = client.post(
                 f"/api/reviews/{ctx['job_id']}/asset/set-asset",
                 json={"clip_index": 0, "file_path": "/data/clip.mp4", "asset_id": "a1"},
-            )
-            assert resp.status_code == 409
-            assert "asset_review" in resp.json()["detail"].lower()
-
-    @pytest.mark.parametrize(
-        "phase", ["queued", "script_generating", "video_rendering", "completed"]
-    )
-    def test_re_search_outside_asset_review_returns_409(
-        self, tmp_path: Path, phase: str
-    ) -> None:
-        ctx = _setup_job(tmp_path, CLIP_SAMPLE)
-        _set_phase(tmp_path, ctx["project_id"], ctx["job_id"], phase)
-        app = create_app(root_dir=ctx["tmp_path"])
-        with TestClient(app) as client:
-            resp = client.post(
-                f"/api/reviews/{ctx['job_id']}/asset/re-search",
-                json={"clip_index": 0},
             )
             assert resp.status_code == 409
             assert "asset_review" in resp.json()["detail"].lower()

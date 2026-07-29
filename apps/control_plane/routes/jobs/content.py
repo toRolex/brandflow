@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 
-from apps.control_plane.routes.jobs.helpers import _find_job_project
+from apps.control_plane.routes.jobs.helpers import _resolve_job_project
 from apps.control_plane.routes.jobs.models import UpdateScriptRequest
 from packages.file_store.repository import FileStoreRepository
 
@@ -14,9 +14,7 @@ router = APIRouter(tags=["api-jobs"])
 @router.post("/jobs/{job_id}/script")
 def update_manual_script(request: Request, job_id: str, payload: UpdateScriptRequest):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
 
     record = repo.load_job(project_id, job_id)
     repo.save_job(
@@ -34,10 +32,8 @@ async def upload_job_audio(request: Request, job_id: str, file: UploadFile):
     if not file.filename:
         raise HTTPException(status_code=400, detail="filename required")
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
-
+    layout = repo.layout
+    project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
     if record.phase != "draft":
         raise HTTPException(
@@ -49,16 +45,13 @@ async def upload_job_audio(request: Request, job_id: str, file: UploadFile):
             },
         )
 
-    root_dir: Path = request.app.state.root_dir
-    audio_dir = root_dir / "workspace" / "projects" / project_id / "audio"
-    audio_dir.mkdir(parents=True, exist_ok=True)
-
     safe_name = f"{job_id}_{Path(file.filename).name}"
-    dest = audio_dir / safe_name
+    dest = layout.audio_path(project_id, safe_name)
+    dest.parent.mkdir(parents=True, exist_ok=True)
     content = await file.read()
     dest.write_bytes(content)
 
-    relative_path = f"workspace/projects/{project_id}/audio/{safe_name}"
+    relative_path = dest.relative_to(layout.root).as_posix()
     repo.save_job(
         project_id, record.model_copy(update={"uploaded_audio_path": relative_path})
     )

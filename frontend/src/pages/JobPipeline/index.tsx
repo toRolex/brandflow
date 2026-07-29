@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/client";
+import { ApiError } from "../../api/core";
 import PipelineSidebar from "../../components/PipelineSidebar";
 import { getJobActionPolicy } from "../../policies/jobActionPolicy";
 import { shouldPollJob } from "../../policies/jobPollingPolicy";
@@ -94,6 +95,9 @@ export default function JobPipeline() {
 		"idle" | "loading" | "ready" | "failed"
 	>("idle");
 	const [rejectedClips, setRejectedClips] = useState<Set<number>>(new Set());
+	const [reSearchingClips, setReSearchingClips] = useState<Set<number>>(
+		new Set(),
+	);
 	const [showAllBlankConfirm, setShowAllBlankConfirm] = useState(false);
 	const initialLoad = useRef(true);
 
@@ -142,6 +146,13 @@ export default function JobPipeline() {
 		load();
 	}, [load]);
 
+	// Clip-level review marks are per-job: reset them when navigating to a
+	// different job so stale "已打回" styling never leaks across jobs.
+	useEffect(() => {
+		setRejectedClips(new Set());
+		setReSearchingClips(new Set());
+	}, [id]);
+
 	useEffect(() => {
 		if (!id || !job || !shouldPollJob(job.phase)) return;
 		const t = setInterval(load, 10_000);
@@ -161,7 +172,10 @@ export default function JobPipeline() {
 		if (!job) return;
 		const scriptArtifact = job.artifacts?.find((a) => a.kind === "script");
 		if (scriptArtifact?.url) {
-			fetch(scriptArtifact.url)
+			// Bust browser cache so edits / retries always show the latest artifact.
+			const url = new URL(scriptArtifact.url, window.location.href);
+			url.searchParams.set("_", String(Date.now()));
+			fetch(url.toString())
 				.then((r) => r.text())
 				.then(setScriptContent)
 				.catch(() => setScriptContent(""));
@@ -177,7 +191,10 @@ export default function JobPipeline() {
 		);
 		if (clipsArtifact?.url) {
 			setSelectedClipsLoadState("loading");
-			fetch(clipsArtifact.url)
+			// Bust browser cache so re-searched clips always refresh.
+			const url = new URL(clipsArtifact.url, window.location.href);
+			url.searchParams.set("_", String(Date.now()));
+			fetch(url.toString())
 				.then((r) => r.json())
 				.then((data) => {
 					setSelectedClips(Array.isArray(data) ? data : []);
@@ -288,6 +305,12 @@ export default function JobPipeline() {
 		}
 		try {
 			await api.rejectReview(job.job_id, gate);
+			if (gate === "asset_review") {
+				// Full re-retrieval replaces every clip — clear per-clip marks so
+				// the incoming clips don't inherit stale "已打回/检索中" styling.
+				setRejectedClips(new Set());
+				setReSearchingClips(new Set());
+			}
 			load();
 		} catch (e) {
 			console.error("reject failed", e);
@@ -571,13 +594,49 @@ export default function JobPipeline() {
 	};
 
 	const handleRejectClip = async (clipIndex: number) => {
+		setReSearchingClips((prev) => new Set(prev).add(clipIndex));
+		const startedAt = Date.now();
 		try {
-			await api.rejectClip(job.job_id, clipIndex, job.project_id);
-			setRejectedClips((prev) => new Set([...prev, clipIndex]));
-			load();
+			const resp = await api.rejectClip(job.job_id, clipIndex, job.project_id);
+			if (resp?.clip) {
+				// Patch the single card in place — no full job/clip-list reload,
+				// so the re-search feels near-instant.
+				setSelectedClips((prev) =>
+					prev.map((c, i) => (i === clipIndex ? resp.clip! : c)),
+				);
+			}
+			if (resp?.replaced === true) {
+				// Only mark as rejected when the asset was actually swapped out.
+				// When no alternative exists we keep the original asset and show a
+				// notice instead of the red "rejected" styling.
+				setRejectedClips((prev) => new Set([...prev, clipIndex]));
+			}
+			if (resp && resp.replaced === false) {
+				setError(
+					resp.reason
+						? `提示：该分类下没有可替代的素材，已保留原素材（${resp.reason}）`
+						: "提示：该分类下没有可替代的素材，已保留原素材",
+				);
+			}
 		} catch (e) {
 			console.error("reject clip failed", e);
-			setError("打回素材失败");
+			if (e instanceof ApiError && e.detail) {
+				setError(e.detail);
+			} else {
+				setError("打回素材失败");
+			}
+		} finally {
+			// The request is fast enough that the spinner would only flash for a
+			// few frames — hold it briefly so the re-search feedback registers.
+			const elapsed = Date.now() - startedAt;
+			if (elapsed < 600) {
+				await new Promise((resolve) => setTimeout(resolve, 600 - elapsed));
+			}
+			setReSearchingClips((prev) => {
+				const next = new Set(prev);
+				next.delete(clipIndex);
+				return next;
+			});
 		}
 	};
 
@@ -646,6 +705,7 @@ export default function JobPipeline() {
 		selectedClips,
 		selectedClipsLoadState,
 		rejectedClips,
+		reSearchingClips,
 		showAllBlankConfirm,
 		ttsVoices,
 		ttsVoiceInfo,

@@ -8,6 +8,9 @@ from packages.pipeline_services.job_tick_service import (
     _attempts_so_far,
     _compute_transition,
 )
+from packages.pipeline_services.logging_utils import get_pipeline_logger
+
+_LOGGER = get_pipeline_logger(__name__)
 
 
 class Dispatcher:
@@ -16,7 +19,7 @@ class Dispatcher:
         self.current_attempts: dict[str, dict[str, str]] = {}
 
     def poll(self, worker_id: str) -> dict[str, object]:
-        projects_root = self._repo.root / "workspace" / "projects"
+        projects_root = self._repo.layout.projects_dir()
         if not projects_root.exists():
             return {"command": "idle", "next_poll_after_seconds": 5}
 
@@ -68,6 +71,12 @@ class Dispatcher:
                         project_id,
                         record.model_copy(update={"execution": running_execution}),
                     )
+                    _LOGGER.info(
+                        "dispatching job_id=%s phase=%s to worker=%s",
+                        job_id,
+                        action.handler_phase,
+                        worker_id,
+                    )
                     return {
                         "command": "run_task",
                         "mode": record.mode,
@@ -106,8 +115,17 @@ class Dispatcher:
     def accept_report(self, task_id: str, attempt_id: str, lease_id: str) -> bool:
         current = self.current_attempts.get(task_id)
         if current is None:
+            _LOGGER.warning(
+                "orphan report task_id=%s attempt_id=%s", task_id, attempt_id
+            )
             return False
         if current["attempt_id"] == attempt_id and current["lease_id"] == lease_id:
             del self.current_attempts[task_id]
             return True
+        _LOGGER.warning(
+            "stale report task_id=%s attempt_id=%s lease_id=%s",
+            task_id,
+            attempt_id,
+            lease_id,
+        )
         return False

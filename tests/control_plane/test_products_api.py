@@ -85,6 +85,19 @@ class TestProductsAPI:
             assert data["script"]["scene"] == "自定义场景"
             assert data["script"]["word_count_min"] == 150  # unchanged
 
+    def test_put_product_config_rejects_scene_folder_path_escape(
+        self, tmp_path: Path
+    ) -> None:
+        with _client(tmp_path) as client:
+            client.post("/api/products/prod_001/switch")
+            resp = client.put(
+                "/api/products/prod_001/config",
+                json={"scene": {"folders": [{"path": "C:\\outside"}]}},
+            )
+
+            assert resp.status_code == 400
+            assert "scene.folders[0]" in resp.json()["detail"]
+
     def test_get_config_nonexistent_product(self, tmp_path: Path) -> None:
         """不存在的产品返回 404"""
         with _client(tmp_path) as client:

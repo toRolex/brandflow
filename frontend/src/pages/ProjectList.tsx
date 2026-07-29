@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { DEFAULT_PAGE_SIZE } from "../api/core";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InlineBanner from "../components/InlineBanner";
 import Modal from "../components/Modal";
+import Pagination from "../components/Pagination";
 import type { Project } from "../types";
 
 export default function ProjectList() {
 	const [projects, setProjects] = useState<Project[]>([]);
 	const [loading, setLoading] = useState(true);
+	const [page, setPage] = useState(1);
+	const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+	const [total, setTotal] = useState(0);
 	const [showCreateModal, setShowCreateModal] = useState(false);
 	const [createName, setCreateName] = useState("");
 	const [createError, setCreateError] = useState<string | null>(null);
@@ -27,11 +32,19 @@ export default function ProjectList() {
 	const load = useCallback(() => {
 		setLoading(true);
 		api
-			.listProjects()
-			.then(setProjects)
+			.listProjects(page, pageSize)
+			.then((r) => {
+				const lastPage = Math.max(1, Math.ceil(r.total / pageSize));
+				if (page > lastPage) {
+					setPage(lastPage);
+					return;
+				}
+				setProjects(r.items);
+				setTotal(r.total);
+			})
 			.catch(() => setProjects([]))
 			.finally(() => setLoading(false));
-	}, []);
+	}, [page, pageSize]);
 
 	useEffect(() => {
 		load();
@@ -81,7 +94,6 @@ export default function ProjectList() {
 		} catch (err: unknown) {
 			const msg = err instanceof Error ? err.message : "创建失败，请重试";
 			setBanner({ type: "error", message: msg });
-			// Keep modal open so user can retry
 		}
 	};
 
@@ -98,6 +110,16 @@ export default function ProjectList() {
 		} catch (err: unknown) {
 			setDeleteTarget(null);
 			const msg = err instanceof Error ? err.message : "删除失败，请重试";
+			setBanner({ type: "error", message: msg });
+		}
+	};
+
+	const handleTogglePin = async (project: Project) => {
+		try {
+			await api.toggleProjectPin(project.id);
+			load();
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : "操作失败";
 			setBanner({ type: "error", message: msg });
 		}
 	};
@@ -155,6 +177,17 @@ export default function ProjectList() {
 				message: `${successCount} 成功，${failureCount} 失败`,
 			});
 		}
+	};
+
+	const handlePageChange = (p: number) => {
+		setSelectedIds(new Set());
+		setPage(p);
+	};
+
+	const handlePageSizeChange = (size: number) => {
+		setSelectedIds(new Set());
+		setPageSize(size);
+		setPage(1);
 	};
 
 	const openCreateModal = () => {
@@ -280,119 +313,148 @@ export default function ProjectList() {
 					</button>
 				</div>
 			) : (
-				/* Project table */
-				<div
-					className="rounded-xl overflow-hidden border"
-					style={{ borderColor: "var(--border-default)" }}
-				>
-					<table className="w-full border-collapse text-sm">
-						<thead>
-							<tr
-								className="border-b text-left"
-								style={{
-									background: "var(--bg-table-head)",
-									borderColor: "var(--border-default)",
-									color: "var(--text-secondary)",
-								}}
-							>
-								<th className="py-3 px-4 font-medium w-12">
-									<input
-										type="checkbox"
-										aria-label="全选"
-										checked={allSelected}
-										onChange={toggleSelectAll}
-									/>
-								</th>
-								<th className="py-3 px-4 font-medium">项目名称</th>
-								<th className="py-3 px-4 font-medium">状态</th>
-								<th className="py-3 px-4 font-medium">Jobs</th>
-								<th className="py-3 px-4 font-medium">操作</th>
-							</tr>
-						</thead>
-						<tbody>
-							{projects.map((p) => (
+				<>
+					{/* Project table */}
+					<div
+						className="rounded-xl overflow-hidden border"
+						style={{ borderColor: "var(--border-default)" }}
+					>
+						<table className="w-full border-collapse text-sm">
+							<thead>
 								<tr
-									key={p.id}
-									className="border-b transition-colors"
+									className="border-b text-left"
 									style={{
+										background: "var(--bg-table-head)",
 										borderColor: "var(--border-default)",
-										background:
-											highlightId === p.id
-												? "var(--accent-bg, #f0f9ff)"
-												: undefined,
-									}}
-									onMouseEnter={(e) => {
-										if (highlightId !== p.id) {
-											e.currentTarget.style.background = "var(--bg-nav-active)";
-										}
-									}}
-									onMouseLeave={(e) => {
-										if (highlightId !== p.id) {
-											e.currentTarget.style.background = "";
-										}
+										color: "var(--text-secondary)",
 									}}
 								>
-									<td className="py-3 px-4">
+									<th className="py-3 px-4 font-medium w-12">
 										<input
 											type="checkbox"
-											aria-label={`选择项目 ${p.name || p.id}`}
-											checked={selectedIds.has(p.id)}
-											onChange={() => toggleSelect(p.id)}
+											aria-label="全选"
+											checked={allSelected}
+											onChange={toggleSelectAll}
 										/>
-									</td>
-									<td
-										className="py-3 px-4 font-medium"
-										style={{ color: "var(--text-primary)" }}
-									>
-										{p.name || p.id}
-									</td>
-									<td
-										className="py-3 px-4"
-										style={{ color: "var(--text-secondary)" }}
-									>
-										{p.status}
-									</td>
-									<td
-										className="py-3 px-4"
-										style={{ color: "var(--text-secondary)" }}
-									>
-										{p.job_count}
-									</td>
-									<td className="py-3 px-4">
-										<div className="flex gap-2">
-											<button
-												className="text-sm font-medium transition-colors"
-												style={{ color: "var(--text-link)" }}
-												onClick={() => navigate(`/projects/${p.id}`)}
-												onMouseEnter={(e) => {
-													e.currentTarget.style.opacity = "0.8";
-												}}
-												onMouseLeave={(e) => {
-													e.currentTarget.style.opacity = "";
-												}}
-											>
-												打开 →
-											</button>
-											<button
-												className="text-sm font-medium transition-colors"
-												style={{ color: "var(--danger)" }}
-												onClick={() => setDeleteTarget(p)}
-												onMouseEnter={(e) => {
-													e.currentTarget.style.opacity = "0.8";
-												}}
-												onMouseLeave={(e) => {
-													e.currentTarget.style.opacity = "";
-												}}
-											>
-												删除
-											</button>
-										</div>
-									</td>
+									</th>
+									<th className="py-3 px-2 font-medium w-10" title="置顶">
+										📌
+									</th>
+									<th className="py-3 px-4 font-medium">项目名称</th>
+									<th className="py-3 px-4 font-medium">状态</th>
+									<th className="py-3 px-4 font-medium">Jobs</th>
+									<th className="py-3 px-4 font-medium">操作</th>
 								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
+							</thead>
+							<tbody>
+								{projects.map((p) => (
+									<tr
+										key={p.id}
+										className="border-b transition-colors"
+										style={{
+											borderColor: "var(--border-default)",
+											background:
+												highlightId === p.id
+													? "var(--accent-bg, #f0f9ff)"
+													: undefined,
+										}}
+										onMouseEnter={(e) => {
+											if (highlightId !== p.id) {
+												e.currentTarget.style.background =
+													"var(--bg-nav-active)";
+											}
+										}}
+										onMouseLeave={(e) => {
+											if (highlightId !== p.id) {
+												e.currentTarget.style.background = "";
+											}
+										}}
+									>
+										<td className="py-3 px-4">
+											<input
+												type="checkbox"
+												aria-label={`选择项目 ${p.name || p.id}`}
+												checked={selectedIds.has(p.id)}
+												onChange={() => toggleSelect(p.id)}
+											/>
+										</td>
+										<td className="py-3 px-2 text-center">
+											<button
+												type="button"
+												className="text-sm leading-none transition-opacity hover:opacity-70"
+												title={p.is_pinned ? "取消置顶" : "置顶"}
+												onClick={() => handleTogglePin(p)}
+												style={{
+													opacity: p.is_pinned ? 1 : 0.25,
+													fontSize: "1.1rem",
+												}}
+											>
+												📌
+											</button>
+										</td>
+										<td
+											className="py-3 px-4 font-medium"
+											style={{ color: "var(--text-primary)" }}
+										>
+											{p.name || p.id}
+										</td>
+										<td
+											className="py-3 px-4"
+											style={{ color: "var(--text-secondary)" }}
+										>
+											{p.status}
+										</td>
+										<td
+											className="py-3 px-4"
+											style={{ color: "var(--text-secondary)" }}
+										>
+											{p.job_count}
+										</td>
+										<td className="py-3 px-4">
+											<div className="flex gap-2">
+												<button
+													className="text-sm font-medium transition-colors"
+													style={{ color: "var(--text-link)" }}
+													onClick={() => navigate(`/projects/${p.id}`)}
+													onMouseEnter={(e) => {
+														e.currentTarget.style.opacity = "0.8";
+													}}
+													onMouseLeave={(e) => {
+														e.currentTarget.style.opacity = "";
+													}}
+												>
+													打开 →
+												</button>
+												<button
+													className="text-sm font-medium transition-colors"
+													style={{ color: "var(--danger)" }}
+													onClick={() => setDeleteTarget(p)}
+													onMouseEnter={(e) => {
+														e.currentTarget.style.opacity = "0.8";
+													}}
+													onMouseLeave={(e) => {
+														e.currentTarget.style.opacity = "";
+													}}
+												>
+													删除
+												</button>
+											</div>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+
+					{/* Pagination */}
+					<Pagination
+						page={page}
+						pageSize={pageSize}
+						total={total}
+						onPageChange={handlePageChange}
+						onPageSizeChange={handlePageSizeChange}
+					/>
+				</>
 			)}
 
 			{/* Create Modal */}

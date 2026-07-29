@@ -9,7 +9,14 @@ from __future__ import annotations
 
 import os
 
+from packages.provider_config.catalog import setting_secret_env_var
+from packages.provider_config.config_constants import DEFAULTS
 from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.runtime_env import (
+    LLM_ENV_MAPPINGS,
+    TTS_ENV_MAPPINGS,
+    VISION_ENV_MAPPINGS,
+)
 
 
 class SecretStore:
@@ -25,6 +32,7 @@ class SecretStore:
         "openai": "VISION_API_KEY",
         "claude": "VISION_API_KEY",
         "custom": "CUSTOM_API_KEY",
+        "embedding": setting_secret_env_var("embedding", "api_key"),
     }
 
     API_BASE_URL_ENV_MAP = {
@@ -37,12 +45,7 @@ class SecretStore:
         "openai": "VISION_API_URL",
         "claude": "VISION_API_URL",
         "custom": "CUSTOM_API_URL",
-    }
-
-    VISION_MODEL_ENV_MAP = {
-        "xiaomi": "XIAOMI_VISION_MODEL",
-        "openai": "VISION_MODEL",
-        "claude": "VISION_MODEL",
+        "embedding": "EMBEDDING_API_URL",
     }
 
     _TTS_PROVIDERS = frozenset({"mimo", "minimax", "qwen"})
@@ -56,12 +59,29 @@ class SecretStore:
     # Pure env lookup (no ConfigReader)
     # ------------------------------------------------------------------
 
-    def get_api_key(self, provider: str) -> str:
+    @staticmethod
+    def _mapped_env_name(section: str, provider: str, field_name: str) -> str:
+        mappings = {
+            "llm": LLM_ENV_MAPPINGS,
+            "tts": TTS_ENV_MAPPINGS,
+            "vision": VISION_ENV_MAPPINGS,
+        }.get(section, {})
+        env_map = mappings.get(provider, {}).get("env", {})
+        if not isinstance(env_map, dict):
+            return ""
+        for env_name, mapped_field in env_map.items():
+            if mapped_field == field_name:
+                return env_name
+        return ""
+
+    def get_api_key(self, provider: str, section: str = "") -> str:
         """Return the API key for *provider* from env vars.
 
         Priority: provider-specific env var -> category fallback.
         """
-        env_key = self.API_KEY_ENV_MAP.get(provider, "")
+        env_key = self._mapped_env_name(section, provider, "api_key")
+        if not env_key:
+            env_key = self.API_KEY_ENV_MAP.get(provider, "")
         value = self._env.get(env_key, "").strip().strip('"').strip("'")
         if not value:
             if provider in self._TTS_PROVIDERS:
@@ -74,13 +94,15 @@ class SecretStore:
                 value = self._env.get("LLM_API_KEY", "").strip().strip('"').strip("'")
         return value
 
-    def get_api_base_url(self, provider: str) -> str:
+    def get_api_base_url(self, provider: str, section: str = "") -> str:
         """Return the API base URL for *provider* from env vars.
 
         Priority: provider-specific env var -> category fallback.
         Trailing slashes are stripped.
         """
-        env_key = self.API_BASE_URL_ENV_MAP.get(provider, "")
+        env_key = self._mapped_env_name(section, provider, "endpoint")
+        if not env_key:
+            env_key = self.API_BASE_URL_ENV_MAP.get(provider, "")
         value = self._env.get(env_key, "").strip().rstrip("/")
         if not value:
             if provider in self._TTS_PROVIDERS:
@@ -100,44 +122,40 @@ class SecretStore:
     ) -> str:
         """Return the LLM API key by reading the active provider from config."""
         config = reader.get_llm_config(product_id=product_id)
-        provider = config.get("provider", "deepseek")
-        return self.get_api_key(provider)
+        provider = config.get("provider", DEFAULTS["llm"]["provider"])
+        return self.get_api_key(provider, section="llm")
 
     def get_llm_endpoint(
         self, reader: ConfigReader, product_id: str | None = None
     ) -> str:
-        """Return the LLM endpoint by reading the active provider from config."""
+        """Return the configured LLM endpoint, with legacy env fallback."""
         config = reader.get_llm_config(product_id=product_id)
-        provider = config.get("provider", "deepseek")
-        return self.get_api_base_url(provider)
+        provider = config.get("provider", DEFAULTS["llm"]["provider"])
+        return str(config.get("endpoint") or "").strip().rstrip(
+            "/"
+        ) or self.get_api_base_url(provider, section="llm")
 
     def get_vision_api_key(
         self, reader: ConfigReader, product_id: str | None = None
     ) -> str:
         """Return the Vision API key by reading the active provider from config."""
         config = reader.get_vision_config(product_id=product_id)
-        provider = config.get("provider", "xiaomi")
-        return self.get_api_key(provider)
+        provider = config.get("provider", DEFAULTS["vision"]["provider"])
+        return self.get_api_key(provider, section="vision")
 
     def get_vision_endpoint(
         self, reader: ConfigReader, product_id: str | None = None
     ) -> str:
-        """Return the Vision endpoint by reading the active provider from config."""
+        """Return the configured Vision endpoint, with legacy env fallback."""
         config = reader.get_vision_config(product_id=product_id)
-        provider = config.get("provider", "xiaomi")
-        return self.get_api_base_url(provider)
+        provider = config.get("provider", DEFAULTS["vision"]["provider"])
+        return str(config.get("endpoint") or "").strip().rstrip(
+            "/"
+        ) or self.get_api_base_url(provider, section="vision")
 
     def get_vision_model(
         self, reader: ConfigReader, product_id: str | None = None
     ) -> str:
-        """Return the Vision model from env vars, with provider-specific fallback.
-
-        Reads env var: provider-specific VISION_MODEL -> generic VISION_MODEL.
-        """
+        """Return the non-secret Vision model from app_config."""
         config = reader.get_vision_config(product_id=product_id)
-        provider = config.get("provider", "xiaomi")
-        env_key = self.VISION_MODEL_ENV_MAP.get(provider, "VISION_MODEL")
-        value = self._env.get(env_key, "").strip()
-        if not value:
-            value = self._env.get("VISION_MODEL", "").strip()
-        return value
+        return str(config.get("model") or "").strip()

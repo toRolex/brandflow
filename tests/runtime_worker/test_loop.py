@@ -167,6 +167,10 @@ def _make_loop(
     """Helper to construct a WorkerLoop with a stub orchestrator."""
     if orchestrator is None:
         orchestrator = StubOrchestrator()
+    # Anchor cwd to tmp_path so the worker's default WorkspaceLayout
+    # resolves project-tree paths under the test's tmp directory.
+    if monkeypatch is not None:
+        monkeypatch.chdir(tmp_path)
     loop = WorkerLoop(
         api=api,
         worker_id="worker-mac",
@@ -230,7 +234,9 @@ def test_worker_loop_reports_success_and_uploads_artifacts(
 
         def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
             artifacts = super().run_phase(phase, ctx)
-            workspace_dir = ctx.root_dir / "workspace"
+            # Artifacts are written under the project-tree; the worker
+            # resolves them against the layout's URL prefix.
+            workspace_dir = ctx.layout.workspace_url_prefix()
             for art in artifacts:
                 abs_path = workspace_dir / art.relative_path
                 abs_path.parent.mkdir(parents=True, exist_ok=True)
@@ -266,6 +272,7 @@ def test_worker_loop_writes_job_json_with_command_fields(
     # Verify job JSON was written
     job_json = (
         tmp_path.resolve()
+        / "workspace"
         / "projects"
         / "project-001"
         / "control"
@@ -298,6 +305,7 @@ def test_worker_loop_skips_llm_when_manual_script_provided(
     # The job JSON should contain the fields needed by final_review
     job_json = (
         tmp_path.resolve()
+        / "workspace"
         / "projects"
         / "project-001"
         / "control"
@@ -405,7 +413,7 @@ def test_worker_loop_includes_parallel_artifacts_in_report(
     class ParallelFileOrchestrator(StubOrchestrator):
         def run_phase(self, phase: str, ctx: PhaseContext) -> list[ArtifactPointer]:
             artifacts = super().run_phase(phase, ctx)
-            workspace_dir = ctx.root_dir / "workspace"
+            workspace_dir = ctx.layout.workspace_url_prefix()
             for art in artifacts:
                 abs_path = workspace_dir / art.relative_path
                 abs_path.parent.mkdir(parents=True, exist_ok=True)

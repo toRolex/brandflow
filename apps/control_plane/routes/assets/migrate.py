@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 
+from packages.file_store.layout import WorkspaceLayout
 from packages.pipeline_services.asset_library import AssetRepository
 
 router = APIRouter()
@@ -19,7 +20,8 @@ router = APIRouter()
 def migrate_project_assets(request: Request):
     """Migrate all per-project assets into the shared library."""
     root_dir: Path = request.app.state.root_dir
-    projects_root = root_dir / "workspace" / "projects"
+    layout = WorkspaceLayout(root_dir)
+    projects_root = layout.projects_dir()
     if not projects_root.exists():
         return {
             "migrated_projects": 0,
@@ -31,6 +33,8 @@ def migrate_project_assets(request: Request):
             "verification": {"old_count": 0, "new_count": 0, "diff": 0},
         }
 
+    # ``shared_assets`` belongs to the global asset library and stays
+    # outside the WorkspaceLayout seam; keep its paths explicit.
     shared_db_path = root_dir / "workspace" / "shared_assets" / "asset_index.db"
     shared_src = root_dir / "workspace" / "shared_assets" / "source"
     shared_idx = root_dir / "workspace" / "shared_assets" / "indexed"
@@ -66,9 +70,10 @@ def migrate_project_assets(request: Request):
     for project_dir in sorted(projects_root.iterdir()):
         if not project_dir.is_dir():
             continue
+        project_id = project_dir.name
 
-        # Migrate source assets
-        src_dir = project_dir / "runtime" / "source_assets"
+        # Migrate source assets (resolved through the layout seam)
+        src_dir = layout.source_assets_dir(project_id)
         if src_dir.exists():
             for f in src_dir.iterdir():
                 if f.is_file():
@@ -141,8 +146,8 @@ def migrate_project_assets(request: Request):
                 new_conn.close()
                 migrated_projects += 1
 
-        # Migrate indexed clips files
-        idx_dir = project_dir / "runtime" / "indexed_clips"
+        # Migrate indexed clips files (resolved through the layout seam)
+        idx_dir = layout.indexed_clips_dir(project_id)
         if idx_dir.exists():
             for product_dir in idx_dir.iterdir():
                 if not product_dir.is_dir():

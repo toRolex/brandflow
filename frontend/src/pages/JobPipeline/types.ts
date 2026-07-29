@@ -25,6 +25,7 @@ export interface PanelProps {
 	selectedClips: Record<string, unknown>[];
 	selectedClipsLoadState: "idle" | "loading" | "ready" | "failed";
 	rejectedClips: Set<number>;
+	reSearchingClips: Set<number>;
 	showAllBlankConfirm: boolean;
 	ttsVoices: TTSVoice[];
 	ttsVoiceInfo: TTSVoiceInfo | null;

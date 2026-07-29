@@ -40,7 +40,9 @@ def _build_error_log_entry(
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "source": "backend",
-        "level": "error" if status_code >= 500 else "warn",
+        "level": (
+            "error" if status_code >= 500 else "info" if status_code == 404 else "warn"
+        ),
         "message": f"{request.method} {request.url.path} -> {status_code}",
         "status_code": status_code,
         "method": request.method,

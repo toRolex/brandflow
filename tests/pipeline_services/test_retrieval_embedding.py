@@ -1,12 +1,19 @@
 """Tests for retrieval_embedding and retrieval_keyword."""
 
+import json
 import math
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from packages.pipeline_services.retrieval_contract import SegmentRecord
-from packages.pipeline_services.retrieval_embedding import cosine_similarity
+from packages.pipeline_services.retrieval_embedding import (
+    cosine_similarity,
+    fetch_embedding,
+)
 from packages.pipeline_services.retrieval_keyword import keyword_score
+from packages.provider_config.config_reader import ConfigReader
+from packages.provider_config.secret_store import SecretStore
 
 
 class TestCosineSimilarity:
@@ -39,6 +46,47 @@ class TestCosineSimilarity:
     def test_mismatched_dimensions_raises(self) -> None:
         with pytest.raises(ValueError):
             cosine_similarity([1.0, 2.0], [1.0, 2.0, 3.0])
+
+
+def test_fetch_embedding_uses_app_config_and_secret_store(tmp_path) -> None:
+    (tmp_path / "app_config.json").write_text(
+        json.dumps(
+            {
+                "embedding": {
+                    "endpoint": "https://embedding.example.com/v1/embeddings",
+                    "model": "embedding-v3",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    reader = ConfigReader(config_dir=tmp_path)
+    secrets = SecretStore(
+        env={
+            "EMBEDDING_API_KEY": "embedding-secret",
+            "EMBEDDING_API_URL": "https://stale.example.com",
+            "EMBEDDING_MODEL": "stale-model",
+        }
+    )
+    response = MagicMock()
+    response.json.return_value = {"data": [{"embedding": [0.1, 0.2]}]}
+
+    with patch(
+        "packages.pipeline_services.retrieval_embedding.requests.post",
+        return_value=response,
+    ) as post:
+        result = fetch_embedding("hello", reader=reader, secrets=secrets)
+
+    assert result == [0.1, 0.2]
+    post.assert_called_once_with(
+        "https://embedding.example.com/v1/embeddings",
+        json={"model": "embedding-v3", "input": "hello"},
+        headers={
+            "Authorization": "Bearer embedding-secret",
+            "Content-Type": "application/json",
+        },
+        timeout=30,
+    )
 
 
 class TestKeywordScore:

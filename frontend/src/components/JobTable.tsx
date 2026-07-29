@@ -12,6 +12,8 @@ interface Props {
 	selectedJobIds?: Set<string>;
 	/** 选中变化回调 */
 	onSelectionChange?: (ids: Set<string>) => void;
+	/** 置顶切换回调 */
+	onTogglePin?: (jobId: string) => void;
 }
 
 export default function JobTable({
@@ -21,6 +23,7 @@ export default function JobTable({
 	onRename,
 	selectedJobIds,
 	onSelectionChange,
+	onTogglePin,
 }: Props) {
 	const navigate = useNavigate();
 	const [exporting, setExporting] = useState(false);
@@ -123,6 +126,9 @@ export default function JobTable({
 								/>
 							</th>
 						)}
+						<th className="py-2 px-2 font-medium w-8" title="置顶">
+							📌
+						</th>
 						<th className="py-2 px-2 font-medium w-12">序号</th>
 						<th className="py-2 px-2 font-medium">Job ID</th>
 						<th className="py-2 px-2 font-medium">名称</th>
@@ -143,6 +149,7 @@ export default function JobTable({
 								onRename={onRename}
 								onRetry={onRetry}
 								onDelete={onDelete}
+								onTogglePin={onTogglePin}
 								navigate={navigate}
 								showCheckbox={showCheckbox}
 								isSelected={selectedJobIds?.has(j.job_id) ?? false}
@@ -188,6 +195,7 @@ function NameRow({
 	onRename,
 	onRetry,
 	onDelete,
+	onTogglePin,
 	navigate,
 	showCheckbox,
 	isSelected,
@@ -199,6 +207,7 @@ function NameRow({
 	onRename?: (jobId: string, name: string) => Promise<void>;
 	onRetry: (jobId: string) => void;
 	onDelete: (jobId: string) => void;
+	onTogglePin?: (jobId: string) => void;
 	navigate: ReturnType<typeof useNavigate>;
 	showCheckbox?: boolean;
 	isSelected?: boolean;
@@ -234,6 +243,20 @@ function NameRow({
 					/>
 				</td>
 			)}
+			<td className="py-2.5 px-2 text-center">
+				<button
+					type="button"
+					className="text-sm leading-none transition-opacity hover:opacity-70"
+					title={job.is_pinned ? "取消置顶" : "置顶"}
+					onClick={() => onTogglePin?.(job.job_id)}
+					style={{
+						opacity: job.is_pinned ? 1 : 0.25,
+						fontSize: "1.1rem",
+					}}
+				>
+					📌
+				</button>
+			</td>
 			<td
 				className="py-2.5 px-2 font-mono text-xs"
 				style={{ color: "var(--accent)" }}

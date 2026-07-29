@@ -5,8 +5,10 @@ from packages.domain_core.models import ExecutionFailure
 from packages.domain_core.worker_protocol import PollRequest, WorkerReport
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import JobTickService
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 
 router = APIRouter(prefix="/workers", tags=["workers"])
+_LOGGER = get_pipeline_logger(__name__)
 
 
 @router.post("/poll")
@@ -86,8 +88,11 @@ def report_task(
                         error=error,
                     )
             except Exception:
-                import traceback
-
-                traceback.print_exc()
+                _LOGGER.error(
+                    "advance_after_report failed for job_id=%s phase=%s",
+                    job_id,
+                    handler_phase,
+                    exc_info=True,
+                )
 
     return {"accepted": accepted, "outcome": outcome, "task_id": task_id}

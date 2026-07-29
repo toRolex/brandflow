@@ -32,14 +32,18 @@ from packages.pipeline_services.asset_snapshot import (
     validate_assets,
     write_reviewed_snapshot,
 )
+from packages.pipeline_services.logging_utils import get_pipeline_logger
 from packages.pipeline_services.phase_orchestrator import (
     PhaseContext,
     PhaseOrchestrator,
     STRUCTURED_MEDIA_PHASES,
 )
+from packages.provider_config.config_constants import DEFAULTS
 
 if TYPE_CHECKING:
     from packages.provider_config.config_reader import ConfigReader
+
+_LOGGER = get_pipeline_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -58,7 +62,7 @@ HANDLED_PHASES: frozenset[str] = frozenset(
     }
 )
 
-_TERMINAL_PHASES: frozenset[str] = frozenset(
+NON_TICKABLE_PHASES: frozenset[str] = frozenset(
     {"draft", "completed", "failed", "cancelled", "paused"}
 )
 
@@ -262,7 +266,7 @@ def _compute_transition(
     # ------------------------------------------------------------------
     # 1. Terminal states — nothing to do
     # ------------------------------------------------------------------
-    if phase in _TERMINAL_PHASES:
+    if phase in NON_TICKABLE_PHASES:
         return TickAction()
 
     # ------------------------------------------------------------------
@@ -654,6 +658,8 @@ class JobTickService:
             When a phase handler raises an unexpected exception.
         """
         record = self._repo.load_job(project_id, job_id)
+        logger = _LOGGER.bind(job_id)
+        logger.info("tick start phase=%s", record.phase)
 
         initial_phase = record.phase
         first = True
@@ -668,7 +674,7 @@ class JobTickService:
 
             # Terminal check after reload — an external edit may have
             # moved the job to a terminal state between steps.
-            if record.phase in _TERMINAL_PHASES:
+            if record.phase in NON_TICKABLE_PHASES:
                 if last_summary is None:
                     return _build_tick_summary(initial_phase, TickAction())
                 return last_summary
@@ -690,7 +696,7 @@ class JobTickService:
             #  - Review gate that needs human approval
             if summary.action == "skipped":
                 return summary
-            if record.phase in _TERMINAL_PHASES:
+            if record.phase in NON_TICKABLE_PHASES:
                 return summary
             if (
                 record.phase in REVIEW_PHASES
@@ -717,8 +723,11 @@ class JobTickService:
         Rebuilt before every handler attempt (including retries) so external
         edits to the record (cancel, voice switch, etc.) are observed.
         """
+        from packages.file_store.layout import WorkspaceLayout
+
+        layout = WorkspaceLayout(root_dir)
         scene_folder_paths: list[str] = []
-        transition_duration_ms = 500
+        transition_duration_ms = DEFAULTS["scene"]["transition_duration_ms"]
         scene_config: dict[str, Any] = {}
         if record.mode == "import":
             if self._config is not None:
@@ -733,10 +742,13 @@ class JobTickService:
                 for entry in scene_cfg.get("folders", [])
                 if entry.get("path")
             ]
-            transition_duration_ms = scene_cfg.get("transition_duration_ms", 500)
+            transition_duration_ms = scene_cfg.get(
+                "transition_duration_ms",
+                DEFAULTS["scene"]["transition_duration_ms"],
+            )
 
             if record.manual_script:
-                job_dir = project_dir / "runtime" / "jobs" / job_id
+                job_dir = layout.job_runtime_dir(project_id, job_id)
                 job_dir.mkdir(parents=True, exist_ok=True)
                 script_path = job_dir / f"{record.product}口播文案.txt"
                 script_path.write_text(record.manual_script, encoding="utf-8")
@@ -761,6 +773,7 @@ class JobTickService:
             root_dir=root_dir,
             product=product,
             brand=record.brand,
+            _layout=layout,
             options=merged_options,
             scene_folder_paths=scene_folder_paths,
             transition_duration_ms=transition_duration_ms,
@@ -788,6 +801,7 @@ class JobTickService:
         switch, etc.) made during the backoff are respected.
         """
         initial_phase = record.phase
+        logger = _LOGGER.bind(job_id)
 
         # 1. First transition decision (pre-handler)
         action = _compute_transition(record, ())
@@ -804,10 +818,11 @@ class JobTickService:
             while True:
                 # Mark execution as running before every handler attempt
                 # (first try and retries).  The UI uses this to show "进行中".
+                current_attempt = _attempts_so_far(record.execution) + 1
                 running_execution = record.execution.model_copy(
                     update={
                         "status": "running",
-                        "current_attempt": _attempts_so_far(record.execution) + 1,
+                        "current_attempt": current_attempt,
                         "error": None,
                     }
                 )
@@ -829,6 +844,12 @@ class JobTickService:
                     project_dir=project_dir,
                     options=options,
                 )
+                logger.info(
+                    "running handler phase=%s attempt=%s",
+                    handler_phase,
+                    current_attempt,
+                )
+                handler_exception: Exception | None = None
                 try:
                     if action.parallel_phases:
                         all_phases = [handler_phase] + action.parallel_phases
@@ -872,14 +893,17 @@ class JobTickService:
                         try:
                             artifacts = self._orchestrator.run_phase(handler_phase, ctx)
                         except Exception as exc:
-                            primary_result = PhaseExecutionFailure(
+                            primary_result = PhaseExecutionFailure.from_exception(
                                 error=ExecutionFailure(
                                     code="HANDLER_EXCEPTION",
                                     message=f"{handler_phase} failed: {exc}",
                                     retryable=True,
-                                )
+                                ),
+                                cause=exc,
                             )
                             artifacts = []
+                    if isinstance(primary_result, PhaseExecutionFailure):
+                        handler_exception = primary_result.cause
                 except Exception as e:
                     raise PhaseExecutionError(job_id, handler_phase, str(e), e) from e
 
@@ -889,6 +913,11 @@ class JobTickService:
                 record.artifacts = _merge_artifacts(record.artifacts, artifacts)
 
                 if not isinstance(primary_result, PhaseExecutionFailure):
+                    logger.info(
+                        "handler succeeded phase=%s artifacts=%s",
+                        handler_phase,
+                        len(artifacts),
+                    )
                     break  # success — exit retry loop
 
                 # --- failure path ---
@@ -905,6 +934,23 @@ class JobTickService:
                 )
 
                 if execution.status == "failed":
+                    exc_info = (
+                        (
+                            type(handler_exception),
+                            handler_exception,
+                            handler_exception.__traceback__,
+                        )
+                        if handler_exception is not None
+                        else None
+                    )
+                    logger.error(
+                        "handler failed phase=%s code=%s attempt=%s error=%s",
+                        handler_phase,
+                        primary_result.error.code,
+                        current_attempt,
+                        primary_result.error.message,
+                        exc_info=exc_info,
+                    )
                     # Terminal failure — update phase and save.
                     record = record.model_copy(
                         update={"phase": fail_action.new_phase or "failed"}
@@ -913,10 +959,21 @@ class JobTickService:
                     return record, _build_tick_summary(initial_phase, fail_action)
 
                 # Retryable — save retrying state, backoff, then reload and retry.
+                logger.warning(
+                    "retrying phase=%s after %.1fs (attempt %s/%s) reason=%s",
+                    handler_phase,
+                    _retry_delay(execution.current_attempt),
+                    execution.current_attempt,
+                    execution.max_attempts,
+                    primary_result.error.message,
+                )
                 self._repo.save_job(project_id, record)
                 self._sleep_fn(_retry_delay(execution.current_attempt))
                 reloaded = self._repo.load_job(project_id, job_id)
-                if reloaded.phase in _TERMINAL_PHASES or reloaded.phase != record.phase:
+                if (
+                    reloaded.phase in NON_TICKABLE_PHASES
+                    or reloaded.phase != record.phase
+                ):
                     return reloaded, _build_tick_summary(
                         initial_phase,
                         TickAction(
@@ -947,8 +1004,8 @@ class JobTickService:
             # downgrade) so that mock-based tests and async-worker scenarios
             # can pre-set the field without it being clobbered (#326).
             if handler_phase == "asset_retrieving" and handler_ran:
-                clips_path = (
-                    project_dir / "runtime" / "jobs" / job_id / "selected_clips.json"
+                clips_path = ctx.layout.job_artifact_path(
+                    project_id, job_id, "selected_clips.json"
                 )
                 if clips_path.exists():
                     try:
@@ -975,7 +1032,10 @@ class JobTickService:
             and record.phase == "asset_review"
             and (record.auto_approve or record.review_strategy == "fast_output")
         ):
-            job_dir = project_dir / "runtime" / "jobs" / job_id
+            from packages.file_store.layout import WorkspaceLayout
+
+            layout = WorkspaceLayout(root_dir)
+            job_dir = layout.job_runtime_dir(project_id, job_id)
 
             # --- Gate 1: collection not started or in progress → block (#326) ---
             if record.asset_collection_status in ("not_started", "collecting"):
@@ -1003,13 +1063,11 @@ class JobTickService:
                         pass  # file is unreadable — block below
 
                 if record.asset_collection_status in ("not_started", "collecting"):
-                    import logging
-
-                    _log = logging.getLogger(__name__)
-                    _log.warning(
-                        f"[Tick] auto-approve blocked for {job_id}: "
-                        f"asset collection {record.asset_collection_status},"
-                        f" staying in asset_review"
+                    logger.warning(
+                        "[Tick] auto-approve blocked for %s: "
+                        "asset collection %s, staying in asset_review",
+                        job_id,
+                        record.asset_collection_status,
                     )
                     action.new_phase = None
                     action.new_review_status = None
@@ -1023,12 +1081,10 @@ class JobTickService:
 
             # --- Gate 2: collection complete but empty → require human (#326) ---
             if record.asset_collection_status == "complete_empty":
-                import logging
-
-                _log = logging.getLogger(__name__)
-                _log.warning(
-                    f"[Tick] auto-approve blocked for {job_id}: "
-                    f"no clips collected, requiring human review"
+                logger.warning(
+                    "[Tick] auto-approve blocked for %s: "
+                    "no clips collected, requiring human review",
+                    job_id,
                 )
                 action.new_phase = None
                 action.new_review_status = None
@@ -1044,12 +1100,10 @@ class JobTickService:
                 clips = validate_assets(job_dir, force=True)
                 write_reviewed_snapshot(job_dir, clips)
             except AssetValidationError:
-                import logging
-
-                _log = logging.getLogger(__name__)
-                _log.warning(
-                    f"[Tick] auto-approve blocked for {job_id}: "
-                    f"unresolved clips present, staying in asset_review"
+                logger.warning(
+                    "[Tick] auto-approve blocked for %s: "
+                    "unresolved clips present, staying in asset_review",
+                    job_id,
                 )
                 action.new_phase = None
                 action.new_review_status = None
@@ -1064,12 +1118,10 @@ class JobTickService:
                 # pre-set (e.g. mock tests, async workers).  Trust the
                 # explicit "complete" status and skip validation.
                 if record.asset_collection_status != "complete":
-                    import logging
-
-                    _log = logging.getLogger(__name__)
-                    _log.warning(
-                        f"[Tick] auto-approve blocked for {job_id}: "
-                        f"selected_clips.json unexpectedly missing"
+                    logger.warning(
+                        "[Tick] auto-approve blocked for %s: "
+                        "selected_clips.json unexpectedly missing",
+                        job_id,
                     )
                     action.new_phase = None
                     action.new_review_status = None
@@ -1095,6 +1147,9 @@ class JobTickService:
                 )
                 action = _compute_transition(record, ())
 
+        if action.new_phase is not None and action.new_phase != initial_phase:
+            logger.info("transition %s -> %s", initial_phase, action.new_phase)
+
         # 5. Apply phase / review_status changes
         update: dict[str, Any] = {}
         if action.new_phase is not None:
@@ -1114,6 +1169,7 @@ class JobTickService:
         # 6. Persist (only when something actually changed)
         if update or handler_ran:
             self._repo.save_job(project_id, record)
+            logger.info("persisted job_id=%s phase=%s", job_id, record.phase)
             if action.review_event:
                 event = {
                     "job_id": job_id,

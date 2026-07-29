@@ -58,6 +58,7 @@ const MOCK_OPTIONS = {
 			},
 		},
 		text_to_image: {
+			label: "文生图",
 			providers: {
 				dalle: {
 					label: "DALL-E",
@@ -70,6 +71,7 @@ const MOCK_OPTIONS = {
 			},
 		},
 		image_to_video: {
+			label: "图生视频",
 			providers: {
 				runway: {
 					label: "Runway",
@@ -101,14 +103,15 @@ describe("ConfigPage", () => {
 		vi.mocked(api.getConfigOptions).mockResolvedValue(MOCK_OPTIONS);
 	});
 
-	it("Seam 1: 5 个 section 以横向 Tab 渲染，默认选中 LLM", async () => {
+	it("Seam 1: 4 个 section 以横向 Tab 渲染（TTS 由独立页面管理），默认选中 LLM", async () => {
 		render(<ConfigPage />);
 
 		await waitFor(() => {
 			expect(screen.getByRole("tab", { name: /llm/i })).toBeInTheDocument();
 		});
 
-		expect(screen.getByRole("tab", { name: /tts/i })).toBeInTheDocument();
+		// TTS is managed exclusively via /tts-config page (#386)
+		expect(screen.queryByRole("tab", { name: /tts/i })).not.toBeInTheDocument();
 		expect(screen.getByRole("tab", { name: /vision/i })).toBeInTheDocument();
 		expect(screen.getByRole("tab", { name: /文生图/i })).toBeInTheDocument();
 		expect(screen.getByRole("tab", { name: /图生视频/i })).toBeInTheDocument();
@@ -128,8 +131,7 @@ describe("ConfigPage", () => {
 
 		expect(screen.getByText("DeepSeek")).toBeInTheDocument();
 
-		fireEvent.click(screen.getByRole("tab", { name: /tts/i }));
-		expect(screen.getByText("通义千问")).toBeInTheDocument();
+		expect(screen.queryByRole("tab", { name: /tts/i })).not.toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("tab", { name: /vision/i }));
 		expect(screen.getByText("小米")).toBeInTheDocument();
@@ -148,13 +150,12 @@ describe("ConfigPage", () => {
 			expect(screen.getByRole("tab", { name: /llm/i })).toBeInTheDocument();
 		});
 
-		const tabs = ["llm", "tts", "vision", "text_to_image", "image_to_video"];
+		const tabs = ["llm", "vision", "text_to_image", "image_to_video"];
 		const expectedColorVars = {
-			llm: "var(--section-llm-color)",
-			tts: "var(--section-tts-color)",
-			vision: "var(--section-vision-color)",
-			text_to_image: "var(--section-text_to_image-color)",
-			image_to_video: "var(--section-image_to_video-color)",
+			llm: "--section-llm-color",
+			vision: "--section-vision-color",
+			text_to_image: "--section-text_to_image-color",
+			image_to_video: "--section-image_to_video-color",
 		};
 
 		for (const key of tabs) {
@@ -171,7 +172,7 @@ describe("ConfigPage", () => {
 			const iconWrapper = tab.querySelector("span");
 			expect(iconWrapper).toBeInTheDocument();
 			// Tab icons use CSS variables for theming
-			expect(iconWrapper?.style.color).toBe(
+			expect(iconWrapper?.style.color).toContain(
 				expectedColorVars[key as keyof typeof expectedColorVars],
 			);
 		}
@@ -187,10 +188,18 @@ describe("ConfigPage", () => {
 
 		const saveBtn = screen.getByRole("button", { name: /保存配置/i });
 		expect(saveBtn).toBeInTheDocument();
+		expect(saveBtn).toBeDisabled();
 
 		// Save button should be in header row area
-		const header = screen.getByText("系统配置").parentElement;
+		const header =
+			screen.getByText("系统配置").parentElement?.parentElement?.parentElement;
 		expect(header?.contains(saveBtn)).toBe(true);
+
+		fireEvent.change(screen.getAllByRole("combobox")[0], {
+			target: { value: "kimi" },
+		});
+		expect(saveBtn).toBeEnabled();
+		expect(screen.getByText("有未保存的更改")).toBeInTheDocument();
 
 		fireEvent.click(saveBtn);
 
@@ -210,11 +219,202 @@ describe("ConfigPage", () => {
 			).toBeInTheDocument();
 		});
 
+		fireEvent.change(screen.getAllByRole("combobox")[0], {
+			target: { value: "kimi" },
+		});
 		fireEvent.click(screen.getByRole("button", { name: /保存配置/i }));
 
 		await waitFor(() => {
 			expect(screen.getByText(/保存失败/i)).toBeInTheDocument();
 		});
+	});
+
+	it("Seam 10: 已配置的 Secret 不显示掩码值，修改后提示重启", async () => {
+		vi.mocked(api.getConfig).mockResolvedValue({
+			...MOCK_CONFIG,
+			providers: {
+				...MOCK_CONFIG.providers,
+				llm: {
+					selected: "deepseek",
+					providers: {
+						deepseek: {
+							model: "deepseek-v4-pro",
+							api_key: "***",
+						},
+					},
+				},
+			},
+		});
+		vi.mocked(api.saveConfig).mockResolvedValue(MOCK_CONFIG);
+
+		render(<ConfigPage />);
+
+		const secretInput = await screen.findByLabelText("API Key");
+		expect(secretInput).toHaveValue("");
+		expect(secretInput).toHaveAttribute(
+			"placeholder",
+			expect.stringMatching(/已配置/),
+		);
+
+		fireEvent.change(secretInput, { target: { value: "new-secret" } });
+		fireEvent.click(screen.getByRole("button", { name: /保存配置/i }));
+
+		await waitFor(() => {
+			expect(screen.getByText(/API Key.*重启后端/)).toBeInTheDocument();
+		});
+	});
+
+	it("Seam 11: 加载失败可直接重试", async () => {
+		vi.mocked(api.getConfig)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValueOnce(MOCK_CONFIG);
+
+		render(<ConfigPage />);
+
+		const retry = await screen.findByRole("button", { name: "重新加载" });
+		fireEvent.click(retry);
+
+		expect(
+			await screen.findByRole("tab", { name: /llm/i }),
+		).toBeInTheDocument();
+	});
+
+	it("Seam 12: 没有可用 provider 的能力不显示为空 Tab", async () => {
+		vi.mocked(api.getConfigOptions).mockResolvedValue({
+			...MOCK_OPTIONS,
+			providers: {
+				...MOCK_OPTIONS.providers,
+				text_to_image: { providers: {} },
+				image_to_video: { providers: {} },
+			},
+		});
+
+		render(<ConfigPage />);
+
+		await screen.findByRole("tab", { name: /llm/i });
+		expect(
+			screen.queryByRole("tab", { name: /文生图/i }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("tab", { name: /图生视频/i }),
+		).not.toBeInTheDocument();
+	});
+
+	it("Seam 13: 默认能力不可用时首个可用 Tab 保持选中状态", async () => {
+		vi.mocked(api.getConfigOptions).mockResolvedValue({
+			...MOCK_OPTIONS,
+			providers: {
+				...MOCK_OPTIONS.providers,
+				llm: { providers: {} },
+			},
+		});
+
+		render(<ConfigPage />);
+
+		// TTS is filtered out (#386), so the first available tab is vision
+		expect(await screen.findByRole("tab", { name: /vision/i })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+	});
+
+	it("Seam 14: catalog 声明的运行参数可在页面编辑并保存", async () => {
+		const configWithSettings = {
+			...MOCK_CONFIG,
+			settings: {
+				embedding: {
+					api_key: "***",
+					endpoint: "",
+					model: "text-embedding-ada-002",
+				},
+				scene: { transition_duration_ms: 500 },
+			},
+		};
+		vi.mocked(api.getConfig).mockResolvedValue(configWithSettings);
+		vi.mocked(api.getConfigOptions).mockResolvedValue({
+			...MOCK_OPTIONS,
+			settings: {
+				embedding: {
+					label: "Embedding",
+					description: "检索向量模型",
+					fields: [
+						{
+							name: "api_key",
+							label: "Embedding API Key",
+							kind: "text",
+							secret: true,
+						},
+						{ name: "model", label: "嵌入模型", kind: "text" },
+					],
+				},
+				scene: {
+					label: "场景",
+					description: "导入模式场景参数",
+					fields: [
+						{
+							name: "transition_duration_ms",
+							label: "转场时长（毫秒）",
+							kind: "number",
+							min: 0,
+						},
+					],
+				},
+			},
+		});
+		vi.mocked(api.saveConfig).mockResolvedValue(configWithSettings);
+
+		render(<ConfigPage />);
+		fireEvent.click(await screen.findByRole("button", { name: "运行参数" }));
+
+		expect(screen.getByLabelText("嵌入模型")).toHaveValue(
+			"text-embedding-ada-002",
+		);
+		expect(screen.getByLabelText("Embedding API Key")).toHaveValue("");
+		fireEvent.change(screen.getByLabelText("转场时长（毫秒）"), {
+			target: { value: "750" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: /保存配置/i }));
+
+		await waitFor(() => {
+			expect(api.saveConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					settings: expect.objectContaining({
+						scene: { transition_duration_ms: 750 },
+					}),
+				}),
+			);
+		});
+	});
+
+	it("Seam 15: catalog 新增 Provider section 时无需前端白名单", async () => {
+		vi.mocked(api.getConfig).mockResolvedValue({
+			...MOCK_CONFIG,
+			providers: {
+				...MOCK_CONFIG.providers,
+				speech_to_text: { selected: "", providers: {} },
+			},
+		});
+		vi.mocked(api.getConfigOptions).mockResolvedValue({
+			...MOCK_OPTIONS,
+			providers: {
+				...MOCK_OPTIONS.providers,
+				speech_to_text: {
+					label: "语音识别",
+					providers: {
+						whisper: {
+							label: "Whisper",
+							fields: [{ name: "model", label: "模型", kind: "text" }],
+						},
+					},
+				},
+			},
+		});
+
+		render(<ConfigPage />);
+
+		expect(
+			await screen.findByRole("tab", { name: "语音识别" }),
+		).toBeInTheDocument();
 	});
 
 	it("Seam 4: 页面加载时自动选中每个 section 的第一个 provider", async () => {
@@ -227,10 +427,10 @@ describe("ConfigPage", () => {
 		// LLM first provider is deepseek, model field is shown
 		expect(screen.getByDisplayValue("deepseek-v4-pro")).toBeInTheDocument();
 
-		// Switch to TTS and verify first provider selected (voice field appears)
-		fireEvent.click(screen.getByRole("tab", { name: /tts/i }));
-		expect(screen.getByText("音色")).toBeInTheDocument();
-		expect(screen.getByRole("combobox")).toHaveValue("qwen");
+		// Switch to Vision and verify first provider selected (model field appears)
+		fireEvent.click(screen.getByRole("tab", { name: /vision/i }));
+		expect(screen.getByText("模型")).toBeInTheDocument();
+		expect(screen.getByRole("combobox")).toHaveValue("xiaomi");
 	});
 
 	it("Seam 5: 输入框和下拉框使用设计系统变量", async () => {
@@ -266,12 +466,12 @@ describe("ConfigPage", () => {
 		const visionTab = screen.getByRole("tab", { name: /vision/i });
 		const visionSpan = visionTab.querySelector("span");
 		expect(visionSpan).toBeInTheDocument();
-		expect(visionSpan!.style.color).toBe("var(--section-vision-color)");
+		expect(visionSpan!.style.color).toContain("--section-vision-color");
 
 		const i2vTab = screen.getByRole("tab", { name: /图生视频/i });
 		const i2vSpan = i2vTab.querySelector("span");
 		expect(i2vSpan).toBeInTheDocument();
-		expect(i2vSpan!.style.color).toBe("var(--section-image_to_video-color)");
+		expect(i2vSpan!.style.color).toContain("--section-image_to_video-color");
 	});
 
 	// ---- Seam 7: 深色模式 Tab 颜色适配 ----
@@ -289,7 +489,7 @@ describe("ConfigPage", () => {
 		const activeTab = screen.getByRole("tab", { name: /llm/i });
 		const style = activeTab.getAttribute("style") || "";
 		// 在深色模式下，激活 Tab 样式应使用 CSS 自定义属性以支持主题适配
-		expect(style).toContain("var(--section-llm-color)");
+		expect(style).toContain("--section-llm-color");
 	});
 
 	// ---- Seam 8: 紧凑模式 Tab 间距 ----

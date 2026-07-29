@@ -194,11 +194,12 @@ class SubtitleService:
         Raises RuntimeError if duration cannot be determined or text is empty.
         """
         duration = get_media_duration(audio_path)
-        print(
-            f"[SUBTITLE] Building SRT: audio={audio_path.name}"
-            f" duration={duration:.2f}s script_len={len(script_text)}"
-            f" sentence_timings={len(sentence_timings) if sentence_timings else None}",
-            flush=True,
+        _logger.info(
+            "[SUBTITLE] Building SRT: audio=%s duration=%.2fs script_len=%s sentence_timings=%s",
+            audio_path.name,
+            duration,
+            len(script_text),
+            len(sentence_timings) if sentence_timings else None,
         )
         if duration <= 0:
             raise RuntimeError(f"无法识别配音时长: {audio_path}")

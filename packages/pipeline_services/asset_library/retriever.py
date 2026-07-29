@@ -30,10 +30,12 @@ class AssetRetriever:
 
     def retrieve(self, script_text: str, product: str) -> list[dict]:
         logger.info(
-            f"[Retriever] 开始检索素材: product={product}, 文案长度={len(script_text)}字"
+            "[Retriever] 开始检索素材: product=%s, 文案长度=%s字",
+            product,
+            len(script_text),
         )
         sentences = parse_script_sentences(script_text)
-        logger.info(f"[Retriever] 文案拆分为 {len(sentences)} 个句子")
+        logger.debug("[Retriever] 文案拆分为 %s 个句子", len(sentences))
         selected: list[dict] = []
 
         for i, sentence in enumerate(sentences):
@@ -63,8 +65,11 @@ class AssetRetriever:
                         }
                     )
                     self.repository.increment_usage(chosen.asset_id)
-                    logger.info(
-                        f"[Retriever] 句子 {i + 1}: LLM分类 → {requested_category_name}, 素材={chosen.asset_id}"
+                    logger.debug(
+                        "[Retriever] 句子 %s: LLM分类 → %s, 素材=%s",
+                        i + 1,
+                        requested_category_name,
+                        chosen.asset_id,
                     )
                     continue
 
@@ -85,12 +90,18 @@ class AssetRetriever:
                     }
                 )
                 self.repository.increment_usage(fallback.asset_id)
-                logger.info(
-                    f"[Retriever] 句子 {i + 1}: 降级匹配 想匹配{requested_cat} → {fallback.category_name()}, 素材={fallback.asset_id}"
+                logger.debug(
+                    "[Retriever] 句子 %s: 降级匹配 想匹配%s → %s, 素材=%s",
+                    i + 1,
+                    requested_cat,
+                    fallback.category_name(),
+                    fallback.asset_id,
                 )
             else:
                 logger.warning(
-                    f"[Retriever] 句子 {i + 1}: 无可用素材! 句子内容: {sentence[:30]}..."
+                    "[Retriever] 句子 %s: 无可用素材! 句子内容: %s...",
+                    i + 1,
+                    sentence[:30],
                 )
                 selected.append(
                     {
@@ -105,10 +116,12 @@ class AssetRetriever:
                         "visual_type": "unresolved",
                     }
                 )
-                logger.info(f"[Retriever] 句子 {i + 1}: 标记为 unresolved")
+                logger.debug("[Retriever] 句子 %s: 标记为 unresolved", i + 1)
 
         logger.info(
-            f"[Retriever] 检索完成: {len(selected)}/{len(sentences)} 句子匹配成功"
+            "[Retriever] 检索完成: %s/%s 句子匹配成功",
+            len(selected),
+            len(sentences),
         )
         return selected
 

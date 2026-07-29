@@ -37,6 +37,39 @@ class ToolNotFoundError(FileNotFoundError):
         super().__init__(message)
 
 
+def detect_audio_format(audio_bytes: bytes) -> tuple[str, str] | None:
+    """Detect audio format from magic bytes.
+
+    Returns a ``(media_type, file_extension)`` pair, or ``None`` if the
+    format cannot be recognised.
+    """
+    if len(audio_bytes) < 4:
+        return None
+
+    # WAV/RIFF
+    if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+        return ("audio/wav", "wav")
+    # MP3 — ID3v2 tag or sync word
+    if audio_bytes[:3] == b"ID3" or audio_bytes[:2] == b"\xff\xfb":
+        return ("audio/mpeg", "mp3")
+    # OGG
+    if audio_bytes[:4] == b"OggS":
+        return ("audio/ogg", "ogg")
+    # FLAC
+    if audio_bytes[:4] == b"fLaC":
+        return ("audio/flac", "flac")
+    # PCM raw — no magic bytes
+    return None
+
+
+def _get_media_config(reader: ConfigReader | None) -> dict:
+    if reader is not None:
+        return reader.get_media_config()
+    from packages.provider_config.config_reader import ConfigReader
+
+    return ConfigReader().get_media_config()
+
+
 def _resolve_tool_path(
     tool_name: str,
     env_var: str,
@@ -76,7 +109,7 @@ def _resolve_tool_path(
         path = Path(candidate)
         if not path.is_absolute():
             path = cwd / path
-        attempted.append(str(path))
+        attempted.append(path.as_posix())
         if path.exists():
             return str(path)
 
@@ -101,10 +134,8 @@ def _resolve_ffmpeg_path(reader: ConfigReader | None = None) -> str:
     Priority: ``FFMPEG_PATH`` env > ``app_config.json`` media.ffmpeg_path >
     ``tools/bin/ffmpeg(.exe)`` > ``shutil.which('ffmpeg')``.
     """
-    config_path: str | None = None
-    if reader is not None:
-        media = reader.get_media_config()
-        config_path = media.get("ffmpeg_path") or None
+    media = _get_media_config(reader)
+    config_path = media.get("ffmpeg_path") or None
     return _resolve_tool_path(
         tool_name="ffmpeg",
         env_var="FFMPEG_PATH",
@@ -119,10 +150,8 @@ def _resolve_ffprobe_path(reader: ConfigReader | None = None) -> str:
     Priority: ``FFPROBE_PATH`` env > ``app_config.json`` media.ffprobe_path >
     ``tools/bin/ffprobe(.exe)`` > ``shutil.which('ffprobe')``.
     """
-    config_path: str | None = None
-    if reader is not None:
-        media = reader.get_media_config()
-        config_path = media.get("ffprobe_path") or None
+    media = _get_media_config(reader)
+    config_path = media.get("ffprobe_path") or None
     return _resolve_tool_path(
         tool_name="ffprobe",
         env_var="FFPROBE_PATH",

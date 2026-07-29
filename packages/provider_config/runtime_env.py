@@ -71,25 +71,6 @@ TTS_ENV_MAPPINGS = {
             "MIMO_AUDIO_FORMAT": "audio_format",
         },
     },
-    "minimax": {
-        "provider": "minimax",
-        "env": {
-            "MINIMAX_API_KEY": "api_key",
-            "MINIMAX_TTS_URL": "endpoint",
-            "MINIMAX_GROUP_ID": "group_id",
-            "MINIMAX_TTS_MODEL": "model",
-            "MINIMAX_VOICE_ID": "voice_id",
-            "MINIMAX_VOICE_SPEED": "speed",
-            "MINIMAX_VOICE_VOL": "vol",
-            "MINIMAX_VOICE_PITCH": "pitch",
-            "MINIMAX_VOICE_EMOTION": "emotion",
-            "MINIMAX_AUDIO_FORMAT": "audio_format",
-        },
-    },
-    "custom": {
-        "provider": "custom",
-        "env": {},
-    },
 }
 
 VISION_ENV_MAPPINGS = {
@@ -128,11 +109,6 @@ VISION_ENV_MAPPINGS = {
 }
 
 
-def ensure_supported_runtime_selection(payload: dict) -> None:
-    if payload.get("providers", {}).get("tts", {}).get("selected") == "custom":
-        raise ValueError("tts=custom 暂不支持当前阶段运行时执行")
-
-
 def _section_overrides(
     selected: str, providers: dict, mappings: dict, provider_env_key: str
 ) -> dict[str, str]:
@@ -153,7 +129,6 @@ def _section_overrides(
 
 
 def provider_env_overrides(payload: dict) -> dict[str, str]:
-    ensure_supported_runtime_selection(payload)
     providers = payload.get("providers", {})
     overrides: dict[str, str] = {}
     overrides.update(
@@ -162,14 +137,6 @@ def provider_env_overrides(payload: dict) -> dict[str, str]:
             providers.get("llm", {}).get("providers", {}),
             LLM_ENV_MAPPINGS,
             "LLM_PROVIDER",
-        )
-    )
-    overrides.update(
-        _section_overrides(
-            providers.get("tts", {}).get("selected", ""),
-            providers.get("tts", {}).get("providers", {}),
-            TTS_ENV_MAPPINGS,
-            "TTS_PROVIDER",
         )
     )
     overrides.update(

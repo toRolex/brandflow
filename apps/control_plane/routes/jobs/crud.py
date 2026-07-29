@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -8,10 +7,12 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from apps.control_plane.routes.jobs.helpers import (
-    _find_job_project,
+    _resolve_job_project,
     _make_job_response,
+    _next_job_created_at,
     _resolve_product_from_config,
     _snapshot_tts_defaults,
+    _utc_now,
     _validate_tts_model_voice,
 )
 from apps.control_plane.routes.jobs.models import (
@@ -46,10 +47,6 @@ _ACTIVE_PHASES = frozenset(
         "final_review",
     }
 )
-
-
-def _utc_now() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def _enqueue_validation_error(
@@ -113,6 +110,7 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     repo = FileStoreRepository(request.app.state.root_dir)
     record = JobRecord(
         job_id=job_id,
+        created_at=_next_job_created_at(),
         project_id=project_id,
         product=product,
         brand=brand,
@@ -251,6 +249,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
         cover_title = _cover_title_from_request(item.cover_title)
         record = JobRecord(
             job_id=job_id,
+            created_at=_next_job_created_at(),
             project_id=project_id,
             product=product,
             brand=brand,
@@ -288,9 +287,7 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
 @router.post("/jobs/{job_id}/enqueue")
 def enqueue_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
     if record.phase != "draft":
         raise HTTPException(
@@ -312,26 +309,20 @@ def enqueue_job(request: Request, job_id: str):
 @router.get("/jobs/{job_id}")
 def get_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    projects_root = repo.root / "workspace" / "projects"
-    if projects_root.exists():
-        for project_dir in projects_root.iterdir():
-            if project_dir.is_dir():
-                try:
-                    record = repo.load_job(project_dir.name, job_id)
-                    job_data = record.model_dump()
-                    job_data["project_id"] = project_dir.name
-                    return job_data
-                except Exception:
-                    continue
-    raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
+    record = repo.load_job(project_id, job_id)
+    job_data = record.model_dump()
+    job_data["project_id"] = project_id
+    return job_data
+    job_data = record.model_dump()
+    job_data["project_id"] = project_id
+    return job_data
 
 
 @router.post("/jobs/{job_id}/pause", status_code=202)
 def pause_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
     if record.phase not in _ACTIVE_PHASES:
         raise HTTPException(
@@ -355,9 +346,7 @@ def pause_job(request: Request, job_id: str):
 @router.post("/jobs/{job_id}/resume")
 def resume_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
     if record.phase != "paused" or record.paused_from_phase is None:
         raise HTTPException(
@@ -383,9 +372,7 @@ def resume_job(request: Request, job_id: str):
 @router.post("/jobs/{job_id}/cancel", status_code=202)
 def cancel_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
     if record.phase == "cancelled":
         return {"status": "cancelled", "job_id": job_id}
@@ -421,9 +408,7 @@ def cancel_job(request: Request, job_id: str):
 @router.delete("/jobs/{job_id}")
 def delete_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
     if record.phase not in _DELETE_ALLOWED_PHASES:
         raise HTTPException(
@@ -441,9 +426,29 @@ def delete_job(request: Request, job_id: str):
 @router.put("/jobs/{job_id}/rename")
 def rename_job(request: Request, job_id: str, payload: RenameJobRequest):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
     repo.save_job(project_id, record.model_copy(update={"name": payload.name}))
     return {"job_id": job_id, "name": payload.name}
+
+
+@router.post("/jobs/{job_id}/pin")
+def toggle_job_pin(request: Request, job_id: str):
+    """Toggle pin status for a Job.
+
+    Pinned Jobs appear first in the project Job list, ordered by most
+    recently pinned.
+    """
+    repo = FileStoreRepository(request.app.state.root_dir)
+    project_id = _resolve_job_project(repo, job_id)
+    record = repo.load_job(project_id, job_id)
+    if record.is_pinned:
+        updated = record.model_copy(update={"is_pinned": False, "pinned_at": ""})
+    else:
+        updated = record.model_copy(update={"is_pinned": True, "pinned_at": _utc_now()})
+    repo.save_job(project_id, updated)
+    return {
+        "job_id": job_id,
+        "is_pinned": updated.is_pinned,
+        "pinned_at": updated.pinned_at,
+    }

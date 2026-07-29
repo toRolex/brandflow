@@ -192,7 +192,12 @@ async def _run_index_task(
 
     task.status = TaskStatus.RUNNING
     index_task_manager.add_log(task_id, f"开始处理 {len(videos)} 个视频")
-    print(f"[INDEX] 任务开始: {task_id}, 共 {len(videos)} 个视频, product={product}")
+    logger.info(
+        "[INDEX] 任务开始: %s, 共 %s 个视频, product=%s",
+        task_id,
+        len(videos),
+        product,
+    )
 
     try:
         repository = AssetRepository(db_path)
@@ -255,12 +260,18 @@ async def _run_index_task(
             .isoformat()
         )
         index_task_manager.add_log(task_id, "索引完成")
-        print(f"[INDEX] 任务完成: {task_id}, 共处理 {len(videos)} 个视频")
+        logger.info("[INDEX] 任务完成: %s, 共处理 %s 个视频", task_id, len(videos))
     except Exception as e:
         task.status = TaskStatus.FAILED
         task.error = str(e)
         index_task_manager.add_log(task_id, f"错误: {e}")
-        print(f"[INDEX ERROR] 任务失败: {task_id}, 错误: {type(e).__name__}: {e}")
+        logger.error(
+            "[INDEX ERROR] 任务失败: %s, 错误: %s: %s",
+            task_id,
+            type(e).__name__,
+            e,
+            exc_info=True,
+        )
 
 
 def _reclassify_single_asset(

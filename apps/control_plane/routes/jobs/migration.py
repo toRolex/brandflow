@@ -4,10 +4,11 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from apps.control_plane.routes.jobs.helpers import (
-    _find_job_project,
+    _resolve_job_project,
 )
 from packages.domain_core.models import PhaseExecutionState
 from packages.file_store.repository import FileStoreRepository
+from packages.provider_config.config_constants import DEFAULTS
 
 router = APIRouter(tags=["api-jobs"])
 
@@ -15,9 +16,7 @@ router = APIRouter(tags=["api-jobs"])
 @router.post("/jobs/{job_id}/retry")
 def retry_job(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
     if record.phase != "failed":
         raise HTTPException(status_code=409, detail="job has no failed phase to retry")
@@ -39,9 +38,11 @@ def retry_job(request: Request, job_id: str):
         )
         return {"status": "queued_for_retry", "job_id": job_id}
 
+    from packages.file_store.layout import WorkspaceLayout
     from packages.pipeline_services.phase_orchestrator import PhaseContext
 
-    project_dir = request.app.state.root_dir / "workspace" / "projects" / project_id
+    layout = WorkspaceLayout(request.app.state.root_dir)
+    project_dir = layout.project_dir(project_id)
     scene_config = request.app.state.config_reader.get_scene_config(
         product_id=record.product
     )
@@ -61,6 +62,7 @@ def retry_job(request: Request, job_id: str):
         root_dir=request.app.state.root_dir,
         product=record.product,
         brand=record.brand,
+        _layout=layout,
         options={
             "manual_script": record.manual_script,
             "uploaded_audio_path": record.uploaded_audio_path,
@@ -68,7 +70,10 @@ def retry_job(request: Request, job_id: str):
             "mode": record.mode,
         },
         scene_folder_paths=scene_folder_paths,
-        transition_duration_ms=scene_config.get("transition_duration_ms", 500),
+        transition_duration_ms=scene_config.get(
+            "transition_duration_ms",
+            DEFAULTS["scene"]["transition_duration_ms"],
+        ),
         scene_config=scene_config,
     )
     from apps.control_plane.app import _get_orchestrator

@@ -6,8 +6,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from apps.control_plane.routes.jobs.helpers import (
-    _export_service,
-    _find_job_project,
+    _build_export_service,
+    _resolve_job_project,
     _read_final_timeline_fingerprint,
     _run_export_task,
 )
@@ -24,24 +24,14 @@ def create_export(request: Request, job_id: str):
     ``GET .../export/status`` and download via ``GET .../export/download``.
     """
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
 
     record = repo.load_job(project_id, job_id)
     if record.phase != "completed":
         raise HTTPException(status_code=400, detail="job not yet completed")
 
-    job_dir = (
-        request.app.state.root_dir
-        / "workspace"
-        / "projects"
-        / project_id
-        / "runtime"
-        / "jobs"
-        / job_id
-    )
-    if not (job_dir / "final.mp4").exists():
+    final_video = repo.layout.job_artifact_path(project_id, job_id, "final.mp4")
+    if not final_video.exists():
         raise HTTPException(
             status_code=409,
             detail="final video not produced; rerender required before export",
@@ -52,14 +42,14 @@ def create_export(request: Request, job_id: str):
             detail="final video artifact missing; rerender required before export",
         )
 
-    fingerprint = _read_final_timeline_fingerprint(request, project_id, job_id)
+    fingerprint = _read_final_timeline_fingerprint(repo.layout, project_id, job_id)
     if not fingerprint:
         raise HTTPException(
             status_code=409,
             detail="no Final Timeline; rerender required before export",
         )
 
-    service = _export_service(request, project_id, job_id)
+    service = _build_export_service(repo.layout, project_id, job_id)
     task = service.create_or_reuse(fingerprint)
     if task["status"] == "queued":
         executor = request.app.state.export_executor
@@ -70,11 +60,9 @@ def create_export(request: Request, job_id: str):
 @router.get("/jobs/{job_id}/export/status")
 def export_status(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
 
-    service = _export_service(request, project_id, job_id)
+    service = _build_export_service(repo.layout, project_id, job_id)
     service.recover_interrupted()
     task = service._load()
     if not task:
@@ -90,11 +78,9 @@ def export_status(request: Request, job_id: str):
 @router.get("/jobs/{job_id}/export/download")
 def download_export(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
 
-    service = _export_service(request, project_id, job_id)
+    service = _build_export_service(repo.layout, project_id, job_id)
     service.recover_interrupted()
     task = service._load()
     if not task or task["status"] != "ready":
@@ -112,10 +98,8 @@ def download_export(request: Request, job_id: str):
 def invalidate_export(request: Request, job_id: str):
     """Mark the current export task stale (called on rerender)."""
     repo = FileStoreRepository(request.app.state.root_dir)
-    project_id = _find_job_project(repo, job_id)
-    if not project_id:
-        raise HTTPException(status_code=404, detail="job not found")
+    project_id = _resolve_job_project(repo, job_id)
 
-    service = _export_service(request, project_id, job_id)
+    service = _build_export_service(repo.layout, project_id, job_id)
     service.mark_stale()
     return {"status": "stale"}

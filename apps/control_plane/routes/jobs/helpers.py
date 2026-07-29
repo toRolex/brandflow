@@ -2,15 +2,42 @@ from __future__ import annotations
 
 import json
 import re
+import threading
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 
 from packages.domain_core.models import ExecutionFailure, JobRecord
+from packages.file_store.layout import (
+    AmbiguousJobError,
+    InvalidWorkspacePath,
+    WorkspaceLayout,
+)
 from packages.file_store.repository import FileStoreRepository
 from packages.provider_config.config_reader import ConfigReader
 from packages.provider_config.secret_store import SecretStore
+
+_JOB_CREATION_CLOCK_LOCK = threading.Lock()
+_last_job_creation_ns = 0
+
+
+def _utc_now() -> str:
+    """Return current UTC time as an ISO-8601 string."""
+    return datetime.now(UTC).isoformat()
+
+
+def _next_job_created_at() -> str:
+    """Return a strictly increasing UTC timestamp for Job creation order."""
+    global _last_job_creation_ns
+    with _JOB_CREATION_CLOCK_LOCK:
+        creation_ns = max(time.time_ns(), _last_job_creation_ns + 1)
+        _last_job_creation_ns = creation_ns
+    seconds, nanoseconds = divmod(creation_ns, 1_000_000_000)
+    created_at = datetime.fromtimestamp(seconds, tz=UTC)
+    return f"{created_at:%Y-%m-%dT%H:%M:%S}.{nanoseconds:09d}+00:00"
 
 
 def _resolve_product_from_config(root_dir: Path | str) -> tuple[str, str]:
@@ -61,50 +88,43 @@ def _make_job_response(
     }
 
 
-def _find_job_project(repo: FileStoreRepository, job_id: str) -> str | None:
-    projects_root = repo.root / "workspace" / "projects"
-    if not projects_root.exists():
-        return None
-    for project_dir in projects_root.iterdir():
-        if project_dir.is_dir():
-            try:
-                repo.load_job(project_dir.name, job_id)
-                return project_dir.name
-            except Exception:
-                continue
-    return None
+def _resolve_job_project(repo: FileStoreRepository, job_id: str) -> str:
+    try:
+        project_id = repo.find_project_for_job(job_id)
+    except AmbiguousJobError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "AMBIGUOUS_JOB_ID",
+                "message": str(exc),
+                "project_ids": exc.project_ids,
+            },
+        ) from exc
+    except InvalidWorkspacePath as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if project_id is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    return project_id
 
 
-def _export_service(request: Request, project_id: str, job_id: str):
+def _build_export_service(layout: WorkspaceLayout, project_id: str, job_id: str):
     """Build an ExportTaskService bound to this job's on-disk directories."""
     from packages.pipeline_services.export_task import ExportTaskService
 
-    root_dir: Path = request.app.state.root_dir
-    workspace_dir = root_dir / "workspace"
-    project_dir = workspace_dir / "projects" / project_id
+    project_dir = layout.project_dir(project_id)
     return ExportTaskService(
         job_id=job_id,
-        job_dir=project_dir / "runtime" / "jobs" / job_id,
-        workspace_dir=workspace_dir,
+        job_dir=layout.job_runtime_dir(project_id, job_id),
+        workspace_dir=layout.workspace_dir(),
         project_dir=project_dir,
-        export_dir=project_dir / "runtime" / "exports",
+        export_dir=layout.runtime_exports_dir(project_id),
     )
 
 
 def _read_final_timeline_fingerprint(
-    request: Request, project_id: str, job_id: str
+    layout: WorkspaceLayout, project_id: str, job_id: str
 ) -> str | None:
-    root_dir: Path = request.app.state.root_dir
-    ft = (
-        root_dir
-        / "workspace"
-        / "projects"
-        / project_id
-        / "runtime"
-        / "jobs"
-        / job_id
-        / "final_timeline.json"
-    )
+    ft = layout.job_artifact_path(project_id, job_id, "final_timeline.json")
     if not ft.exists():
         return None
     try:
@@ -275,33 +295,23 @@ def _resolve_tts_preview_config(
     secret_store: SecretStore,
 ):
     """Resolve TTS config and build provider for preview."""
-    tts_cfg = {**config_reader.get_tts_config(product_id=record.product or None)}
+    overrides = {}
     if record.tts_model:
-        tts_cfg["model"] = record.tts_model
+        overrides["model"] = record.tts_model
     if record.tts_voice:
-        tts_cfg["voice"] = record.tts_voice
+        overrides["voice"] = record.tts_voice
 
-    # Preview must resolve the same voice as formal synthesis — never randomize (#252)
-    tts_cfg["randomize_voice"] = False
+    from packages.pipeline_services.tts_provider import create_tts_provider
+    from packages.provider_config.tts_config import resolve_tts_config
 
-    from packages.pipeline_services.tts_provider import (
-        MiMoTTSProvider,
-        QwenTTSProvider,
-        TTSConfigShim,
+    config = resolve_tts_config(
+        config_reader.get_tts_config(product_id=record.product or None), overrides
     )
+    # Preview must resolve the same voice as formal synthesis — never randomize (#252)
+    config.randomize_voice = False
 
-    tts_model: str = str(tts_cfg.get("model") or "")
-    if tts_model.startswith("qwen"):
-        provider = QwenTTSProvider(
-            api_key=secret_store.get_api_key("qwen"),
-            base_url=secret_store.get_api_base_url("qwen")
-            or "https://dashscope.aliyuncs.com/api/v1",
-        )
-    else:
-        provider = MiMoTTSProvider(
-            api_key=secret_store.get_api_key("mimo"),
-        )
-    return provider, TTSConfigShim(tts_cfg)
+    provider = create_tts_provider(config, secret_store)
+    return provider, config
 
 
 _INVALIDATE_ARTIFACT_KINDS: frozenset[str] = frozenset(

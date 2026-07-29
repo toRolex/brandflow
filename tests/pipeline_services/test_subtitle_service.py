@@ -31,7 +31,12 @@ class TestSubtitleService:
 
     @patch("packages.pipeline_services.subtitle_service.get_media_duration")
     @patch("packages.pipeline_services.subtitle_service.detect_silence_points")
-    def test_build_srt_produces_valid_srt(self, mock_silence, mock_duration, tmp_path):
+    def test_build_srt_produces_valid_srt(
+        self, mock_silence, mock_duration, tmp_path, caplog
+    ):
+        import logging
+
+        caplog.set_level(logging.INFO)
         mock_duration.return_value = 5.0
         mock_silence.return_value = []
 
@@ -48,6 +53,13 @@ class TestSubtitleService:
         content = srt_path.read_text(encoding="utf-8")
         assert "00:00:00" in content
         assert "-->" in content
+
+        subtitle_logs = [
+            r for r in caplog.records if "[SUBTITLE] Building SRT" in r.message
+        ]
+        assert subtitle_logs, "expected subtitle build log"
+        assert subtitle_logs[0].levelno == logging.INFO
+        assert "test.wav" in subtitle_logs[0].message
 
 
 class TestSentenceConstrainedSubtitle:

@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 import time
 import traceback
@@ -41,7 +40,6 @@ from apps.control_plane.services.dispatch import Dispatcher
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
-    PhaseExecutionError,
 )
 from packages.pipeline_services.phase_orchestrator import create_orchestrator
 from packages.provider_config.config_reader import ConfigReader, ProductStore
@@ -52,124 +50,67 @@ from packages.log_service.log_writer import log_error
 
 
 AUTO_TICK_INTERVAL = 3  # seconds between auto-advances in dev mode
+MAX_CONCURRENT_JOBS = 2  # maximum concurrent top-level Job ticks
 
 
-async def _auto_tick(root_dir: Path, config_reader: ConfigReader):
-    """Dev-mode background loop: offloads tick to executor, respects single-in-flight.
+def _build_default_tick_svc(
+    root_dir: Path, config_reader: ConfigReader
+) -> JobTickService:
+    """Construct the default ``JobTickService`` for production use.
 
-    Each ``tick()`` call is dispatched through ``run_in_executor`` so the
-    event loop stays free for API requests during blocking work (FFmpeg,
-    TTS/LLM network calls).  A set of in-flight job ids prevents the
-    outer scan from re-picking a job that is still executing.
+    This is an internal seam so tests can inject a fake tick service
+    without patching the constructor chain.
     """
     orchestrator = create_orchestrator(root_dir, config_reader=config_reader)
     repo = FileStoreRepository(root_dir)
-    tick_svc = JobTickService(
+    return JobTickService(
         orchestrator=orchestrator,
         repo=repo,
         config_reader=config_reader,
         sleep_fn=time.sleep,
     )
-    _in_flight: set[str] = set()
 
-    while True:
-        await asyncio.sleep(AUTO_TICK_INTERVAL)
-        try:
-            projects_root = root_dir / "workspace" / "projects"
-            if not projects_root.exists():
-                continue
 
-            for project_dir in sorted(projects_root.iterdir()):
-                if not project_dir.is_dir():
-                    continue
-                project_id = project_dir.name
-                jobs_dir = project_dir / "control" / "jobs"
-                if not jobs_dir.exists():
-                    continue
+async def _auto_tick(
+    root_dir: Path,
+    config_reader: ConfigReader,
+    *,
+    tick_svc: JobTickService | None = None,
+    max_concurrency: int = MAX_CONCURRENT_JOBS,
+):
+    """Dev-mode background loop: bounded-concurrency auto-advance.
 
-                for f in sorted(jobs_dir.glob("*.json")):
-                    try:
-                        data = json.loads(f.read_text(encoding="utf-8"))
-                        job_id = data.get("job_id", "")
-                        if not job_id:
-                            continue
+    Each scan pass (every ``AUTO_TICK_INTERVAL`` seconds) fills free
+    concurrency slots with ``asyncio.Task`` wrappers that offload the
+    blocking ``tick()`` call to the default thread pool via
+    ``run_in_executor``.  At most *max_concurrency* Job ticks run
+    concurrently; the same ``(project_id, job_id)`` is never dispatched
+    twice simultaneously.
+    """
+    from apps.control_plane.auto_tick_scheduler import AutoTickScheduler
 
-                        # Single-in-flight guard: skip jobs already being
-                        # processed.  Currently defensive — each tick is awaited
-                        # before the next job iteration, so the set never holds
-                        # more than one entry.  It is kept as a safety net for
-                        # future concurrency changes (e.g. fan-out scheduling).
-                        if job_id in _in_flight:
-                            continue
-
-                        product = data.get("product", os.environ.get("PRODUCT", ""))
-                        options = {
-                            "manual_script": data.get("manual_script", ""),
-                            "uploaded_audio_path": data.get("uploaded_audio_path", ""),
-                            "language": data.get("language", "mandarin"),
-                            "mode": data.get("mode", "generate"),
-                        }
-
-                        _in_flight.add(job_id)
-                        try:
-                            loop = asyncio.get_running_loop()
-
-                            def _tick_job():
-                                return tick_svc.tick(
-                                    project_id,
-                                    job_id,
-                                    product,
-                                    root_dir=root_dir,
-                                    project_dir=project_dir,
-                                    options=options,
-                                )
-
-                            summary = await loop.run_in_executor(None, _tick_job)
-                        finally:
-                            _in_flight.discard(job_id)
-
-                        if summary.action != "skipped":
-                            print(
-                                f"[AUTO-TICK] {job_id}: {summary.from_phase} -> {summary.to_phase} ({summary.action})",
-                                flush=True,
-                            )
-                    except PhaseExecutionError as e:
-                        log_error(
-                            {
-                                "source": "backend",
-                                "level": "error",
-                                "message": f"{e.phase} phase failed: {e}",
-                                "extra": {"job_id": e.job_id, "phase": e.phase},
-                                "stack_trace": traceback.format_exc(),
-                            }
-                        )
-                        print(
-                            f"[AUTO-TICK] {e.job_id}: {e.phase} phase failed: {e}",
-                            flush=True,
-                        )
-                    except Exception as e:
-                        log_error(
-                            {
-                                "source": "backend",
-                                "level": "error",
-                                "message": f"AUTO-TICK {f.name}: {e}",
-                                "extra": {"job_file": f.name},
-                                "stack_trace": traceback.format_exc(),
-                            }
-                        )
-                        print(f"[AUTO-TICK ERROR] {f.name}: {e}", flush=True)
-                        traceback.print_exc()
-        except Exception as e:
-            log_error(
-                {
-                    "source": "backend",
-                    "level": "error",
-                    "message": f"AUTO-TICK LOOP ERROR: {e}",
-                    "stack_trace": traceback.format_exc(),
-                }
-            )
-            print(f"[AUTO-TICK LOOP ERROR] {e}", flush=True)
-            traceback.print_exc()
+    tick_svc = tick_svc or _build_default_tick_svc(root_dir, config_reader)
+    scheduler = AutoTickScheduler(
+        root_dir,
+        tick_svc,
+        max_concurrency=max_concurrency,
+    )
+    try:
+        while True:
+            await asyncio.sleep(AUTO_TICK_INTERVAL)
+            try:
+                await scheduler.run_pass()
+            except Exception as e:
+                log_error(
+                    {
+                        "source": "backend",
+                        "level": "error",
+                        "message": f"AUTO-TICK LOOP ERROR: {e}",
+                        "stack_trace": traceback.format_exc(),
+                    }
+                )
+    finally:
+        await scheduler.shutdown()
 
 
 def _startup_cleanup_progress() -> None:

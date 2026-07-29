@@ -18,13 +18,19 @@ export const rejectClip = (
 	projectId?: string,
 ) => {
 	const qs = projectId ? `?project_id=${projectId}` : "";
-	return request<{ status: string }>(`/api/reviews/${jobId}/reject-clip${qs}`, {
+	return request<{
+		status: string;
+		replaced?: boolean;
+		reason?: string;
+		diagnostics?: Record<string, number>;
+		clip?: Record<string, unknown>;
+	}>(`/api/reviews/${jobId}/reject-clip${qs}`, {
 		method: "POST",
 		body: JSON.stringify({ clip_index: clipIndex }),
 	});
 };
 
-// Asset review: set-blank / set-asset / re-search / restore (#254)
+// Asset review: set-blank / set-asset / restore (#254)
 export const assetSetBlank = (
 	jobId: string,
 	clipIndex: number,
@@ -55,21 +61,6 @@ export const assetSetAsset = (
 				clip_index: clipIndex,
 				asset_id: assetId,
 			}),
-		},
-	);
-};
-
-export const assetReSearch = (
-	jobId: string,
-	clipIndex: number,
-	projectId?: string,
-) => {
-	const qs = projectId ? `?project_id=${projectId}` : "";
-	return request<{ status: string; visual_type: string }>(
-		`/api/reviews/${jobId}/asset/re-search${qs}`,
-		{
-			method: "POST",
-			body: JSON.stringify({ clip_index: clipIndex }),
 		},
 	);
 };

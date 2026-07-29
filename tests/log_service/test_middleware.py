@@ -20,7 +20,7 @@ def test_middleware_persists_a_4xx_response(tmp_path: Path, monkeypatch) -> None
     assert TestClient(app).get("/missing").status_code == 404
     record = json.loads(next(tmp_path.glob("*.jsonl")).read_text(encoding="utf-8"))
     assert record["status_code"] == 404
-    assert record["level"] == "warn"
+    assert record["level"] == "info"
 
 
 def test_middleware_persists_a_5xx_response_with_stack_trace(

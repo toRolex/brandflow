@@ -72,9 +72,9 @@ cd frontend && npm run dev
 | 后端 | Python 3.11+ / FastAPI / Pydantic v2 |
 | 依赖管理 | uv |
 | 媒体引擎 | FFmpeg（ffmpeg-full） / ffprobe / whisper-cli |
-| LLM | DeepSeek / Kimi / OpenAI（默认实现见 `DEFAULTS`） |
-| TTS | Xiaomi MiMo / MiniMax（支持 preset / voicedesign / voiceclone 三种模式，见 `DEFAULTS`） |
-| Vision | Xiaomi / OpenAI / Claude 兼容接口（默认实现见 `DEFAULTS`） |
+| LLM | DeepSeek / Kimi / OpenAI（provider 默认资料见 `catalog.json`） |
+| TTS | Qwen / Xiaomi MiMo（支持 preset / voicedesign / voiceclone） |
+| Vision | Xiaomi / OpenAI / Claude 兼容接口（provider 默认资料见 `catalog.json`） |
 | 排期存储 | SQLite |
 | 目标平台 | 抖音、小红书、视频号、快手 |
 
@@ -88,26 +88,36 @@ cp .env.example .env
 ```
 
 配置职责：
-- `.env` — 保存 API Key 与可选环境变量覆盖
-- `config/app_config.json` — 保存 provider、model、voice、thinking 等业务配置
-- `config/providers.yaml` — 前端“系统配置”页面的兼容存储；保存时会同步到 `app_config.json` 与 `.env`
+- `.env` — 只保存 API Key 等 secret
+- `config/app_config.json` — 唯一非 secret 配置源，保存 provider、model、endpoint、voice、thinking 等
+- `packages/provider_config/catalog.json` — 系统配置页字段目录，以及 provider 和可编辑运行参数的默认资料
+- `config/providers.yaml` — 旧版本兼容输入；新版本只读、不再写入
 
 常见配置项：
 - `LLM_API_KEY` / `TTS_API_KEY` / `VISION_API_KEY` — 通用 key，适合单 provider 场景
 - `DEEPSEEK_API_KEY` / `MIMO_API_KEY` / `XIAOMI_VISION_API_KEY` — provider 专用 key，优先级高于通用 key
-- provider、model、voice、thinking 等业务参数 — 通常通过前端”系统配置”页面写入 `config/app_config.json`
+- LLM / Vision 的 provider、model、thinking 等业务参数 — 通过前端”系统配置 → AI Provider”写入 `config/app_config.json`；TTS 参数统一通过 `/tts-config` 页面管理（#386）
+- Embedding（含 API Key）、FFmpeg/FFprobe、素材分类建议与场景导入参数 — 通过“系统配置 → 运行参数”编辑
 
-TTS 配置新增项（`config/app_config.json` 的 `tts` 节）：
+TTS 配置统一由 `/tts-config` 页面管理（#386），通过 `PUT /api/tts/config` 写入 `config/app_config.json` 的 `tts` 节。主要配置项：
+- `provider` / `model` / `voice` — 服务商、模型与音色选择，`model` 前缀决定 provider 路由
+- `speed` / `vol` / `pitch` / `emotion` — Provider 连接参数，调节语速/音量/音调/情感
+- `group_id` / `endpoint` / `extra_headers` — 组 ID、自定义端点与额外请求头
 - `voice_clone_sample_path` — 音色克隆样本路径（由上传接口自动写入）
 - `voice_clone_mime_type` — 样本 MIME 类型（`audio/mpeg` 或 `audio/wav`）
 - `optimize_text_preview` — voicedesign 模式下是否启用文本优化预览（默认 `false`）
 - `audio_format` — 音频格式（默认 `wav`）
+- `style_control_mode` / `style_prompt` / `director_*` — 风格控制与导演模式参数
+- `audio_tags` / `audio_tags_enabled` — 音频标签控制
+- `randomize_voice` / `random_voices` — 随机音色池
 
 配置优先级：
-1. provider 专用环境变量
-2. 通用环境变量
-3. `config/app_config.json`
-4. 代码默认值（`packages/provider_config/app_config.py` 中的 `DEFAULTS`）
+1. product override
+2. `config/app_config.json`
+3. catalog/代码业务默认值
+
+API Key 单独按 provider 专用环境变量 → 通用环境变量解析。旧 endpoint
+环境变量仅在 `app_config.json` 未配置 endpoint 时兼容回退。
 
 ## 核心概念
 
@@ -159,8 +169,11 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/api/logs/error` | POST | 接收前端错误上报，成功返回 201 |
-| `/api/logs/dates` | GET | 按日期降序列出日志文件 |
+| `/api/logs/dates?page=&page_size=` | GET | （分页）按日期降序列出日志文件，支持 page/page_size 参数 |
 | `/api/logs/download?date=YYYY-MM-DD` | GET | 下载指定日期的 JSONL 日志 |
+| `/api/logs/batch` | DELETE | 批量删除日志文件（body: `{"dates": [...]}`，当天受保护） |
+| `/api/logs/cleanup` | DELETE | 清理 N 天前的旧日志（query: `before_days=N`，N≥1） |
+| `/api/logs/{date}` | DELETE | 删除单天日志（当天 → 400） |
 
 ## 知识库 API（Issue #28）
 
@@ -226,7 +239,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │
 ├── packages/
 │   ├── domain_core/          # 领域模型 + 状态机 + worker 协议
-│   ├── file_store/           # 文件系统轻持久化
+│   ├── file_store/           # 文件系统轻持久化（FileStoreRepository + WorkspaceLayout seam）
 │   ├── deploy_health/        # 部署体检：CLI + /api/health?deploy_check=true（Issue #76）
 │   ├── knowledge_store/      # 知识库：文档、items、LLM 提取（Issue #28）
 │   ├── log_service/          # 运行错误 JSONL 写入、中间件与全局异常捕获
@@ -236,8 +249,8 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   └── runtime_adapters/     # 平台适配（Mac / Windows）
 │
 ├── config/
-│   ├── app_config.json       # 业务配置（provider / model / voice / thinking）
-│   ├── providers.yaml        # 系统配置页兼容存储，保存时同步到 app_config.json / .env
+│   ├── app_config.json       # 唯一非 secret 配置源
+│   ├── providers.yaml        # 旧版本只读兼容输入
 │   ├── defaults.yaml
 │   └── profiles/             # mac-local.yaml / windows-prod.yaml
 │
@@ -251,7 +264,9 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 **路由与编排说明：**
 
 - `api_jobs.py` 与 `api_assets.py` 不再包含具体 handler，仅作为 `APIRouter` 聚合层按顺序 `include_router` 子路由；注意子路由的注册顺序（更具体的 `/jobs/{job_id}/...` 路径优先于动态路径 `/jobs/{job_id}`），以避免路径遮蔽。
-- `PhaseOrchestrator` 维护 `_handlers` 策略表，将 10 个 phase 派发到 `packages/pipeline_services/phases/` 下对应的 handler；生产流程由控制面 `auto_tick` 调用。已废弃的 `runtime_worker` 仍保留同一编排逻辑，仅用于兼容旧代码。
+- `PhaseOrchestrator` 维护 `_handlers` 策略表，将 phase 派发到 `packages/pipeline_services/phases/` 下对应的 handler。生产流程由控制面的 ``AutoTickScheduler`` 驱动，以有界并发（默认 2）周期性扫描并推进 Job，支持 round-robin 公平调度以及优雅关闭（drain 所有运行中 task）。已废弃的 `runtime_worker` 仍保留同一编排逻辑，仅用于兼容旧代码。
+- 所有 project-tree 路径（`workspace/projects/<id>/control/jobs`、`runtime/jobs/<job_id>/`、`audio/`、`source_assets/`、`indexed_clips/` 等）通过 `packages/file_store/layout.py` 的 `WorkspaceLayout` seam 统一解析（PRD #355）；`PhaseContext` 与 `runtime_worker/loop.py` 各持一个 `WorkspaceLayout`，phase handler 与 worker 不再手动拼接 `root_dir / "workspace" / ...`。`FileStoreRepository` 暴露 `layout` 属性供其它模块派生路径，`shared_assets` 与 `music_library` 等全局库仍保留裸路径拼接。
+- `WorkspaceLayout` 的 deletion/seam 守卫（`tests/smoke/test_workspace_layout_seam.py`）通过 AST 静态扫描生产代码，确保 `workspace/projects/...` 这类项目树路径片段不会出现在 `layout.py` 之外的任何生产模块中；`shared_assets` / `music_library` 等全局路径不参与此守卫。
 
 ## 可用命令
 
@@ -279,7 +294,7 @@ cd frontend && npm run build
 # 版本同步
 uv run python tools/sync_version.py    # 同步版本到 package.json 和 CONTEXT.md
 
-# 当前 release tag：v0.7.30
+# 当前 release tag：v0.7.29
 ```
 
 ## 前端视觉设计
@@ -303,3 +318,14 @@ uv run python tools/sync_version.py    # 同步版本到 package.json 和 CONTEX
 ## 产品配置
 
 `/system/config/product` 页面支持产品分类管理，包含 AI 智能推荐分类功能：系统根据已有业务数据调用 LLM 建议分类，支持勾选确认后自动合并到现有分类列表。每个分类可配置名称、描述和 Vision Prompt。
+
+## 冒烟流程
+
+冒烟（smoke）报告存放在 `scripts/smoke/` 下，每次运行生成一份 `sandcastle-YYYY-MM-DD.md`，内容包含：
+
+- 运行时间戳（UTC）
+- `uv run pytest tests/`、`pnpm --filter frontend typecheck`、`npm run sandcastle` 等命令的实际退出码
+- `gh auth status` 单行输出
+- 末尾固定为 `Sandcastle smoke run successful.`
+
+由 `git ls-files scripts/smoke/` 可确认报告已被跟踪（避免 `.gitignore` 误屏蔽）。
