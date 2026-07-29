@@ -33,14 +33,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
-          path: rollback-tooling
+          path: rollback-tooling-${{ github.run_id }}
 
       - name: Check out target release
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.target_tag }}
           fetch-depth: 1
-          path: rollback-source
+          path: rollback-source-${{ github.run_id }}
 
       - name: Restore target release and start control plane
         shell: powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'"
@@ -48,6 +48,6 @@ jobs:
           https_proxy: ""
           http_proxy: ""
         run: |
-          & "$env:GITHUB_WORKSPACE\rollback-tooling\packaging\windows\rollback-prod.ps1" `
-            -SourceDir "$env:GITHUB_WORKSPACE\rollback-source" `
+          & "$env:GITHUB_WORKSPACE\rollback-tooling-${{ github.run_id }}\packaging\windows\rollback-prod.ps1" `
+            -SourceDir "$env:GITHUB_WORKSPACE\rollback-source-${{ github.run_id }}" `
             -ExpectedTag "${{ inputs.target_tag }}"
