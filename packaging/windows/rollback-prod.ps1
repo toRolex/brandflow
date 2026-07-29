@@ -167,21 +167,30 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 Write-Host "Restoring production checkout to $ExpectedTag ..."
 Push-Location $projectDir
 try {
-    Invoke-Native git reset --hard HEAD
-    Invoke-Native git fetch --no-tags --update-shallow $sourceDir HEAD
-    Invoke-Native git checkout FETCH_HEAD
-    Invoke-Native git clean -fdx `
-        -e .env `
-        -e workspace `
-        -e logs `
-        -e .venv `
-        -e .venv-rollback `
-        -e .venv-pre-rollback-* `
-        -e .uv-python `
-        -e .node `
-        -e frontend/node_modules `
-        -e config/app_config.json `
-        -e config/providers.yaml
+    Invoke-Native -FilePath git -Arguments @("reset", "--hard", "HEAD")
+    Invoke-Native -FilePath git -Arguments @(
+        "fetch",
+        "--no-tags",
+        "--update-shallow",
+        $sourceDir,
+        "HEAD"
+    )
+    Invoke-Native -FilePath git -Arguments @("checkout", "FETCH_HEAD")
+    Invoke-Native -FilePath git -Arguments @(
+        "clean",
+        "-fdx",
+        "-e", ".env",
+        "-e", "workspace",
+        "-e", "logs",
+        "-e", ".venv",
+        "-e", ".venv-rollback",
+        "-e", ".venv-pre-rollback-*",
+        "-e", ".uv-python",
+        "-e", ".node",
+        "-e", "frontend/node_modules",
+        "-e", "config/app_config.json",
+        "-e", "config/providers.yaml"
+    )
 
     $uvCandidates = @(
         (Join-Path $env:USERPROFILE ".local\bin\uv.exe"),
@@ -200,7 +209,7 @@ try {
     }
 
     $env:UV_PYTHON_INSTALL_DIR = Join-Path $projectDir ".uv-python"
-    Invoke-Native $uv python install 3.11
+    Invoke-Native -FilePath $uv -Arguments @("python", "install", "3.11")
     $python = (& $uv python find 3.11).Trim()
     if ($LASTEXITCODE -ne 0 -or -not $python) {
         throw "Python 3.11 could not be resolved"
@@ -209,10 +218,22 @@ try {
     if (Test-Path -LiteralPath $stagedVenv) {
         Remove-Item -LiteralPath $stagedVenv -Recurse -Force
     }
-    Invoke-Native $uv venv --relocatable --python $python $stagedVenv
+    Invoke-Native -FilePath $uv -Arguments @(
+        "venv",
+        "--relocatable",
+        "--python",
+        $python,
+        $stagedVenv
+    )
     $env:UV_PROJECT_ENVIRONMENT = $stagedVenv
     try {
-        Invoke-Native $uv sync --python $python --all-extras --dev
+        Invoke-Native -FilePath $uv -Arguments @(
+            "sync",
+            "--python",
+            $python,
+            "--all-extras",
+            "--dev"
+        )
     }
     finally {
         Remove-Item Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
@@ -230,8 +251,11 @@ try {
 
     Push-Location (Join-Path $projectDir "frontend")
     try {
-        Invoke-Native $pnpm.Source install --no-frozen-lockfile
-        Invoke-Native $pnpm.Source build
+        Invoke-Native -FilePath $pnpm.Source -Arguments @(
+            "install",
+            "--no-frozen-lockfile"
+        )
+        Invoke-Native -FilePath $pnpm.Source -Arguments @("build")
     }
     finally {
         Pop-Location
@@ -297,7 +321,11 @@ exit /b %errorlevel%
 
     Push-Location $projectDir
     try {
-        Invoke-Native git checkout -- packaging/windows/update.bat
+        Invoke-Native -FilePath git -Arguments @(
+            "checkout",
+            "--",
+            "packaging/windows/update.bat"
+        )
     }
     finally {
         Pop-Location
