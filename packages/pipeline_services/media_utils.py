@@ -1,4 +1,4 @@
-"""Shared media helpers used across control_plane and runtime_worker."""
+"""Shared media helpers used by pipeline services."""
 
 from __future__ import annotations
 

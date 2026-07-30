@@ -66,7 +66,6 @@ WorkspaceLayout seam 已接入 FileStoreRepository、控制面路由、Auto-Tick
 
 - `apps/control_plane/routes/jobs/` 按 Job 用例拆分为 CRUD、TTS、导出、内容、metadata 和 migration 子路由。
 - `packages/pipeline_services/phases/` 为每个 phase 提供独立 handler；`PhaseContext` 携带 `WorkspaceLayout`。
-- `apps/runtime_worker/loop.py` 独立持有 `WorkspaceLayout`，不依赖控制面 repository 状态。
 
 ## 常用命令
 
