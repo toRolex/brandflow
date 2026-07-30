@@ -710,39 +710,12 @@ class ProductStore:
     # ------------------------------------------------------------------
 
     def get_product_config(self, product_id: str | None = None) -> dict[str, Any]:
-        """Return the merged config for *product_id* (or the active product).
-
-        Categories are resolved through the same three-tier priority chain used
-        by the asset library endpoints (product → asset_library → defaults), so
-        the returned config always reflects the categories actually in effect.
-        This prevents accidental overwrites when saving unrelated product fields.
-        """
+        """Return the merged config for *product_id* (or the active product)."""
         self._reader.reload()
         if product_id:
-            config = self._reader.get_product_config(product_id=product_id)
-        else:
-            active = self._reader.active_product_id
-            if active:
-                config = self._reader.get_product_config(product_id=active)
-            else:
-                config = self._reader.get_product_config()
+            return self._reader.get_product_config(product_id=product_id)
 
-        if not config.get("categories"):
-            from packages.pipeline_services.asset_library.category_config import (
-                get_categories,
-            )
-
-            resolved = get_categories(
-                self._reader, product_id=product_id or self._reader.active_product_id
-            )
-            config["categories"] = [
-                {
-                    "id": c.id,
-                    "name": c.name,
-                    "description": c.description,
-                    "vision_prompt": c.vision_prompt,
-                }
-                for c in resolved
-            ]
-
-        return config
+        active = self._reader.active_product_id
+        if active:
+            return self._reader.get_product_config(product_id=active)
+        return self._reader.get_product_config()

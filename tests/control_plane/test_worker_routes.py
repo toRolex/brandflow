@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from apps.control_plane.app import create_app
@@ -19,6 +20,13 @@ def _save_test_job(app, project_id: str, job_id: str, **overrides: object) -> No
         **overrides,
     )
     repo.save_job(project_id, record)
+
+
+@pytest.mark.e2e
+def test_root_serves_frontend() -> None:
+    with TestClient(create_app()) as client:
+        response = client.get("/")
+        assert response.status_code == 200
 
 
 def test_poll_returns_idle_when_queue_is_empty(tmp_path: Path) -> None:
