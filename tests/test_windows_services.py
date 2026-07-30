@@ -45,8 +45,8 @@ def test_deploy_uses_control_plane_as_only_pipeline_executor() -> None:
 
     assert "AppEnvironmentExtra" in content
     assert "DEV_AUTO_TICK=1" in content
-    assert "stop brandflow-worker" in content
-    assert "brandflow-worker start= disabled" in content
+    assert "stop brandflow-worker" not in content
+    assert "brandflow-worker start= disabled" not in content
 
 
 def test_deploy_builds_python311_venv_outside_the_live_environment() -> None:
