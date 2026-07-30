@@ -1,7 +1,43 @@
+import re
 from pathlib import Path
 
 
 WINDOWS_DIR = Path(__file__).parents[1] / "packaging" / "windows"
+
+
+def _git_clean_excludes() -> list[str]:
+    content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
+    patterns: list[str] = []
+    for line in content.splitlines():
+        if "git clean" in line:
+            patterns.extend(re.findall(r"-e\s+(\S+)", line))
+    return patterns
+
+
+def test_git_clean_excludes_use_forward_slashes() -> None:
+    """``git clean -e`` takes gitignore patterns, where ``\\`` is an escape char.
+
+    ``config\\app_config.json`` therefore matches nothing, so the whole untracked
+    ``config/`` directory is wiped along with app_config.json and providers.yaml.
+    """
+    excludes = _git_clean_excludes()
+    assert excludes, "deploy.bat should still run git clean with excludes"
+
+    for pattern in excludes:
+        assert "\\" not in pattern, (
+            f"exclude pattern {pattern!r} uses a backslash; gitignore patterns "
+            "require '/' or the exclusion silently fails"
+        )
+
+
+def test_git_clean_preserves_runtime_state() -> None:
+    excludes = _git_clean_excludes()
+    for required in (
+        "config/app_config.json",
+        "config/providers.yaml",
+        "frontend/node_modules",
+    ):
+        assert required in excludes, f"deploy.bat must exclude {required}"
 
 
 def test_deploy_uses_control_plane_as_only_pipeline_executor() -> None:
