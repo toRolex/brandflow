@@ -1,3 +1,5 @@
+"""Tests that the control plane serves the built frontend at /."""
+
 import pytest
 from fastapi.testclient import TestClient
 
