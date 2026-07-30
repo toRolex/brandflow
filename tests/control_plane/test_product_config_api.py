@@ -157,22 +157,17 @@ class TestProductConfigCategoriesAPI:
             assert data["categories"][0]["id"] == "tasting"
 
     def test_product_no_categories_returns_defaults(self, tmp_path: Path) -> None:
-        """产品未配置 categories 时 GET 返回 fallback 默认分类（三级优先级）"""
+        """产品未配置 categories 时 GET 返回 DEFAULTS 空列表"""
         with _client(tmp_path) as client:
             client.post("/api/products/prod_C/switch")
             resp = client.get("/api/products/prod_C/config")
             assert resp.status_code == 200
             data = resp.json()
-            # 未显式配置时走 product → asset_library → default_categories() fallback
-            assert len(data["categories"]) == 10
-            names = {c["name"] for c in data["categories"]}
-            assert "产地溯源" in names
-            assert "成品展示" in names
+            # DEFAULTS 的 product.categories 为空列表
+            assert data["categories"] == []
 
-    def test_product_empty_categories_falls_back_to_defaults(
-        self, tmp_path: Path
-    ) -> None:
-        """产品显式设置空 categories 列表 → 与未配置等效，回退到默认分类"""
+    def test_product_empty_categories_returns_empty_list(self, tmp_path: Path) -> None:
+        """产品显式设置空 categories 列表"""
         with _client(tmp_path) as client:
             client.post("/api/products/prod_D/switch")
             client.put(
@@ -181,8 +176,7 @@ class TestProductConfigCategoriesAPI:
             )
             resp = client.get("/api/products/prod_D/config")
             assert resp.status_code == 200
-            # 空列表触发 fallback，与 get_categories() 行为一致
-            assert len(resp.json()["categories"]) == 10
+            assert resp.json()["categories"] == []
 
     def test_categories_without_id_field_preserved(self, tmp_path: Path) -> None:
         """categories 中的 id/name/description 字段完整保留"""
