@@ -201,7 +201,6 @@ class JobRecord(BaseModel):
     paused_at: str = ""
     cancellation_requested: bool = False
     review_status: ReviewStatus
-    active_attempt_id: str = ""
     active_versions: dict[str, str] = Field(default_factory=dict)
     last_error: str = ""
     execution: PhaseExecutionState = Field(default_factory=PhaseExecutionState)
@@ -226,12 +225,3 @@ class JobRecord(BaseModel):
     asset_collection_status: AssetCollectionStatus = "not_started"
     scene_folder_ids: list[str] = Field(default_factory=list)
     transition_duration_ms: int = 500
-
-
-class WorkerLease(BaseModel):
-    worker_id: str
-    lease_id: str
-    attempt_id: str
-    task_id: str
-    current_phase: Phase
-    lease_expires_at: str = ""

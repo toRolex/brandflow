@@ -408,8 +408,6 @@ if !errorlevel! neq 0 (
     exit /b 1
 )
 
-sc.exe stop brandflow-worker >nul 2>&1
-sc.exe config brandflow-worker start= disabled >nul 2>&1
 echo   服务已启动。
 
 :: ============================================
