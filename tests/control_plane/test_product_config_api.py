@@ -169,7 +169,9 @@ class TestProductConfigCategoriesAPI:
             assert "产地溯源" in names
             assert "成品展示" in names
 
-    def test_product_empty_categories_falls_back_to_defaults(self, tmp_path: Path) -> None:
+    def test_product_empty_categories_falls_back_to_defaults(
+        self, tmp_path: Path
+    ) -> None:
         """产品显式设置空 categories 列表 → 与未配置等效，回退到默认分类"""
         with _client(tmp_path) as client:
             client.post("/api/products/prod_D/switch")
