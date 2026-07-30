@@ -261,9 +261,30 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
         @app.get("/{full_path:path}")
         async def serve_spa(request: Request, full_path: str):
+            from fastapi import HTTPException
+
+            if full_path.startswith("workers/"):
+                raise HTTPException(status_code=404, detail="Not Found")
             file_path = frontend_dist / full_path
             if file_path.exists() and file_path.is_file():
                 return FileResponse(file_path)
             return FileResponse(frontend_dist / "index.html")
+
+    @app.api_route(
+        "/workers/{full_path:path}",
+        methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        include_in_schema=False,
+    )
+    async def workers_404(full_path: str) -> None:
+        """Stub 404 for retired /workers/* endpoints.
+
+        Without this catch-all, requests fall through to either the frontend
+        SPA handler (returns 200 HTML) or to Starlette's default
+        Method-Not-AlLOWED response. The 404 contract is what
+        ``test_workers_404.py`` locks; HTML fallbacks defeat the contract.
+        """
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Not Found")
 
     return app
