@@ -1,6 +1,6 @@
 # Brandflow 短视频自动化系统 3.0
 
-AI 驱动的短视频自动化生产系统。生产流程由 Control Plane 的自动推进执行，工作人员通过 Web 前端完成全流程操作，无需命令行。`runtime_worker` 保留为已废弃的兼容代码，不是生产部署的一部分。
+AI 驱动的短视频自动化生产系统。生产流程由 Control Plane 的 AutoTickScheduler 自动推进执行，工作人员通过 Web 前端完成全流程操作，无需命令行。
 
 ## 快速启动
 
@@ -166,7 +166,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 - macOS: `~/Library/Application Support/brandflow/logs/`
 
 前端 `/logs` 页面列出日期、文件大小和条目数，并可下载原始 `.jsonl` 文件。
-运行日志不采集已废弃 `runtime_worker` 进程的异常；正常生产流程不启动该进程。
+运行日志正常采集生产控制面产生的所有异常。
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
@@ -217,7 +217,6 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   │   │   ├── assets/       # Asset 子路由（query / index / reclassify / thumbnails / status / ...）
 │   │   │   ├── api_projects.py
 │   │   │   ├── reviews.py
-│   │   │   ├── workers.py
 │   │   │   ├── knowledge.py
 │   │   │   ├── products.py
 │   │   │   ├── config.py
@@ -228,7 +227,6 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │   │   │   ├── category_suggestion.py
 │   │   │   └── version_check.py
 │   │   └── services/         # 调度器、排期存储
-│   └── runtime_worker/      # 已废弃的拉模式 worker 兼容代码
 │
 ├── frontend/                 # React 前端（新）
 │   └── src/
@@ -240,7 +238,7 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 │       └── context/          # 全局状态上下文
 │
 ├── packages/
-│   ├── domain_core/          # 领域模型 + 状态机 + worker 协议
+│   ├── domain_core/          # 领域模型 + 状态机
 │   ├── file_store/           # 文件系统轻持久化（FileStoreRepository + WorkspaceLayout seam）
 │   ├── deploy_health/        # 部署体检：CLI + /api/health?deploy_check=true（Issue #76）
 │   ├── knowledge_store/      # 知识库：文档、items、LLM 提取（Issue #28）
@@ -266,8 +264,8 @@ Import 模式媒体 phase 失败时：retryable 错误自动重试至耗尽 atte
 **路由与编排说明：**
 
 - `api_jobs.py` 与 `api_assets.py` 不再包含具体 handler，仅作为 `APIRouter` 聚合层按顺序 `include_router` 子路由；注意子路由的注册顺序（更具体的 `/jobs/{job_id}/...` 路径优先于动态路径 `/jobs/{job_id}`），以避免路径遮蔽。
-- `PhaseOrchestrator` 维护 `_handlers` 策略表，将 phase 派发到 `packages/pipeline_services/phases/` 下对应的 handler。生产流程由控制面的 ``AutoTickScheduler`` 驱动，以有界并发（默认 2）周期性扫描并推进 Job，支持 round-robin 公平调度以及优雅关闭（drain 所有运行中 task）。已废弃的 `runtime_worker` 仍保留同一编排逻辑，仅用于兼容旧代码。
-- 所有 project-tree 路径（`workspace/projects/<id>/control/jobs`、`runtime/jobs/<job_id>/`、`audio/`、`source_assets/`、`indexed_clips/` 等）通过 `packages/file_store/layout.py` 的 `WorkspaceLayout` seam 统一解析（PRD #355）；`PhaseContext` 与 `runtime_worker/loop.py` 各持一个 `WorkspaceLayout`，phase handler 与 worker 不再手动拼接 `root_dir / "workspace" / ...`。`FileStoreRepository` 暴露 `layout` 属性供其它模块派生路径，`shared_assets` 与 `music_library` 等全局库仍保留裸路径拼接。
+- `PhaseOrchestrator` 维护 `_handlers` 策略表，将 phase 派发到 `packages/pipeline_services/phases/` 下对应的 handler。生产流程由控制面的 `AutoTickScheduler` 驱动，以有界并发（默认 2）周期性扫描并推进 Job，支持 round-robin 公平调度以及优雅关闭（drain 所有运行中 task）。
+- 所有 project-tree 路径（`workspace/projects/<id>/control/jobs`、`runtime/jobs/<job_id>/`、`audio/`、`source_assets/`、`indexed_clips/` 等）通过 `packages/file_store/layout.py` 的 `WorkspaceLayout` seam 统一解析（PRD #355）；`PhaseContext` 持有一个 `WorkspaceLayout`，phase handler 不再手动拼接 `root_dir / "workspace" / ...`。`FileStoreRepository` 暴露 `layout` 属性供其它模块派生路径，`shared_assets` 与 `music_library` 等全局库仍保留裸路径拼接。
 - `WorkspaceLayout` 的 deletion/seam 守卫（`tests/smoke/test_workspace_layout_seam.py`）通过 AST 静态扫描生产代码，确保 `workspace/projects/...` 这类项目树路径片段不会出现在 `layout.py` 之外的任何生产模块中；`shared_assets` / `music_library` 等全局路径不参与此守卫。
 
 ## 可用命令
