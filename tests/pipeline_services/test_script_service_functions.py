@@ -93,7 +93,9 @@ class TestGenerateScript:
         config_resolver._reader.get_llm_config.assert_called_once_with(
             product_id="测试"
         )
-        config_resolver._secrets.get_api_key.assert_called_once_with("deepseek")
+        config_resolver._secrets.get_api_key.assert_called_once_with(
+            "deepseek", section="llm"
+        )
 
 
 @patch("packages.pipeline_services.script_service.generator.ScriptGenerator._call_llm")
@@ -131,4 +133,6 @@ class TestGenerateCoverTitle:
         config_resolver._reader.get_llm_config.assert_called_once_with(
             product_id="测试"
         )
-        config_resolver._secrets.get_api_key.assert_called_once_with("deepseek")
+        config_resolver._secrets.get_api_key.assert_called_once_with(
+            "deepseek", section="llm"
+        )

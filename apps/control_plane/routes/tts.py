@@ -199,6 +199,13 @@ async def save_tts_config(
         inferred_provider = tts_provider_for_model(str(current.model or ""))
         if inferred_provider:
             current.provider = inferred_provider
+    # Retired model alias migration: same rewrite that runs at config-load time
+    # in config_reader._migrate_legacy_tts_section.  Without it, the strict
+    # voice validation below would 422 legacy clients.
+    if current.model == "mimo-v2-tts":
+        current.provider = "qwen"
+        current.model = "qwen3-tts-flash"
+        current.voice = "Rocky"
     try:
         resolve_tts_provider_name(current)
     except ValueError as exc:
