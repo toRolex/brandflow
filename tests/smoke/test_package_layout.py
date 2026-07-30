@@ -10,7 +10,6 @@ if str(REPO_ROOT) not in sys.path:
 
 PACKAGE_NAMES = [
     "apps.control_plane",
-    "apps.runtime_worker",
     "packages.domain_core",
     "packages.file_store",
     "packages.runtime_adapters",
@@ -19,7 +18,6 @@ PACKAGE_NAMES = [
 
 ENTRY_MODULES = [
     "apps.control_plane.__main__",
-    "apps.runtime_worker.__main__",
 ]
 
 
