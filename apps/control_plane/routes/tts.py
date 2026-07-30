@@ -214,6 +214,18 @@ async def save_tts_config(
 
     config_manager.save_config(current, product_id)
 
+    # 即使 product_id 未传，也同步写入 active_product 的 product-level tts：
+    # 读取路径（ConfigReader.get_tts_config）按 active_product 优先合 product-level，
+    # 写入不同步会让测试与"看似全局实则失效"的客户端读到陈旧 tts。
+    if product_id is None:
+        active_id = req.app.state.config_reader.active_product_id
+        if active_id:
+            try:
+                config_manager._save_product_config(current, active_id)
+            except ValueError:
+                # active product 在文件中不存在 -> 静默跳过，保持 root 写入
+                pass
+
     # 始终 reload，确保后续读取是最新值
     req.app.state.config_reader.reload()
 
