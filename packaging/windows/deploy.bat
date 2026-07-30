@@ -196,7 +196,9 @@ if defined RUNNER_SRC (
         exit /b 1
     )
     :: 清干净 tracked 文件但保留运行时数据
-    git clean -fdx -e .env -e workspace -e logs -e .venv -e .venv-deploy -e .venv-backup-* -e .uv-python -e .node -e frontend\node_modules -e config\app_config.json -e config\providers.yaml >nul 2>&1
+    :: 注意：-e 收的是 gitignore pattern，分隔符必须用 /。写成 config\app_config.json
+    :: 时反斜杠会被当转义符，该 exclude 静默失效，整个未跟踪的 config/ 会被删掉。
+    git clean -fdx -e .env -e workspace -e logs -e .venv -e .venv-deploy -e .venv-backup-* -e .uv-python -e .node -e frontend/node_modules -e config/app_config.json -e config/providers.yaml >nul 2>&1
 ) else (
     echo   手动模式：从 origin 拉取 ...
     git fetch --tags origin

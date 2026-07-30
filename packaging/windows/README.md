@@ -25,9 +25,11 @@ packaging\windows\deploy.bat
 
 | 操作 | 脚本 |
 |------|------|
-| 启动 | `start.bat` — 自动打开浏览器 http://127.0.0.1:17890 |
-| 停止 | `stop.bat` |
-| 更新 | 前端界面点击更新按钮（自动调用 `update.bat`） |
+| 启动 | `start.bat` — 启动 NSSM 服务并自动打开浏览器 |
+| 停止 | `stop.bat` — 停止 NSSM 服务 |
+| 重启 | `restart.bat` — 停止后重新启动服务并做健康检查 |
+| 更新 | `update.bat` — 拉取最新代码、更新依赖、编译前端、重启服务（前端更新按钮调用） |
+| 完整部署 | `deploy.bat` — 首次部署或重装环境 |
 
 ## 项目目录（D:\brandflow）
 
@@ -46,6 +48,7 @@ packaging\windows\deploy.bat
 | `deploy.bat` | 一键部署：装工具 → 初始化 → 拉代码 → 编译 → 注册服务 → 健康检查。首次部署和重新部署用同一个命令。 |
 | `start.bat` | 启动 NSSM 服务并打开浏览器。 |
 | `stop.bat` | 停止 NSSM 服务。 |
+| `restart.bat` | 停止后重新启动 NSSM 服务，并执行健康检查。 |
 | `update.bat` | 由前端 API 调用，执行：拉代码 → 装依赖 → 编译前端 → 重启服务。进度写入 `progress.json`。 |
 
 ## 外部工具

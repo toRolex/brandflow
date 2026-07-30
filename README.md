@@ -111,6 +111,8 @@ TTS 配置统一由 `/tts-config` 页面管理（#386），通过 `PUT /api/tts/
 - `audio_tags` / `audio_tags_enabled` — 音频标签控制
 - `randomize_voice` / `random_voices` — 随机音色池
 
+旧模型别名 `mimo-v2-tts` 写入时自动迁移为 `qwen3-tts-flash` + `Rocky`，与配置加载时的迁移保持一致（v0.7.31）。
+
 配置优先级：
 1. product override
 2. `config/app_config.json`
