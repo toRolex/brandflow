@@ -1,4 +1,4 @@
-from packages.domain_core.models import JobRecord, WorkerLease
+from packages.domain_core.models import JobRecord
 from packages.domain_core.models import next_phase, rewind_from_phase
 
 
@@ -45,15 +45,17 @@ def test_job_record_serializes_review_state() -> None:
     assert record.model_dump()["phase"] == "queued"
 
 
-def test_worker_lease_tracks_current_phase() -> None:
-    lease = WorkerLease(
-        worker_id="worker-a",
-        lease_id="lease-1",
-        attempt_id="attempt-1",
-        task_id="task-1",
-        current_phase="tts_generating",
+def test_job_record_ignores_legacy_active_attempt_id() -> None:
+    record = JobRecord.model_validate(
+        {
+            "job_id": "j1",
+            "phase": "queued",
+            "review_status": "none",
+            "active_attempt_id": "",
+        }
     )
-    assert lease.current_phase == "tts_generating"
+
+    assert record.job_id == "j1"
 
 
 def test_job_record_accepts_migration_required_phase() -> None:
