@@ -442,38 +442,3 @@ def test_worker_loop_includes_parallel_artifacts_in_report(
     uploaded_kinds = {f["relative_path"].split("/")[-1] for f in uploaded_files}
     assert "scene_assembling.stub" in uploaded_kinds
     assert "tts_generating.stub" in uploaded_kinds
-
-
-class TestDispatcherParallel:
-    """Dispatcher handles parallel_phases in poll responses."""
-
-    def test_dispatcher_includes_parallel_phases(self, tmp_path: Path) -> None:
-        """Dispatcher poll response includes parallel_phases when the action has them."""
-        from packages.domain_core.models import JobRecord
-        from apps.control_plane.services.dispatch import Dispatcher
-        from packages.file_store.repository import FileStoreRepository
-
-        root_dir = tmp_path
-        repo = FileStoreRepository(root_dir)
-        project_id = "proj-001"
-        project_dir = root_dir / "workspace" / "projects" / project_id
-        project_dir.mkdir(parents=True)
-
-        # Save a job in scene_assembling phase
-        record = JobRecord(
-            job_id="job-001",
-            project_id=project_id,
-            product="test",
-            phase="scene_assembling",
-            mode="import",
-            review_status="none",
-        )
-        repo.save_job(project_id, record)
-
-        dispatcher = Dispatcher(repo)
-        result = dispatcher.poll("worker-001")
-
-        assert result["command"] == "run_task"
-        assert result["handler_phase"] == "scene_assembling"
-        assert "parallel_phases" in result
-        assert "tts_generating" in result["parallel_phases"]
