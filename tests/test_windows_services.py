@@ -189,6 +189,15 @@ def test_rollback_fails_instead_of_overwriting_runtime_state() -> None:
     assert re.search(r'"checkout",\s*"--no-overwrite-ignore",\s*"FETCH_HEAD"', content)
 
 
+def test_rollback_bootstraps_pinned_corepack_without_disabling_integrity() -> None:
+    content = (WINDOWS_DIR / "rollback-prod.ps1").read_text(encoding="utf-8")
+
+    assert '"corepack@0.31.0"' in content
+    assert '"pnpm@11.17.0"' in content
+    assert '"--ignore-scripts"' in content
+    assert "COREPACK_INTEGRITY_KEYS" not in content
+
+
 def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
     content = (WINDOWS_DIR / "deploy.bat").read_text(encoding="utf-8")
 
