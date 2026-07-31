@@ -1,18 +1,14 @@
-import type {
-	AssetFile,
-	CategoryItem,
-	SuggestCategory,
-} from "../types/asset";
+import type { AssetFile, CategoryItem, SuggestCategory } from "../types/asset";
 import type { IndexResult, IndexTaskState } from "../types/assetIndexing";
-import { fetchIndexedAssets } from "./indexedAssets";
 import { request, uploadFile } from "./core";
+import { fetchIndexedAssets } from "./indexedAssets";
 
 export const uploadAssetShared = (file: File) =>
 	uploadFile<AssetFile>("/api/assets/upload", file);
 
-export const listIndexedAssetsShared = (params?: Parameters<
-	typeof fetchIndexedAssets
->[1]) => fetchIndexedAssets("/api/assets/indexed", params);
+export const listIndexedAssetsShared = (
+	params?: Parameters<typeof fetchIndexedAssets>[1],
+) => fetchIndexedAssets("/api/assets/indexed", params);
 
 export const indexAssetsShared = () =>
 	request<IndexResult>("/api/assets/index", {

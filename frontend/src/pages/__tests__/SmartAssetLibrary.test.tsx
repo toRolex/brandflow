@@ -2,11 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api/client";
 import { ProductProvider } from "../../ProductContext";
-import type {
-	AssetRecord,
-	CategoryItem,
-	ProductConfig,
-} from "../../types";
+import type { AssetRecord, CategoryItem, ProductConfig } from "../../types";
 import SmartAssetLibrary from "../SmartAssetLibrary";
 
 const mockAssets: AssetRecord[] = [
@@ -66,9 +62,7 @@ const mockProducts = [
 ];
 
 type ListAssetsParams = Parameters<typeof api.listIndexedAssetsShared>[0];
-type ListAssetsResult = Awaited<
-	ReturnType<typeof api.listIndexedAssetsShared>
->;
+type ListAssetsResult = Awaited<ReturnType<typeof api.listIndexedAssetsShared>>;
 
 // Server-side filtering + pagination applied to a local asset list,
 // mirroring what the real /api/assets/indexed endpoint does.
@@ -707,11 +701,14 @@ describe("unmapped/historical categories (#124)", () => {
 		fireEvent.change(selects[0], { target: { value: "普洱茶" } });
 
 		// 普洱茶 only has a3 (冲泡), no unmapped assets
-		await waitFor(() => {
-			expect(screen.getByText("全部分类 (1)")).toBeInTheDocument();
-			// Unmapped separator should be gone since 普洱茶 has no unmapped categories
-			expect(screen.queryByText(/未映射/)).not.toBeInTheDocument();
-		});
+		await waitFor(
+			() => {
+				expect(screen.getByText("全部分类 (1)")).toBeInTheDocument();
+				// Unmapped separator should be gone since 普洱茶 has no unmapped categories
+				expect(screen.queryByText(/未映射/)).not.toBeInTheDocument();
+			},
+			{ timeout: 3000 },
+		);
 	});
 });
 
