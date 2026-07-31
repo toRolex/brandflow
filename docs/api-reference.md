@@ -86,18 +86,6 @@
 | `/api/reviews/{job_id}/regenerate-with-prompt` | POST | 带提示词重新生成 |
 | `/api/reviews/{job_id}/reject-clip` | POST | 拒绝单个片段 |
 
-## 已废弃的 Workers 协议
-
-以下端点只为历史部署兼容而保留。当前生产流程不启动 `runtime_worker`，也不应在新集成中调用这些端点。
-
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/workers/poll` | POST | Worker 轮询取任务 |
-| `/workers/tasks/{task_id}/input-bundle` | GET | 获取任务输入包 |
-| `/workers/tasks/{task_id}/heartbeat` | POST | 任务心跳 |
-| `/workers/tasks/{task_id}/artifacts` | POST | 上传产物 |
-| `/workers/tasks/{task_id}/report` | POST | 上报执行结果 |
-
 ## 运行日志
 
 > **Breaking change (#354):** `GET /api/logs/dates` 现返回分页信封。

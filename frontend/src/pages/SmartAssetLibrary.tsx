@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
+import { DEFAULT_PAGE_SIZE } from "../api/core";
 import AssetGrid from "../components/AssetGrid";
 import AssetPreviewPanel from "../components/AssetPreviewPanel";
 import AssetUploadZone from "../components/AssetUploadZone";
 import BatchActionBar from "../components/BatchActionBar";
 import ConfirmDialog from "../components/ConfirmDialog";
 import IndexProgress from "../components/IndexProgress";
+import Pagination from "../components/Pagination";
 import { useProducts } from "../ProductContext";
 import type {
 	AssetCategory,
@@ -42,18 +44,19 @@ const DEFAULT_FILTERS: AssetFilters = {
 	usageMax: 0,
 };
 
-interface Props {
-	projectId?: string;
-}
-
 const DEFAULT_STATS: AssetStats = {
 	total: 0,
 	available: 0,
 	disabled: 0,
 	source_videos: 0,
+	category_counts: {},
+	duration_min: 0,
+	duration_max: 0,
+	usage_min: 0,
+	usage_max: 0,
 };
 
-export default function SmartAssetLibrary({ projectId }: Props) {
+export default function SmartAssetLibrary() {
 	const [assets, setAssets] = useState<AssetRecord[]>([]);
 	const [stats, setStats] = useState<AssetStats>(DEFAULT_STATS);
 	const [filters, setFilters] = useState<AssetFilters>(DEFAULT_FILTERS);
@@ -75,6 +78,11 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 		batchCount?: number;
 	} | null>(null);
 
+	const [page, setPage] = useState(1);
+	const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+	const [total, setTotal] = useState(0);
+	const requestIdRef = useRef(0);
+
 	const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	const { products, activeProductName } = useProducts();
@@ -82,6 +90,14 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 	const [configuredCategories, setConfiguredCategories] = useState<
 		CategoryItem[]
 	>([]);
+
+	// Initialize filters from active product once, avoiding a second request.
+	useEffect(() => {
+		if (activeProductName && !filters.product) {
+			setFilters((f) => ({ ...f, product: activeProductName }));
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [activeProductName]);
 
 	const loadCategories = useCallback(async () => {
 		try {
@@ -97,126 +113,93 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 	}, [loadCategories]);
 
 	const loadAssets = useCallback(async () => {
-		let res: { assets: AssetRecord[]; stats: AssetStats };
-		const params: { product?: string } = {};
+		const requestId = ++requestIdRef.current;
+		const params: Parameters<typeof api.listIndexedAssetsShared>[0] = {
+			page,
+			pageSize,
+		};
 		if (filters.product) params.product = filters.product;
-		if (projectId) {
-			res = await api.listIndexedAssets(projectId, params);
-		} else {
-			res = await api.listIndexedAssetsShared(params);
+		if (filters.category) params.category = filters.category;
+		if (filters.status) params.status = filters.status;
+		if (filters.keyword.trim()) params.q = filters.keyword.trim();
+		if (filters.durationMin > 0) params.durationMin = filters.durationMin;
+		if (filters.durationMax > 0) params.durationMax = filters.durationMax;
+		if (filters.confidenceMin > 0) params.confidenceMin = filters.confidenceMin;
+		if (filters.confidenceMax < 1) params.confidenceMax = filters.confidenceMax;
+		if (filters.usageMin > 0) params.usageMin = filters.usageMin;
+		if (filters.usageMax > 0) params.usageMax = filters.usageMax;
+
+		try {
+			const res = await api.listIndexedAssetsShared(params);
+			if (requestId !== requestIdRef.current) return;
+			const lastPage = Math.max(1, Math.ceil(res.total / pageSize));
+			if (page > lastPage) {
+				setPage(lastPage);
+				return;
+			}
+			setAssets(res.assets);
+			setStats(res.stats);
+			setTotal(res.total);
+		} catch (error) {
+			if (requestId !== requestIdRef.current) return;
+			console.error("load assets failed", error);
 		}
-		setAssets(res.assets);
-		setStats(res.stats);
-	}, [projectId, filters.product]);
+	}, [filters, page, pageSize]);
 
 	useEffect(() => {
 		void loadAssets();
 	}, [loadAssets]);
 
-	// Initialize product filter from active product context on mount
+	// Reset pagination when filters change.
 	useEffect(() => {
-		if (activeProductName && !filters.product) {
-			setFilters((f) => ({ ...f, product: activeProductName }));
-		}
-	}, [activeProductName]);
-
-	const productFilteredAssets = useMemo(() => {
-		if (!filters.product) return assets;
-		return assets.filter((a) => a.product === filters.product);
-	}, [assets, filters.product]);
+		setPage(1);
+	}, [
+		filters.product,
+		filters.category,
+		filters.status,
+		filters.keyword,
+		filters.durationMin,
+		filters.durationMax,
+		filters.confidenceMin,
+		filters.confidenceMax,
+		filters.usageMin,
+		filters.usageMax,
+	]);
 
 	const categoryCounts = useMemo(() => {
 		const counts = new Map<string, number>();
-		// Initialize all configured categories with 0
 		for (const cat of configuredCategories) {
 			counts.set(cat.name, 0);
 		}
-		// Count from product-filtered assets
-		for (const asset of productFilteredAssets) {
-			counts.set(asset.category, (counts.get(asset.category) || 0) + 1);
+		for (const [cat, n] of Object.entries(stats.category_counts)) {
+			counts.set(cat, (counts.get(cat) || 0) + n);
 		}
 		return counts;
-	}, [productFilteredAssets, configuredCategories]);
+	}, [stats.category_counts, configuredCategories]);
 
 	const unmappedCategoryNames = useMemo(() => {
 		const configuredNames = new Set(configuredCategories.map((c) => c.name));
 		const found = new Set<string>();
-		for (const asset of productFilteredAssets) {
-			if (asset.category && !configuredNames.has(asset.category)) {
-				found.add(asset.category);
+		for (const cat of Object.keys(stats.category_counts)) {
+			if (cat && !configuredNames.has(cat)) {
+				found.add(cat);
 			}
 		}
 		return Array.from(found).sort();
-	}, [productFilteredAssets, configuredCategories]);
+	}, [stats.category_counts, configuredCategories]);
 
 	const durationRange = useMemo(() => {
-		if (assets.length === 0) return { min: 0, max: 0 };
-		const durations = assets.map((a) => a.duration_seconds);
+		if (stats.duration_max === 0) return { min: 0, max: 0 };
 		return {
-			min: Math.floor(Math.min(...durations) * 10) / 10,
-			max: Math.ceil(Math.max(...durations) * 10) / 10,
+			min: Math.floor(stats.duration_min * 10) / 10,
+			max: Math.ceil(stats.duration_max * 10) / 10,
 		};
-	}, [assets]);
+	}, [stats.duration_min, stats.duration_max]);
 
 	const usageRange = useMemo(() => {
-		if (assets.length === 0) return { min: 0, max: 0 };
-		const counts = assets.map((a) => a.usage_count);
-		return { min: Math.min(...counts), max: Math.max(...counts) };
-	}, [assets]);
-
-	const filteredAssets = useMemo(() => {
-		const keywordLower = filters.keyword.trim().toLowerCase();
-
-		return assets.filter((asset) => {
-			if (filters.product && asset.product !== filters.product) {
-				return false;
-			}
-
-			if (filters.category && asset.category !== filters.category) {
-				return false;
-			}
-
-			if (filters.status && asset.status !== filters.status) {
-				return false;
-			}
-
-			if (keywordLower) {
-				const haystack = [asset.file_path, asset.tags].join(" ").toLowerCase();
-				if (!haystack.includes(keywordLower)) {
-					return false;
-				}
-			}
-
-			if (
-				filters.durationMax > 0 &&
-				asset.duration_seconds > filters.durationMax
-			) {
-				return false;
-			}
-
-			if (asset.duration_seconds < filters.durationMin) {
-				return false;
-			}
-
-			if (asset.confidence < filters.confidenceMin) {
-				return false;
-			}
-
-			if (asset.confidence > filters.confidenceMax) {
-				return false;
-			}
-
-			if (filters.usageMax > 0 && asset.usage_count > filters.usageMax) {
-				return false;
-			}
-
-			if (asset.usage_count < filters.usageMin) {
-				return false;
-			}
-
-			return true;
-		});
-	}, [assets, filters]);
+		if (stats.usage_max === 0) return { min: 0, max: 0 };
+		return { min: stats.usage_min, max: stats.usage_max };
+	}, [stats.usage_min, stats.usage_max]);
 
 	const toggleSelect = useCallback((assetId: string) => {
 		setSelectedIds((prev) => {
@@ -287,38 +270,25 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 
 			try {
 				for (const file of files) {
-					if (projectId) {
-						await api.uploadAsset(projectId, file);
-					} else {
-						await api.uploadAssetShared(file);
-					}
+					await api.uploadAssetShared(file);
 				}
 
-				if (projectId) {
-					await api.indexAssets(projectId);
+				const fileNames = files.map((f) => f.name);
+				const result = await api.indexAssetsSharedAsync(fileNames);
+
+				if (!result.task_id) {
 					await loadAssets();
-					setIndexStatus("done");
-					setIndexStep("done");
-					setIndexProgress(100);
-					setTimeout(() => setIndexStatus("idle"), 2000);
-				} else {
-					const fileNames = files.map((f) => f.name);
-					const result = await api.indexAssetsSharedAsync(fileNames);
-
-					if (!result.task_id) {
-						await loadAssets();
-						setIndexStatus("idle");
-						return;
-					}
-
-					setIndexTaskId(result.task_id);
-
-					pollIntervalRef.current = setInterval(() => {
-						pollIndexProgress(result.task_id);
-					}, 1000);
-
-					await pollIndexProgress(result.task_id);
+					setIndexStatus("idle");
+					return;
 				}
+
+				setIndexTaskId(result.task_id);
+
+				pollIntervalRef.current = setInterval(() => {
+					pollIndexProgress(result.task_id);
+				}, 1000);
+
+				await pollIndexProgress(result.task_id);
 			} catch (error) {
 				setIndexStatus("idle");
 				if (pollIntervalRef.current) {
@@ -328,7 +298,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 				throw error;
 			}
 		},
-		[projectId, loadAssets, pollIndexProgress],
+		[loadAssets, pollIndexProgress],
 	);
 
 	useEffect(
@@ -348,22 +318,14 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 
 			setIsBatchUpdating(true);
 			try {
-				if (projectId) {
-					await api.updateAssetStatus(
-						projectId,
-						Array.from(selectedIds),
-						status,
-					);
-				} else {
-					await api.updateAssetStatusShared(Array.from(selectedIds), status);
-				}
+				await api.updateAssetStatusShared(Array.from(selectedIds), status);
 				setSelectedIds(new Set());
 				await loadAssets();
 			} finally {
 				setIsBatchUpdating(false);
 			}
 		},
-		[isBatchUpdating, loadAssets, selectedIds, projectId],
+		[isBatchUpdating, loadAssets, selectedIds],
 	);
 
 	const handleBatchEdit = useCallback(
@@ -392,13 +354,13 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 	const hasUnmappedInSelection = useMemo(() => {
 		const configuredNames = new Set(configuredCategoryNames);
 		for (const id of selectedIds) {
-			const asset = productFilteredAssets.find((a) => a.asset_id === id);
+			const asset = assets.find((a) => a.asset_id === id);
 			if (asset && !configuredNames.has(asset.category)) {
 				return true;
 			}
 		}
 		return false;
-	}, [selectedIds, productFilteredAssets, configuredCategoryNames]);
+	}, [selectedIds, assets, configuredCategoryNames]);
 
 	const handleBatchReclassify = useCallback(
 		async (category: string) => {
@@ -436,13 +398,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 			const assetId = confirmDelete.assetId;
 			setConfirmDelete(null);
 			try {
-				if (projectId) {
-					const asset = assets.find((a) => a.asset_id === assetId);
-					const name = asset?.file_path || assetId;
-					await api.deleteAsset(projectId, name);
-				} else {
-					await api.deleteAssetShared(assetId);
-				}
+				await api.deleteAssetShared(assetId);
 				await loadAssets();
 			} catch (error) {
 				console.error("delete asset failed", error);
@@ -451,15 +407,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 			setConfirmDelete(null);
 			setIsBatchUpdating(true);
 			try {
-				if (projectId) {
-					for (const id of selectedIds) {
-						const asset = assets.find((a) => a.asset_id === id);
-						const name = asset?.file_path || id;
-						await api.deleteAsset(projectId, name);
-					}
-				} else {
-					await api.batchDeleteAssets(Array.from(selectedIds));
-				}
+				await api.batchDeleteAssets(Array.from(selectedIds));
 				setSelectedIds(new Set());
 				await loadAssets();
 			} catch (error) {
@@ -468,7 +416,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 				setIsBatchUpdating(false);
 			}
 		}
-	}, [confirmDelete, projectId, assets, loadAssets, selectedIds]);
+	}, [confirmDelete, assets, loadAssets, selectedIds]);
 
 	const handlePreviewStatusToggle = useCallback(
 		async (asset: AssetRecord, nextStatus: AssetRecord["status"]) => {
@@ -478,11 +426,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 
 			setIsPreviewUpdating(true);
 			try {
-				if (projectId) {
-					await api.updateAssetStatus(projectId, [asset.asset_id], nextStatus);
-				} else {
-					await api.updateAssetStatusShared([asset.asset_id], nextStatus);
-				}
+				await api.updateAssetStatusShared([asset.asset_id], nextStatus);
 				await loadAssets();
 				setPreviewAsset((prev) => {
 					if (!prev || prev.asset_id !== asset.asset_id) {
@@ -494,7 +438,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 				setIsPreviewUpdating(false);
 			}
 		},
-		[isPreviewUpdating, loadAssets, projectId],
+		[isPreviewUpdating, loadAssets],
 	);
 
 	const handlePreviewFieldsUpdate = useCallback(
@@ -528,6 +472,17 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 		},
 		[isPreviewUpdating, loadAssets],
 	);
+
+	const handlePageChange = (p: number) => {
+		setSelectedIds(new Set());
+		setPage(p);
+	};
+
+	const handlePageSizeChange = (size: number) => {
+		setSelectedIds(new Set());
+		setPageSize(size);
+		setPage(1);
+	};
 
 	return (
 		<div className="space-y-4">
@@ -634,7 +589,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 							setFilters((f) => ({ ...f, category: e.target.value }))
 						}
 					>
-						<option value="">全部分类 ({productFilteredAssets.length})</option>
+						<option value="">全部分类 ({total})</option>
 						{configuredCategories.map((cat) => (
 							<option key={cat.id} value={cat.name}>
 								{cat.name} ({categoryCounts.get(cat.name) ?? 0})
@@ -748,12 +703,12 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 						清除筛选
 					</button>
 
-					{filteredAssets.length !== assets.length && (
+					{total > 0 && (
 						<span
 							className="text-xs ml-auto"
 							style={{ color: "var(--text-secondary)" }}
 						>
-							共 {filteredAssets.length} / {assets.length} 条素材
+							共 {total} 条素材
 						</span>
 					)}
 				</div>
@@ -894,9 +849,9 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 				/>
 			)}
 
-			{filteredAssets.length > 0 && (
+			{assets.length > 0 && (
 				<div className="flex items-center gap-3 text-sm">
-					{selectedIds.size === filteredAssets.length ? (
+					{selectedIds.size === assets.length ? (
 						<button
 							className="px-2 py-1 border rounded"
 							style={{
@@ -915,10 +870,10 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 								borderColor: "var(--border-default)",
 							}}
 							onClick={() =>
-								setSelectedIds(new Set(filteredAssets.map((a) => a.asset_id)))
+								setSelectedIds(new Set(assets.map((a) => a.asset_id)))
 							}
 						>
-							全选当前筛选结果
+							全选当前页
 						</button>
 					)}
 					{selectedIds.size > 0 && (
@@ -942,7 +897,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 			)}
 
 			<div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4 items-start">
-				{filteredAssets.length === 0 ? (
+				{assets.length === 0 ? (
 					<div
 						className="flex flex-col items-center justify-center py-20"
 						style={{ color: "var(--text-secondary)" }}
@@ -962,7 +917,7 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 					</div>
 				) : (
 					<AssetGrid
-						assets={filteredAssets}
+						assets={assets}
 						selectedIds={selectedIds}
 						onToggleSelect={toggleSelect}
 						onPreview={setPreviewAsset}
@@ -982,6 +937,15 @@ export default function SmartAssetLibrary({ projectId }: Props) {
 					/>
 				</div>
 			</div>
+
+			<Pagination
+				page={page}
+				pageSize={pageSize}
+				total={total}
+				onPageChange={handlePageChange}
+				onPageSizeChange={handlePageSizeChange}
+			/>
+
 			<ConfirmDialog
 				isOpen={confirmDelete !== null}
 				title="确认删除"

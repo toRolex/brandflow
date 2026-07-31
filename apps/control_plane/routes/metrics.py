@@ -15,11 +15,8 @@ router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
 
 def _store(request: Request) -> MetricsStore:
-    """Create a MetricsStore bound to the app's data directory."""
-    root_dir: Path = request.app.state.root_dir
-    db_path = root_dir / "data" / "metrics.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    return MetricsStore(db_path=str(db_path))
+    """Return the cached MetricsStore bound to the app's data directory."""
+    return request.app.state.metrics_store
 
 
 # ── Upload ────────────────────────────────────────────────────────────────────────

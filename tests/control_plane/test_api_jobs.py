@@ -1234,6 +1234,43 @@ def test_batch_create_rejects_upload_audio_source(tmp_path: Path) -> None:
         )
 
 
+def test_batch_create_rejects_missing_default_name(tmp_path: Path) -> None:
+    """未配置产品 default_name 时批量创建返回结构化错误。"""
+    with _make_client(tmp_path) as client:
+        resp = client.post(
+            "/api/projects/prj_001/jobs/batch",
+            json={
+                "platforms": ["douyin"],
+                "jobs": [{"name": "第一条", "manual_script": "文案"}],
+            },
+        )
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert detail["code"] == "PRODUCT_NAME_REQUIRED"
+
+
+def test_batch_create_strips_job_names_and_falls_back_on_whitespace(
+    tmp_path: Path,
+) -> None:
+    """批量创建时名称前后空格被去除，纯空格名称回退到生成名。"""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path, default_name="测试产品")
+        resp = client.post(
+            "/api/projects/prj_001/jobs/batch",
+            json={
+                "platforms": ["douyin"],
+                "jobs": [
+                    {"name": "  stripped  ", "manual_script": "文案一"},
+                    {"name": "   ", "manual_script": "文案二"},
+                ],
+            },
+        )
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert results[0]["name"] == "stripped"
+        assert results[1]["name"] == "测试产品 #002"
+
+
 def test_batch_create_rejects_non_tts_audio_source(tmp_path: Path) -> None:
     """批量创建拒绝 audio_source='library' 等非 TTS 来源。"""
     with _make_client(tmp_path) as client:

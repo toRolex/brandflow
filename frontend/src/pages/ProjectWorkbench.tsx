@@ -285,12 +285,18 @@ export default function ProjectWorkbench() {
 		jobs: BatchConfig[];
 	}) => {
 		if (!id) return;
+		if (!productName.trim()) {
+			setError("请先在产品配置中设置产品名称（default_name）后再批量创建");
+			return;
+		}
 		try {
 			const result = await api.batchCreateJobs(id, {
 				platforms: payload.platforms,
 				review_strategy: payload.reviewStrategy,
 				jobs: payload.jobs.map((c, i) => ({
-					name: c.name || `${productName} #${String(i + 1).padStart(3, "0")}`,
+					name:
+						(c.name || "").trim() ||
+						`${productName} #${String(i + 1).padStart(3, "0")}`,
 					mode: c.productionMode,
 					manual_script: c.manualScript,
 					skip_subtitle: c.skipSubtitle,

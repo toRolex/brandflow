@@ -193,12 +193,38 @@ def _validate_json_setting(
 
 
 def _resolve_product_config(reader) -> dict:
-    """Return the active product's merged config, or root-level config if none active."""
+    """Return the active product's merged config, or root-level config if none active.
+
+    Categories are resolved through the same three-tier priority chain used by
+    the asset library endpoints (product → asset_library → defaults), so the
+    response always reflects the categories actually in effect.  This prevents
+    the frontend from accidentally overwriting configured categories with an
+    empty list when saving unrelated product fields.
+    """
     reader.reload()
     active_id = reader.active_product_id
     if active_id:
-        return reader.get_product_config(product_id=active_id)
-    return reader.get_product_config()
+        config = reader.get_product_config(product_id=active_id)
+    else:
+        config = reader.get_product_config()
+
+    if not config.get("categories"):
+        from packages.pipeline_services.asset_library.category_config import (
+            get_categories,
+        )
+
+        resolved = get_categories(reader, product_id=active_id)
+        config["categories"] = [
+            {
+                "id": c.id,
+                "name": c.name,
+                "description": c.description,
+                "vision_prompt": c.vision_prompt,
+            }
+            for c in resolved
+        ]
+
+    return config
 
 
 @router.get("/api/config/product")

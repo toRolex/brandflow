@@ -91,10 +91,9 @@ class FileStoreRepository:
 
     def load_job(self, project_id: str, job_id: str) -> JobRecord:
         path = self._layout.job_record_path(project_id, job_id)
-        # ponytail: control plane auto_tick and worker advance_after_report
-        # both save_job concurrently; their ``os.replace`` on Windows can
-        # briefly surface a torn JSON to readers. Retry once after 50ms
-        # so the caller's 404 isn't permanent.
+        # ponytail: control plane auto_tick can save while readers load;
+        # ``os.replace`` on Windows can briefly surface a torn JSON to readers.
+        # Retry once after 50ms so the caller's 404 isn't permanent.
         last_exc: Exception | None = None
         for _ in range(2):
             try:
@@ -326,8 +325,8 @@ class FileStoreRepository:
         return True
 
     def _write_json(self, path: Path, payload: dict[str, Any]) -> None:
-        # ponytail: unique tmp per writer — two concurrent writers (control
-        # plane auto_tick + worker advance_after_report) used to share
+        # ponytail: unique tmp per writer — concurrent control-plane auto_tick
+        # writers used to share
         # ``<path>.tmp`` and clobber each other's bytes, leaving truncated
         # JSON that load_job surfaces as a 404.
         import os

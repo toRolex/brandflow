@@ -2,12 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api/client";
 import { ProductProvider } from "../../ProductContext";
-import type {
-	AssetRecord,
-	AssetStats,
-	CategoryItem,
-	ProductConfig,
-} from "../../types";
+import type { AssetRecord, CategoryItem, ProductConfig } from "../../types";
 import SmartAssetLibrary from "../SmartAssetLibrary";
 
 const mockAssets: AssetRecord[] = [
@@ -55,13 +50,6 @@ const mockAssets: AssetRecord[] = [
 	},
 ];
 
-const mockStats: AssetStats = {
-	total: 3,
-	available: 3,
-	disabled: 0,
-	source_videos: 2,
-};
-
 const mockCategories: CategoryItem[] = [
 	{ id: "brew", name: "冲泡", description: "Brewing process" },
 	{ id: "origin", name: "产地", description: "Origin" },
@@ -72,6 +60,97 @@ const mockProducts = [
 	{ id: "prod_longjing", name: "龙井茶" },
 	{ id: "prod_puer", name: "普洱茶" },
 ];
+
+type ListAssetsParams = Parameters<typeof api.listIndexedAssetsShared>[0];
+type ListAssetsResult = Awaited<ReturnType<typeof api.listIndexedAssetsShared>>;
+
+// Server-side filtering + pagination applied to a local asset list,
+// mirroring what the real /api/assets/indexed endpoint does.
+function mockListIndexedAssetsShared(
+	assets: AssetRecord[],
+	params: ListAssetsParams,
+): ListAssetsResult {
+	function applyFilters(source: AssetRecord[], ignoreCategory = false) {
+		let filtered = source;
+		if (params?.product) {
+			filtered = filtered.filter((a) => a.product === params.product);
+		}
+		if (params?.category && !ignoreCategory) {
+			filtered = filtered.filter((a) => a.category === params.category);
+		}
+		if (params?.status) {
+			filtered = filtered.filter((a) => a.status === params.status);
+		}
+		if (params?.q) {
+			const q = params.q.toLowerCase();
+			filtered = filtered.filter(
+				(a) =>
+					a.file_path.toLowerCase().includes(q) ||
+					a.tags.some((t) => t.toLowerCase().includes(q)),
+			);
+		}
+		if (params?.durationMin !== undefined && params.durationMin > 0) {
+			const min = params.durationMin;
+			filtered = filtered.filter((a) => a.duration_seconds >= min);
+		}
+		if (params?.durationMax !== undefined && params.durationMax > 0) {
+			const max = params.durationMax;
+			filtered = filtered.filter((a) => a.duration_seconds <= max);
+		}
+		if (params?.confidenceMin !== undefined && params.confidenceMin > 0) {
+			const min = params.confidenceMin;
+			filtered = filtered.filter((a) => a.confidence >= min);
+		}
+		if (params?.confidenceMax !== undefined && params.confidenceMax < 1) {
+			const max = params.confidenceMax;
+			filtered = filtered.filter((a) => a.confidence <= max);
+		}
+		if (params?.usageMin !== undefined && params.usageMin > 0) {
+			const min = params.usageMin;
+			filtered = filtered.filter((a) => a.usage_count >= min);
+		}
+		if (params?.usageMax !== undefined && params.usageMax > 0) {
+			const max = params.usageMax;
+			filtered = filtered.filter((a) => a.usage_count <= max);
+		}
+		return filtered;
+	}
+
+	const filtered = applyFilters(assets);
+	// Category counts ignore the category filter so the dropdown stays useful.
+	const filteredForCategories = applyFilters(assets, true);
+	const categoryCounts: Record<string, number> = {};
+	for (const a of filteredForCategories) {
+		categoryCounts[a.category] = (categoryCounts[a.category] ?? 0) + 1;
+	}
+
+	const total = filtered.length;
+	const page = params?.page ?? 1;
+	const pageSize = params?.pageSize ?? total;
+	const start = (page - 1) * pageSize;
+	const pageAssets = filtered.slice(start, start + pageSize);
+
+	const durations = filtered.map((a) => a.duration_seconds);
+	const usageCounts = filtered.map((a) => a.usage_count);
+
+	return {
+		assets: pageAssets,
+		stats: {
+			total,
+			available: filtered.filter((a) => a.status === "available").length,
+			disabled: filtered.filter((a) => a.status === "disabled").length,
+			source_videos: new Set(filtered.map((a) => a.source_video)).size,
+			category_counts: categoryCounts,
+			duration_min: durations.length > 0 ? Math.min(...durations) : 0,
+			duration_max: durations.length > 0 ? Math.max(...durations) : 0,
+			usage_min: usageCounts.length > 0 ? Math.min(...usageCounts) : 0,
+			usage_max: usageCounts.length > 0 ? Math.max(...usageCounts) : 0,
+		},
+		page,
+		pageSize,
+		total,
+	};
+}
 
 function mockConfig(
 	overrides: Partial<ProductConfig & { id?: string }> = {},
@@ -89,7 +168,6 @@ function mockConfig(
 vi.mock("../../api/client", () => ({
 	api: {
 		listIndexedAssetsShared: vi.fn(),
-		listIndexedAssets: vi.fn(),
 		listCategories: vi.fn(),
 		listProducts: vi.fn(),
 		getProductConfig: vi.fn(),
@@ -107,39 +185,43 @@ vi.mock("../../api/client", () => ({
 	},
 }));
 
+function setupCommonMocks(assets: AssetRecord[]) {
+	vi.mocked(api.listIndexedAssetsShared).mockImplementation((params) =>
+		Promise.resolve(mockListIndexedAssetsShared(assets, params)),
+	);
+	vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
+	vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
+	vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
+	vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
+	vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
+	vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
+	vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
+	vi.mocked(api.batchReclassifyAssets).mockResolvedValue({ updated: 1 });
+	vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
+	vi.mocked(api.batchDeleteAssets).mockResolvedValue({
+		deleted: 1,
+		files_deleted: 1,
+	});
+	vi.mocked(api.uploadAssetShared).mockResolvedValue({
+		name: "test.mp4",
+		size_bytes: 1000,
+		in_use: false,
+	});
+	vi.mocked(api.indexAssetsShared).mockResolvedValue({
+		indexed: 1,
+		skipped: 0,
+		total_clips: 1,
+	});
+	vi.mocked(api.indexAssetsSharedAsync).mockResolvedValue({
+		task_id: "test-task",
+		total_videos: 1,
+	});
+}
+
 describe("SmartAssetLibrary select-all features", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		vi.mocked(api.listIndexedAssetsShared).mockResolvedValue({
-			assets: mockAssets,
-			stats: mockStats,
-		});
-		vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
-		vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
-		vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
-		vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
-		vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
-		vi.mocked(api.batchDeleteAssets).mockResolvedValue({
-			deleted: 1,
-			files_deleted: 1,
-		});
-		vi.mocked(api.uploadAssetShared).mockResolvedValue({
-			name: "test.mp4",
-			size_bytes: 1000,
-			in_use: false,
-		});
-		vi.mocked(api.indexAssetsShared).mockResolvedValue({
-			indexed: 1,
-			skipped: 0,
-			total_clips: 1,
-		});
-		vi.mocked(api.indexAssetsSharedAsync).mockResolvedValue({
-			task_id: "test-task",
-			total_videos: 1,
-		});
+		setupCommonMocks(mockAssets);
 	});
 
 	function renderLibrary() {
@@ -150,7 +232,7 @@ describe("SmartAssetLibrary select-all features", () => {
 		);
 	}
 
-	it("Seam 1: 过滤区渲染'全选当前筛选结果'按钮", async () => {
+	it("Seam 1: 过滤区渲染'全选当前页'按钮", async () => {
 		renderLibrary();
 
 		await waitFor(() => {
@@ -159,19 +241,19 @@ describe("SmartAssetLibrary select-all features", () => {
 
 		// The select-all button should be in the document when filtered assets exist
 		await waitFor(() => {
-			expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+			expect(screen.getByText("全选当前页")).toBeInTheDocument();
 		});
 	});
 
-	it("Seam 2: 点击'全选当前筛选结果'选中所有可见素材", async () => {
+	it("Seam 2: 点击'全选当前页'选中所有可见素材", async () => {
 		renderLibrary();
 
-		// Wait for product filter to take effect (shows 2 of 3 assets)
+		// Wait for product filter to take effect (server returns 2 龙井茶 assets)
 		await waitFor(() => {
-			expect(screen.getByText("共 2 / 3 条素材")).toBeInTheDocument();
+			expect(screen.getByText("共 2 条素材")).toBeInTheDocument();
 		});
 
-		fireEvent.click(screen.getByText("全选当前筛选结果"));
+		fireEvent.click(screen.getByText("全选当前页"));
 
 		// BatchActionBar should appear with count 2
 		await waitFor(() => {
@@ -184,11 +266,11 @@ describe("SmartAssetLibrary select-all features", () => {
 
 		// Wait for product filter to take effect
 		await waitFor(() => {
-			expect(screen.getByText("共 2 / 3 条素材")).toBeInTheDocument();
+			expect(screen.getByText("共 2 条素材")).toBeInTheDocument();
 		});
 
 		// Click select-all
-		fireEvent.click(screen.getByText("全选当前筛选结果"));
+		fireEvent.click(screen.getByText("全选当前页"));
 
 		// Button text should change to "取消全选"
 		await waitFor(() => {
@@ -203,8 +285,8 @@ describe("SmartAssetLibrary select-all features", () => {
 			expect(screen.queryByText(/已选择/)).not.toBeInTheDocument();
 		});
 
-		// Button text should revert to "全选当前筛选结果"
-		expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+		// Button text should revert to "全选当前页"
+		expect(screen.getByText("全选当前页")).toBeInTheDocument();
 	});
 
 	it("Seam 4: 选中后出现'清空选择'按钮，点击清除所有选择", async () => {
@@ -215,7 +297,7 @@ describe("SmartAssetLibrary select-all features", () => {
 		});
 
 		// Click select-all
-		fireEvent.click(screen.getByText("全选当前筛选结果"));
+		fireEvent.click(screen.getByText("全选当前页"));
 
 		// "清空选择" button should appear
 		await waitFor(() => {
@@ -238,16 +320,23 @@ describe("SmartAssetLibrary select-all features", () => {
 			expect(api.listIndexedAssetsShared).toHaveBeenCalled();
 		});
 
-		// Filter by category "产地" — only a2 matches
+		// Filter by category "产地" — server-side, only a2 matches
 		const selects = screen.getAllByRole("combobox");
 		const catSelect = selects[1]; // category select is the second combobox
 		fireEvent.change(catSelect, { target: { value: "产地" } });
 
+		// Server should be queried with the category filter
+		await waitFor(() => {
+			expect(api.listIndexedAssetsShared).toHaveBeenCalledWith(
+				expect.objectContaining({ category: "产地" }),
+			);
+		});
+
 		// Click select-all
 		await waitFor(() => {
-			expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+			expect(screen.getByText("全选当前页")).toBeInTheDocument();
 		});
-		fireEvent.click(screen.getByText("全选当前筛选结果"));
+		fireEvent.click(screen.getByText("全选当前页"));
 
 		// Only 1 asset (a2, category: 产地) should be selected
 		await waitFor(() => {
@@ -286,9 +375,9 @@ describe("SmartAssetLibrary select-all features", () => {
 
 		// Select all assets
 		await waitFor(() => {
-			expect(screen.getByText("全选当前筛选结果")).toBeInTheDocument();
+			expect(screen.getByText("全选当前页")).toBeInTheDocument();
 		});
-		fireEvent.click(screen.getByText("全选当前筛选结果"));
+		fireEvent.click(screen.getByText("全选当前页"));
 
 		// BatchActionBar should appear with selection
 		await waitFor(() => {
@@ -347,36 +436,7 @@ describe("SmartAssetLibrary select-all features", () => {
 describe("SmartAssetLibrary product filtering", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		vi.mocked(api.listIndexedAssetsShared).mockResolvedValue({
-			assets: mockAssets,
-			stats: mockStats,
-		});
-		vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
-		vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
-		vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
-		vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
-		vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
-		vi.mocked(api.batchDeleteAssets).mockResolvedValue({
-			deleted: 1,
-			files_deleted: 1,
-		});
-		vi.mocked(api.uploadAssetShared).mockResolvedValue({
-			name: "test.mp4",
-			size_bytes: 1000,
-			in_use: false,
-		});
-		vi.mocked(api.indexAssetsShared).mockResolvedValue({
-			indexed: 1,
-			skipped: 0,
-			total_clips: 1,
-		});
-		vi.mocked(api.indexAssetsSharedAsync).mockResolvedValue({
-			task_id: "test-task",
-			total_videos: 1,
-		});
+		setupCommonMocks(mockAssets);
 	});
 
 	function renderLibrary() {
@@ -393,6 +453,13 @@ describe("SmartAssetLibrary product filtering", () => {
 		// Product context loads and SmartAssetLibrary fetches categories
 		await waitFor(() => {
 			expect(api.listCategories).toHaveBeenCalled();
+		});
+
+		// Server should be queried with the active product filter
+		await waitFor(() => {
+			expect(api.listIndexedAssetsShared).toHaveBeenCalledWith(
+				expect.objectContaining({ product: "龙井茶" }),
+			);
 		});
 
 		// Categories configured for the active product (龙井茶) should be displayed
@@ -418,7 +485,15 @@ describe("SmartAssetLibrary product filtering", () => {
 
 		// Should re-fetch assets with new product filter
 		await waitFor(() => {
-			expect(api.listIndexedAssetsShared).toHaveBeenCalled();
+			expect(api.listIndexedAssetsShared).toHaveBeenCalledWith(
+				expect.objectContaining({ product: "普洱茶" }),
+			);
+		});
+
+		// Only 普洱茶 assets should be displayed
+		await waitFor(() => {
+			expect(screen.getByText("a3.mp4")).toBeInTheDocument();
+			expect(screen.queryByText("a1.mp4")).not.toBeInTheDocument();
 		});
 	});
 
@@ -429,10 +504,10 @@ describe("SmartAssetLibrary product filtering", () => {
 			expect(api.listIndexedAssetsShared).toHaveBeenCalled();
 		});
 
-		// With product filter set to 龙井茶 (default active), filtered assets should
-		// only show 龙井茶 assets (a1, a2), not 普洱茶 (a3)
+		// With product filter set to 龙井茶 (default active), the server only
+		// returns 龙井茶 assets (a1, a2), not 普洱茶 (a3)
 		await waitFor(() => {
-			expect(screen.getByText("共 2 / 3 条素材")).toBeInTheDocument();
+			expect(screen.getByText("共 2 条素材")).toBeInTheDocument();
 		});
 	});
 
@@ -458,9 +533,15 @@ describe("SmartAssetLibrary product filtering", () => {
 			expect(screen.getByText("冲泡 (1)")).toBeInTheDocument();
 		});
 
-		// Switch to 普洱茶 - should only count 普洱茶 assets
+		// Switch to 普洱茶 - server returns only 普洱茶 assets
 		const selects = screen.getAllByRole("combobox");
 		fireEvent.change(selects[0], { target: { value: "普洱茶" } });
+
+		await waitFor(() => {
+			expect(api.listIndexedAssetsShared).toHaveBeenCalledWith(
+				expect.objectContaining({ product: "普洱茶" }),
+			);
+		});
 
 		await waitFor(() => {
 			// 普洱茶 has 1 asset in category "冲泡"
@@ -520,25 +601,25 @@ describe("SmartAssetLibrary product filtering", () => {
 	});
 });
 
-describe("unmapped/historical categories (#124)", () => {
-	const mockAssetsWithUnmapped: AssetRecord[] = [
-		...mockAssets,
-		{
-			asset_id: "a4",
-			file_path: "/workspace/shared_assets/indexed/longjing/legacy/a4.mp4",
-			category: "旧分类",
-			product: "龙井茶",
-			confidence: 0.7,
-			duration_seconds: 4.0,
-			status: "available",
-			usage_count: 0,
-			source_video: "v3.mp4",
-			tags: [],
-			created_at: "2025-01-01T00:00:00",
-			last_used_at: "2025-01-01T00:00:00",
-		},
-	];
+const mockAssetsWithUnmapped: AssetRecord[] = [
+	...mockAssets,
+	{
+		asset_id: "a4",
+		file_path: "/workspace/shared_assets/indexed/longjing/legacy/a4.mp4",
+		category: "旧分类",
+		product: "龙井茶",
+		confidence: 0.7,
+		duration_seconds: 4.0,
+		status: "available",
+		usage_count: 0,
+		source_video: "v3.mp4",
+		tags: [],
+		created_at: "2025-01-01T00:00:00",
+		last_used_at: "2025-01-01T00:00:00",
+	},
+];
 
+describe("unmapped/historical categories (#124)", () => {
 	function renderLibrary() {
 		return render(
 			<ProductProvider>
@@ -549,37 +630,7 @@ describe("unmapped/historical categories (#124)", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		vi.mocked(api.listIndexedAssetsShared).mockResolvedValue({
-			assets: mockAssetsWithUnmapped,
-			stats: { total: 4, available: 4, disabled: 0, source_videos: 3 },
-		});
-		vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
-		vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
-		vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
-		vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
-		vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
-		vi.mocked(api.batchDeleteAssets).mockResolvedValue({
-			deleted: 1,
-			files_deleted: 1,
-		});
-		vi.mocked(api.uploadAssetShared).mockResolvedValue({
-			name: "test.mp4",
-			size_bytes: 1000,
-			in_use: false,
-		});
-		vi.mocked(api.indexAssetsShared).mockResolvedValue({
-			indexed: 1,
-			skipped: 0,
-			total_clips: 1,
-		});
-		vi.mocked(api.batchReclassifyAssets).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.indexAssetsSharedAsync).mockResolvedValue({
-			task_id: "test-task",
-			total_videos: 1,
-		});
+		setupCommonMocks(mockAssetsWithUnmapped);
 	});
 
 	it("未映射分类显示在下拉列表中，与配置分类并列且可区分", async () => {
@@ -589,7 +640,7 @@ describe("unmapped/historical categories (#124)", () => {
 			expect(api.listCategories).toHaveBeenCalled();
 		});
 
-		// productFilteredAssets (龙井茶 active) = [a1, a2, a4]
+		// Server-filtered assets (龙井茶 active) = [a1, a2, a4]
 		// Configured categories: 冲泡 (1), 产地 (1), 品鉴 (0)
 		// Unmapped category: 旧分类 (1)
 		await waitFor(() => {
@@ -615,9 +666,16 @@ describe("unmapped/historical categories (#124)", () => {
 		const catSelect = selects[1];
 		fireEvent.change(catSelect, { target: { value: "旧分类" } });
 
+		// Server should be queried with the unmapped category filter
 		await waitFor(() => {
-			// Only a4 (旧分类) should be shown, total assets = 4
-			expect(screen.getByText("共 1 / 4 条素材")).toBeInTheDocument();
+			expect(api.listIndexedAssetsShared).toHaveBeenCalledWith(
+				expect.objectContaining({ category: "旧分类" }),
+			);
+		});
+
+		await waitFor(() => {
+			// Only a4 (旧分类) is returned by the server
+			expect(screen.getByText("共 1 条素材")).toBeInTheDocument();
 			expect(screen.getByText("a4.mp4")).toBeInTheDocument();
 		});
 	});
@@ -625,7 +683,7 @@ describe("unmapped/historical categories (#124)", () => {
 	it("全部分类计数与各分类计数来源一致", async () => {
 		renderLibrary();
 
-		// productFilteredAssets (龙井茶 active) = [a1, a2, a4] = 3 items
+		// Server-filtered assets (龙井茶 active) = [a1, a2, a4] = 3 items
 		await waitFor(() => {
 			expect(screen.getByText("全部分类 (3)")).toBeInTheDocument();
 		});
@@ -643,33 +701,18 @@ describe("unmapped/historical categories (#124)", () => {
 		fireEvent.change(selects[0], { target: { value: "普洱茶" } });
 
 		// 普洱茶 only has a3 (冲泡), no unmapped assets
-		await waitFor(() => {
-			expect(screen.getByText("全部分类 (1)")).toBeInTheDocument();
-			// Unmapped separator should be gone since 普洱茶 has no unmapped categories
-			expect(screen.queryByText(/未映射/)).not.toBeInTheDocument();
-		});
+		await waitFor(
+			() => {
+				expect(screen.getByText("全部分类 (1)")).toBeInTheDocument();
+				// Unmapped separator should be gone since 普洱茶 has no unmapped categories
+				expect(screen.queryByText(/未映射/)).not.toBeInTheDocument();
+			},
+			{ timeout: 3000 },
+		);
 	});
 });
 
 describe("batch reclassify unmapped assets (Issue #139)", () => {
-	const mockAssetsWithUnmapped: AssetRecord[] = [
-		...mockAssets,
-		{
-			asset_id: "a4",
-			file_path: "/workspace/shared_assets/indexed/longjing/legacy/a4.mp4",
-			category: "旧分类",
-			product: "龙井茶",
-			confidence: 0.7,
-			duration_seconds: 4.0,
-			status: "available",
-			usage_count: 0,
-			source_video: "v3.mp4",
-			tags: [],
-			created_at: "2025-01-01T00:00:00",
-			last_used_at: "2025-01-01T00:00:00",
-		},
-	];
-
 	function renderLibrary() {
 		return render(
 			<ProductProvider>
@@ -680,37 +723,7 @@ describe("batch reclassify unmapped assets (Issue #139)", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		vi.mocked(api.listIndexedAssetsShared).mockResolvedValue({
-			assets: mockAssetsWithUnmapped,
-			stats: { total: 4, available: 4, disabled: 0, source_videos: 3 },
-		});
-		vi.mocked(api.listCategories).mockResolvedValue(mockCategories);
-		vi.mocked(api.listProducts).mockResolvedValue(mockProducts);
-		vi.mocked(api.getProductConfig).mockResolvedValue(mockConfig());
-		vi.mocked(api.switchProduct).mockResolvedValue({ active_product_id: "" });
-		vi.mocked(api.updateAssetStatusShared).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.updateAssetFields).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.batchUpdateAssetFields).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.batchReclassifyAssets).mockResolvedValue({ updated: 1 });
-		vi.mocked(api.deleteAssetShared).mockResolvedValue({ status: "deleted" });
-		vi.mocked(api.batchDeleteAssets).mockResolvedValue({
-			deleted: 1,
-			files_deleted: 1,
-		});
-		vi.mocked(api.uploadAssetShared).mockResolvedValue({
-			name: "test.mp4",
-			size_bytes: 1000,
-			in_use: false,
-		});
-		vi.mocked(api.indexAssetsShared).mockResolvedValue({
-			indexed: 1,
-			skipped: 0,
-			total_clips: 1,
-		});
-		vi.mocked(api.indexAssetsSharedAsync).mockResolvedValue({
-			task_id: "test-task",
-			total_videos: 1,
-		});
+		setupCommonMocks(mockAssetsWithUnmapped);
 	});
 
 	it("选中未映射素材后可点击归类到并选择分类确认", async () => {
@@ -722,7 +735,7 @@ describe("batch reclassify unmapped assets (Issue #139)", () => {
 		});
 
 		// Select all filtered assets (龙井茶: a1, a2, a4)
-		fireEvent.click(screen.getByText("全选当前筛选结果"));
+		fireEvent.click(screen.getByText("全选当前页"));
 
 		// "归类到..." button should appear (has unmapped in selection)
 		await waitFor(() => {
@@ -732,10 +745,11 @@ describe("batch reclassify unmapped assets (Issue #139)", () => {
 		// Click "归类到..." to expand selector
 		fireEvent.click(screen.getByText("归类到..."));
 
-		// Select category "冲泡"
-		const selects = screen.getAllByRole("combobox");
-		const catSelect = selects[selects.length - 1];
-		fireEvent.change(catSelect, { target: { value: "冲泡" } });
+		// Select category "冲泡" in the reclassify dropdown (identified by its
+		// placeholder option — the Pagination page-size select is the last
+		// combobox in the DOM, so index-based lookup no longer works)
+		const reclassifySelect = screen.getByDisplayValue("请选择分类");
+		fireEvent.change(reclassifySelect, { target: { value: "冲泡" } });
 
 		// Confirm
 		fireEvent.click(screen.getByText("确认归类"));

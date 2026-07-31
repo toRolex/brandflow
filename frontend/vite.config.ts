@@ -10,7 +10,6 @@ export default defineConfig({
 		port: 5173,
 		proxy: {
 			"/api": "http://127.0.0.1:17890",
-			"/workers": "http://127.0.0.1:17890",
 			"/workspace": "http://127.0.0.1:17890",
 		},
 	},

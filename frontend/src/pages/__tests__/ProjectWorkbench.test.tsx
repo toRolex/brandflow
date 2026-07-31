@@ -24,6 +24,15 @@ vi.mock("../../api/client", () => ({
 	},
 }));
 
+vi.mock("../../ProductContext", () => ({
+	useProducts: () => ({
+		activeProductConfig: {
+			default_name: "批量产品",
+			default_brand: "测试品牌",
+		},
+	}),
+}));
+
 const mockNavigate = vi.fn();
 vi.mock("react-router-dom", async () => {
 	const actual = await vi.importActual("react-router-dom");

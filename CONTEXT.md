@@ -8,7 +8,7 @@
 一次独立的 toB 部署。每个客户拥有独立的系统实例（独立进程、独立素材库、独立配置），实例之间不共享数据。
 
 ### Job（任务）
-一次短视频生产任务的完整生命周期。每个 Job 从 `queued` 开始，经过状态机的各个 Phase，最终到达 `completed` 或异常终态。Job 是控制面调度和 Worker 执行的最小单元。
+一次短视频生产任务的完整生命周期。每个 Job 从 `queued` 开始，经过状态机的各个 Phase，最终到达 `completed` 或异常终态。Job 是控制面通过 AutoTickScheduler 调度的最小单元。
 
 ### Phase（阶段）
 Job 生命周期中的一个离散步骤。系统根据脚本来源模式使用不同的状态机；Import 模式与 Generate 模式共享同一套 phase vocabulary，但跳过的阶段不同。
@@ -51,7 +51,9 @@ AI 能力的供应商。LLM、TTS 与 Vision provider 各自拥有独立的模�
 
 ## 架构状态（v0.7.31）
 
-WorkspaceLayout seam 已接入 FileStoreRepository、控制面路由、Auto-Tick、pipeline phase handlers 与 Runtime Worker。所有 project-tree 路径通过布局的显式方法解析；`shared_assets`、`music_library` 等全局库保持各自的路径所有权。
+WorkspaceLayout seam 已接入 FileStoreRepository、控制面路由、Auto-Tick 与 pipeline phase handlers。所有 project-tree 路径通过布局的显式方法解析；`shared_assets`、`music_library` 等全局库保持各自的路径所有权。
+
+智能素材库的筛选与分页已从前端下推到服务端（`/api/assets/indexed` 接受 `page`/`page_size` 与全部筛选维度作为 query 参数），`MetricsStore` 在 app 工厂中单例化并复用 SQLite 连接。
 
 ### TTS 音频兼容
 
@@ -66,7 +68,6 @@ WorkspaceLayout seam 已接入 FileStoreRepository、控制面路由、Auto-Tick
 
 - `apps/control_plane/routes/jobs/` 按 Job 用例拆分为 CRUD、TTS、导出、内容、metadata 和 migration 子路由。
 - `packages/pipeline_services/phases/` 为每个 phase 提供独立 handler；`PhaseContext` 携带 `WorkspaceLayout`。
-- `apps/runtime_worker/loop.py` 独立持有 `WorkspaceLayout`，不依赖控制面 repository 状态。
 
 ## 常用命令
 

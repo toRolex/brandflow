@@ -21,7 +21,6 @@ from apps.control_plane.routes.category_suggestion import (
 )
 from apps.control_plane.routes.config import router as config_router
 from apps.control_plane.routes.reviews import router as reviews_router
-from apps.control_plane.routes.workers import router as workers_router
 from apps.control_plane.routes.tts import router as tts_router
 from apps.control_plane.routes.metrics import router as metrics_router
 from apps.control_plane.routes.logs import router as logs_router
@@ -36,7 +35,7 @@ from apps.control_plane.routes.version_check import (
     _is_stalled,
     _STARTUP_RESET_SECONDS,
 )
-from apps.control_plane.services.dispatch import Dispatcher
+from apps.control_plane.services.metrics import MetricsStore
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
@@ -190,7 +189,6 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     )
 
     app.state.root_dir = root_dir or Path.cwd()
-    app.state.dispatcher = Dispatcher(FileStoreRepository(app.state.root_dir))
     config_dir = app.state.root_dir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     reader = ConfigReader(config_dir=str(config_dir))
@@ -200,6 +198,11 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
         reader=reader, config_path=config_dir / "app_config.json"
     )
     app.state.secret_store = SecretStore()
+
+    # Metrics store is initialized once and reused across requests (#415).
+    metrics_db = app.state.root_dir / "data" / "metrics.db"
+    metrics_db.parent.mkdir(parents=True, exist_ok=True)
+    app.state.metrics_store = MetricsStore(db_path=str(metrics_db))
 
     # Background executor for export tasks (#180). EXPORT_SYNC=1 runs inline —
     # deterministic for tests and single-process dev.
@@ -227,7 +230,6 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
     app.include_router(api_jobs_router)
     app.include_router(category_suggestion_router)
     app.include_router(config_router)
-    app.include_router(workers_router)
     app.include_router(reviews_router)
     app.include_router(tts_router)
     app.include_router(metrics_router)
@@ -265,9 +267,30 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
 
         @app.get("/{full_path:path}")
         async def serve_spa(request: Request, full_path: str):
+            from fastapi import HTTPException
+
+            if full_path.startswith("workers/"):
+                raise HTTPException(status_code=404, detail="Not Found")
             file_path = frontend_dist / full_path
             if file_path.exists() and file_path.is_file():
                 return FileResponse(file_path)
             return FileResponse(frontend_dist / "index.html")
+
+    @app.api_route(
+        "/workers/{full_path:path}",
+        methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        include_in_schema=False,
+    )
+    async def workers_404(full_path: str) -> None:
+        """Stub 404 for retired /workers/* endpoints.
+
+        Without this catch-all, requests fall through to either the frontend
+        SPA handler (returns 200 HTML) or to Starlette's default
+        Method-Not-AlLOWED response. The 404 contract is what
+        ``test_workers_404.py`` locks; HTML fallbacks defeat the contract.
+        """
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Not Found")
 
     return app

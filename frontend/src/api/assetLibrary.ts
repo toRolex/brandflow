@@ -1,44 +1,14 @@
-import type {
-	AssetFile,
-	AssetRecord,
-	AssetStats,
-	CategoryItem,
-	SuggestCategory,
-} from "../types/asset";
+import type { AssetFile, CategoryItem, SuggestCategory } from "../types/asset";
 import type { IndexResult, IndexTaskState } from "../types/assetIndexing";
 import { request, uploadFile } from "./core";
+import { fetchIndexedAssets } from "./indexedAssets";
 
 export const uploadAssetShared = (file: File) =>
 	uploadFile<AssetFile>("/api/assets/upload", file);
 
-export const listIndexedAssetsShared = async (params?: {
-	category?: string;
-	q?: string;
-	product?: string;
-}) => {
-	const qs = new URLSearchParams();
-	if (params?.category) qs.set("category", params.category);
-	if (params?.q) qs.set("q", params.q);
-	if (params?.product) qs.set("product", params.product);
-	const res = await request<{
-		assets: AssetRecord[];
-		stats: {
-			total_clips: number;
-			available_clips: number;
-			disabled_clips: number;
-			source_videos: number;
-		};
-	}>(`/api/assets/indexed?${qs.toString()}`);
-	return {
-		assets: res.assets,
-		stats: {
-			total: res.stats.total_clips,
-			available: res.stats.available_clips,
-			disabled: res.stats.disabled_clips,
-			source_videos: res.stats.source_videos,
-		} as AssetStats,
-	};
-};
+export const listIndexedAssetsShared = (
+	params?: Parameters<typeof fetchIndexedAssets>[1],
+) => fetchIndexedAssets("/api/assets/indexed", params);
 
 export const indexAssetsShared = () =>
 	request<IndexResult>("/api/assets/index", {
