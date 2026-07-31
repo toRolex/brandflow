@@ -253,17 +253,49 @@ try {
     }
     $env:Path = "$nodeDir;$env:Path"
     $pnpm = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
-    if (-not $pnpm) {
-        throw "pnpm.cmd was not found on the production runner"
+    if ($pnpm) {
+        $pnpmFilePath = $pnpm.Source
+        $pnpmPrefixArgs = @()
+    }
+    else {
+        $npm = Join-Path $nodeDir "npm.cmd"
+        if (-not (Test-Path -LiteralPath $npm)) {
+            throw "Neither pnpm.cmd nor npm.cmd was found on the production runner"
+        }
+
+        # Node.js 20.18.3 bundles an older Corepack whose npm signing keys are
+        # stale. Install a pinned, compatible Corepack through npm so pnpm's
+        # signature remains verified instead of disabling integrity checks.
+        $runnerTemp = $env:RUNNER_TEMP
+        if (-not $runnerTemp) {
+            $runnerTemp = $env:TEMP
+        }
+        $corepackTools = Join-Path $runnerTemp "brandflow-corepack-0.31.0"
+        Invoke-Native -FilePath $npm -Arguments @(
+            "install",
+            "--global",
+            "--prefix",
+            $corepackTools,
+            "--no-audit",
+            "--no-fund",
+            "--ignore-scripts",
+            "corepack@0.31.0"
+        )
+        $corepack = Join-Path $corepackTools "corepack.cmd"
+        if (-not (Test-Path -LiteralPath $corepack)) {
+            throw "Pinned Corepack installation did not create: $corepack"
+        }
+        $pnpmFilePath = $corepack
+        $pnpmPrefixArgs = @("pnpm@11.17.0")
     }
 
     Push-Location (Join-Path $projectDir "frontend")
     try {
-        Invoke-Native -FilePath $pnpm.Source -Arguments @(
+        Invoke-Native -FilePath $pnpmFilePath -Arguments ($pnpmPrefixArgs + @(
             "install",
             "--no-frozen-lockfile"
-        )
-        Invoke-Native -FilePath $pnpm.Source -Arguments @("build")
+        ))
+        Invoke-Native -FilePath $pnpmFilePath -Arguments ($pnpmPrefixArgs + @("build"))
     }
     finally {
         Pop-Location
