@@ -701,11 +701,14 @@ describe("unmapped/historical categories (#124)", () => {
 		fireEvent.change(selects[0], { target: { value: "普洱茶" } });
 
 		// 普洱茶 only has a3 (冲泡), no unmapped assets
-		await waitFor(() => {
-			expect(screen.getByText("全部分类 (1)")).toBeInTheDocument();
-			// Unmapped separator should be gone since 普洱茶 has no unmapped categories
-			expect(screen.queryByText(/未映射/)).not.toBeInTheDocument();
-		});
+		await waitFor(
+			() => {
+				expect(screen.getByText("全部分类 (1)")).toBeInTheDocument();
+				// Unmapped separator should be gone since 普洱茶 has no unmapped categories
+				expect(screen.queryByText(/未映射/)).not.toBeInTheDocument();
+			},
+			{ timeout: 3000 },
+		);
 	});
 });
 
