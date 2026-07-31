@@ -3,9 +3,9 @@ import { ApiError, request } from "../core";
 
 describe("api core", () => {
 	it("sends X-Request-Id header and exposes it on ApiError", async () => {
-		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response('{"detail":"bad"}', { status: 400 }),
-		);
+		const fetchMock = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(new Response('{"detail":"bad"}', { status: 400 }));
 
 		try {
 			await request("/api/test");

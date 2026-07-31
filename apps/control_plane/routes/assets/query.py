@@ -69,7 +69,9 @@ def get_indexed_assets(
         if category:
             add_condition("category = ?", category)
         if q:
-            conditions.append("(file_path LIKE ? OR source_video LIKE ? OR tags LIKE ?)")
+            conditions.append(
+                "(file_path LIKE ? OR source_video LIKE ? OR tags LIKE ?)"
+            )
             like_q = f"%{q}%"
             params.extend([like_q, like_q, like_q])
         if product:
@@ -102,7 +104,8 @@ def get_indexed_assets(
         rows = conn.execute(base_query, query_params).fetchall()
 
         # Aggregate stats over the full filtered result set, not just the page.
-        stats_query = """
+        stats_query = (
+            """
             SELECT
                 COALESCE(SUM(status = 'available'), 0) AS available_clips,
                 COALESCE(SUM(status = 'disabled'), 0) AS disabled_clips,
@@ -112,13 +115,21 @@ def get_indexed_assets(
                 COALESCE(MIN(usage_count), 0) AS usage_min,
                 COALESCE(MAX(usage_count), 0) AS usage_max
             FROM assets
-        """ + where_clause
+        """
+            + where_clause
+        )
         stats_row = conn.execute(stats_query, params).fetchone()
 
         # Category counts ignore the category filter so the dropdown stays useful.
         facet_conditions = [c for c in conditions if not c.startswith("category =")]
-        facet_where = " WHERE " + " AND ".join(facet_conditions) if facet_conditions else ""
-        facet_query = "SELECT category, COUNT(*) AS n FROM assets" + facet_where + " GROUP BY category"
+        facet_where = (
+            " WHERE " + " AND ".join(facet_conditions) if facet_conditions else ""
+        )
+        facet_query = (
+            "SELECT category, COUNT(*) AS n FROM assets"
+            + facet_where
+            + " GROUP BY category"
+        )
         # Params for facet query exclude the category value if it was filtered.
         facet_params: list[object] = []
         if category:

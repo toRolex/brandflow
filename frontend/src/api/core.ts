@@ -48,7 +48,10 @@ function retryAfterSeconds(response: Response): number | null {
 }
 
 function newRequestId(): string {
-	if (typeof globalThis.crypto !== "undefined" && globalThis.crypto.randomUUID) {
+	if (
+		typeof globalThis.crypto !== "undefined" &&
+		globalThis.crypto.randomUUID
+	) {
 		return globalThis.crypto.randomUUID();
 	}
 	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;

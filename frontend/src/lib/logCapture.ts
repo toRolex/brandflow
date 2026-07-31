@@ -1,5 +1,5 @@
-import { type LogEntry, reportError } from "../api/logs";
 import { ApiError } from "../api/core";
+import { type LogEntry, reportError } from "../api/logs";
 
 const DEDUPE_WINDOW_MS = 10_000;
 const recentlyReported = new Map<string, number>();
@@ -54,7 +54,9 @@ export function initLogReporting(): void {
 	window.addEventListener("unhandledrejection", onUnhandledRejection);
 	console.error = (...args: unknown[]) => {
 		originalError?.(...args);
-		const apiError = args.find((arg): arg is ApiError => arg instanceof ApiError);
+		const apiError = args.find(
+			(arg): arg is ApiError => arg instanceof ApiError,
+		);
 		const entry = consoleEntry("error", args);
 		if (apiError) {
 			entry.status_code = apiError.status;
