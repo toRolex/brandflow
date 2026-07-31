@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
@@ -27,6 +29,65 @@ from packages.pipeline_services.script_sentence import (
 )
 from packages.pipeline_services.tts_provider import TTSRetriesExhaustedError
 from packages.provider_config.tts_config import TTSConfig
+
+
+# Process-wide concurrency cap on outbound TTS provider calls.
+#
+# Why this exists
+# ---------------
+# Each Job's ``synthesize_script`` opens an internal
+# ``ThreadPoolExecutor(max_workers=4)`` and fans out one ``_synthesize_sentence``
+# per script sentence.  With ``MAX_CONCURRENT_JOBS=2`` (the production default)
+# two simultaneous Jobs can already push up to 8 concurrent provider calls;
+# when 3+ Jobs are created in one batch and reach ``tts_generating`` in
+# lockstep, the per-Job 4-worker fanout multiplies into ~12 concurrent calls.
+# Qwen (and similar rate-limited TTS providers) respond with HTTP 429 on the
+# overshoot, which ``tts_provider`` maps to ``TTSQuotaExceededError``
+# (a ``TTSBlockedError`` subclass) — a *permanent*, non-retryable failure
+# that the Job's ``tts`` phase treats as terminal.
+#
+# N=2 stays under the provider cap by accident; N≥3 is where the cumulative
+# concurrency first trips the limit.  This is the user-reported
+# "N=2 works, N>2 fails" boundary.
+#
+# ``_PROVIDER_CALL_SEMAPHORE`` is a process-wide ``threading.Semaphore`` that
+# bounds the total in-flight provider calls to a safe cap regardless of how
+# many Jobs run in parallel.  Every ``_synthesize_sentence`` acquires it
+# before calling the provider, and releases it after.  ThreadPoolExecutor's
+# 4 workers per Job remain — they just queue up at the semaphore, which
+# is what we want.
+#
+# The cap defaults to 4 (well under Qwen's documented concurrency limit) and
+# can be overridden via the ``BRANDFLOW_TTS_PROVIDER_CONCURRENCY`` env var
+# without code changes.  ``provider_concurrency=1`` disables the cap (useful
+# for tests that mock the provider).
+_PROVIDER_CALL_SEMAPHORE: threading.Semaphore | None = None
+_PROVIDER_CALL_SEMAPHORE_LOCK = threading.Lock()
+
+
+def _get_provider_call_semaphore() -> threading.Semaphore | None:
+    """Return the process-wide TTS provider-call semaphore, or ``None`` to disable.
+
+    The cap is read once per process from the ``BRANDFLOW_TTS_PROVIDER_CONCURRENCY``
+    environment variable (default 4).  Setting it to ``0`` or ``1`` returns
+    ``None`` so callers bypass the semaphore entirely.
+    """
+    global _PROVIDER_CALL_SEMAPHORE
+    if _PROVIDER_CALL_SEMAPHORE is not None:
+        return _PROVIDER_CALL_SEMAPHORE
+    with _PROVIDER_CALL_SEMAPHORE_LOCK:
+        if _PROVIDER_CALL_SEMAPHORE is not None:
+            return _PROVIDER_CALL_SEMAPHORE
+        raw = os.environ.get("BRANDFLOW_TTS_PROVIDER_CONCURRENCY", "4")
+        try:
+            cap = int(raw)
+        except ValueError:
+            cap = 4
+        if cap <= 1:
+            _PROVIDER_CALL_SEMAPHORE = None
+        else:
+            _PROVIDER_CALL_SEMAPHORE = threading.Semaphore(cap)
+        return _PROVIDER_CALL_SEMAPHORE
 
 
 # Keys that affect the produced audio and therefore must be part of the cache
@@ -265,7 +326,23 @@ class SentenceTTSService:
         cache_path = self.cache_dir / f"{fp}.{suffix}"
 
         if not cache_path.exists():
-            audio_bytes = self._synthesize_with_retry(sentence, locked_config)
+            # Bound concurrent outbound TTS calls across all Jobs to
+            # ``BRANDFLOW_TTS_PROVIDER_CONCURRENCY`` (default 4).  Without
+            # this, ``MAX_CONCURRENT_JOBS=2`` × 4 worker fanout = 8 calls
+            # in flight, and a 3-Job batch (the user's "N>2 fails" case)
+            # escalates to ~12 in lockstep — tripping Qwen's rate limit
+            # and producing a terminal ``TTSQuotaExceededError``.  The
+            # semaphore is acquired *before* the cache write so the
+            # retry budget (which fires inside ``_synthesize_with_retry``)
+            # also waits for a slot rather than racing the provider cap.
+            sem = _get_provider_call_semaphore()
+            if sem is not None:
+                sem.acquire()
+            try:
+                audio_bytes = self._synthesize_with_retry(sentence, locked_config)
+            finally:
+                if sem is not None:
+                    sem.release()
             # Write to a temp file next to the cache entry, then atomically
             # rename into place.  Two Jobs hitting the same fingerprint
             # simultaneously will race on synthesis but never leave a
