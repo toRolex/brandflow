@@ -167,7 +167,13 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 Write-Host "Restoring production checkout to $ExpectedTag ..."
 Push-Location $projectDir
 try {
-    Invoke-Native -FilePath git -Arguments @("reset", "--hard", "HEAD")
+    $trackedStatus = & git status --porcelain --untracked-files=no
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to inspect tracked production checkout changes"
+    }
+    if (@($trackedStatus).Count -gt 0) {
+        throw "Production checkout has tracked local changes; refusing to overwrite runtime state"
+    }
     Invoke-Native -FilePath git -Arguments @(
         "fetch",
         "--no-tags",
@@ -175,22 +181,24 @@ try {
         $sourceDir,
         "HEAD"
     )
-    Invoke-Native -FilePath git -Arguments @("checkout", "FETCH_HEAD")
     Invoke-Native -FilePath git -Arguments @(
-        "clean",
-        "-fdx",
-        "-e", ".env",
-        "-e", "workspace",
-        "-e", "logs",
-        "-e", ".venv",
-        "-e", ".venv-rollback",
-        "-e", ".venv-pre-rollback-*",
-        "-e", ".uv-python",
-        "-e", ".node",
-        "-e", "frontend/node_modules",
-        "-e", "config/app_config.json",
-        "-e", "config/providers.yaml"
+        "checkout",
+        "--no-overwrite-ignore",
+        "FETCH_HEAD"
     )
+    $preservePatternsFile = Join-Path $PSScriptRoot "runtime-preserve-patterns.txt"
+    if (-not (Test-Path -LiteralPath $preservePatternsFile)) {
+        throw "Runtime preservation manifest is missing: $preservePatternsFile"
+    }
+    $cleanArguments = @("clean", "-fd")
+    foreach ($pattern in Get-Content -LiteralPath $preservePatternsFile) {
+        $trimmedPattern = $pattern.Trim()
+        if ($trimmedPattern) {
+            $cleanArguments += @("-e", $trimmedPattern)
+        }
+    }
+    # Never pass -x here: ignored paths contain production runtime state.
+    Invoke-Native -FilePath git -Arguments $cleanArguments
 
     $uvCandidates = @(
         (Join-Path $env:USERPROFILE ".local\bin\uv.exe"),

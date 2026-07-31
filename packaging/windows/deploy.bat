@@ -18,6 +18,7 @@ set "BACKUP_VENV=%PROJECT_DIR%\.venv-backup-%RANDOM%-%RANDOM%"
 set "NODE_VERSION=20.18.3"
 set "NODE_ROOT=%PROJECT_DIR%\.node"
 set "NODE_DIR=%NODE_ROOT%\node-v%NODE_VERSION%-win-x64"
+set "RUNTIME_PRESERVE_FILE=%~dp0runtime-preserve-patterns.txt"
 
 :: Debug headers — 方便排查 CD 失败
 echo === Brandflow deploy entrypoint ===
@@ -135,7 +136,10 @@ echo   工具就绪。
 :: ============================================
 echo [2/7] 初始化项目目录 ...
 if not exist "%PROJECT_DIR%\config" mkdir "%PROJECT_DIR%\config"
+if not exist "%PROJECT_DIR%\config\templates" mkdir "%PROJECT_DIR%\config\templates"
 if not exist "%PROJECT_DIR%\workspace" mkdir "%PROJECT_DIR%\workspace"
+if not exist "%PROJECT_DIR%\data" mkdir "%PROJECT_DIR%\data"
+if not exist "%PROJECT_DIR%\knowledge" mkdir "%PROJECT_DIR%\knowledge"
 
 if not exist "%PROJECT_DIR%\.env" (
     if exist "%PROJECT_DIR%\.env.example" (
@@ -173,8 +177,19 @@ if not exist "%PROJECT_DIR%\.git" (
 
 pushd "%PROJECT_DIR%"
 
-:: 任何本地改动都丢弃（CD 机器上不应该有未提交的开发改动）
-git reset --hard HEAD >nul 2>&1
+:: 生产目录如有 tracked 本地修改则安全停止；部署不得静默覆盖机器状态。
+git diff --quiet --ignore-submodules --
+if errorlevel 1 (
+    echo [错误] 生产目录存在 tracked 本地修改或无法检查工作区，拒绝覆盖 >> "!LOG_FILE!"
+    popd
+    exit /b 1
+)
+git diff --cached --quiet --ignore-submodules --
+if errorlevel 1 (
+    echo [错误] 生产目录存在 staged 本地修改或无法检查索引，拒绝覆盖 >> "!LOG_FILE!"
+    popd
+    exit /b 1
+)
 
 :: CD：从 runner workspace 同步代码到持久目录（保留 .venv/.env/workspace 等）
 if defined RUNNER_SRC (
@@ -188,17 +203,30 @@ if defined RUNNER_SRC (
         pause
         exit /b 1
     )
-    git checkout -f -B %BRANCH% FETCH_HEAD
+    :: 不使用 -f：如果新代码与机器运行时文件冲突，应安全失败而不是覆盖数据。
+    git checkout --no-overwrite-ignore -B %BRANCH% FETCH_HEAD
     if errorlevel 1 (
         echo [错误] git checkout FETCH_HEAD 失败 >> "!LOG_FILE!"
         popd
         pause
         exit /b 1
     )
-    :: 清干净 tracked 文件但保留运行时数据
-    :: 注意：-e 收的是 gitignore pattern，分隔符必须用 /。写成 config\app_config.json
-    :: 时反斜杠会被当转义符，该 exclude 静默失效，整个未跟踪的 config/ 会被删掉。
-    git clean -fdx -e .env -e workspace -e logs -e .venv -e .venv-deploy -e .venv-backup-* -e .uv-python -e .node -e frontend/node_modules -e config/app_config.json -e config/providers.yaml >nul 2>&1
+    :: 只清理未跟踪的代码残留；不要使用 -x，否则 .gitignore 中的运行时数据会被删除。
+    if not exist "!RUNTIME_PRESERVE_FILE!" (
+        echo [错误] 缺少运行时数据保护清单：!RUNTIME_PRESERVE_FILE! >> "!LOG_FILE!"
+        popd
+        exit /b 1
+    )
+    set "GIT_CLEAN_EXCLUDES="
+    for /F "usebackq delims=" %%E in ("!RUNTIME_PRESERVE_FILE!") do (
+        set "GIT_CLEAN_EXCLUDES=!GIT_CLEAN_EXCLUDES! -e %%E"
+    )
+    git clean -fd !GIT_CLEAN_EXCLUDES! >nul 2>&1
+    if errorlevel 1 (
+        echo [错误] 清理未跟踪代码残留失败 >> "!LOG_FILE!"
+        popd
+        exit /b 1
+    )
 ) else (
     echo   手动模式：从 origin 拉取 ...
     git fetch --tags origin
