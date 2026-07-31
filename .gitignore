@@ -3,6 +3,7 @@
 !.env.example
 config/app_config.json
 config/providers.yaml
+config/templates/
 .runtime_batch_direction.txt
 001见手青/
 AGENTS.md
@@ -50,6 +51,7 @@ frontend/package-lock.json
 skills-lock.json
 node_modules
 data/
+knowledge/
 .impeccable/
 DESIGN.md
 PRODUCT.md

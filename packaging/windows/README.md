@@ -12,7 +12,7 @@ packaging\windows\deploy.bat
 
 自动完成：
 1. 安装前置工具（uv、Node.js 20、pnpm、FFmpeg、NSSM）
-2. 初始化目录（config/、workspace/、logs/）
+2. 初始化目录（config/、workspace/、data/、knowledge/、logs/）
 3. 生成 .env 模板（需手动填入 API Key）
 4. 拉取最新代码
 5. 安装 Python 依赖 + 编译前端
@@ -37,9 +37,14 @@ packaging\windows\deploy.bat
 |-----------|------|
 | `config/` | 业务配置（app_config.json、providers.yaml） |
 | `workspace/` | 工作数据（项目、素材、输出视频、知识库） |
+| `data/` | 指标数据库及待导入的 CSV/XLSX 数据 |
+| `knowledge/` | 知识库文档与提取结果 |
 | `logs/` | 日志（deploy.log、control-plane.log） |
 | `.env` | API Key 和环境变量 |
 | `frontend/` | React 前端源码 |
+
+重新部署和回滚只清理未跟踪的代码残留，不清理 `.gitignore` 中的机器运行时状态。
+`config/`、`workspace/`、`data/`、`knowledge/`、`logs/` 等关键目录还会被部署脚本显式排除。
 
 ## 脚本说明
 
