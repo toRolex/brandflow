@@ -245,17 +245,26 @@ try {
     }
     $env:Path = "$nodeDir;$env:Path"
     $pnpm = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
-    if (-not $pnpm) {
-        throw "pnpm.cmd was not found on the production runner"
+    if ($pnpm) {
+        $pnpmFilePath = $pnpm.Source
+        $pnpmPrefixArgs = @()
+    }
+    else {
+        $corepack = Join-Path $nodeDir "corepack.cmd"
+        if (-not (Test-Path -LiteralPath $corepack)) {
+            throw "Neither pnpm.cmd nor the Node.js Corepack shim was found on the production runner"
+        }
+        $pnpmFilePath = $corepack
+        $pnpmPrefixArgs = @("pnpm@11.17.0")
     }
 
     Push-Location (Join-Path $projectDir "frontend")
     try {
-        Invoke-Native -FilePath $pnpm.Source -Arguments @(
+        Invoke-Native -FilePath $pnpmFilePath -Arguments ($pnpmPrefixArgs + @(
             "install",
             "--no-frozen-lockfile"
-        )
-        Invoke-Native -FilePath $pnpm.Source -Arguments @("build")
+        ))
+        Invoke-Native -FilePath $pnpmFilePath -Arguments ($pnpmPrefixArgs + @("build"))
     }
     finally {
         Pop-Location
