@@ -240,11 +240,7 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 					}}
 					onClick={handleSubmit}
 					disabled={batchCreating || productMissing}
-					title={
-						productMissing
-							? PRODUCT_DEFAULT_NAME_MISSING_HINT
-							: ""
-					}
+					title={productMissing ? PRODUCT_DEFAULT_NAME_MISSING_HINT : ""}
 				>
 					{batchCreating ? "创建中…" : `批量创建 ${batchCount} 个 Job`}
 				</button>

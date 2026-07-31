@@ -53,7 +53,8 @@ export function buildIndexedAssetQuery(params?: IndexedAssetParams): string {
 	if (params?.usageMax !== undefined && params.usageMax > 0)
 		qs.set("usage_max", String(params.usageMax));
 	if (params?.page !== undefined) qs.set("page", String(params.page));
-	if (params?.pageSize !== undefined) qs.set("page_size", String(params.pageSize));
+	if (params?.pageSize !== undefined)
+		qs.set("page_size", String(params.pageSize));
 	return qs.toString();
 }
 

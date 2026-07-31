@@ -116,7 +116,9 @@ def test_middleware_does_not_persist_a_2xx_response(
     assert list(tmp_path.glob("*.jsonl")) == []
 
 
-def test_middleware_includes_request_id_from_header(tmp_path: Path, monkeypatch) -> None:
+def test_middleware_includes_request_id_from_header(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setattr("packages.log_service.log_writer.get_log_dir", lambda: tmp_path)
     app = FastAPI()
     install_log_middleware(app)

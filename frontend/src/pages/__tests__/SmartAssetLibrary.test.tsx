@@ -2,11 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api/client";
 import { ProductProvider } from "../../ProductContext";
-import type {
-	AssetRecord,
-	CategoryItem,
-	ProductConfig,
-} from "../../types";
+import type { AssetRecord, CategoryItem, ProductConfig } from "../../types";
 import SmartAssetLibrary from "../SmartAssetLibrary";
 
 const mockAssets: AssetRecord[] = [
@@ -66,9 +62,7 @@ const mockProducts = [
 ];
 
 type ListAssetsParams = Parameters<typeof api.listIndexedAssetsShared>[0];
-type ListAssetsResult = Awaited<
-	ReturnType<typeof api.listIndexedAssetsShared>
->;
+type ListAssetsResult = Awaited<ReturnType<typeof api.listIndexedAssetsShared>>;
 
 // Server-side filtering + pagination applied to a local asset list,
 // mirroring what the real /api/assets/indexed endpoint does.
