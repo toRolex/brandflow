@@ -10,6 +10,9 @@ import {
 } from "../utils/batchScriptSplit";
 import BatchScriptUploader from "./BatchScriptUploader";
 
+const PRODUCT_DEFAULT_NAME_MISSING_HINT =
+	"未设置产品默认名称（default_name），请前往产品配置页面设置后再批量创建";
+
 interface BatchCreateFormProps {
 	productName: string;
 	platforms: string[];
@@ -42,6 +45,7 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 	const [batchLanguage, setBatchLanguage] = useState(false);
 	const [batchSkipSubtitle, setBatchSkipSubtitle] = useState(false);
 	const [batchCreating, setBatchCreating] = useState(false);
+	const productMissing = !productName.trim();
 
 	useEffect(() => {
 		setBatchConfigs((prev) => {
@@ -220,6 +224,14 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 				className="mt-4 pt-4 border-t flex justify-end"
 				style={{ borderColor: "var(--border-default)" }}
 			>
+				{productMissing && (
+					<div
+						className="text-sm self-center"
+						style={{ color: "var(--text-secondary)" }}
+					>
+						{PRODUCT_DEFAULT_NAME_MISSING_HINT}
+					</div>
+				)}
 				<button
 					className="px-8 py-3 rounded-lg text-[15px] font-semibold disabled:opacity-50"
 					style={{
@@ -227,7 +239,12 @@ export default function BatchCreateForm(props: BatchCreateFormProps) {
 						color: "var(--btn-primary-text)",
 					}}
 					onClick={handleSubmit}
-					disabled={batchCreating}
+					disabled={batchCreating || productMissing}
+					title={
+						productMissing
+							? PRODUCT_DEFAULT_NAME_MISSING_HINT
+							: ""
+					}
 				>
 					{batchCreating ? "创建中…" : `批量创建 ${batchCount} 个 Job`}
 				</button>

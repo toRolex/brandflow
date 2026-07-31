@@ -41,6 +41,11 @@ export interface AssetStats {
 	available: number;
 	disabled: number;
 	source_videos: number;
+	category_counts: Record<string, number>;
+	duration_min: number;
+	duration_max: number;
+	usage_min: number;
+	usage_max: number;
 }
 
 export interface CategoryItem {

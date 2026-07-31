@@ -38,6 +38,12 @@ async def _request_body(request: Request) -> Any | None:
 def _build_error_log_entry(
     request: Request, status_code: int, body: Any | None, exc: Exception | None = None
 ) -> dict[str, Any]:
+    extra: dict[str, Any] = {
+        "client_host": request.client.host if request.client else None,
+    }
+    request_id = request.headers.get("x-request-id")
+    if request_id:
+        extra["request_id"] = request_id
     result: dict[str, Any] = {
         "source": "backend",
         "level": (
@@ -48,7 +54,7 @@ def _build_error_log_entry(
         "method": request.method,
         "path": request.url.path,
         "request_params": dict(request.query_params),
-        "extra": {"client_host": request.client.host if request.client else None},
+        "extra": extra,
     }
     if body is not None:
         result["request_body"] = body

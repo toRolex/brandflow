@@ -311,7 +311,9 @@ uv run python tools/sync_version.py    # 同步版本到 package.json 和 CONTEX
 
 ## 智能素材库筛选
 
-智能素材库（全局 `/api/assets`）支持多维度前端筛选：分类、状态、时长（滑块）、关键词、置信度、使用次数。置信度和使用次数在"更多筛选"折叠面板中。支持结果计数、一键清除和空状态提示。
+智能素材库（全局 `/api/assets`）支持多维度**服务端**分页筛选：分类、状态、产品、时长、关键词、置信度、使用次数，均作为 query 参数下推到 `/api/assets/indexed`（`page` / `page_size`，`page_size` 上限 200）。置信度和使用次数在"更多筛选"折叠面板中。支持结果计数、一键清除和空状态提示。
+
+前后端通过 `X-Request-Id` 响应头关联错误日志，便于定位单次请求的完整链路。
 
 > 旧版 per-project 素材端点（`/{project_id}/assets/*`）已标记为 DEPRECATED，请迁移到全局 `/api/assets` 端点。
 

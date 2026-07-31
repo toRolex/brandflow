@@ -53,6 +53,8 @@ AI 能力的供应商。LLM、TTS 与 Vision provider 各自拥有独立的模�
 
 WorkspaceLayout seam 已接入 FileStoreRepository、控制面路由、Auto-Tick 与 pipeline phase handlers。所有 project-tree 路径通过布局的显式方法解析；`shared_assets`、`music_library` 等全局库保持各自的路径所有权。
 
+智能素材库的筛选与分页已从前端下推到服务端（`/api/assets/indexed` 接受 `page`/`page_size` 与全部筛选维度作为 query 参数），`MetricsStore` 在 app 工厂中单例化并复用 SQLite 连接。
+
 ### TTS 音频兼容
 
 - Qwen TTS 返回的 WAV 使用流式 RIFF/data 长度哨兵；预览校验会在临时副本中按实际载荷长度解析，不修改返回的原始音频。

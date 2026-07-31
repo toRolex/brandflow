@@ -82,7 +82,6 @@ export default function ProductSelector() {
 							onClick={async () => {
 								await switchProduct(p.id);
 								setOpen(false);
-								window.location.reload();
 							}}
 						>
 							{p.name || p.id}

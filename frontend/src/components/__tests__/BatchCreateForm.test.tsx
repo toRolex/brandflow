@@ -123,4 +123,11 @@ describe("BatchCreateForm", () => {
 		expect(payload.jobs[0].manualScript).toBe("第一段文案。");
 		expect(payload.jobs[1].manualScript).toBe("第二段文案。");
 	});
+
+	it("未设置产品名称时禁用提交按钮并显示提示", () => {
+		render(<BatchCreateForm {...defaultProps({ productName: "" })} />);
+		const submitBtn = screen.getByRole("button", { name: /批量创建 2 个 Job/ });
+		expect(submitBtn).toBeDisabled();
+		expect(screen.getByText(/未设置产品默认名称/)).toBeInTheDocument();
+	});
 });

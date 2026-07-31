@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from packages.domain_core.models import (
     AudioSource,
@@ -12,6 +12,16 @@ from packages.domain_core.models import (
     ProductionMode,
     ReviewStrategy,
 )
+
+
+def _strip_str(value: Any) -> Any:
+    return value.strip() if isinstance(value, str) else value
+
+
+def _reject_legacy_auto_approve(data: Any) -> Any:
+    if isinstance(data, dict) and "auto_approve" in data:
+        raise ValueError("auto_approve is no longer accepted; use review_strategy")
+    return data
 
 
 class CoverTitleStyleRequest(BaseModel):
@@ -45,12 +55,8 @@ class CreateJobRequest(BaseModel):
     tts_model: str = ""
     tts_voice: str = ""
 
-    @model_validator(mode="before")
-    @classmethod
-    def reject_legacy_auto_approve(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "auto_approve" in data:
-            raise ValueError("auto_approve is no longer accepted; use review_strategy")
-        return data
+    _strip_name = field_validator("name", mode="before")(_strip_str)
+    _reject_auto_approve = model_validator(mode="before")(_reject_legacy_auto_approve)
 
 
 class BatchJobItem(BaseModel):
@@ -66,6 +72,8 @@ class BatchJobItem(BaseModel):
     tts_model: str = ""
     tts_voice: str = ""
 
+    _strip_name = field_validator("name", mode="before")(_strip_str)
+
 
 class BatchCreateRequest(BaseModel):
     platforms: list[str]
@@ -73,16 +81,13 @@ class BatchCreateRequest(BaseModel):
     review_strategy: ReviewStrategy = "review_each"
     jobs: list[BatchJobItem]
 
-    @model_validator(mode="before")
-    @classmethod
-    def reject_legacy_auto_approve(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "auto_approve" in data:
-            raise ValueError("auto_approve is no longer accepted; use review_strategy")
-        return data
+    _reject_auto_approve = model_validator(mode="before")(_reject_legacy_auto_approve)
 
 
 class RenameJobRequest(BaseModel):
     name: str
+
+    _strip_name = field_validator("name", mode="before")(_strip_str)
 
 
 class UpdateScriptRequest(BaseModel):
