@@ -498,7 +498,10 @@ exit /b 1
 set "SERVICE_CONTROL_REQUEST=%PROJECT_DIR%\packaging\windows\grant-service-control.request"
 > "!SERVICE_CONTROL_REQUEST!" echo request
 "!STAGED_VENV!\Scripts\python.exe" -c "import urllib.request; request=urllib.request.Request('http://127.0.0.1:17890/api/update', method='POST'); response=urllib.request.urlopen(request, timeout=10); raise SystemExit(0 if response.status == 200 else 1)"
-if !errorlevel! neq 0 exit /b 1
+if !errorlevel! neq 0 (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%PROJECT_DIR%\packaging\windows\show-latest-asgi-error.ps1"
+    exit /b 1
+)
 for /L %%G in (1,1,15) do (
     if not exist "!SERVICE_CONTROL_REQUEST!" exit /b 0
     powershell -NoProfile -Command "Start-Sleep -Seconds 1"

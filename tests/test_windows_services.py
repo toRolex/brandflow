@@ -217,6 +217,7 @@ def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
     assert "call :grant_runner_service_control" in content
     assert "grant-service-control.request" in content
     assert "'http://127.0.0.1:17890/api/update'" in content
+    assert "show-latest-asgi-error.ps1" in content
     assert (
         "if !errorlevel! neq 0 ("
         in content[
@@ -224,6 +225,14 @@ def test_deploy_only_stops_control_plane_for_atomic_venv_cutover() -> None:
         ]
     )
     assert "call :rollback_venv" in content
+
+
+def test_service_control_failure_diagnostic_is_bounded_to_latest_asgi_error() -> None:
+    script = (WINDOWS_DIR / "show-latest-asgi-error.ps1").read_text(encoding="utf-8")
+
+    assert "Get-Content -LiteralPath $LogPath -Tail 400" in script
+    assert '"ERROR:.*ASGI application"' in script
+    assert "$errorStart + 99" in script
 
 
 def test_deploy_only_reconfigures_a_new_service() -> None:
