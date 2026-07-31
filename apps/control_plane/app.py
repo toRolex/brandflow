@@ -37,6 +37,7 @@ from apps.control_plane.routes.version_check import (
     _STARTUP_RESET_SECONDS,
 )
 from apps.control_plane.services.dispatch import Dispatcher
+from apps.control_plane.services.metrics import MetricsStore
 from packages.file_store.repository import FileStoreRepository
 from packages.pipeline_services.job_tick_service import (
     JobTickService,
@@ -200,6 +201,11 @@ def create_app(root_dir: Path | None = None) -> FastAPI:
         reader=reader, config_path=config_dir / "app_config.json"
     )
     app.state.secret_store = SecretStore()
+
+    # Metrics store is initialized once and reused across requests (#415).
+    metrics_db = app.state.root_dir / "data" / "metrics.db"
+    metrics_db.parent.mkdir(parents=True, exist_ok=True)
+    app.state.metrics_store = MetricsStore(db_path=str(metrics_db))
 
     # Background executor for export tasks (#180). EXPORT_SYNC=1 runs inline —
     # deterministic for tests and single-process dev.

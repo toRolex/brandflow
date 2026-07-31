@@ -66,7 +66,15 @@ describe("AssetPicker", () => {
 				available: 2,
 				disabled: 1,
 				source_videos: 1,
+				category_counts: {},
+				duration_min: 0,
+				duration_max: 0,
+				usage_min: 0,
+				usage_max: 0,
 			},
+			page: 1,
+			pageSize: mockAssets.length,
+			total: mockAssets.length,
 		});
 	});
 

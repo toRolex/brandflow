@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../../api/core";
 import { initLogReporting, stopLogReporting } from "../logCapture";
 
 describe("log capture", () => {
@@ -134,6 +135,58 @@ describe("log capture", () => {
 			message: "unhandled rejection",
 			stack_trace: expect.stringContaining("Error: unhandled rejection"),
 		});
+		fetchMock.mockRestore();
+	});
+
+	it("reports 4xx ApiError with request_id", async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(
+				new Response(JSON.stringify({ ok: true }), { status: 200 }),
+			);
+		const originalError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		initLogReporting();
+		console.error(
+			"batch create failed",
+			new ApiError(400, '{"detail":"bad"}', null, "req-4xx"),
+		);
+		await Promise.resolve();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [, request] = fetchMock.mock.calls[0];
+		expect(JSON.parse(String(request?.body))).toMatchObject({
+			level: "error",
+			status_code: 400,
+			extra: { request_id: "req-4xx" },
+		});
+		originalError.mockRestore();
+		fetchMock.mockRestore();
+	});
+
+	it("reports 5xx ApiError with request_id", async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(
+				new Response(JSON.stringify({ ok: true }), { status: 200 }),
+			);
+		const originalError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		initLogReporting();
+		console.error(
+			"server error",
+			new ApiError(500, '{"detail":"boom"}', null, "req-5xx"),
+		);
+		await Promise.resolve();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [, request] = fetchMock.mock.calls[0];
+		expect(JSON.parse(String(request?.body))).toMatchObject({
+			level: "error",
+			status_code: 500,
+			extra: { request_id: "req-5xx" },
+		});
+		originalError.mockRestore();
 		fetchMock.mockRestore();
 	});
 });

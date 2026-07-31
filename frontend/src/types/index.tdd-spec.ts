@@ -31,6 +31,11 @@ assertType<AssetStats>({
 	available: 10,
 	disabled: 2,
 	source_videos: 3,
+	category_counts: {},
+	duration_min: 0,
+	duration_max: 0,
+	usage_min: 0,
+	usage_max: 0,
 });
 
 assertType<IndexResult>({

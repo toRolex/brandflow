@@ -87,7 +87,11 @@ def create_job(request: Request, project_id: str, payload: CreateJobRequest):
     if not product.strip():
         raise HTTPException(
             status_code=400,
-            detail="product is required — set default_name in product config",
+            detail={
+                "code": "PRODUCT_NAME_REQUIRED",
+                "message": "产品名称为空 — 请先在产品配置中设置产品名称（default_name）",
+                "retryable": False,
+            },
         )
 
     tts_validation_error = _validate_tts_model_voice(
@@ -151,7 +155,11 @@ def create_jobs_batch(request: Request, project_id: str, payload: BatchCreateReq
     if not product.strip():
         raise HTTPException(
             status_code=400,
-            detail="product is required — set default_name in product config",
+            detail={
+                "code": "PRODUCT_NAME_REQUIRED",
+                "message": "产品名称为空 — 请先在产品配置中设置产品名称（default_name）",
+                "retryable": False,
+            },
         )
 
     # Phase 1: Validate all items before persisting any.
