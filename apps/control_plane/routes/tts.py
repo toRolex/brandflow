@@ -211,6 +211,7 @@ async def save_tts_config(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     validate_voice_for_model(current.model, current.voice)
+    _validate_voice_clone_sample(current.voice_clone_sample_path, current.model)
 
     config_manager.save_config(current, product_id)
 
@@ -230,6 +231,25 @@ async def save_tts_config(
     req.app.state.config_reader.reload()
 
     return {"success": True}
+
+
+def _validate_voice_clone_sample(sample_path: str | None, model: str | None) -> None:
+    """Reject a VoiceClone configuration that cannot run on this machine."""
+    if model != "mimo-v2.5-tts-voiceclone":
+        return
+    if not sample_path:
+        raise HTTPException(
+            status_code=422,
+            detail="Voice clone requires an uploaded sample audio file",
+        )
+    if not Path(sample_path).is_file():
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Voice clone sample not found on this machine: "
+                f"{sample_path}. Upload a new sample audio file."
+            ),
+        )
 
 
 def get_valid_preset_voice_ids(model: str) -> set[str] | None:

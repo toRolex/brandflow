@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from unittest.mock import Mock
@@ -29,6 +30,7 @@ def mock_repo(tmp_root: Path) -> Mock:
     repo.layout = Mock()
     repo.layout.job_runtime_dir.return_value = tmp_root / "runtime"
     repo.layout.job_record_path.return_value = tmp_root / "job.json"
+    repo.layout.job_log_path.return_value = tmp_root / "logs" / "job-001.jsonl"
     return repo
 
 
@@ -251,3 +253,64 @@ def test_tick_logs_structured_handler_exception_with_traceback(
     assert failure_logs
     assert "structured provider exploded" in failure_logs[0].message
     assert failure_logs[0].exc_info is not None
+
+
+def test_terminal_structured_failure_writes_daily_and_job_logs(
+    tmp_root: Path,
+    mock_repo: Mock,
+    mock_orchestrator: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Handled pipeline failures must still appear in the daily error log."""
+    from packages.domain_core.models import ExecutionFailure
+    from packages.domain_core.phase_execution import PhaseExecutionFailure
+
+    daily_entries: list[dict] = []
+    monkeypatch.setattr(
+        "packages.pipeline_services.job_tick_service.log_error",
+        daily_entries.append,
+    )
+    record = _make_record("tts_generating")
+    mock_repo.load_job.return_value = record
+    mock_orchestrator.execute_phase.return_value = PhaseExecutionFailure(
+        error=ExecutionFailure(
+            code="TTS_RETRIES_EXHAUSTED",
+            message="Voice clone sample not found",
+            retryable=False,
+        )
+    )
+    svc = JobTickService(orchestrator=mock_orchestrator, repo=mock_repo)
+
+    result = svc.tick(
+        "proj-001",
+        "job-001",
+        "demo",
+        root_dir=tmp_root,
+        project_dir=tmp_root / "project",
+    )
+
+    assert result.to_phase == "failed"
+    saved = mock_repo.save_job.call_args.args[1]
+    assert saved.last_error == "TTS_RETRIES_EXHAUSTED: Voice clone sample not found"
+    assert daily_entries == [
+        {
+            "source": "backend",
+            "level": "error",
+            "message": (
+                "tts_generating phase failed: TTS_RETRIES_EXHAUSTED: "
+                "Voice clone sample not found"
+            ),
+            "extra": {
+                "project_id": "proj-001",
+                "job_id": "job-001",
+                "phase": "tts_generating",
+                "attempt": 1,
+                "error_code": "TTS_RETRIES_EXHAUSTED",
+                "retryable": False,
+            },
+        }
+    ]
+    entry = json.loads(
+        (tmp_root / "logs" / "job-001.jsonl").read_text(encoding="utf-8")
+    )
+    assert entry["error"]["code"] == "TTS_RETRIES_EXHAUSTED"

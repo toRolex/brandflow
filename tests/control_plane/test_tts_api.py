@@ -155,13 +155,18 @@ class TestTTSConfigAPI:
         )
         assert response.status_code == 200
 
-    def test_save_config_voiceclone_model_any_voice_passes(self, client):
+    def test_save_config_voiceclone_rejects_missing_sample(self, client):
         """voiceclone 模型发送 Qwen 音色 → 正常，不触发校验"""
         response = client.put(
             "/api/tts/config",
-            json={"model": "mimo-v2.5-tts-voiceclone", "voice": "Rocky"},
+            json={
+                "model": "mimo-v2.5-tts-voiceclone",
+                "voice": "Rocky",
+                "voice_clone_sample_path": "C:/missing/sample.mp3",
+            },
         )
-        assert response.status_code == 200
+        assert response.status_code == 422
+        assert "Voice clone sample not found" in response.json()["detail"]
 
     def test_save_config_voicedesign_empty_voice_passes(self, client):
         """voicedesign 模型空 voice → 正常"""

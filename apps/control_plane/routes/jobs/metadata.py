@@ -14,7 +14,12 @@ def get_job_logs(request: Request, job_id: str):
     repo = FileStoreRepository(request.app.state.root_dir)
     project_id = _resolve_job_project(repo, job_id)
     record = repo.load_job(project_id, job_id)
-    return {"logs": record.last_error or "", "job_id": job_id}
+    log_path = repo.layout.job_log_path(project_id, job_id)
+    try:
+        logs = log_path.read_text(encoding="utf-8") if log_path.is_file() else ""
+    except OSError:
+        logs = ""
+    return {"logs": logs or record.last_error or "", "job_id": job_id}
 
 
 @router.get("/music")
