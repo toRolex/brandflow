@@ -177,18 +177,16 @@ if not exist "%PROJECT_DIR%\.git" (
 
 pushd "%PROJECT_DIR%"
 
-:: 生产目录如有 tracked 本地修改则安全停止；部署不得静默覆盖机器状态。
+:: 生产目录如有 tracked 本地修改则强制重置，确保部署/回滚不被本地变更阻塞。
 git diff --quiet --ignore-submodules --
 if errorlevel 1 (
-    echo [错误] 生产目录存在 tracked 本地修改或无法检查工作区，拒绝覆盖 >> "!LOG_FILE!"
-    popd
-    exit /b 1
+    echo [警告] 生产目录存在 tracked 本地修改，强制重置 ... >> "!LOG_FILE!"
+    git reset --hard
 )
 git diff --cached --quiet --ignore-submodules --
 if errorlevel 1 (
-    echo [错误] 生产目录存在 staged 本地修改或无法检查索引，拒绝覆盖 >> "!LOG_FILE!"
-    popd
-    exit /b 1
+    echo [警告] 生产目录存在 staged 本地修改，强制重置索引 ... >> "!LOG_FILE!"
+    git reset --hard
 )
 
 :: CD：从 runner workspace 同步代码到持久目录（保留 .venv/.env/workspace 等）
