@@ -264,29 +264,28 @@ try {
         }
 
         # Node.js 20.18.3 bundles an older Corepack whose npm signing keys are
-        # stale. Install a pinned, compatible Corepack through npm so pnpm's
-        # signature remains verified instead of disabling integrity checks.
+        # stale. corepack@0.31.0 also hits ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING
+        # when shimmed by Node 20, so install a standalone pnpm directly instead.
         $runnerTemp = $env:RUNNER_TEMP
         if (-not $runnerTemp) {
             $runnerTemp = $env:TEMP
         }
-        $corepackTools = Join-Path $runnerTemp "brandflow-corepack-0.31.0"
+        $pnpmTools = Join-Path $runnerTemp "brandflow-pnpm-11.17.0"
         Invoke-Native -FilePath $npm -Arguments @(
             "install",
             "--global",
             "--prefix",
-            $corepackTools,
+            $pnpmTools,
             "--no-audit",
             "--no-fund",
             "--ignore-scripts",
-            "corepack@0.31.0"
+            "pnpm@11.17.0"
         )
-        $corepack = Join-Path $corepackTools "corepack.cmd"
-        if (-not (Test-Path -LiteralPath $corepack)) {
-            throw "Pinned Corepack installation did not create: $corepack"
+        $pnpmFilePath = Join-Path $pnpmTools "pnpm.cmd"
+        if (-not (Test-Path -LiteralPath $pnpmFilePath)) {
+            throw "Standalone pnpm installation did not create: $pnpmFilePath"
         }
-        $pnpmFilePath = $corepack
-        $pnpmPrefixArgs = @("pnpm@11.17.0")
+        $pnpmPrefixArgs = @()
     }
 
     Push-Location (Join-Path $projectDir "frontend")
