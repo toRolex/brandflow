@@ -172,8 +172,7 @@ try {
         throw "Failed to inspect tracked production checkout changes"
     }
     if (@($trackedStatus).Count -gt 0) {
-        Write-Warning "Production checkout has tracked local changes; forcing rollback"
-        Invoke-Native -FilePath git -Arguments @("reset", "--hard")
+        throw "Production checkout has tracked local changes; refusing to overwrite runtime state"
     }
     Invoke-Native -FilePath git -Arguments @(
         "fetch",
@@ -265,28 +264,29 @@ try {
         }
 
         # Node.js 20.18.3 bundles an older Corepack whose npm signing keys are
-        # stale. corepack@0.31.0 also hits ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING
-        # when shimmed by Node 20, so install a standalone pnpm directly instead.
+        # stale. Install a pinned, compatible Corepack through npm so pnpm's
+        # signature remains verified instead of disabling integrity checks.
         $runnerTemp = $env:RUNNER_TEMP
         if (-not $runnerTemp) {
             $runnerTemp = $env:TEMP
         }
-        $pnpmTools = Join-Path $runnerTemp "brandflow-pnpm-11.17.0"
+        $corepackTools = Join-Path $runnerTemp "brandflow-corepack-0.31.0"
         Invoke-Native -FilePath $npm -Arguments @(
             "install",
             "--global",
             "--prefix",
-            $pnpmTools,
+            $corepackTools,
             "--no-audit",
             "--no-fund",
             "--ignore-scripts",
-            "pnpm@11.17.0"
+            "corepack@0.31.0"
         )
-        $pnpmFilePath = Join-Path $pnpmTools "pnpm.cmd"
-        if (-not (Test-Path -LiteralPath $pnpmFilePath)) {
-            throw "Standalone pnpm installation did not create: $pnpmFilePath"
+        $corepack = Join-Path $corepackTools "corepack.cmd"
+        if (-not (Test-Path -LiteralPath $corepack)) {
+            throw "Pinned Corepack installation did not create: $corepack"
         }
-        $pnpmPrefixArgs = @()
+        $pnpmFilePath = $corepack
+        $pnpmPrefixArgs = @("pnpm@11.17.0")
     }
 
     Push-Location (Join-Path $projectDir "frontend")
