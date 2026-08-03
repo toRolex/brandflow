@@ -11,6 +11,7 @@ contained in a single referentially transparent function.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING
@@ -27,6 +28,7 @@ from packages.domain_core.phase_execution import (
 )
 from packages.domain_core.models import PHASE_ORDER, REVIEW_PHASES, next_phase
 from packages.file_store.repository import FileStoreRepository
+from packages.log_service.log_writer import log_error
 from packages.pipeline_services.asset_snapshot import (
     AssetValidationError,
     validate_assets,
@@ -930,6 +932,12 @@ class JobTickService:
                         "failed_phase": (
                             handler_phase if execution.status == "failed" else None
                         ),
+                        "last_error": (
+                            f"{primary_result.error.code}: "
+                            f"{primary_result.error.message}"
+                            if execution.status == "failed"
+                            else ""
+                        ),
                     }
                 )
 
@@ -956,6 +964,13 @@ class JobTickService:
                         update={"phase": fail_action.new_phase or "failed"}
                     )
                     self._repo.save_job(project_id, record)
+                    self._write_terminal_failure_logs(
+                        project_id=project_id,
+                        job_id=job_id,
+                        phase=handler_phase,
+                        attempt=current_attempt,
+                        error=primary_result.error,
+                    )
                     return record, _build_tick_summary(initial_phase, fail_action)
 
                 # Retryable — save retrying state, backoff, then reload and retry.
@@ -1180,3 +1195,61 @@ class JobTickService:
 
         # 7. Build summary
         return record, _build_tick_summary(initial_phase, action)
+
+    def _write_terminal_failure_logs(
+        self,
+        *,
+        project_id: str,
+        job_id: str,
+        phase: str,
+        attempt: int,
+        error: ExecutionFailure,
+    ) -> None:
+        """Persist handled phase failures to the daily log and Job log.
+
+        Structured failures are normal pipeline control flow, so they do not
+        reach the scheduler's unhandled-exception logger by themselves.
+        """
+        entry = {
+            "source": "backend",
+            "level": "error",
+            "message": f"{phase} phase failed: {error.code}: {error.message}",
+            "extra": {
+                "project_id": project_id,
+                "job_id": job_id,
+                "phase": phase,
+                "attempt": attempt,
+                "error_code": error.code,
+                "retryable": error.retryable,
+            },
+        }
+        try:
+            log_error(entry)
+        except OSError:
+            _LOGGER.exception(
+                "could not persist daily failure log project=%s job=%s",
+                project_id,
+                job_id,
+            )
+
+        try:
+            log_path = self._repo.layout.job_log_path(project_id, job_id)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            job_entry = {
+                "timestamp": datetime.now(tz=UTC).astimezone().isoformat(),
+                "level": "error",
+                "event": "phase_failed",
+                "project_id": project_id,
+                "job_id": job_id,
+                "phase": phase,
+                "attempt": attempt,
+                "error": error.model_dump(),
+            }
+            with log_path.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(job_entry, ensure_ascii=False) + "\n")
+        except OSError:
+            _LOGGER.exception(
+                "could not persist job failure log project=%s job=%s",
+                project_id,
+                job_id,
+            )

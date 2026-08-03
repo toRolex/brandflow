@@ -119,6 +119,9 @@ def test_reports_and_logs_dirs() -> None:
     layout = WorkspaceLayout(Path("/root"))
     assert layout.reports_dir("p1") == Path("/root/workspace/projects/p1/reports")
     assert layout.logs_dir("p1") == Path("/root/workspace/projects/p1/logs")
+    assert layout.job_log_path("p1", "j1") == Path(
+        "/root/workspace/projects/p1/logs/j1.jsonl"
+    )
 
 
 # ---------------------------------------------------------------------------

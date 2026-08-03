@@ -171,6 +171,32 @@ def test_jobs_created_in_same_clock_tick_keep_request_order(
         assert [item["job_id"] for item in listed] == created
 
 
+def test_get_job_logs_reads_persisted_job_log_before_legacy_error(tmp_path: Path) -> None:
+    """Pipeline's View Logs action reads the durable per-job execution log."""
+    with _make_client(tmp_path) as client:
+        _setup_product_config(tmp_path)
+        created = client.post(
+            "/api/projects/prj_logs/jobs",
+            json={"platforms": ["douyin"], "name": "job with logs"},
+        ).json()
+        job_id = created["job_id"]
+        log_path = (
+            tmp_path
+            / "workspace"
+            / "projects"
+            / "prj_logs"
+            / "logs"
+            / f"{job_id}.jsonl"
+        )
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text('{"event":"phase_failed"}\n', encoding="utf-8")
+
+        response = client.get(f"/api/jobs/{job_id}/logs")
+
+    assert response.status_code == 200
+    assert response.json()["logs"] == '{"event":"phase_failed"}\n'
+
+
 # ── 手动脚本更新不影响模式路由 ────────────────────────────────────
 
 

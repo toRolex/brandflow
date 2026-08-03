@@ -207,6 +207,11 @@ class WorkspaceLayout:
     def logs_dir(self, project_id: str) -> Path:
         return self.project_dir(project_id) / "logs"
 
+    def job_log_path(self, project_id: str, job_id: str) -> Path:
+        """Return the append-only execution log for one Job."""
+        jid = _validate_identifier(job_id, field="job_id")
+        return self.logs_dir(project_id) / f"{jid}.jsonl"
+
     # ------------------------------------------------------------------
     # Runtime assets and audio
     # ------------------------------------------------------------------
