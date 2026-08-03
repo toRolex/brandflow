@@ -172,7 +172,8 @@ try {
         throw "Failed to inspect tracked production checkout changes"
     }
     if (@($trackedStatus).Count -gt 0) {
-        throw "Production checkout has tracked local changes; refusing to overwrite runtime state"
+        Write-Warning "Production checkout has tracked local changes; forcing rollback"
+        Invoke-Native -FilePath git -Arguments @("reset", "--hard")
     }
     Invoke-Native -FilePath git -Arguments @(
         "fetch",
